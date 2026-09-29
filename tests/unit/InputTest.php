@@ -13,9 +13,9 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Rohe Client-Werte (Input): jeder Parameter kann als Liste, Objekt, 1e999
- * oder kaputtes UTF-8 ankommen. Was nicht passt, gilt als nicht gesendet —
- * ohne PHP-Warnung (phpunit.xml: failOnWarning) und ohne TypeError.
+ * Raw client values (Input): any parameter can arrive as a list, an object, 1e999
+ * or broken UTF-8. Whatever does not fit counts as not sent —
+ * without a PHP warning (phpunit.xml: failOnWarning) and without a TypeError.
  */
 #[CoversClass(Input::class)]
 class InputTest extends TestCase {
@@ -44,7 +44,7 @@ class InputTest extends TestCase {
         $this->assertSame($erwartet, Input::str($roh, 'DEF'));
     }
 
-    // ── rawStr: wie str, nur NUL bleibt ────────────────────────────────────
+    // ── rawStr: like str, except that NUL stays ────────────────────────────
 
     #[DataProvider('texte')]
     public function testRawStrWieStrOhneNul(mixed $roh, string $erwartet): void {

@@ -1,51 +1,104 @@
 # Tests
 
-## Ausführen
+## Running them
 
 ```sh
-tests/run.sh                 # alle Unit-Tests
-tests/run.sh --filter Tally  # Teilmenge
+tests/run.sh                 # all unit tests
+tests/run.sh --filter Tally  # a subset (any arguments are passed on to PHPUnit)
 ```
 
-Das Skript holt sich beim ersten Lauf `tools/phpunit.phar` (nicht versioniert)
-und ruft PHPUnit **im Nextcloud-Container** auf — dem PHP-CLI auf dem Host
-fehlen die Erweiterungen `tokenizer` und `xmlwriter`.
+On its first run the script downloads `tools/phpunit.phar` (PHPUnit 11; kept
+out of version control) and runs PHPUnit **inside the Nextcloud container** —
+the PHP CLI on the host lacks the `tokenizer` and `xmlwriter` extensions.
+`CONTAINER` overrides the container name (default `nextcloud-nextcloud-1`),
+`APP_DIR` the app path inside the container (default `/var/www/html/apps/pulse`).
 
-## Was hier läuft
+## What runs here
 
-Reine Unit-Tests ohne Nextcloud-Bootstrap: `tests/bootstrap.php` lädt nur den
-Composer-Autoloader des Servers (für `OCP\…`, u. a. die Entity-Basisklasse) und
-einen PSR-4-Loader für `OCA\Pulse\…`. **Kein `lib/base.php`, keine Datenbank,
-keine Session** — die Tests können die Live-Instanz nicht anfassen und laufen in
-Millisekunden.
+Pure unit tests without the Nextcloud bootstrap: `tests/bootstrap.php` loads
+only the server's Composer autoloader (for `OCP\…`, including the Entity base
+class), a few selected namespaces from the server's `3rdparty/` directory
+(`Psr\Clock`, `Doctrine\DBAL`, `Symfony\Component\String`,
+`Symfony\Component\HttpFoundation` — needed to mock the time source and the
+database connection and to build CSV downloads), a PSR-4 loader for
+`OCA\Pulse\…` and one for shared test building blocks
+(`OCA\Pulse\Tests\Unit\…` → `tests/unit/`). **No `lib/base.php`, no database,
+no session** — the tests cannot touch the live instance and run in
+milliseconds. `phpunit.xml` sets `failOnWarning` and `failOnNotice`, so a PHP
+warning fails a test.
 
-| Datei | Deckt ab |
+`NEXTCLOUD_ROOT` overrides the server path if the app does not live under
+`<nextcloud>/apps/`.
+
+| File | Covers |
 | --- | --- |
-| `unit/QuizServiceTest.php` | Tempo-Punkte, Rangliste inkl. Gleichstand (1-2-2-4) und Zeit-Tie-Break |
-| `unit/TallyServiceTest.php` | Auszählung aller Fragetypen: choice, words, scale (single/spectrum/compass), multi, number, text, rank, match |
-| `unit/MatchGradingTest.php` | Zuordnung im Quiz: alles-oder-nichts, Zeilenreihenfolge egal, Tempo-Punkte |
-| `unit/CodeGeneratorTest.php` | Raumcode-Alphabet ohne I/O/0/1, Kollisions-Neuwurf, Token-Längen |
-| `unit/RoomServiceTextTest.php` | Raumtitel säubern/kürzen und Kopie-Suffix (private Methoden per Reflection) |
-| `unit/PollParamsTest.php` | Der Controller reicht jedes Frage-Feld durch, das der DeckService liest (vergessenes Feld = „fehlt", obwohl gefüllt) |
-| `unit/ImageRouteTest.php` | Bild-Routen tragen `#[NoCSRFRequired]` — ohne das antwortet ein `<img src>` mit 412 |
-| `unit/InputTest.php` | Rohe Client-Werte: Listen, 1e999, NAN, kaputtes UTF-8 und NUL werden zu „nicht gesendet“ statt PHP-Warnung; `rawStr` behält NUL (Freitext bewerten) |
-| `unit/ControllerInputTest.php` | Jeder Parameter jeder Controller-Aktion als Liste, kaputte `pulse_vt`-Cookies: kein 500, keine Warnung; Quelltext-Wächter gegen rohe Casts auf Request-Werte; `close {release}`: fehlt = alte Regel, Wahrheitswerte gehen durch, alles andere 400 ohne Schließen; die Freitextantwort beim Bewerten behält NUL wie die gespeicherte Stimme |
-| `unit/HostileInputTest.php` | DeckService, VoteService und Bild-Upload mit verschachtelten Listen und Unzahlen: 400 statt Warnung oder TypeError |
-| `unit/PollVoteRaceTest.php` | Zwei erste Umfrage-Stimmen desselben Tokens zugleich: die zweite Einfügung scheitert am UNIQUE-Index und wird zur Änderung (vorher 500); andere Datenbankfehler bleiben Fehler |
-| `unit/QuizCsvTest.php` | CSV des moderierten Raums mit Quizfragen: Freitext eine Zeile je Antwortgruppe (vorher 500), Schätzung mit ihrer Zahl, Freitext und Wörter aus dem Publikum werden keine Formel, Anführungszeichen nach RFC 4180 |
+| `unit/AddinManifestTest.php` | The instance generates the Office add-in manifest (a manifest has no variables); if that breaks, PowerPoint reports nothing useful and the box on the slide just stays empty |
+| `unit/CleanupRetentionTest.php` | Retention (`RoomService::cleanupStaleRooms`): a room stays as long as its latest sign of life is within the retention period — participant heartbeat and, for self-paced rooms, also opening, deadline, closing, release and owner visit; a homework with a deadline that is evaluated weeks later must not vanish with its results; moderated rooms keep exactly the old rule |
+| `unit/CodeGeneratorTest.php` | Room code alphabet without I/O/0/1, collisions are re-rolled, token lengths |
+| `unit/ControllerInputTest.php` | Every parameter of every controller action sent as a list, broken `pulse_vt` cookies: no 500, no warning; a source-code guard against raw casts on request values; `close {release}`: missing = old rule, booleans pass, anything else is 400 without closing; the free-text answer used for grading keeps NUL like the stored vote |
+| `unit/DeckSetCurrentTest.php` | Setting the cursor (`DeckService::setCurrent`): in a quiz every jump restarts the timer and opens the question; in a poll the FIRST jump records "was shown" so the public summary can leave out questions never shown |
+| `unit/DeckUpdatePollTest.php` | Editing a question (`DeckService::updatePoll`): new content clears the votes and a question that is not running counts as "never shown" again; `ended` stays, the running question stays (only an open quiz timer restarts), locked stays locked |
+| `unit/HostileInputTest.php` | `DeckService`, `VoteService::normalizeValue` and image upload with nested lists and objects, `true`, 1e300, INF, "1e999", twenty digits, broken UTF-8 and NUL: a storable result or `InvalidArgumentException` (400), never a warning, `TypeError` or a value `json_encode` chokes on |
+| `unit/ImageRouteTest.php` | Image routes carry `#[NoCSRFRequired]` — without it an `<img src>` gets a 412 |
+| `unit/InputTest.php` | Raw client values: lists, 1e999, NAN, broken UTF-8 and NUL become "not sent" instead of a PHP warning; `rawStr` keeps NUL (grading free text) |
+| `unit/LeaderboardSkipTest.php` | Leaderboard without one question (`VoteService::leaderboardFor`, `$skipPollIds`): the public summary leaves the running, still hidden question out of the scoring |
+| `unit/MatchGradingTest.php` | Matching in a quiz: all-or-nothing, row order does not matter, speed points |
+| `unit/PaceFinalRuleTest.php` | Self-paced: ONE rule for "final", "correctable", "finished" and the `/next` value, used by phone, projector, progress, leaderboard and CSV alike |
+| `unit/PaceGuardTest.php` | Self-paced guards on the existing moderator routes and switching the pace; with `pace='live'` every guard is a no-op |
+| `unit/PaceNextTest.php` | Self-paced `/next`, the only place a clock starts: double taps, parallel tabs and aborts (stale `after`, compare-and-set, healing), the preview lock on timed questions, removal while `/next` is in flight |
+| `unit/PaceOrderTest.php` | Self-paced frozen order: the single source for "question k of n" and the next question; `seq` is always the index in the FULL order |
+| `unit/PacePlayerAdminTest.php` | Self-paced "Lock joining" and removing a person: removal clears everything tied to their token (player, votes in the frozen deck, progress, presence), also after release |
+| `unit/PaceStateTestCase.php` | Not a test: shared base class for the self-paced read-view tests (a room with three questions in memory, mapper doubles, an adjustable clock; `PaceService`, `VoteService`, `TallyService` and `DeckService` are real) |
+| `unit/PaceStillJoinedTest.php` | Self-paced races with removing and deleting: `assertStillJoined` leaves no vote or row without a player; `locked()` turns a deleted room into `RoomGoneException` (404) |
+| `unit/PaceWindowStateTest.php` | Self-paced window state derived from the timestamps; at the second `closes_at` the window is CLOSED, everywhere alike (state, votes, versions) |
+| `unit/PaceWindowTest.php` | Self-paced window actions (open, close, extend, release): each runs under the room lock, checks the freshly locked row, and rolls back on every exception |
+| `unit/PollParamsTest.php` | The controller passes on every question field the `DeckService` reads (a forgotten field = "missing" although filled in) |
+| `unit/PollVoteRaceTest.php` | Two simultaneous first poll votes from the same token: the second insert fails on the UNIQUE index and becomes an update (previously 500); other database errors stay errors |
+| `unit/ProtocolConstantTest.php` | Server (`Application::PROTOCOL`) and bundle (`src/util/protocol.js`) state the same protocol number |
+| `unit/PublicRevealGateTest.php` | Reveal gates of the public views: leaderboard without the hidden running question, "quiz over" only while nothing new is running, old poll rooms (from before the start timestamp) count as "shown" through their votes, hidden quiz questions keep their real status (`revealed` alone says whether it is revealed), shuffle order independent of the solution |
+| `unit/PublicSpoilerTest.php` | What the public views (projector, phone) must NOT give away in advance: the stored order of ranking/matching options (it IS the solution) comes out shuffled by a keyed hash; the summary `/s/{code}/summary` omits questions never shown |
+| `unit/QuizCsvTest.php` | CSV of the moderated room with quiz questions: free text one row per answer group (previously 500), a number guess with its number, free text and words from the audience never become a formula, quotes per RFC 4180 |
+| `unit/QuizFixWindowTest.php` | Correction window for quiz answers, enforced on the server: exactly one correction, only inside the window, with a new timestamp so the time gained is lost |
+| `unit/QuizJoinNameTest.php` | Quiz join: names are unique per room, case-insensitive; your own token may keep or rewrite its name |
+| `unit/QuizServiceTest.php` | Speed points, leaderboard including ties (1-2-2-4) and time tie-break |
+| `unit/RoomGoneTest.php` | Room deleted while the request was in flight (`PaceService::locked`): 404 "Room not found.", publicly like an unknown code (throttled), not 500 |
+| `unit/RoomPaceLifecycleTest.php` | Reset, copy, delete and demo rooms know about self-paced mode (progress, window, frozen order, join lock); a moderated room gets no additional write to the room row |
+| `unit/RoomServiceTextTest.php` | Cleaning/shortening room titles and the copy suffix (private methods via reflection) |
+| `unit/SelfCsvTest.php` | Self-paced CSV views (`PaceStateService::exportCsv`): the time column stays empty without a timer; "finished" follows `PaceService::isFinished` |
+| `unit/SelfGradeTest.php` | Self-paced grading of free text (`VoteService::gradeTextAnswer`): speed points use the limit that applied when answering, `pending` is dropped, moderated payloads come out byte-identical, grading runs as one transaction under the room lock |
+| `unit/SelfImageVisibleTest.php` | Self-paced image visibility (`StateService::imageVisible` → `PaceStateService`): only whether THIS person has reached the question counts; moderated stays "running or revealed" |
+| `unit/SelfJoinTest.php` | Self-paced join (`VoteService::quizJoin` → `selfJoin`): under the room lock, no join after closing, "Lock joining" and the cap of 300 only affect new tokens, the name is fixed after starting, a new token starts empty |
+| `unit/SelfLeaderboardTest.php` | Self-paced leaderboard (`VoteService::selfLeaderboard`): only final votes count, no time tie-break without a timer, the whole deck in ONE query, a 2-s cache keyed by the window fields |
+| `unit/SelfProgressTest.php` | Progress for the moderator (`PaceStateService::progress`): with feedback at the end, points, hits and leaderboard stay hidden until release (unless explicitly requested); `skipped` and `online` |
+| `unit/SelfStateGateTest.php` | Self-paced public state (`PaceStateService::publicState`): no solution, distribution, unshuffled ranking order or verdict before it is due; the personal clock, no limit without a timer, and `progress.after` |
+| `unit/SelfSummaryGateTest.php` | Self-paced phone summary (`PaceStateService::publicSummary`): `/summary` is never an answer key; before release only your own questions without solutions, after release exactly the ones you reached; no leaderboard in a practice run |
+| `unit/SelfVersionTest.php` | Self-paced versions (`PaceStateService::version`): the version jumps when time alone changes something (deadline passed, vote final, time limit up) and does NOT jump while only seconds pass |
+| `unit/SelfVoteTest.php` | Self-paced `/vote` (`VoteService::recordSelfVote`): the person's open progress row and personal clock, `limit` and correction window `fw` of the FIRST answer, unknown free text is `pending` with 0 points, re-checks after saving; the moderated path never touches the new dependencies |
+| `unit/StateVersionTest.php` | The public version fingerprint (`StateService::stateVersion`): a keyed hash (24 hex characters) instead of guessable CRCs of the solution, and it still jumps exactly when something changes |
+| `unit/TallyServiceTest.php` | Tallying of every question type: choice, words, scale (single/spectrum/compass), multi, number, text, rank, match |
+| `unit/UnicodeTextTest.php` | Invisible characters in words and names (`TallyService::cleanText`): a fixed list is removed (soft hyphen, zero-width space, directional control characters, word joiner, BOM), while ZWNJ, ZWJ and tag characters inside a word stay |
+| `unit/WordCloudDedupeTest.php` | Word cloud: `Kaffee` and `KAFFEE` (test data) from one person are ONE word — vote validation and tallying use the same normal form (`TallyService::normalizeWord`) |
 
-## Was hier NICHT läuft
+## What does NOT run here
 
-Alles, was wirklich in die Datenbank greift — `createRoom`, `duplicateRoom`,
-`recordVote`, Migrationen. Dafür gibt es Wegwerf-Harnesse im App-Verzeichnis
-(`_lbtest.php`, `_titletest.php`, `_duptest.php`, `_reviewtest.php`, `_ranktest.php`,
-`_imagetest.php`, `_matchtest.php`; `/_*.php` ist ignoriert), die
-gegen die laufende Instanz booten:
+Everything that really touches the database — `createRoom`, `duplicateRoom`,
+`recordVote`, migrations. For that there are throwaway harnesses in the app
+directory (`_lbtest.php`, `_titletest.php`, `_duptest.php`, `_reviewtest.php`,
+`_ranktest.php`, `_imagetest.php`, `_matchtest.php`; `/_*.php` is gitignored,
+so they are not part of the repository) that boot against the running
+instance:
 
 ```sh
 docker exec -u www-data nextcloud-nextcloud-1 php /var/www/html/apps/pulse/_duptest.php
 ```
 
-Sie legen eigene Räume unter einem Test-UID an und räumen am Ende wieder auf.
-Wer sie zu echten Integrationstests ausbauen will, braucht eine Testdatenbank —
-gegen die Produktivinstanz sollten sie bewusst Wegwerfskripte bleiben.
+They create their own rooms under a test UID and clean up at the end. Anyone
+who wants to turn them into real integration tests needs a test database —
+against the production instance they should deliberately stay throwaway
+scripts.
+
+End-to-end checks against the running instance live elsewhere:
+`dev/sim/` (HTTP simulation of every flow, see `dev/sim/README.md`) and
+`dev/design-shots/` (screenshots of every view, see
+`dev/design-shots/README.md`). The browser-free rules of the self-paced quiz in
+`src/util/pace.js` have their own test: `TZ=Europe/Berlin node dev/unit/pace.test.mjs`.

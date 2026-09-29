@@ -20,14 +20,18 @@
 
 <script>
 /*
- * PulseIcon — EIN durchgängiges SVG-Stroke-Set (Material-nah), ersetzt den
- * Emoji/Unicode-Mix (✓/🎉/★/🥇/⛶/👁). stroke:currentColor -> erbt die
- * Textfarbe des Kontexts. Größe via `size` (em bevorzugt, damit es mitskaliert).
- * Bedeutungstragende Icons bekommen ein `label` (role=img); dekorative sind
+ * PulseIcon — ONE consistent SVG stroke set (close to Material), replaces the
+ * emoji/Unicode mix (✓/🎉/★/🥇/⛶/👁). stroke:currentColor -> inherits the
+ * text colour of its context. Size via `size` (em preferred, so it scales along).
+ * Icons that carry meaning get a `label` (role=img); decorative ones are
  * aria-hidden.
+ *
+ * Section references (§…) point to the design notes of the redesign and of the
+ * self-paced quiz, which are not in the public repository (see "References in
+ * code comments" in the README).
  */
 
-// Innerer SVG-Inhalt je Name (viewBox 0 0 24 24, Stroke-Icons).
+// Inner SVG content per name (viewBox 0 0 24 24, stroke icons).
 const ICONS = {
 	check: '<polyline points="4 12 10 18 20 6"/>',
 	close: '<line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>',
@@ -51,11 +55,11 @@ const ICONS = {
 	check_ring: '<circle cx="12" cy="12" r="9"/><polyline points="8 12 11 15 16 9"/>',
 	plus: '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
 	copy: '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
-	// Schloss + Überlaufmenü (§9): „Nur für dich" trägt das Schloss NEBEN dem
-	// Wort — das Symbol allein trägt die Aussage nicht.
+	// Lock + overflow menu (§9): "Only for you" shows the lock NEXT TO the
+	// word — the symbol alone does not carry the message.
 	lock: '<rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>',
 	more: '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
-	// Quiz im eigenen Tempo: „wird geprüft", Frist, „fertig", Teilnehmende, CSV.
+	// Self-paced quiz: "Being checked", deadline, "Finished", participants, CSV.
 	hourglass: '<path d="M6 3h12"/><path d="M6 21h12"/><path d="M8 3v3l4 6 4-6V3"/><path d="M8 21v-3l4-6 4 6v3"/>',
 	calendar: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M8 3v4"/><path d="M16 3v4"/>',
 	flag: '<path d="M5 21V4"/><path d="M5 4h12l-2.5 4.5L17 13H5"/>',
@@ -73,7 +77,7 @@ export default {
 	computed: {
 		inner() {
 			if (!ICONS[this.name] && this.name && process.env.NODE_ENV !== 'production') {
-				// Nur im Dev auffällig, nicht crashen (im Prod-Bundle wegoptimiert).
+				// Only conspicuous in dev, never crash (optimised away in the prod bundle).
 				// eslint-disable-next-line no-console
 				console.warn('[PulseIcon] unbekanntes Icon:', this.name)
 			}

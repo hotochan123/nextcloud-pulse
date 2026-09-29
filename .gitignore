@@ -2,27 +2,27 @@
 *.log
 .DS_Store
 
-# Build-Artefakte werden mit ausgeliefert (NC-Apps enthalten fertiges js/),
-# aber die Source-Maps nicht.
+# Build artefacts are shipped (NC apps contain a ready-built js/),
+# but the source maps are not.
 /js/*.map
 
-# Wegwerf-Testskripte (DB-Harnesse gegen die laufende Instanz, s. tests/README.md)
+# Throwaway test scripts (DB harnesses against the running instance, see tests/README.md)
 /_*.php
 
-# Release-Bau (build/package.sh)
+# Release build (build/package.sh)
 /build/dist/
 /build/pulse-*.tar.gz
 /build/info.xsd
 
-# Schlüsselmaterial für die App-Signatur gehört nie ins Repo
+# Key material for the app signature never belongs in the repository
 *.key
 *.csr
 *.crt
 
-# PHPUnit-PHAR und geckodriver werden bei Bedarf geladen, gehören nicht ins Repo
+# The PHPUnit PHAR and geckodriver are downloaded on demand and do not belong in the repository
 /tools/
 
-# Design-Screenshots: Bilder, Probe-Daten und das Passwort des Wegwerf-Nutzers
+# Design screenshots: images, probe data and the throwaway user's password
 /dev/design-shots/out/
 /dev/design-shots/out-*/
 /dev/design-shots/probe.json

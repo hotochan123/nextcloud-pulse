@@ -5,10 +5,10 @@
 <template>
 	<div class="pulse-part">
 		<div class="sheet">
-			<!-- Beitreten: 6-stelligen Code eingeben (§4.6 — eigener Schritt, hier unverändert) -->
-			<!-- Gesamtauswertung: alle Fragen mit Ergebnis + eigener Antwort.
-			     Liegt bewusst VOR den Live-Zweigen und legt sich darüber; sobald der
-			     Moderator eine andere Frage aufruft, schließt sie sich von selbst. -->
+			<!-- Join: enter the 6-character code (§4.6 — its own step, unchanged here) -->
+			<!-- Overall summary: all questions with the result + your own answer.
+			     Sits deliberately BEFORE the live branches and lies on top of them; as soon as the
+			     moderator opens another question, it closes by itself. -->
 			<div v-if="review" class="review">
 				<div class="review-head">
 					<h1 class="review-h">{{ isPaced && reviewState !== 'released' ? t('pulse', 'Your answers') : t('pulse', 'All results') }}</h1>
@@ -17,7 +17,7 @@
 				<p v-if="review.title" class="review-title">{{ review.title }}</p>
 				<p v-if="review.practice" class="pulse-chip is-warning practice-chip"><PulseIcon name="warning" size="1em" /> {{ t('pulse', 'Practice run · does not count') }}</p>
 				<p v-if="myRank" class="myrank review-myrank">{{ t('pulse', 'Place') }} <b>{{ myRank.rank }}</b> · {{ n('pulse', '%n point', '%n points', myRank.score) }}</p>
-				<!-- Eigenes Tempo vor der Freigabe: kein Platz, aber die eigenen Punkte (§2.8). -->
+				<!-- Self-paced before the release: no place, but your own points (§2.8). -->
 				<p v-else-if="isPaced && review.myScore != null" class="myrank review-myrank">{{ n('pulse', '%n point', '%n points', review.myScore) }}</p>
 				<ol class="review-list">
 					<li v-for="(it, i) in review.items" :key="it.poll.id" class="review-item">
@@ -26,7 +26,7 @@
 							<span class="review-mine-lbl">{{ t('pulse', 'Your answer:') }}</span> <b>{{ myAnswerText(it) }}</b>
 							<span v-if="it.mine.correct === true" class="pulse-chip is-success review-chip"><PulseIcon name="check" size="1em" /> +{{ it.mine.points }}</span>
 							<span v-else-if="it.mine.correct === false" class="pulse-chip is-error review-chip"><PulseIcon name="close" size="1em" /> {{ t('pulse', 'missed') }}</span>
-							<!-- Eigenes Tempo: noch ohne Urteil (Freitext offen bzw. „am Ende"). -->
+							<!-- Self-paced: no verdict yet (free text still open, or "At the end"). -->
 							<span v-else-if="it.mine.verdict === 'pending'" class="pulse-chip is-warning review-chip"><PulseIcon name="hourglass" size="1em" /> {{ t('pulse', 'Being checked') }}</span>
 							<span v-else-if="it.mine.verdict === 'saved'" class="pulse-chip is-neutral review-chip"><PulseIcon name="check" size="1em" /> {{ t('pulse', 'Answer saved') }}</span>
 						</p>
@@ -57,7 +57,7 @@
 				</button>
 			</div>
 
-			<!-- Raum unbekannt (§4.11) — kein Dead-End: Weg zurück zur Code-Eingabe -->
+			<!-- Unknown room (§4.11) — no dead end: a way back to the code entry -->
 			<div v-else-if="!roomExists" class="center empty-part">
 				<p class="eyebrow-p">Pulse</p>
 				<h1>{{ t('pulse', 'This room does not exist.') }}</h1>
@@ -65,9 +65,9 @@
 				<a class="pulse-btn is-primary empty-cta" :href="joinPagePath">{{ t('pulse', 'Enter a new code') }}</a>
 			</div>
 
-			<!-- Quiz: Namen wählen (§4.6). Im eigenen Tempo nur, solange man noch
-			     beitreten kann (Entwurf/offen) — mit Hinweis nach dem Entfernen oder
-			     einer neuen Runde und der Frist, damit Späte sehen, wie viel Zeit bleibt (§2.3). -->
+			<!-- Quiz: choose a name (§4.6). In self-paced mode only while joining is still
+			     possible (draft/open) — with a notice after being removed or after a new
+			     round, and the deadline, so that latecomers see how much time is left (§2.3). -->
 			<div v-else-if="isQuiz && !nickname && !paceNoJoin" class="center nick">
 				<p class="code-badge">{{ spacedCode }}</p>
 				<p v-if="roomTitle" class="room-title">{{ roomTitle }}</p>
@@ -95,14 +95,14 @@
 				<p v-if="isPaced && paceState === 'open'" class="muted pace-device">{{ t('pulse', 'Started on another device? Ask your host — you would start again from question 1.') }}</p>
 			</div>
 
-			<!-- ══════════ EIGENES TEMPO: KARTEN OHNE FRAGE (§2.2) ══════════ -->
-			<!-- Welche Karte, entscheidet util/pace.js (paceCard). Moderiert nie. Der
-			     Schlüssel baut jede Karte neu: sonst übernähme z. B. „See your answers“
-			     Element und Fokus des eben getippten „Next“. -->
+			<!-- ══════════ SELF-PACED: CARDS WITHOUT A QUESTION (§2.2) ══════════ -->
+			<!-- util/pace.js (paceCard) decides which card. Never when moderated. The
+			     key rebuilds every card: otherwise e.g. "See your answers" would take over
+			     the element and focus of the "Next" that was just tapped. -->
 			<div v-else-if="paceCard" :key="'pace-' + paceCard" class="center pace-card" :data-card="paceCard">
 				<p v-if="practice" class="pace-practice"><span class="pulse-chip is-warning practice-chip"><PulseIcon name="warning" size="1em" /> {{ t('pulse', 'Practice run · does not count') }}</span></p>
 
-				<!-- Ohne Namen und geschlossen: beitreten geht nicht mehr. -->
+				<!-- Without a name and closed: joining is no longer possible. -->
 				<template v-if="paceCard === 'shut'">
 					<p class="code-badge">{{ spacedCode }}</p>
 					<p v-if="roomTitle" class="room-title">{{ roomTitle }}</p>
@@ -110,7 +110,7 @@
 					<h1 class="pace-h" tabindex="-1">{{ t('pulse', 'The quiz is closed.') }}</h1>
 				</template>
 
-				<!-- Mit Namen, noch ohne Frage: warten (Entwurf), starten, weitermachen. -->
+				<!-- With a name, no question yet: wait (draft), start, continue. -->
 				<template v-else-if="paceCard === 'wait' || paceCard === 'start' || paceCard === 'continue'">
 					<p class="code-badge">{{ spacedCode }}</p>
 					<p v-if="roomTitle" class="room-title">{{ roomTitle }}</p>
@@ -120,7 +120,7 @@
 						<p class="muted pace-line">{{ t('pulse', 'The quiz has not started yet.') }}</p>
 						<p v-if="present > 0" class="muted pace-momentum"><b>{{ present }}</b> {{ n('pulse', 'person is already here', 'people are already here', present) }}</p>
 					</template>
-					<!-- Start (§2.4): erst dieser Tipp startet die persönliche Uhr. -->
+					<!-- Start (§2.4): only this tap starts the personal clock. -->
 					<template v-else-if="paceCard === 'start'">
 						<p class="pace-facts">{{ n('pulse', '%n question', '%n questions', paceWindow.total) }} · {{ paceWindow.timed ? t('pulse', 'with time limit') : t('pulse', 'no time limit') }} · {{ paceWindow.feedback === 'end' ? t('pulse', 'results at the end') : t('pulse', 'feedback after each question') }}</p>
 						<p v-if="paceUntil" class="pace-when">
@@ -135,14 +135,14 @@
 						</ul>
 						<button class="submit" :disabled="nextBusy" @click="nextStep">{{ nextBusy ? '…' : t('pulse', 'Start quiz') }}</button>
 					</template>
-					<!-- Gestartet, aber keine offene Frage (Abbruch zwischen zwei Fragen): /next heilt es. -->
+					<!-- Started, but no open question (aborted between two questions): /next heals it. -->
 					<template v-else>
 						<p class="muted pace-line">{{ t('pulse', 'Your quiz continues.') }}</p>
 						<button class="submit" :disabled="nextBusy" @click="nextStep">{{ nextBusy ? '…' : t('pulse', 'Next') }}</button>
 					</template>
 				</template>
 
-				<!-- Durch (§2.7): „Fertig" heißt keine Frage mehr und progress.finished. -->
+				<!-- Through (§2.7): "done" means no question left and progress.finished. -->
 				<template v-else-if="paceCard === 'through'">
 					<PulseIcon name="flag" size="2.4em" class="pace-flag" />
 					<h1 class="pace-h" tabindex="-1">{{ t('pulse', 'You’re through!') }}</h1>
@@ -153,7 +153,7 @@
 					<button class="pulse-btn is-secondary review-cta" :disabled="reviewBusy" @click="openReview">{{ reviewBusy ? t('pulse', 'Loading …') : t('pulse', 'See your answers') }}</button>
 				</template>
 
-				<!-- Geschlossen mit Namen: nie gestartet -> nur die Überschrift. -->
+				<!-- Closed with a name: never started -> only the heading. -->
 				<template v-else-if="paceCard === 'closed'">
 					<PulseIcon name="lock" size="2.4em" class="state-ico" />
 					<h1 class="pace-h" tabindex="-1">{{ t('pulse', 'The quiz is closed.') }}</h1>
@@ -169,7 +169,7 @@
 					</template>
 				</template>
 
-				<!-- Freigegeben ohne Rangliste (Probelauf, niemand dabei): vorbei. -->
+				<!-- Released without a leaderboard (practice run, nobody joined): over. -->
 				<template v-else>
 					<h1 class="end-title pace-h" tabindex="-1">{{ t('pulse', 'Quiz finished') }}</h1>
 					<p v-if="nickname && myScore !== null" class="pace-score">{{ n('pulse', '%n point', '%n points', myScore) }}</p>
@@ -178,7 +178,7 @@
 				</template>
 			</div>
 
-			<!-- Warte auf Frage -->
+			<!-- Waiting for a question -->
 			<div v-else-if="!poll && !paceFinal" class="center">
 				<p class="code-badge">{{ spacedCode }}</p>
 				<p v-if="roomTitle" class="room-title">{{ roomTitle }}</p>
@@ -190,9 +190,9 @@
 				</button>
 			</div>
 
-			<!-- ══════════ AUFGELÖST ══════════ -->
-			<!-- Quiz: eigenes Ergebnis zuerst, dann die Verteilung, dann der
-			     Ranglisten-Auszug. Umfrage: die eigene Antwort zuerst (§8.6). -->
+			<!-- ══════════ REVEALED ══════════ -->
+			<!-- Quiz: your own result first, then the distribution, then the
+			     leaderboard excerpt. Poll: your own answer first (§8.6). -->
 			<div v-else-if="quizEnded || paceFinal" class="h-app">
 				<div class="h-scroll">
 					<p class="end-title">{{ t('pulse', 'Quiz finished') }}</p>
@@ -200,7 +200,7 @@
 						<span class="big-place-n">{{ myRank.rank }}</span>
 						<span class="big-place-of">{{ t('pulse', 'of {total}', { total: leaderboard.length }) }} · {{ n('pulse', '%n point', '%n points', myRank.score) }}</span>
 					</div>
-					<!-- Kein Podium-Nachbau: das Podium ist Sache der Leinwand (§8.7). -->
+					<!-- No podium replica: the podium is the big screen's job (§8.7). -->
 					<Leaderboard :rows="leaderboard" :limit="3" :top-only="rankContext.length > 0" />
 					<template v-if="rankContext.length">
 						<p class="h-hint">{{ t('pulse', 'Around you') }}</p>
@@ -220,8 +220,8 @@
 					<span v-if="practice" class="pulse-chip is-warning practice-chip"><PulseIcon name="warning" size="1em" /> {{ t('pulse', 'Practice run · does not count') }}</span>
 					<h1 class="q">{{ poll.question }}</h1>
 
-					<!-- 1. Das eigene Ergebnis steht ÜBER der Verteilung — es ist das,
-					     wonach zuerst gesucht wird (§8.6). -->
+					<!-- 1. Your own result sits ABOVE the distribution — it is what
+					     people look for first (§8.6). -->
 					<div v-if="isQuiz && myResult && myResult.answered" class="verdict" :class="myResult.correct ? 'is-ok' : 'is-no'">
 						<span class="verdict-mark"><PulseIcon :name="myResult.correct ? 'check' : 'close'" size="2em" /></span>
 						<span class="verdict-text">{{ myResult.correct ? t('pulse', 'Correct!') : t('pulse', 'Not this time') }}</span>
@@ -236,13 +236,13 @@
 					</div>
 					<p v-else class="band is-mut">{{ t('pulse', 'Did not answer this round.') }}</p>
 
-					<!-- 2. Die Verteilung. -->
+					<!-- 2. The distribution. -->
 					<ResultsView :results="results" :mine="voted ? compassMine : null" :mine-aspects="voted ? spectrumMine : null"
 						:correct-id="poll.correctOption || ''"
 						:correct-ids="(poll.answerKey && poll.answerKey.correct) || []"
 						:answer-key="poll.answerKey || null" />
 
-					<!-- 3. Ranglisten-Auszug: eigener Platz plus je zwei drumherum. -->
+					<!-- 3. Leaderboard excerpt: your own place plus two on either side. -->
 					<template v-if="isQuiz && rankContext.length">
 						<p class="h-hint">{{ t('pulse', 'Around you') }}</p>
 						<Leaderboard :rows="rankContext" :limit="rankContext.length" />
@@ -255,11 +255,11 @@
 				</div>
 			</div>
 
-			<!-- Eigenes Tempo: Zeit abgelaufen, nichts abgegeben (§2.6). „Next" erst,
-			     wenn der SERVER den Zeitablauf meldet (progress.timeUp) — der lokale
-			     Countdown steht bis zu einer Sekunde früher auf 0, und davor wäre /next
-			     ein stilles No-op. `!busy`: eine Antwort in der letzten Sekunde lässt
-			     „Time is up" nicht aufblitzen. -->
+			<!-- Self-paced: time is up, nothing submitted (§2.6). "Next" only once
+			     the SERVER reports the time is up (progress.timeUp) — the local
+			     countdown reaches 0 up to a second earlier, and before that /next would be
+			     a silent no-op. `!busy`: an answer in the last second does not make
+			     "Time is up" flash. -->
 			<div v-else-if="isPaced && expired && !voted && !busy" class="center pace-timeup">
 				<p v-if="practice" class="pace-practice"><span class="pulse-chip is-warning practice-chip"><PulseIcon name="warning" size="1em" /> {{ t('pulse', 'Practice run · does not count') }}</span></p>
 				<p v-if="progress" class="pace-pos">
@@ -274,21 +274,21 @@
 				</button>
 			</div>
 
-			<!-- Zeit abgelaufen, nichts abgegeben (nur Quiz, moderiert) -->
+			<!-- Time is up, nothing submitted (quiz only, moderated) -->
 			<div v-else-if="isQuiz && !isPaced && expired && !voted" class="center">
 				<h1 class="q">{{ poll.question }}</h1>
 				<PulseIcon name="timer" size="2.4em" class="state-ico" />
 				<p class="muted">{{ t('pulse', 'Time is up — the reveal is coming.') }}</p>
 			</div>
 
-			<!-- ══════════ ANTWORTEN ══════════ -->
-			<!-- Ein Rahmen für beide Modi (§8.1): oben scrollt der Inhalt, unten
-			     steht die Absende-Zone als eigene Rasterzeile. -->
+			<!-- ══════════ ANSWERING ══════════ -->
+			<!-- One frame for both modes (§8.1): the content scrolls at the top, the
+			     submit zone sits at the bottom as its own grid row. -->
 			<div v-else class="h-app">
 				<div ref="scroll" class="h-scroll">
 					<span v-if="practice" class="pulse-chip is-warning practice-chip"><PulseIcon name="warning" size="1em" /> {{ t('pulse', 'Practice run · does not count') }}</span>
-					<!-- Eigenes Tempo: „Frage k von n" aus progress (nie poll.position), dahinter
-					     die Frist; in der letzten Viertelstunde der Chip (§2.5). -->
+					<!-- Self-paced: "Question k of n" from progress (never poll.position), then
+					     the deadline; in the last quarter of an hour the chip (§2.5). -->
 					<p v-if="isPaced && progress" class="pace-pos">
 						<span>{{ t('pulse', 'Question {number} of {total}', { number: progress.k, total: progress.n }) }}<template v-if="paceUntil"> · {{ t('pulse', 'Open until {time}', { time: paceUntil }) }}</template></span>
 						<span v-if="closesInMin" class="pulse-chip is-warning pace-soon">{{ n('pulse', 'Closes in %n min', 'Closes in %n min', closesInMin) }}</span>
@@ -298,7 +298,7 @@
 						<span class="timer-num">{{ remaining }}</span>
 					</div>
 
-					<!-- Bild: fester Kasten, ab fünf Optionen flacher; tippen vergrößert. -->
+					<!-- Image: fixed box, flatter from five options on; tapping enlarges it. -->
 					<button v-if="poll.image" type="button" class="h-img" :class="{ 'is-small': optCount > 4 }"
 						:aria-label="t('pulse', 'Enlarge image')" @click="zoom = true">
 						<img :src="imageUrl(poll)" :alt="t('pulse', 'Image for the question')">
@@ -307,7 +307,7 @@
 					<h1 class="q" :tabindex="isPaced ? -1 : null">{{ poll.question }}</h1>
 					<p v-if="showTapHint" class="h-hint">{{ t('pulse', 'Tapping sends right away — you can change it just after.') }}</p>
 
-					<!-- Auswahl und Wahr/Falsch: im Quiz sendet der Tipp sofort (§8.0). -->
+					<!-- Choice and True/False: in the quiz the tap submits immediately (§8.0). -->
 					<div v-if="poll.type === 'choice' || poll.type === 'truefalse'" class="choices">
 						<button v-for="o in optList" :key="o.id"
 							class="choice" :class="[o.pal.cls, { 'is-quiz': isQuiz, 'is-picked': isPicked(o.id), 'is-dim': sent && !isPicked(o.id) }]"
@@ -318,7 +318,7 @@
 						</button>
 					</div>
 
-					<!-- Mehrfachauswahl: antippen, dann absenden -->
+					<!-- Multiple choice: tap, then submit -->
 					<div v-else-if="poll.type === 'multi'" class="choices">
 						<button v-for="o in optList" :key="o.id"
 							class="choice" :class="[o.pal.cls, { 'is-quiz': isQuiz, 'is-picked': multiPick.includes(o.id), 'is-dim': sent && !multiPick.includes(o.id) }]"
@@ -329,7 +329,7 @@
 						</button>
 					</div>
 
-					<!-- Schätzfrage / Freitext -->
+					<!-- Estimation question / free text -->
 					<div v-else-if="poll.type === 'number'" class="free-vote">
 						<input v-model="numInput" class="pulse-input is-lg" type="number" inputmode="decimal"
 							:disabled="locked" :placeholder="t('pulse', 'Your number')" @keyup.enter="doSubmit">
@@ -339,7 +339,7 @@
 							autocomplete="off" :disabled="locked" :placeholder="t('pulse', 'Your answer')" @keyup.enter="doSubmit">
 					</div>
 
-					<!-- Reihenfolge: ↑/↓ statt Drag — tastaturfest und treffsicher -->
+					<!-- Ordering: ↑/↓ instead of drag — keyboard-proof and accurate -->
 					<div v-else-if="poll.type === 'rank'" class="rank-field">
 						<p class="h-hint">{{ t('pulse', 'Put the answers into your order — place 1 goes on top.') }}</p>
 						<ol class="rank-list">
@@ -354,7 +354,7 @@
 						</ol>
 					</div>
 
-					<!-- Zuordnung: Zeile plus Auswahlblatt statt nackter Auswahlfelder (§8.3) -->
+					<!-- Matching: a row plus a picker sheet instead of bare select fields (§8.3) -->
 					<div v-else-if="poll.type === 'match'" class="match-field">
 						<p class="h-hint">{{ t('pulse', 'Assign the fitting answer to every line.') }}</p>
 						<ul class="mrow-list">
@@ -369,7 +369,7 @@
 						</ul>
 					</div>
 
-					<!-- Skala -->
+					<!-- Scale -->
 					<div v-else-if="poll.type === 'scale' && scaleMode === 'single'" class="scale-field">
 						<div class="val-readout" :class="{ 'is-empty': scaleVal === null }" aria-hidden="true">
 							<span class="val-num">{{ scaleVal === null ? '–' : scaleVal }}</span><span class="val-unit">/ {{ poll.scale.max }}</span>
@@ -381,7 +381,7 @@
 						</div>
 					</div>
 
-					<!-- Spektrum: bipolare Regler -->
+					<!-- Spectrum: bipolar sliders -->
 					<div v-else-if="poll.type === 'scale' && scaleMode === 'spectrum'" class="spectrum-field">
 						<p class="h-hint">{{ t('pulse', 'The sliders sit neutral on the middle mark — move only what differs for you.') }}</p>
 						<div v-for="asp in poll.scale.aspects" :key="asp.id" class="aspect">
@@ -400,7 +400,7 @@
 						</div>
 					</div>
 
-					<!-- Kompass: Pad, Pol-Labels waagerecht, Werte in Worten (§8.4) -->
+					<!-- Compass: pad, pole labels horizontal, values in words (§8.4) -->
 					<div v-else-if="poll.type === 'scale'" class="compass-field">
 						<div class="pad-wrap">
 							<span class="pad-pole">{{ poll.scale.axisY.poleHigh }}</span>
@@ -413,7 +413,7 @@
 							</div>
 							<span class="pad-pole">{{ poll.scale.axisY.poleLow }}</span>
 						</div>
-						<!-- In Worten mit der Zahl als Beigabe, nicht „PACE 0 · SCOPE 0". -->
+						<!-- In words with the number as an extra, not "PACE 0 · SCOPE 0". -->
 						<div class="axwords">
 							<p><span class="axwords-k">{{ poll.scale.axisX.title }}:</span> {{ axisWord('x') }}</p>
 							<p><span class="axwords-k">{{ poll.scale.axisY.title }}:</span> {{ axisWord('y') }}</p>
@@ -428,7 +428,7 @@
 						</div>
 					</div>
 
-					<!-- Wortwolke -->
+					<!-- Word cloud -->
 					<div v-else class="words">
 						<p class="h-hint">{{ n('pulse', 'Up to %n word — one per field.', 'Up to %n words — one per field.', poll.maxWords) }}</p>
 						<label v-for="i in poll.maxWords" :key="i" class="word-field">
@@ -439,31 +439,31 @@
 						</label>
 					</div>
 
-					<!-- Eigenes Tempo ohne Timer: Frage überspringen (§2.5). Unter den Antworten,
-					     nicht in der Absende-Zone — dort stand eben noch „Next question", ein
-					     Doppeltipp hätte die neue Frage unbeantwortet übersprungen. Erst 1,5 s
-					     nach jeder neuen Frage scharf (skipArmed). Keine Bestätigung. -->
+					<!-- Self-paced without a timer: skip the question (§2.5). Below the answers,
+					     not in the submit zone — "Next question" was there a moment ago, and a
+					     double tap would have skipped the new question unanswered. Only armed 1.5 s
+					     after every new question (skipArmed). No confirmation. -->
 					<button v-if="isPaced && poll.timeLimit === 0 && !voted && !busy" type="button" class="pulse-btn is-tertiary is-sm pace-skip"
 						:disabled="!skipArmed || !canNext" @click="nextStep">
 						{{ paceLast ? t('pulse', 'Skip and finish') : t('pulse', 'Skip question') }}
 					</button>
 				</div>
 
-				<!-- Absende-Zone: eine Rasterzeile, scrollt nie mit (§8.1) -->
+				<!-- Submit zone: its own grid row, never scrolls along (§8.1) -->
 				<div class="h-submit">
-					<!-- Korrekturfenster: Bestätigung plus „Ändern", darunter eine
-					     Haarlinie. Keine zweite Zahl — sie würde mit dem Countdown
-					     der Frage konkurrieren (§8.0). -->
+					<!-- Correction window: confirmation plus "Change", below it a
+					     hairline. No second number — it would compete with the question's
+					     countdown (§8.0). -->
 					<div v-if="fixOpen" class="fix-bar" role="status">
 						<PulseIcon name="check" size="1.2em" />
 						<span>{{ t('pulse', 'Answer sent') }}</span>
 						<button class="fix-btn" @click="startChange">{{ t('pulse', 'Change') }}</button>
 						<span class="fix-line" :style="{ width: fixPct + '%' }" aria-hidden="true" />
 					</div>
-					<!-- Eigenes Tempo (§2.5): Urteilsband und Weiter. Vor dem endgültigen
-					     Urteil neutral — kein grüner Blitz —, nie die Lösung. „Next" erst mit
-					     dem Urteil (canNext). data-verdict ist für den Prüfstand (none = noch
-					     keines); Farbe nie allein: Icon + Wort. -->
+					<!-- Self-paced (§2.5): verdict band and Next. Neutral before the final
+					     verdict — no green flash — and never the solution. "Next" only with
+					     the verdict (canNext). data-verdict is for the test rig (none = none
+					     yet); never colour alone: icon + word. -->
 					<template v-else-if="sent && isPaced">
 						<p class="band pace-verdict" :class="paceBand.cls" role="status" :data-verdict="paceVerdict || 'none'">
 							<PulseIcon :name="paceBand.icon" size="1.1em" /> {{ paceBand.text }}
@@ -487,8 +487,8 @@
 				</div>
 			</div>
 
-			<!-- Auswahlblatt der Zuordnung (§8.3) — liegt ÜBER dem Scrollbereich,
-			     nicht darin: ein Blatt im Scroll-Container würde beschnitten. -->
+			<!-- Picker sheet for matching (§8.3) — lies ABOVE the scroll area,
+			     not inside it: a sheet inside the scroll container would be clipped. -->
 			<template v-if="sheetFor">
 				<div class="scrim" @click="closeSheet" />
 				<div class="msheet" role="dialog" aria-modal="true" :aria-label="t('pulse', 'Choose an answer')">
@@ -506,20 +506,25 @@
 				</div>
 			</template>
 
-			<!-- Vollbild-Bild (§8.1) -->
+			<!-- Full-screen image (§8.1) -->
 			<div v-if="zoom" class="h-zoom" @click="zoom = false">
 				<img :src="imageUrl(poll)" :alt="t('pulse', 'Image for the question')">
 				<button class="h-zoom-x" :aria-label="t('pulse', 'Close')" @click.stop="zoom = false"><PulseIcon name="close" size="1.4em" /></button>
 			</div>
-			<!-- Verbindungsstatus -->
+			<!-- Connection status -->
 			<p v-if="code && roomExists && !online" class="conn-off" role="status">{{ t('pulse', 'Connection lost — trying again …') }}</p>
-			<!-- Eigenes Tempo: Ansage für Screenreader bei Karten- und Fragenwechsel (§2.11) -->
+			<!-- Self-paced: announcement for screen readers on card and question changes (§2.11) -->
 			<p v-if="isPaced" class="pace-sr" aria-live="polite">{{ paceAnnounce }}</p>
 		</div>
 	</div>
 </template>
 
 <script>
+/*
+ * The participant view (phone). Section references (§…) point to the design
+ * notes of the redesign and of the self-paced quiz, which are not in the public
+ * repository (see "References in code comments" in the README).
+ */
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
 import { loadState } from '@nextcloud/initial-state'
@@ -544,10 +549,10 @@ export default {
 			code: loadState('pulse', 'code', ''),
 			roomExists: loadState('pulse', 'roomExists', false),
 			mode: '',
-			roomTitle: '',   // Raumname aus publicState.room (leer = keiner)
-			review: null,       // geladene Gesamtauswertung (null = Live-Ansicht)
+			roomTitle: '',   // room name from publicState.room (empty = none)
+			review: null,       // loaded overall summary (null = live view)
 			reviewBusy: false,
-			reviewAt: 0,        // Frage-ID beim Öffnen — wechselt sie, schließen wir
+			reviewAt: 0,        // question ID when opened — if it changes, we close
 			practice: false,
 			poll: null,
 			results: null,
@@ -556,22 +561,22 @@ export default {
 			busy: false,
 			online: true,
 			wordInputs: [],
-			multiPick: [],   // Mehrfachauswahl: aktuell angetippte Options-IDs
-			scaleVal: null,  // Skala-Regler (null = noch nicht geantwortet)
-			spectrumVals: {},  // Spektrum: aspectId -> Wert (Start = Mitte)
-			compassX: 0,        // Kompass: X-Position (−R..R)
-			compassY: 0,        // Kompass: Y-Position (−R..R)
-			compassMine: null,  // eigene abgegebene Position ({x,y}) für den „Du"-Punkt
-			spectrumMine: null, // eigene abgegebene Aspekt-Werte für das „Du"-Polygon
-			padDown: false,     // 2D-Pad: Zeigegeste aktiv
-			numInput: '',
-			rankOrder: [],    // eigene Sortierung (Reihenfolge-Frage), gemischt vorbelegt    // Schätzfrage
-			matchPick: {},    // Zuordnung: itemId -> targetId (leer = noch offen)
-			matchTargets: [], // rechte Spalte, einmal gemischt (sonst wäre Zeile i = Ziel i die Lösung)
-			textInput: '',   // Freitext
+			multiPick: [],   // multiple choice: currently tapped option IDs
+			scaleVal: null,  // scale slider (null = not answered yet)
+			spectrumVals: {},  // spectrum: aspectId -> value (start = middle)
+			compassX: 0,        // compass: X position (−R..R)
+			compassY: 0,        // compass: Y position (−R..R)
+			compassMine: null,  // own submitted position ({x,y}) for the "You" dot
+			spectrumMine: null, // own submitted aspect values for the "You" polygon
+			padDown: false,     // 2D pad: pointer gesture active
+			numInput: '',     // estimation question
+			rankOrder: [],    // own order (ordering question), pre-filled shuffled
+			matchPick: {},    // matching: itemId -> targetId (empty = still open)
+			matchTargets: [], // right column, shuffled once (otherwise row i = target i would be the solution)
+			textInput: '',   // free text
 			version: '',
 			lastPollKey: null,
-			submitSeq: 0,       // zählt Absenden; ältere /state-Antworten werden verworfen
+			submitSeq: 0,       // counts submits; older /state responses are discarded
 			digits: ['', '', '', '', '', ''],
 			entryError: '',
 			checking: false,
@@ -582,21 +587,21 @@ export default {
 			joining: false,
 			myResult: null,
 			leaderboard: null,
-			// Auswahl vor dem Absenden (Umfrage, einzelne Antwort) und die
-			// abgegebene Antwort aus dem Server-Zustand — beide brauchen wir, um
-			// die eigene Karte auch nach dem Senden markiert zu lassen (§8.5).
+			// The selection before submitting (poll, single answer) and the
+			// submitted answer from the server state — we need both to keep
+			// your own card marked even after sending (§8.5).
 			singlePick: null,
 			myValue: null,
 			answered: 0,
 			present: 0,
-			// Korrekturfenster (§8.0): bis wann „Ändern" steht, wie lang das
-			// Fenster war (für die Haarlinie) und ob es schon verbraucht ist.
+			// Correction window (§8.0): until when "Change" is shown, how long the
+			// window was (for the hairline) and whether it has been used up.
 			fixUntil: 0,
 			fixWindow: 3,
 			fixUsed: false,
-			// Erste Quizfrage der Sitzung bekommt die Hinweiszeile.
+			// The first quiz question of the session gets the hint line.
 			hintShown: false,
-			// Auswahlblatt der Zuordnung: itemId oder null.
+			// Picker sheet for matching: itemId or null.
 			sheetFor: null,
 			zoom: false,
 			serverSkew: 0,
@@ -608,25 +613,25 @@ export default {
 		spacedCode() {
 			return formatCode(this.code)
 		},
-		// Kein Dead-End bei „Raum nicht gefunden" (§4.11): zur Code-Eingabe.
+		// No dead end on "room not found" (§4.11): back to the code entry.
 		joinPagePath() {
 			return generateUrl('/apps/pulse/join')
 		},
 		hasWords() {
 			return this.wordInputs.some((w) => (w || '').trim() !== '')
 		},
-		// Zuordnung: linke Spalte in Editor-Reihenfolge (sie ist die Leserichtung).
+		// Matching: left column in editor order (it is the reading direction).
 		matchItems() {
 			return (this.poll && this.poll.match && this.poll.match.items) || []
 		},
-		// Absenden erst, wenn jede Zeile ein Ziel hat — eine halbe Zuordnung
-		// lehnt der Server ohnehin ab.
+		// Submit only once every row has a target — the server rejects a half
+		// matching anyway.
 		matchComplete() {
 			const items = this.matchItems
 			return items.length > 0 && items.every((item) => !!this.matchPick[item.id])
 		},
-		// Skala-Regler: Füllstand in % IMMER aus (v-min)/(max-min), nicht v/max,
-		// sonst stimmt die Füllung bei min=1 nicht (Handoff §4).
+		// Scale slider: fill level in % ALWAYS from (v-min)/(max-min), not v/max,
+		// otherwise the fill is wrong for min=1 (design notes §4, not in the public repository).
 		scalePct() {
 			if (!this.poll || !this.poll.scale || this.scaleVal === null) return 0
 			const { min, max } = this.poll.scale
@@ -642,10 +647,10 @@ export default {
 		scaleMode() {
 			return this.poll && this.poll.scale ? (this.poll.scale.mode || 'single') : 'single'
 		},
-		// Spektrum-Antwort: Kopie der Regler-Werte (aspectId -> Wert) zum Absenden.
-		// Neutraler Wert der Skala — Startwert, Mittelmarke und Nullpunkt der
-		// bipolaren Füllung sind DERSELBE Wert. Vorher stand die Marke bei 50 %
-		// und der Startwert daneben; auf 0–5 sah „steht in der Mitte" falsch aus.
+		// Spectrum answer: copy of the slider values (aspectId -> value) for submitting.
+		// Neutral value of the scale — start value, middle mark and zero point of the
+		// bipolar fill are THE SAME value. Previously the mark sat at 50 %
+		// and the start value next to it; on 0–5, "sits in the middle" looked wrong.
 		neutralValue() {
 			if (!this.poll || !this.poll.scale) return 0
 			const { min, max } = this.poll.scale
@@ -677,8 +682,8 @@ export default {
 			const sc = this.poll.scale
 			return this.t('pulse', '2D field: X {x}, Y {y}; drag the dot or use the sliders', { x: sc.axisX.title, y: sc.axisY.title })
 		},
-		// Choice/Multi-Optionen mit stabiler Palette-Zuordnung (Buchstabe + Farbe A–H).
-		// Derselbe Index -> dieselbe Farbe auf Handy, Beamer und im Ergebnis-Balken.
+		// Choice/multi options with a stable palette assignment (letter + colour A–H).
+		// The same index -> the same colour on the phone, the projector and in the result bar.
 		optList() {
 			return withPalette(this.poll && this.poll.options)
 		},
@@ -692,15 +697,15 @@ export default {
 		isQuiz() {
 			return this.mode === 'quiz'
 		},
-		// Aufgelöst sagt der Server (poll.revealed) — der Status allein reicht
-		// nicht: bei „Auflösung am Ende" ist 'locked' noch verdeckt. Der
-		// Rückfall auf den Status gilt nur für eine Antwort ohne das Feld.
+		// Revealed is what the server says (poll.revealed) — the status alone is not
+		// enough: with "Reveal at the end", 'locked' is still hidden. The
+		// fallback to the status only applies to a response without that field.
 		revealed() {
 			if (!this.poll) return false
 			if (typeof this.poll.revealed === 'boolean') return this.poll.revealed
 			return this.poll.status === 'locked' || this.poll.status === 'ended'
 		},
-		// Verbleibende Sekunden (Server-Zeit via Skew), null wenn kein Limit.
+		// Remaining seconds (server time via skew), null when there is no limit.
 		remaining() {
 			return remainingSecs(this.poll, this.nowSec, this.serverSkew)
 		},
@@ -714,34 +719,34 @@ export default {
 			const rows = this.review ? (this.review.leaderboard || []) : (this.leaderboard || [])
 			return rows.find((r) => r.me) || null
 		},
-		// Quiz beendet: eigener Platz zuerst, nicht die letzte Frage (§8.7).
+		// Quiz ended: your own place first, not the last question (§8.7).
 		quizEnded() {
 			return this.isQuiz && !!this.poll && this.poll.status === 'ended'
 				&& Array.isArray(this.leaderboard) && this.leaderboard.length > 0
 		},
-		// Ranglisten-Auszug: eigener Platz plus je zwei darüber und darunter.
+		// Leaderboard excerpt: your own place plus two above and two below.
 		rankContext() {
 			const rows = this.leaderboard || []
 			const at = rows.findIndex((r) => r.me)
 			if (at < 0) return []
 			const from = Math.max(0, at - 2)
 			const slice = rows.slice(from, at + 3)
-			// Steht man ohnehin in den Top 3, wäre der Auszug eine Wiederholung.
+			// If you are in the top 3 anyway, the excerpt would be a repetition.
 			return at < 3 ? [] : slice
 		},
 		optCount() {
 			return (this.poll && Array.isArray(this.poll.options)) ? this.poll.options.length : 0
 		},
-		// „gesendet" heißt: abgegeben und gerade nicht im Ändern-Modus.
+		// "sent" means: submitted and not in change mode right now.
 		sent() {
 			return this.voted && !this.changing
 		},
-		// Karten sind nach dem Senden sichtbar, aber nicht mehr bedienbar (§8.5).
+		// The cards stay visible after sending, but can no longer be used (§8.5).
 		locked() {
 			return this.sent || !!(this.poll && this.poll.status !== 'active')
 		},
-		// Hinweiszeile nur bei der ersten Quizfrage einer Sitzung und nur dort,
-		// wo ein Tipp wirklich sofort sendet.
+		// Hint line only for the first quiz question of a session and only where
+		// a tap really submits immediately.
 		showTapHint() {
 			return this.isQuiz && !this.voted && !this.hintShown
 				&& !!this.poll && ['choice', 'truefalse'].includes(this.poll.type)
@@ -754,23 +759,23 @@ export default {
 			if (!this.fixWindow) return 0
 			return Math.max(0, Math.min(100, ((this.fixUntil - this.nowSec) / this.fixWindow) * 100))
 		},
-		// Umfrage: ändern bis zum Auflösen. Quiz: nur im Korrekturfenster, und
-		// das trägt seinen eigenen Knopf.
+		// Poll: change until the reveal. Quiz: only in the correction window, and
+		// that one carries its own button.
 		canChange() {
 			return !this.isQuiz && !this.revealed && !!this.poll && this.poll.status === 'active'
 		},
-		// Eingangsstand — dieselbe Zahl wie am Beamer (§8.5).
+		// Intake count — the same number as on the projector (§8.5).
 		intakeText() {
 			if (!this.answered) return ''
-			// Präsenz ist ein 15-Sekunden-Fenster, die Antworten sind es nicht —
-			// ohne Deckel stünde nach einer Pause „42 von 25".
+			// Presence is a 15-second window, the answers are not —
+			// without a cap, after a break it would say "42 of 25".
 			const total = Math.max(this.present, this.answered)
 			return total > this.answered
 				? this.t('pulse', '{count} of {total} have answered', { count: this.answered, total })
 				: this.answered + ' ' + this.n('pulse', 'answer', 'answers', this.answered)
 		},
-		// Welche Typen brauchen einen Absende-Knopf? Auswahl und Wahr/Falsch im
-		// Quiz nicht — dort sendet der Tipp (§8.0).
+		// Which types need a submit button? Not choice and True/False in the
+		// quiz — there the tap submits (§8.0).
 		needsSubmit() {
 			if (!this.poll) return false
 			if (this.isQuiz && ['choice', 'truefalse'].includes(this.poll.type)) return false
@@ -806,7 +811,7 @@ export default {
 			}
 			return this.t('pulse', 'Submit')
 		},
-		// Der Grund, warum „Absenden" (noch) nicht geht, steht über dem Knopf.
+		// The reason why "Submit" does not work (yet) sits above the button.
 		submitNote() {
 			if (!this.poll) return ''
 			if (this.poll.type === 'match') {
@@ -825,7 +830,7 @@ export default {
 		matchDone() {
 			return this.matchItems.filter((item) => this.matchPick[item.id]).length
 		},
-		// Umfrage-Auflösung: die eigene Antwort in Worten plus wie viele sie teilen.
+		// Poll reveal: your own answer in words plus how many share it.
 		myPickLabel() {
 			const rows = (this.results && this.results.results) || []
 			const mine = this.myValue
@@ -847,7 +852,7 @@ export default {
 	mounted() {
 		if (this.code && this.roomExists) {
 			this.pollTick()
-			// Lokale Uhr für den Countdown (Server-Skew wird bei jedem fetch nachgezogen).
+			// Local clock for the countdown (the server skew is re-synced on every fetch).
 			this.tickTimer = setInterval(() => { this.nowSec = Math.floor(Date.now() / 1000) }, 500)
 			document.addEventListener('visibilitychange', this.onPollVisibility)
 		}
@@ -859,7 +864,7 @@ export default {
 		document.removeEventListener('visibilitychange', this.onPollVisibility)
 	},
 	methods: {
-		// ── Zuordnung ───────────────────────────────────────────────────────
+		// ── Matching ────────────────────────────────────────────────────────
 		initMatch(poll, mine) {
 			if (!poll || poll.type !== 'match') return { targets: [], pick: {} }
 			const targets = ((poll.match || {}).targets || []).slice()
@@ -880,9 +885,9 @@ export default {
 			this.submit({ ...this.matchPick })
 		},
 
-		// ── Reihenfolge-Frage ───────────────────────────────────────────────
-		// Startaufstellung: die eigene frühere Antwort, sonst GEMISCHT — sonst
-		// wäre im Quiz die Editor-Reihenfolge (= die Lösung) die Vorgabe.
+		// ── Ordering question ───────────────────────────────────────────────
+		// Starting line-up: your own earlier answer, otherwise SHUFFLED — otherwise
+		// the editor order (= the solution) would be the default in the quiz.
 		initRank(poll, mine) {
 			if (!poll || poll.type !== 'rank') return []
 			const opts = (poll.options || []).slice()
@@ -912,9 +917,9 @@ export default {
 			this.submit(this.rankOrder.map((o) => o.id))
 		},
 
-		// ── Gesamtauswertung ────────────────────────────────────────────────
-		// Alle Fragen mit Ergebnis, eigener Antwort und (Quiz) Auflösung. Wird
-		// nur auf Knopfdruck geladen — kein Dauer-Polling.
+		// ── Overall summary ─────────────────────────────────────────────────
+		// All questions with the result, your own answer and (quiz) the reveal.
+		// Only loaded at the press of a button — no continuous polling.
 		async openReview() {
 			if (this.reviewBusy) return
 			this.reviewBusy = true
@@ -925,7 +930,7 @@ export default {
 					return
 				}
 				this.reviewAt = this.poll ? this.poll.id : 0
-				// Eigenes Tempo: wechselt der Fensterzustand, schließt sie sich (§2.1).
+				// Self-paced: when the window state changes, it closes itself (§2.1).
 				this.reviewState = (this.paceWindow && this.paceWindow.state) || ''
 				this.review = data
 				window.scrollTo(0, 0)
@@ -939,7 +944,7 @@ export default {
 		closeReview() {
 			this.review = null
 		},
-		// Eigene Antwort lesbar machen — je Fragetyp anders gespeichert.
+		// Make your own answer readable — it is stored differently per question type.
 		myAnswerText(item) {
 			const v = item.mine ? item.mine.value : null
 			if (v === null || v === undefined || v === '') return '—'
@@ -949,7 +954,7 @@ export default {
 			if (typeof v === 'number') return String(v)
 			if (Array.isArray(v)) return v.map((x) => labels[x] || x).join(", ") || "—"
 			if (typeof v === 'object') {
-				// Zuordnung: „Item → Ziel" je Zeile.
+				// Matching: "item → target" per row.
 				const match = item.poll.match
 				if (match) {
 					const labelById = {}
@@ -959,7 +964,7 @@ export default {
 						.map((it) => this.t('pulse', '{item} → {target}', { item: it.label, target: labelById[v[it.id]] || '?' }))
 					return rows.length ? rows.join(' · ') : this.t('pulse', 'submitted')
 				}
-				// Kompass: Koordinaten; Spektrum: je Aspekt ein Wert.
+				// Compass: coordinates; spectrum: one value per aspect.
 				if ('x' in v && 'y' in v) return `${v.x} / ${v.y}`
 				const aspects = (item.poll.scale && item.poll.scale.aspects) || []
 				const parts = aspects.filter((a) => a.id in v).map((a) => `${a.label}: ${v[a.id]}`)
@@ -968,8 +973,8 @@ export default {
 			return String(v)
 		},
 
-		// ── Zustands-Polling ────────────────────────────────────────────────
-		// Bild-URL der Frage (öffentlich, nur solange die Frage läuft/aufgelöst ist).
+		// ── State polling ───────────────────────────────────────────────────
+		// Image URL of the question (public, only while the question is running/revealed).
 		imageUrl(poll) {
 			if (!poll || !poll.image) return ''
 			return this.base('/polls/' + poll.id + '/image') + '?v=' + encodeURIComponent(poll.image)
@@ -977,11 +982,11 @@ export default {
 		base(suffix = '') {
 			return generateUrl('/apps/pulse/s/' + this.code + suffix)
 		},
-		// ID plus Form und Fassung der Frage. Die Reihenfolge der IDs zählt
-		// nicht: vor dem Auflösen kommen Reihenfolge/Zuordnung gemischt, danach
-		// gespeichert. Die Startzeit gehört NICHT hinein: „Zeigen" und „Wieder
-		// öffnen" setzen sie neu, behalten aber die Stimmen — das Handy verlöre
-		// sonst Eingaben und ein noch offenes Korrekturfenster.
+		// ID plus the shape and version of the question. The order of the IDs does
+		// not matter: before the reveal, ordering/matching come shuffled, afterwards
+		// as stored. The start time does NOT belong in it: "Show" and "Reopen"
+		// set it anew but keep the votes — otherwise the phone would lose
+		// inputs and a correction window that is still open.
 		pollKey(poll) {
 			if (!poll) return null
 			const ids = (list) => (list || []).map((o) => o.id).sort().join(',')
@@ -990,19 +995,19 @@ export default {
 				ids(poll.options), ids(match.items), ids(match.targets), JSON.stringify(poll.scale || null)].join('|')
 		},
 		applyState(data) {
-			// Anderes Server-Protokoll: altes Bundle aus dem Cache -> einmal neu laden.
+			// Different server protocol: old bundle from the cache -> reload once.
 			if (reloadOnProtocolMismatch(data.protocol)) return
-			// Eigenes Tempo (§2.1): VOR den bestehenden Zeilen — applyPace braucht noch
-			// die alte Frage und `voted`. Entschieden am Payload, nicht an isPaced:
-			// beim ersten Zustand ist `mode` noch leer.
+			// Self-paced (§2.1): BEFORE the existing lines — applyPace still needs
+			// the old question and `voted`. Decided on the payload, not on isPaced:
+			// on the first state `mode` is still empty.
 			const paced = !!data.room && data.room.mode === 'quiz' && data.room.pace === 'self'
 			if (paced) this.applyPace(data)
 			const newId = data.poll ? data.poll.id : null
-			// Offene Auswertung schließen, sobald der Moderator weiterschaltet.
+			// Close an open summary as soon as the moderator moves on.
 			if (this.review && (newId || 0) !== this.reviewAt) this.review = null
-			// Lokale Auswahl zurück bei neuer Frage — und bei bearbeiteter: dann
-			// bleibt die ID, aber Optionen/Paare haben neue IDs, und die alten
-			// würden beim Absenden abgelehnt.
+			// Reset the local selection on a new question — and on an edited one: then
+			// the ID stays, but options/pairs have new IDs, and the old ones
+			// would be rejected on submit.
 			const key = this.pollKey(data.poll)
 			if (key !== this.lastPollKey) {
 				this.lastPollKey = key
@@ -1027,9 +1032,9 @@ export default {
 				this.matchPick = fresh.pick
 				this.textInput = ''
 			} else if (this.voted && !data.hasVoted) {
-				// Eigene Stimme verschwunden (Frage bearbeitet oder zurückgesetzt):
-				// die nächste Antwort bekommt wieder ihr volles Korrekturfenster,
-				// und kein „Du"-Punkt zeigt mehr auf die gelöschte Stimme.
+				// Own vote gone (question edited or reset):
+				// the next answer gets its full correction window again,
+				// and no "You" dot points at the deleted vote any more.
 				this.changing = false
 				this.fixUntil = 0
 				this.fixUsed = false
@@ -1042,19 +1047,19 @@ export default {
 			this.myValue = data.myValue
 			this.answered = data.answered || 0
 			this.present = data.present || 0
-			// Schon abgestimmt? Dann die eigene Reihenfolge zeigen, nicht eine neue Mischung.
+			// Already voted? Then show your own order, not a new shuffle.
 			if (data.poll && data.poll.type === 'rank' && Array.isArray(data.myValue) && !this.changing) {
 				this.rankOrder = this.initRank(data.poll, data.myValue)
 			}
-			// Schon zugeordnet? Dann die eigene Zuordnung zeigen (die gemischte
-			// Zielspalte bleibt stehen), nicht wieder leere Felder.
+			// Already matched? Then show your own matching (the shuffled
+			// target column stays), not empty fields again.
 			if (data.poll && data.poll.type === 'match' && data.myValue && typeof data.myValue === 'object' && !this.changing) {
 				const mine = this.initMatch(data.poll, data.myValue)
 				if (!this.matchTargets.length) this.matchTargets = mine.targets
 				this.matchPick = mine.pick
 			}
-			// Mehrfachauswahl, Zahl und Freitext: nach Neuladen die eigene Antwort
-			// zeigen statt eines leeren, gesperrten Felds.
+			// Multiple choice, number and free text: after a reload show your own answer
+			// instead of an empty, locked field.
 			if (data.poll && data.hasVoted && !this.changing && data.myValue !== null && data.myValue !== undefined) {
 				if (data.poll.type === 'multi' && Array.isArray(data.myValue) && !this.multiPick.length) this.multiPick = data.myValue.slice()
 				if (data.poll.type === 'number' && this.numInput === '') this.numInput = String(data.myValue)
@@ -1066,21 +1071,21 @@ export default {
 			}
 			if ('practice' in data) this.practice = !!data.practice
 			this.serverSkew = (data.serverNow || Math.floor(Date.now() / 1000)) - Math.floor(Date.now() / 1000)
-			// Quiz-Extras (Schlüssel nur im Quiz-Modus vorhanden)
+			// Quiz extras (keys only present in quiz mode)
 			if ('nickname' in data) this.nickname = data.nickname
 			this.myResult = data.myResult || null
 			this.leaderboard = data.leaderboard || null
 			if (data.version !== undefined) this.version = data.version
-			// Moderiert fehlt room.pace -> '' (isPaced aus).
+			// Moderated: room.pace is missing -> '' (isPaced off).
 			this.pace = (data.room && data.room.pace) || ''
 		},
 
-		// ── Adaptive Polling-Schleife ───────────────────────────────────────
-		// Rekursives setTimeout statt festem Intervall: schnell wenn eine Frage
-		// läuft, langsamer beim Warten, pausiert bei verstecktem Tab.
+		// ── Adaptive polling loop ───────────────────────────────────────────
+		// Recursive setTimeout instead of a fixed interval: fast while a question
+		// is running, slower while waiting, paused while the tab is hidden.
 		pollDelay() {
-			// Eigenes Tempo: eigene Takt-Tabelle (§2.10). /state baut dort bei jedem
-			// Abruf den vollen Zustand, und ein Handy steht die ganze Frage darauf.
+			// Self-paced: its own timing table (§2.10). There /state builds the full
+			// state on every fetch, and a phone sits on it for the whole question.
 			if (this.isPaced) {
 				return document.hidden ? null : phoneDelay({
 					isPaced: true,
@@ -1092,23 +1097,23 @@ export default {
 					remaining: this.remaining,
 				})
 			}
-			if (document.hidden) return null // pausieren -> onPollVisibility weckt auf
-			if (this.poll) return 1300 // Frage sichtbar -> flott
-			return this.idleStreak >= 3 ? 5000 : 2500 // Warteraum -> zurückfahren
+			if (document.hidden) return null // pause -> onPollVisibility wakes it up
+			if (this.poll) return 1300 // question visible -> fast
+			return this.idleStreak >= 3 ? 5000 : 2500 // waiting room -> back off
 		},
 		async pollOnce() {
-			// Eine Antwort, die ein Absenden überholt hat (Anfrage vor der Stimme
-			// gestartet, danach angekommen), ist veraltet: sie meldete „noch nicht
-			// abgestimmt" und risse Korrekturfenster und Auswahl ein.
+			// A response that overtook a submit (request started before the vote,
+			// arrived after it) is stale: it would report "not voted yet"
+			// and tear down the correction window and the selection.
 			const seq = this.submitSeq
 			try {
 				const params = this.version ? { v: this.version } : {}
-				// Im eigenen Tempo mit Timeout: eine hängende Anfrage hielte sonst die
-				// Schleife an (moderiert unverändert).
+				// Self-paced with a timeout: a hanging request would otherwise stop the
+				// loop (unchanged when moderated).
 				const res = await axios.get(this.base('/state'), this.isPaced ? { params, timeout: 10000 } : { params })
 				this.online = true
 				if (seq !== this.submitSeq) return
-				if (res.status === 204) { // unverändert
+				if (res.status === 204) { // unchanged
 					this.idleStreak++
 					return
 				}
@@ -1116,9 +1121,9 @@ export default {
 				this.idleStreak = 0
 			} catch (e) {
 				if (e?.response?.status === 404) {
-					// Raum weg -> dauerhaft aufhören zu pollen. Sonst hämmert der Tab den
-					// Endpunkt weiter; jedes „nicht gefunden" zählt auf die Brute-Force-
-					// Aktion 'pulseRoomCode' und drosselt am Ende die ganze IP (429).
+					// Room gone -> stop polling for good. Otherwise the tab keeps hammering the
+					// endpoint; every "not found" counts towards the brute-force
+					// action 'pulseRoomCode' and in the end throttles the whole IP (429).
 					this.roomExists = false
 					this.pollStopped = true
 				} else {
@@ -1127,19 +1132,19 @@ export default {
 			}
 		},
 		/*
-		 * Stimme senden. `keyboard` sagt dem Server nur, wie lang das
-		 * Korrekturfenster sein darf (§8.0): per Tastatur oder Screenreader ist
-		 * der Weg zurück zur Karte länger als mit dem Daumen.
+		 * Send a vote. `keyboard` only tells the server how long the
+		 * correction window may be (§8.0): via keyboard or screen reader,
+		 * the way back to the card is longer than with the thumb.
 		 */
 		async submit(value, keyboard = false) {
 			this.busy = true
 			this.submitSeq++
 			const wasChanging = this.changing
 			try {
-				// pollId: hat der Moderator inzwischen weitergeschaltet, lehnt der
-				// Server ab, statt die Antwort der neuen Frage gutzuschreiben.
-				// Im eigenen Tempo mit Timeout: eine hängende Stimme hielte sonst
-				// `busy` fest — Antworten, „Next" und der Zeitablauf wären gesperrt.
+				// pollId: if the moderator has moved on in the meantime, the server
+				// rejects it instead of crediting the answer to the new question.
+				// Self-paced with a timeout: a hanging vote would otherwise hold
+				// `busy` — answers, "Next" and the time running out would be locked.
 				const { data } = await axios.post(this.base('/vote'), { value, keyboard, pollId: this.poll ? this.poll.id : null }, this.isPaced ? { timeout: 10000 } : undefined)
 				this.applyState(data)
 				this.voted = true
@@ -1147,7 +1152,7 @@ export default {
 				this.online = true
 				if (this.isQuiz) {
 					if (wasChanging) {
-						// Genau eine Korrektur — danach ist die Antwort endgültig.
+						// Exactly one correction — after that the answer is final.
 						this.fixUsed = true
 						this.fixUntil = 0
 					} else {
@@ -1158,11 +1163,11 @@ export default {
 				}
 			} catch (e) {
 				showError(e?.response?.data?.message || t('pulse', 'Your vote could not be saved.'))
-				// Eigenes Tempo: eine abgelehnte Korrektur (Fenster zu, Zeit um) lässt
-				// den Korrekturmodus nicht offen (§2.1 c) — die Abfrage zieht nach.
+				// Self-paced: a rejected correction (window shut, time up) does not leave
+				// the correction mode open (§2.1 c) — the polling catches up.
 				const status = e?.response?.status || 0
 				if (this.isPaced && this.changing && status >= 400 && status < 500) this.paceEndChange()
-				// Zeitüberschreitung/Netz: „Connection lost", die Abfrage holt den Stand.
+				// Timeout/network: "Connection lost …", the polling fetches the state.
 				if (this.isPaced && !e?.response) this.online = false
 			} finally {
 				this.submitSeq++
@@ -1170,15 +1175,15 @@ export default {
 			}
 		},
 		/*
-		 * Eine einzelne Antwort antippen. Im Quiz sendet das sofort (§8.0), in
-		 * der Umfrage wählt es nur aus — dort gibt es keinen Zeitdruck, also
-		 * auch keinen Grund für das Risiko eines Fehltipps.
+		 * Tap a single answer. In the quiz this submits immediately (§8.0); in
+		 * a poll it only selects — there is no time pressure there, so
+		 * no reason to risk a mistap either.
 		 *
-		 * `event.detail === 0` heißt: der Klick kam von der Tastatur (Enter oder
-		 * Leertaste), nicht von einem Zeigegerät.
+		 * `event.detail === 0` means: the click came from the keyboard (Enter or
+		 * space bar), not from a pointing device.
 		 */
 		pickOne(id, event) {
-			// paceHold: eigenes Tempo, neue Frage erst 0,6 s alt (Doppeltipp auf „Next").
+			// paceHold: self-paced, the new question is only 0.6 s old (double tap on "Next").
 			if (this.locked || this.busy || this.paceHold) return
 			if (!this.isQuiz) {
 				this.singlePick = id
@@ -1190,7 +1195,7 @@ export default {
 			if (this.singlePick !== null) return this.singlePick === id
 			return this.voted && this.myValue === id
 		},
-		// Ein Absende-Weg für alle Typen mit Knopf — die Zone ist eine (§8.1).
+		// One submit path for all types with a button — there is one zone (§8.1).
 		doSubmit() {
 			if (this.busy || this.locked || this.paceHold || !this.submitReady) return
 			switch (this.poll.type) {
@@ -1216,7 +1221,7 @@ export default {
 				break
 			}
 		},
-		// ── Auswahlblatt der Zuordnung (§8.3) ───────────────────────────────
+		// ── Picker sheet for matching (§8.3) ────────────────────────────────
 		openSheet(itemId) {
 			if (this.locked || this.busy || this.paceHold) return
 			this.sheetFor = itemId
@@ -1226,7 +1231,7 @@ export default {
 		},
 		chooseTarget(targetId) {
 			if (!this.sheetFor) return
-			// Bei 1:1-Zuordnung tauscht die Wahl: wer das Ziel schon hatte, wird frei.
+			// With 1:1 matching the choice swaps: whoever already had the target becomes free.
 			for (const item of this.matchItems) {
 				if (item.id !== this.sheetFor && this.matchPick[item.id] === targetId) {
 					this.$set(this.matchPick, item.id, '')
@@ -1253,7 +1258,7 @@ export default {
 		optPal(i) {
 			return option(i)
 		},
-		// Kompass in Worten (§8.4): fünf Stufen statt „PACE 0 · SCOPE 0".
+		// Compass in words (§8.4): five levels instead of "PACE 0 · SCOPE 0".
 		axisWord(axis) {
 			const value = axis === 'x' ? this.compassX : this.compassY
 			const ax = axis === 'x' ? this.poll.scale.axisX : this.poll.scale.axisY
@@ -1271,7 +1276,7 @@ export default {
 			if (!words.length) return
 			this.submit(words)
 		},
-		// Mehrfachauswahl: Option an-/abwaehlen (endgueltig erst mit Absenden).
+		// Multiple choice: toggle an option (only final on submit).
 		toggleMulti(id) {
 			if (this.paceHold) return
 			const at = this.multiPick.indexOf(id)
@@ -1288,10 +1293,10 @@ export default {
 			this.submit(t)
 		},
 		onScaleInput(e) {
-			// Erste Bewegung zählt als Antwort (vorher null = nicht geantwortet).
+			// The first movement counts as an answer (before that null = not answered).
 			this.scaleVal = Number(e.target.value)
 		},
-		// Spektrum: Startwerte = Neutralwert; zählt als gültige neutrale Antwort.
+		// Spectrum: start values = neutral value; counts as a valid neutral answer.
 		initSpectrum(poll) {
 			const out = {}
 			if (poll && poll.scale && poll.scale.mode === 'spectrum' && Array.isArray(poll.scale.aspects)) {
@@ -1300,8 +1305,8 @@ export default {
 			}
 			return out
 		},
-		// Bipolare Füllung: läuft von der Neutralmarke zum Daumen (nicht von 0).
-		// Damit liest sich der Balken als „Abweichung von neutral", nicht als Menge.
+		// Bipolar fill: runs from the neutral mark to the thumb (not from 0).
+		// That way the bar reads as "deviation from neutral", not as an amount.
 		spectrumFill(id) {
 			if (!this.poll || !this.poll.scale) return {}
 			const { min, max } = this.poll.scale
@@ -1310,7 +1315,7 @@ export default {
 			const n = this.neutralPct
 			return { '--lo': Math.min(n, vPct) + '%', '--hi': Math.max(n, vPct) + '%' }
 		},
-		// Vorzeichenbehaftete Kompass-Anzeige (+2 / 0 / −2, echtes Minuszeichen).
+		// Signed compass display (+2 / 0 / −2, a real minus sign).
 		signed(n) {
 			return n > 0 ? '+' + n : (n < 0 ? '−' + Math.abs(n) : '0')
 		},
@@ -1327,11 +1332,11 @@ export default {
 			const hi = asp.poleHigh ? ` (${asp.poleHigh})` : ''
 			return this.t('pulse', '{aspect} – scale from {min}{low} to {max}{high}', { aspect: asp.label, min: sc.min, low: lo, max: sc.max, high: hi })
 		},
-		// ── Kompass: 2D-Pad ↔ synchrone X/Y-Regler ──────────────────────────
+		// ── Compass: 2D pad ↔ synchronised X/Y sliders ──────────────────────
 		onPadDown(e) {
 			this.padDown = true
 			if (this.$refs.pad && this.$refs.pad.setPointerCapture) {
-				try { this.$refs.pad.setPointerCapture(e.pointerId) } catch (err) { /* kein Pointer-Capture */ }
+				try { this.$refs.pad.setPointerCapture(e.pointerId) } catch (err) { /* no pointer capture */ }
 			}
 			this.padFromClient(e)
 		},
@@ -1385,21 +1390,21 @@ export default {
 			}
 		},
 
-		// ── Quiz-Beitritt ───────────────────────────────────────────────────
+		// ── Joining the quiz ────────────────────────────────────────────────
 		async join() {
 			const name = this.nickInput.trim()
 			if (!name || this.joining) return
 			this.joining = true
 			this.nickError = ''
-			// Wie submit: ein vor dem Beitritt gestartetes /state (nickname: null)
-			// käme sonst danach an — der Namensbildschirm blitzte zurück, und im
-			// eigenen Tempo stünde fälschlich „entfernt" (§2.1).
+			// Like submit: a /state started before joining (nickname: null)
+			// would otherwise arrive afterwards — the name screen would flash back, and
+			// in self-paced mode it would wrongly say "removed" (§2.1).
 			this.submitSeq++
 			try {
-				// Im eigenen Tempo mit Timeout (sonst bliebe `joining` hängen).
+				// Self-paced with a timeout (otherwise `joining` would hang).
 				const { data } = await axios.post(this.base('/join'), { nickname: name }, this.isPaced ? { timeout: 10000 } : undefined)
 				this.applyState(data)
-				// Eigenes Tempo: Fokus auf die Überschrift der neuen Karte (§2.11).
+				// Self-paced: focus on the heading of the new card (§2.11).
 				if (this.isPaced) this.paceFocusNext = true
 			} catch (e) {
 				this.nickError = e?.response?.data?.message || t('pulse', 'Joining failed.')
@@ -1410,7 +1415,7 @@ export default {
 			}
 		},
 
-		// ── Code-Eingabe (Beitritts-Seite) ──────────────────────────────────
+		// ── Code entry (join page) ──────────────────────────────────────────
 		onDigit(i, e) {
 			const v = (e.target.value || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(-1)
 			e.target.value = v
@@ -1419,7 +1424,7 @@ export default {
 			if (v && i < 5) {
 				this.$refs.digits[i + 1].focus()
 			}
-			// §4.8: KEIN Auto-Senden nach dem 6. Zeichen — „Beitreten" ist die eine Aktion.
+			// §4.8: NO auto-submit after the 6th character — "Join" is the one action.
 		},
 		onDelete(i, e) {
 			if (this.digits[i] === '' && i > 0) {
@@ -1434,14 +1439,14 @@ export default {
 			for (let i = 0; i < 6; i++) this.$set(this.digits, i, chars[i] || '')
 			const next = Math.min(chars.length, 5)
 			this.$nextTick(() => { if (this.$refs.digits[next]) this.$refs.digits[next].focus() })
-			// §4.8: auch nach Einfügen nicht automatisch senden — Fokus aufs „Beitreten".
+			// §4.8: do not submit automatically after pasting either — focus on "Join".
 		},
 		async go() {
 			if (!this.entryValid || this.checking) return
 			this.checking = true
 			this.entryError = ''
 			try {
-				// Existenz prüfen, bevor wir navigieren -> Fehler direkt hier zeigen.
+				// Check existence before navigating -> show the error right here.
 				await axios.get(generateUrl('/apps/pulse/s/' + this.entryCode + '/state'))
 				window.location.href = generateUrl('/apps/pulse/s/' + this.entryCode)
 			} catch (e) {
@@ -1454,25 +1459,25 @@ export default {
 </script>
 
 <style scoped>
-/* Zuordnung: je Zeile Item links, Auswahl rechts — auf schmalen Handys
-   untereinander, sonst nebeneinander. */
+/* Matching: per row the item on the left, the choice on the right — stacked
+   on narrow phones, side by side otherwise. */
 .match-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
 .match-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .match-label { flex: 1 1 8em; min-width: 0; font-weight: 600; }
 .match-sel { flex: 1 1 10em; min-width: 0; }
 
 .pulse-part {
-	/* Muss den row-Flex-Container #content ausfüllen, sonst greift das interne
-	   justify-content:center nicht und die Karte klebt links. */
+	/* Must fill the row flex container #content, otherwise the internal
+	   justify-content:center does not apply and the card sticks to the left. */
 	flex: 1 1 auto;
 	width: 100%;
 	min-width: 0;
-	/* svh, nicht vh und nicht dvh (§8.1): vh ignoriert die Browserleiste, dvh
-	   ändert sich beim Ein- und Ausblenden und lässt das Layout springen. svh
-	   ist die konservative Größe — was damit passt, passt immer. */
-	/* Die Nextcloud-Kopfleiste steht über der Seite und gehört nicht zum
-	   Höhenbudget (§8.1) — ohne den Abzug rutscht die Absende-Leiste um genau
-	   ihre Höhe unter die Falz. */
+	/* svh, not vh and not dvh (§8.1): vh ignores the browser bar, dvh
+	   changes when the bar shows or hides and makes the layout jump. svh
+	   is the conservative size — what fits with it always fits. */
+	/* The Nextcloud header bar sits above the page and is not part of the
+	   height budget (§8.1) — without the deduction the submit bar slides exactly
+	   its own height below the fold. */
 	min-height: calc(100vh - var(--header-height, 50px));
 	min-height: calc(100svh - var(--header-height, 50px));
 	background: var(--pulse-bg);
@@ -1490,9 +1495,9 @@ export default {
 	box-sizing: border-box;
 }
 
-/* Antwort-Ansicht: Inhalt scrollt, die Absende-Leiste nie. Sticky wäre falsch —
-   sie pinnt nur beim Scrollen und rutschte bei kurzem Inhalt direkt unter die
-   Karten statt an den unteren Rand (§8.1). */
+/* Answer view: the content scrolls, the submit bar never does. Sticky would be wrong —
+   it only pins while scrolling and, with short content, slid directly below the
+   cards instead of to the bottom edge (§8.1). */
 .h-app { flex: 1 1 auto; min-height: 0; display: grid; grid-template-rows: minmax(0, 1fr) auto; }
 .h-scroll { min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
 .h-submit {
@@ -1504,8 +1509,8 @@ export default {
 .h-submit .submit-btn { margin: 0; min-height: 56px; }
 .h-note { margin: 0; font-size: var(--t-sm); font-weight: 600; color: var(--pulse-text-2); text-align: center; }
 .h-hint { margin: 0; font-size: var(--t-sm); font-weight: 600; color: var(--pulse-text-2); }
-/* Der Bildkasten braucht eine FESTE Höhe: mit max-height behält das Bild seine
-   Eigenhöhe und overflow:hidden beschneidet es, statt es zu verkleinern (§8.1). */
+/* The image box needs a FIXED height: with max-height the image keeps its
+   natural height and overflow:hidden clips it instead of shrinking it (§8.1). */
 .h-img {
 	flex: none; height: 26%; min-height: 96px;
 	display: grid; place-items: center; overflow: hidden;
@@ -1515,7 +1520,7 @@ export default {
 }
 .h-img.is-small { height: 16%; }
 .h-img img { display: block; max-width: 100%; max-height: 100%; object-fit: contain; filter: var(--pulse-image-filter); }
-/* Vollbild-Ebene: Schließen-Knopf außerhalb des Bildes, ≥ 48 px (§8.1). */
+/* Full-screen layer: close button outside the image, ≥ 48 px (§8.1). */
 .h-zoom { position: fixed; inset: 0; z-index: 60; background: rgba(0, 0, 0, .88); display: grid; place-items: center; padding: 16px; }
 .h-zoom img { max-width: 100%; max-height: 100%; object-fit: contain; }
 .h-zoom-x {
@@ -1528,10 +1533,10 @@ export default {
 .muted { color: var(--pulse-text-2); }
 .you { font-weight: 700; margin: 0 0 20px; }
 
-/* Code-Eingabe (§4.6 — eigener Schritt, nur Tokens migriert) */
+/* Code entry (§4.6 — its own step, only the tokens migrated) */
 .entry .eyebrow-p { color: var(--pulse-primary); letter-spacing: 0.18em; text-transform: uppercase; font-weight: 700; font-size: var(--t-sm); margin: 0 0 8px; }
 .entry h1 { font-size: var(--t-h1); margin: 0 0 20px; }
-/* §4.8: 6 Boxen mit garantierter Mindestbreite ≥44px — auch bei 320px, ohne H-Scroll. */
+/* §4.8: 6 boxes with a guaranteed minimum width ≥44px — even at 320px, without horizontal scrolling. */
 .digits { display: flex; gap: clamp(4px, 1.8vw, 10px); justify-content: center; margin-bottom: 14px; }
 .digit {
 	flex: 1 1 44px;
@@ -1554,21 +1559,21 @@ export default {
 .entry-error { color: var(--pulse-error); font-size: var(--t-sm); margin: 0 0 12px; }
 .entry .submit { width: 100%; }
 
-/* §4.11 Raum-nicht-gefunden: gebrandet + ein CTA (kein Dead-End) */
+/* §4.11 room not found: branded + one CTA (no dead end) */
 .empty-part { padding-top: 12vh; }
 .empty-part h1 { font-size: var(--t-h2); margin: 6px 0 8px; }
 .empty-cta { display: inline-flex; margin-top: 18px; text-decoration: none; }
 
-/* Nickname: sichtbarer 24er-Zähler */
+/* Nickname: visible counter up to 24 */
 .nick-ico { color: var(--pulse-primary); margin: 0 0 6px; }
 .nick-field { position: relative; display: block; margin-bottom: 14px; }
 .nick-field .nick-input { margin-bottom: 0; }
 .nick-count { position: absolute; right: 12px; bottom: 10px; font-size: var(--t-cap); color: var(--pulse-text-2); font-variant-numeric: tabular-nums; pointer-events: none; }
 
-/* Zustands-Icon (abgelaufen etc.) */
+/* State icon (expired etc.) */
 .state-ico { color: var(--pulse-text-2); margin: 0 0 8px; }
 
-/* Quiz: Namenswahl (§4.6 — eigener Schritt) */
+/* Quiz: choosing a name (§4.6 — its own step) */
 .nick { padding-top: 8vh; }
 .nick h1 { font-size: var(--t-h1); margin: 0 0 6px; }
 .nick-hint { margin: 0 0 20px; font-size: var(--t-sm); }
@@ -1588,7 +1593,7 @@ export default {
 .nick-input:focus { outline: none; border-color: var(--pulse-primary); }
 .nick .submit { width: 100%; }
 
-/* Raumname unter dem Code — sagt der Person, wo sie gelandet ist. */
+/* Room name below the code — tells the person where they have landed. */
 .room-title { font-size: 17px; font-weight: 700; line-height: 1.3; margin: 2px 0 6px; overflow-wrap: anywhere; }
 .code-badge {
 	display: inline-block;
@@ -1597,7 +1602,7 @@ export default {
 	padding: 8px 16px; border-radius: var(--pulse-r-pill); margin-bottom: 24px;
 	font-variant-numeric: tabular-nums;
 }
-/* Warte-Puls */
+/* Waiting pulse */
 .wait-dot {
 	width: 14px; height: 14px; border-radius: 50%;
 	background: var(--pulse-primary); margin: 0 auto 16px;
@@ -1611,21 +1616,21 @@ export default {
 .q-img { display: block; width: 100%; max-height: 34vh; object-fit: contain; margin: 0 0 10px; border-radius: var(--pulse-r-card, 14px); }
 .q { font-size: var(--t-h2); line-height: 1.25; margin: 0 0 24px; }
 
-/* Probelauf-Chip (ersetzt .practice-tag) */
+/* Practice-run chip (replaces .practice-tag) */
 .practice-chip { margin: 0 0 14px; }
 
 /* Countdown */
 .timer { display: flex; align-items: center; gap: 12px; margin-bottom: 22px; }
 .timer-track { flex: 1; height: 12px; border-radius: var(--pulse-r-pill); background: var(--pulse-fill); overflow: hidden; }
-/* 1 s = Tick-Intervall -> Balken gleitet durchgehend statt in Sekundenstufen. */
+/* 1 s = tick interval -> the bar glides continuously instead of in one-second steps. */
 .timer-fill { height: 100%; border-radius: var(--pulse-r-pill); background: var(--pulse-primary); transition: width 1s linear; }
 .timer-num { font-size: var(--t-lead); font-weight: 800; font-variant-numeric: tabular-nums; min-width: 2ch; text-align: right; }
-/* Dringlichkeit ≤ 5 s: nicht nur Farbe — die Zahl pulst zusätzlich. */
+/* Urgency ≤ 5 s: not only colour — the number pulses as well. */
 .timer.is-low .timer-fill { background: var(--pulse-error); }
 .timer.is-low .timer-num { color: var(--pulse-error); animation: timer-pulse 1s ease-in-out infinite; }
 @keyframes timer-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 
-/* Quiz-Auflösung: Verdikt */
+/* Quiz reveal: verdict */
 .verdict { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-bottom: 24px; }
 .verdict-mark { width: 72px; height: 72px; border-radius: 50%; display: grid; place-items: center; color: #fff; }
 .verdict.is-ok .verdict-mark { background: var(--pulse-success); }
@@ -1639,7 +1644,7 @@ export default {
 .myrank { text-align: center; margin: 20px 0; font-size: 17px; }
 .myrank b { color: var(--pulse-primary); font-variant-numeric: tabular-nums; }
 
-/* Häkchen nach dem Abstimmen (Erfolg-gefärbt) */
+/* Tick after voting (success-coloured) */
 .check { width: 64px; height: 64px; display: block; margin: 0 auto 12px; }
 .check-ring { fill: none; stroke: var(--pulse-border-strong); stroke-width: 2; }
 .check-mark {
@@ -1649,13 +1654,13 @@ export default {
 }
 @keyframes draw { to { stroke-dashoffset: 0; } }
 
-/* ── Handy-Antwortoption (Buchstabe + Farbe A–H, Auswahl = Rahmen + Haken) ── */
-/* Raster statt Flex-Spalte: grid-auto-rows: 1fr macht alle Karten so hoch
-   wie die höchste — bei einem zweizeiligen Label springt sonst nur eine (§8.9). */
+/* ── Phone answer option (letter + colour A–H, selection = border + tick) ── */
+/* Grid instead of a flex column: grid-auto-rows: 1fr makes all cards as tall
+   as the tallest — otherwise only one jumps for a two-line label (§8.9). */
 .choices { display: grid; grid-auto-rows: 1fr; gap: 10px; }
-/* Umfrage: Antwortfarbe als Tönung mit farbigem Rand. Quiz: volle Fläche.
-   Der Unterschied ist begründet — acht vollflächige Farbkarten wären in einer
-   Umfrage Lärm, im Quiz sind sie der Griff (§8.2). */
+/* Poll: answer colour as a tint with a coloured border. Quiz: full surface.
+   The difference is deliberate — eight full-colour cards would be noise in a
+   poll; in the quiz they are what you grab (§8.2). */
 .choice {
 	appearance: none; -webkit-appearance: none;
 	display: flex; align-items: center; gap: 12px;
@@ -1675,9 +1680,9 @@ export default {
 	color: var(--opt-ink, var(--pulse-on-primary));
 	font-weight: 700;
 }
-/* Ring nach INNEN — Pflicht, nicht Geschmack: overflow-y:auto zwingt overflow-x
-   ebenfalls auf auto, und der Scroll-Container beschneidet einen äußeren
-   Schatten an allen vier Kanten (§8.2). */
+/* Ring on the INSIDE — required, not taste: overflow-y:auto forces overflow-x
+   to auto as well, and the scroll container clips an outer
+   shadow on all four edges (§8.2). */
 .choice.is-picked { box-shadow: inset 0 0 0 3px var(--pulse-text); font-weight: 800; }
 .choice.is-dim { filter: saturate(.25); opacity: 0.72; }
 .choice-badge { flex: 0 0 32px; width: 32px; height: 32px; border-radius: 8px; font-size: 15px; }
@@ -1686,11 +1691,11 @@ export default {
 .choice-label { flex: 1; min-width: 0; }
 .choice:hover:not(:disabled) { border-color: var(--pulse-primary); }
 .choice:active:not(:disabled) { transform: translateY(2px); }
-/* NC dämpft native Buttons global mit `opacity: .5` — das nähme der eigenen,
-   gewählten Karte im Zustand „gesendet" ihre Farbe. Gedämpft werden sollen die
-   ANDEREN Karten (.is-dim), nicht die eigene. */
+/* NC dims native buttons globally with `opacity: .5` — that would take the
+   colour away from your own chosen card in the "sent" state. The OTHER cards
+   (.is-dim) are the ones to dim, not your own. */
 .choice:disabled { opacity: 1 !important; cursor: default; }
-/* Mehrfachauswahl: Checkbox-Kästchen rechts, gewählt = gefüllt. */
+/* Multiple choice: checkbox square on the right, chosen = filled. */
 .choice.is-picked { border-color: var(--pulse-primary); box-shadow: 0 0 0 2px var(--pulse-primary) inset; font-weight: 800; }
 .choice-box {
 	margin-left: auto; flex: 0 0 auto; width: 26px; height: 26px;
@@ -1699,7 +1704,7 @@ export default {
 }
 .choice.is-picked .choice-box { background: var(--pulse-primary); border-color: var(--pulse-primary); }
 
-/* Wahr/Falsch: zwei codierte Spalten. */
+/* True/False: two coded columns. */
 .tf { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .tf-btn {
 	appearance: none; -webkit-appearance: none;
@@ -1710,15 +1715,15 @@ export default {
 	font-size: var(--t-lead); font-weight: 800; cursor: pointer;
 	transition: transform 0.08s ease, border-color 0.12s ease;
 }
-/* Während der Abstimmung NEUTRAL: ✓/✗ tragen nur „Ja/Nein", keine Wertung
-   (Grün=Wahr würde im Quiz „Wahr = richtig" suggerieren). Grün/Rot erst bei
-   der Auflösung — die kommt über die Ergebnis-Balken (§5/§11). */
+/* NEUTRAL during voting: ✓/✗ only carry "yes/no", no judgement
+   (green = True would suggest "True = correct" in the quiz). Green/red only at
+   the reveal — which comes via the result bars (§5/§11). */
 .tf-mark { width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; background: var(--pulse-fill); color: var(--pulse-text-2); }
 .tf-btn:hover:not(:disabled) { border-color: var(--pulse-border-strong); }
 .tf-btn:active:not(:disabled) { transform: translateY(2px); }
 .tf-btn:disabled { opacity: 0.5; }
 
-/* Schätzfrage / Freitext / Wortwolke: Eingabefeld + Absenden */
+/* Estimation question / free text / word cloud: input field + submit */
 .free-vote, .words { display: flex; flex-direction: column; gap: 14px; }
 .pulse-input {
 	appearance: none; -webkit-appearance: none;
@@ -1731,8 +1736,8 @@ export default {
 .pulse-input.is-lg { font-size: var(--t-lead); text-align: center; }
 .pulse-input:focus { outline: none; border-color: var(--pulse-primary); }
 .pulse-input::placeholder { color: var(--pulse-text-2); font-weight: 400; }
-/* Wortwolke-Eingabe: je Feld ein Wort + Zeichenzähler (Limit 24) */
-/* ── Reihenfolge ──────────────────────────────────────────────────────── */
+/* Word cloud input: one word per field + character counter (limit 24) */
+/* ── Ordering ─────────────────────────────────────────────────────────── */
 .rank-field { display: flex; flex-direction: column; gap: 10px; }
 .rank-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .rank-item {
@@ -1751,11 +1756,12 @@ export default {
 .word-field { display: block; }
 .word-count { display: block; margin-top: 4px; font-size: var(--t-cap); color: var(--pulse-text-2); text-align: right; }
 
-/* ── Skala-Familie: EINE Wert-Anzeige, EIN Regler-Baustein (Verfeinerung §1) ──
-   Der Wert ist in allen drei Modi die Quittung derselben Geste -> überall
-   gleich gesetzt: tabellenziffrige Mono-Zahl über der Eingabe. Der Regler
-   teilt Spur (9 px), Daumen (28 px), Fokus und 44-px-Trefferfläche; nur die
-   Füllung unterscheidet die Modi (unipolar / bipolar / keine). */
+/* ── Scale family: ONE value display, ONE slider building block (refinement §1) ──
+   (Design notes, not in the public repository.)
+   In all three modes the value is the receipt for the same gesture -> set the
+   same everywhere: a tabular mono number above the input. The slider
+   shares the track (9 px), thumb (28 px), focus and 44 px hit area; only the
+   fill distinguishes the modes (unipolar / bipolar / none). */
 .scale-field { display: flex; flex-direction: column; gap: 14px; }
 
 .val-readout { display: flex; justify-content: center; align-items: baseline; gap: 5px; padding: 6px 0 2px; }
@@ -1764,10 +1770,10 @@ export default {
 	letter-spacing: -0.02em; color: var(--pulse-text); font-variant-numeric: tabular-nums;
 }
 .val-unit { font-family: var(--pulse-mono); font-weight: 700; font-size: var(--t-lead); color: var(--pulse-text-2); }
-/* „Noch nichts gewählt": grauer Strich, Absenden gesperrt (s. Template). */
+/* "Nothing chosen yet": grey dash, submit locked (see template). */
 .val-readout.is-empty .val-num { color: var(--pulse-text-2); opacity: 0.55; }
 
-/* Kompass-Readout: gleiche Prominenz wie die Einzel-Zahl (vorher graue Fließtext-Zeile). */
+/* Compass readout: same prominence as the single number (previously a grey body-text line). */
 .val-xy { display: flex; justify-content: center; align-items: baseline; gap: 18px; padding: 6px 0 2px; flex-wrap: wrap; }
 .val-ax { display: inline-flex; align-items: baseline; gap: 6px; min-width: 0; }
 .val-key { font-size: var(--t-cap); font-weight: 700; color: var(--pulse-text-2); text-transform: uppercase; letter-spacing: 0.08em; }
@@ -1786,12 +1792,12 @@ export default {
 	width: 28px; height: 28px; border-radius: 50%; border: 3px solid var(--pulse-bg);
 	background: var(--thumb, var(--pulse-primary)); box-shadow: 0 1px 5px rgba(0, 0, 0, 0.35);
 }
-/* Einzel: unipolar — Füllung 0 → Daumen (liest sich als Füllstand/Menge). */
+/* Single: unipolar — fill 0 → thumb (reads as fill level/amount). */
 .scale-range.is-uni::-webkit-slider-runnable-track {
 	background: linear-gradient(90deg, var(--pulse-primary) var(--pct, 0%), var(--pulse-fill) var(--pct, 0%));
 }
 .scale-range.is-uni::-moz-range-progress { height: 9px; border-radius: 999px; background: var(--pulse-primary); }
-/* Kompass: Daumen in der „Du"-Farbe — dieselbe Farbe wie Pad-Punkt und Readout. */
+/* Compass: thumb in the "You" colour — the same colour as the pad dot and readout. */
 .scale-range.is-self { --thumb: var(--pulse-self); }
 
 .scale-ends { display: flex; justify-content: space-between; font-size: var(--t-cap); color: var(--pulse-text-2); gap: 12px; }
@@ -1799,11 +1805,11 @@ export default {
 .scale-ends span:last-child { text-align: right; }
 .field-hint { margin: 0; font-size: var(--t-cap); color: var(--pulse-text-2); text-align: center; }
 .field-hint--left { font-size: var(--t-sm); text-align: left; }
-/* Fuß mit Safe-Area: „Absenden" darf nicht unter der Android-Leiste liegen. */
+/* Footer with safe area: "Submit" must not sit under the Android bar. */
 .sticky-foot { display: flex; flex-direction: column; gap: 8px; padding-bottom: max(0px, env(safe-area-inset-bottom, 0px)); }
 
-/* Spektrum: BIPOLARE Regler — Füllung von der Neutralmarke zum Daumen (§3.1).
-   Die Marke liegt auf dem Neutralwert, nicht pauschal bei 50 %. */
+/* Spectrum: BIPOLAR sliders — fill from the neutral mark to the thumb (§3.1).
+   The mark sits on the neutral value, not flatly at 50 %. */
 .spectrum-field { display: flex; flex-direction: column; gap: 18px; }
 .aspect { display: flex; flex-direction: column; gap: 6px; }
 .aspect-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
@@ -1811,8 +1817,8 @@ export default {
 .aspect-val { font-family: var(--pulse-mono); font-weight: 800; color: var(--pulse-text); font-variant-numeric: tabular-nums; font-size: var(--t-body); }
 .aspect-val.is-neutral { color: var(--pulse-text-2); }
 .track-wrap { position: relative; }
-/* Der Tick liegt UNTER dem Regler: der deckende Daumen verdeckt ihn, die
-   transparente Reglerfläche lässt die Stummel ober-/unterhalb der Spur durch. */
+/* The tick sits BELOW the slider: the opaque thumb covers it, the
+   transparent slider surface lets the stubs above/below the track show through. */
 .track-wrap .mid-tick {
 	position: absolute; top: 50%; transform: translate(-50%, -50%);
 	width: 2px; height: 20px; border-radius: 2px; background: var(--pulse-text-2);
@@ -1836,11 +1842,11 @@ export default {
 		var(--pulse-fill);
 }
 
-/* Kompass: 2D-Pad + synchrone X/Y-Regler; Punkt/Daumen/Readout in „Du"-Magenta. */
+/* Compass: 2D pad + synchronised X/Y sliders; dot/thumb/readout in "You" magenta. */
 .compass-field { display: flex; flex-direction: column; gap: 14px; }
 .pad-wrap { display: flex; flex-direction: column; align-items: center; gap: 6px; }
-/* Alle vier Pol-Labels waagerecht (§8.4): oben und unten außerhalb, links und
-   rechts innerhalb am Rand. Gedreht in Kleinstschrift waren sie unlesbar. */
+/* All four pole labels horizontal (§8.4): top and bottom outside, left and
+   right inside at the edge. Rotated in tiny type they were unreadable. */
 .pad-pole { font-size: var(--t-sm); font-weight: 600; color: var(--pulse-meta); text-align: center; max-width: 18ch; }
 .pad-side { position: absolute; top: 50%; transform: translateY(-50%); font-size: var(--t-cap); font-weight: 600; color: var(--pulse-meta); max-width: 8ch; }
 .pad-side-l { left: 6px; }
@@ -1857,7 +1863,7 @@ export default {
 .axrow { display: flex; flex-direction: column; gap: 2px; }
 .axrow-name { font-weight: 700; font-size: var(--t-sm); color: var(--pulse-text); }
 
-/* Absende-Button (Voting) + Join-Submit */
+/* Submit button (voting) + join submit */
 .submit-btn { width: 100%; margin-top: 4px; }
 .change-btn { display: flex; width: fit-content; margin: 18px auto 0; }
 .submit {
@@ -1877,7 +1883,7 @@ export default {
 .thanks { font-size: var(--t-body); color: var(--pulse-text-2); margin: 0 0 20px; text-align: center; }
 .conn-off { text-align: center; font-size: var(--t-sm); color: var(--pulse-error); margin-top: 24px; }
 
-/* ── Bänder, Korrekturfenster, Auswahlblatt (§8.0/§8.3/§8.5/§8.7) ─────── */
+/* ── Bands, correction window, picker sheet (§8.0/§8.3/§8.5/§8.7) ─────── */
 .band { display: flex; align-items: center; gap: 8px; margin: 0; padding: 12px; border-radius: var(--pulse-r-el); font-weight: 700; }
 .band.is-ok { background: var(--pulse-success-soft); color: var(--pulse-success); }
 .band.is-mut { background: var(--pulse-fill); color: var(--pulse-text-2); }
@@ -1895,8 +1901,8 @@ export default {
 	background: transparent; color: inherit; font-weight: 700; font-size: var(--t-body);
 	cursor: pointer;
 }
-/* Haarlinie statt zweiter Zahl: ein zweiter Countdown würde mit dem der Frage
-   konkurrieren (§8.0). */
+/* Hairline instead of a second number: a second countdown would compete with
+   the question's (§8.0). */
 .fix-line { position: absolute; left: 0; bottom: 0; height: 3px; background: currentColor; transition: width 0.5s linear; }
 
 .mine-box { border: 1.5px solid var(--pulse-border); border-radius: var(--pulse-r-card); padding: 14px; background: var(--pulse-fill); }
@@ -1911,7 +1917,7 @@ export default {
 .end-thanks { margin: 0; text-align: center; font-weight: 600; color: var(--pulse-text-2); }
 .code-badge.is-inline { display: inline-block; margin-top: 8px; }
 
-/* Zuordnung: Zeile mit Ziel-Chip, ganze Zeile ist Trefferfläche (§8.3) */
+/* Matching: row with a target chip, the whole row is the hit area (§8.3) */
 .mrow-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
 .mrow {
 	display: flex; align-items: center; gap: 10px; width: 100%;
@@ -1949,22 +1955,22 @@ export default {
 	color: var(--pulse-text); font-size: var(--t-body); font-weight: 700;
 	text-align: left; cursor: pointer;
 }
-/* Schon vergeben: erkennbar, aber weiterhin wählbar — die Wahl tauscht dann. */
+/* Already taken: recognisable, but still selectable — the choice then swaps. */
 .msheet-opt.is-used { filter: saturate(0.25); }
 .msheet-opt small { margin-left: auto; font-size: var(--t-sm); font-weight: 600; color: var(--pulse-meta); }
 .msheet-badge { flex: 0 0 32px; width: 32px; height: 32px; border-radius: 8px; font-size: 15px; background: var(--opt-fill, var(--pulse-primary)); color: var(--opt-ink, var(--pulse-on-primary)); }
 .msheet-x { width: 100%; margin-top: 12px; }
 
-/* Trefferflächen (§8.8): die Pfeile der Reihenfolge maßen 36 px. */
+/* Hit areas (§8.8): the ordering arrows measured 36 px. */
 .rank-arrow { min-width: 44px; min-height: 44px; }
 
-/* Schmale Geräte (§8.9): Innenabstand sinkt, Karten und Schrift bleiben. */
+/* Narrow devices (§8.9): the padding shrinks, cards and type stay. */
 @media (max-width: 359px) {
 	.sheet { padding-inline: 12px; }
 	.choice { padding: 10px; gap: 10px; }
 }
-/* Querformat (§8.9): Frage und Bild links, Antworten rechts; die Absende-Leiste
-   bleibt unten über die volle Breite. */
+/* Landscape (§8.9): question and image on the left, answers on the right; the
+   submit bar stays at the bottom across the full width. */
 @media (orientation: landscape) and (max-height: 500px) {
 	.sheet { max-width: 820px; }
 	.h-scroll { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-content: start; }
@@ -1984,7 +1990,7 @@ export default {
 	.timer-fill { transition: none; }
 }
 
-/* ── Gesamtauswertung („Alle Ergebnisse") ───────────────────────────────── */
+/* ── Overall summary ("All results") ────────────────────────────────────── */
 .review { display: flex; flex-direction: column; gap: 14px; }
 .review-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .review-h { margin: 0; font-size: 22px; }
@@ -2007,7 +2013,7 @@ export default {
 .review-cta { align-self: center; margin-top: 18px; }
 .review-back { align-self: center; margin-top: 4px; }
 
-/* ── Eigenes Tempo: Karten ohne Frage und Namensbildschirm (§2.2–§2.7) ── */
+/* ── Self-paced: cards without a question and the name screen (§2.2–§2.7) ── */
 .pace-card { padding-top: 8vh; }
 .pace-card .submit { width: 100%; }
 .pace-practice { margin: 0; }
@@ -2015,10 +2021,10 @@ export default {
 .pace-h { font-size: var(--t-h2); line-height: 1.25; margin: 0 0 12px; }
 .pace-line { margin: 0 0 12px; }
 .pace-flag { color: var(--pulse-primary); margin: 0 0 8px; }
-/* Unter dem Raumnamen braucht das Zustands-Icon Luft (Karte „geschlossen, ohne Namen“). */
+/* Below the room name the state icon needs room (card "closed, without a name"). */
 .pace-card .room-title + .state-ico { margin-top: 12px; }
 .pace-facts { margin: 0 0 12px; font-size: var(--t-sm); font-weight: 600; color: var(--pulse-text-2); }
-/* Frist: Icon, absolute Zeit, in der letzten Viertelstunde der Chip. */
+/* Deadline: icon, absolute time, in the last quarter of an hour the chip. */
 .pace-when {
 	display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px 8px;
 	margin: 0 0 16px; font-size: var(--t-sm); font-weight: 600;
@@ -2028,30 +2034,30 @@ export default {
 	display: flex; flex-direction: column; gap: 6px; font-size: var(--t-sm);
 }
 .pace-score { margin: 0 0 12px; font-size: var(--t-h2); font-weight: 800; color: var(--pulse-primary); font-variant-numeric: tabular-nums; }
-/* Hinweis-Kasten links bündig — zentrierter Fließtext in einem Kasten liest sich schlecht. */
+/* Notice box left-aligned — centred body text in a box reads badly. */
 .pace-notice { text-align: left; margin: 0 0 16px; }
 .pace-device { margin: 16px 0 0; font-size: var(--t-sm); }
 .pace-momentum { margin: 0; font-size: var(--t-sm); }
 .pace-momentum b { color: var(--pulse-text); font-variant-numeric: tabular-nums; }
 
-/* ── Eigenes Tempo: Antwortzone (§2.5, §2.6, §2.11) ── */
-/* „Frage k von n · Offen bis …", in der letzten Viertelstunde mit Chip. */
+/* ── Self-paced: answer zone (§2.5, §2.6, §2.11) ── */
+/* "Question k of n · Open until …", in the last quarter of an hour with a chip. */
 .pace-pos {
 	display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px;
 	margin: 0; font-size: var(--t-sm); font-weight: 600; color: var(--pulse-text-2);
 	font-variant-numeric: tabular-nums;
 }
 .center .pace-pos { justify-content: center; margin: 0 0 12px; }
-/* Überspringen: klein und leise (is-sm, is-tertiary), die Trefferfläche aber
-   44 px wie jeder Handy-Knopf (§8.8). */
+/* Skip: small and quiet (is-sm, is-tertiary), but the hit area is
+   44 px like every phone button (§8.8). */
 .pace-skip { align-self: center; min-height: 44px; margin-top: 4px; }
-/* Urteil „falsch": eigene Fläche, nicht nur rote Schrift (Farbe nie allein). */
+/* Verdict "wrong": its own surface, not just red text (never colour alone). */
 .band.is-no { background: var(--pulse-error-soft); color: var(--pulse-error); }
 .pace-points { margin-left: auto; }
 .pace-timeup .submit { width: 100%; }
-/* Programmatischer Fokus auf die Überschrift (§2.11): kein Ring um einen Titel. */
+/* Programmatic focus on the heading (§2.11): no ring around a title. */
 h1[tabindex="-1"]:focus { outline: none; }
-/* Nur für Screenreader. */
+/* Screen readers only. */
 .pace-sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 @media (orientation: landscape) and (max-height: 500px) {
 	.h-scroll > .pace-skip { grid-column: 2; }

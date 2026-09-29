@@ -14,9 +14,9 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Das Office-Manifest erzeugt die Instanz, weil ein Manifest keine Variablen
- * kennt. Geht dabei etwas schief, merkt es niemand beim Durchklicken: PowerPoint
- * meldet nichts Brauchbares, der Kasten auf der Folie bleibt einfach leer.
+ * The instance generates the Office manifest because a manifest cannot hold
+ * variables. If that goes wrong, nobody notices when clicking through: PowerPoint
+ * reports nothing useful, the box on the slide simply stays empty.
  */
 class AddinManifestTest extends TestCase {
     private AddinManifest $manifest;
@@ -37,8 +37,8 @@ class AddinManifestTest extends TestCase {
     }
 
     /**
-     * Office verlangt genau vier Zahlen. Ein Buchstabe im Feld — etwa aus
-     * „0.19.0-beta.1" — und PowerPoint lehnt das ganze Manifest ab.
+     * Office requires exactly four numbers. One letter in the field — say from
+     * "0.19.0-beta.1" — and PowerPoint rejects the whole manifest.
      */
     #[DataProvider('versions')]
     public function testVersionAlwaysHasFourNumbers(string $appVersion, string $expected): void {
@@ -55,8 +55,8 @@ class AddinManifestTest extends TestCase {
     }
 
     /**
-     * <AppDomain> darf nur Schema, Host und Port tragen. Mit Pfad daran hält
-     * Office die Navigationsziele des Add-ins für fremde Domains.
+     * <AppDomain> may carry only scheme, host and port. With a path attached,
+     * Office treats the add-in's navigation targets as foreign domains.
      */
     #[DataProvider('urls')]
     public function testAppDomainCarriesNoPath(string $absoluteUrl, string $expected): void {
@@ -78,9 +78,9 @@ class AddinManifestTest extends TestCase {
     }
 
     /**
-     * Der Kern der Sache: die Adressen im Manifest sind die der aufrufenden
-     * Instanz. Steht hier ein Platzhalter, zeigt das Add-in nach dem Sideload
-     * auf eine fremde Nextcloud.
+     * The heart of the matter: the addresses in the manifest are those of the calling
+     * instance. If a placeholder ends up here, the add-in points to someone else's
+     * Nextcloud after sideloading.
      */
     public function testManifestCarriesTheGivenAddresses(): void {
         $xml = $this->manifest->build(
@@ -98,8 +98,8 @@ class AddinManifestTest extends TestCase {
             $xml,
         );
         $this->assertStringContainsString('<Version>0.18.0.0</Version>', $xml);
-        // Die Kennung identifiziert das Add-in, nicht die Installation: wechselt
-        // sie, hält PowerPoint eine Aktualisierung für ein zweites Add-in.
+        // The ID identifies the add-in, not the installation: if it changes,
+        // PowerPoint takes an update for a second add-in.
         $this->assertStringContainsString(
             '<Id>' . AddinManifest::ADDIN_ID . '</Id>',
             $xml,
@@ -107,9 +107,9 @@ class AddinManifestTest extends TestCase {
     }
 
     /**
-     * Quellsprache der App ist Englisch; Deutsch steht als Override daneben.
-     * Office wählt danach die Sprache des vortragenden Rechners aus — nicht die
-     * Sprache, in der jemand das Manifest heruntergeladen hat.
+     * The app's source language is English; German sits next to it as an override.
+     * Office then picks by the language of the presenting computer — not by the
+     * language in which someone downloaded the manifest.
      */
     public function testDefaultLocaleIsTheSourceLanguage(): void {
         $xml = $this->manifest->build('https://x.example', 'https://x.example/apps/pulse/embed', '0.18.0');
@@ -119,8 +119,8 @@ class AddinManifestTest extends TestCase {
     }
 
     /**
-     * Adressen landen unmaskiert im XML, wenn man es nicht tut — ein `&` in der
-     * URL macht das Manifest dann unlesbar.
+     * Addresses end up unescaped in the XML unless you escape them — an `&` in the
+     * URL then makes the manifest unreadable.
      */
     public function testAddressesAreXmlEscaped(): void {
         $xml = $this->manifest->build(
@@ -134,9 +134,9 @@ class AddinManifestTest extends TestCase {
     }
 
     /**
-     * Die Datei hängt an einem gewöhnlichen Link. Fehlt NoCSRFRequired,
-     * antwortet Nextcloud mit 412 und der Download bleibt leer — dieselbe Falle
-     * wie bei den Bild-Routen (siehe ImageRouteTest).
+     * The file hangs off a plain link. Without NoCSRFRequired,
+     * Nextcloud answers with 412 and the download stays empty — the same trap
+     * as with the image routes (see ImageRouteTest).
      */
     public function testManifestRouteAllowsAPlainLink(): void {
         $attributes = (new \ReflectionMethod(AddinController::class, 'manifest'))

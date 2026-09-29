@@ -2,10 +2,13 @@
  * SPDX-FileCopyrightText: 2026 hotochan123
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
-/* Einbett-Shell fürs Office-/PowerPoint-Add-in. Vollflächig, keine NC-Chrome.
-   Farben kommen aus der Token-Schicht (js/pulse-styles.js lädt sie), Knöpfe
-   aus dem EINEN Button-System .pulse-btn — die Shell hatte vorher eigene
-   Hex-Werte und einen eigenen Knopf (B3). */
+/* Embed shell for the Office/PowerPoint add-in. Full-bleed, no NC chrome.
+   Colors come from the token layer (js/pulse-styles.js loads it), buttons
+   from the ONE button system .pulse-btn — the shell used to have its own
+   hex values and its own button (B3).
+   Section references (§…) and review IDs (B3) point to the design notes of the
+   redesign, which are not in the public repository (see "References in code
+   comments" in the README). */
 html, body {
     margin: 0;
     padding: 0;
@@ -13,7 +16,7 @@ html, body {
     background: var(--pulse-screen-bg, #fff);
 }
 
-/* NC-Gast-Chrome des Public-Layouts ausblenden — die Folie zeigt nur die Umfrage. */
+/* Hide the NC guest chrome of the public layout — the slide shows only the poll. */
 #header,
 footer.guest-box {
     display: none !important;
@@ -22,12 +25,12 @@ footer.guest-box {
 #pulse-embed-root {
     position: absolute;
     inset: 0;
-    z-index: 1000; /* über etwaiger NC-Chrome (z.B. #header z-index ~2000 wird zusätzlich ausgeblendet) */
+    z-index: 1000; /* above any NC chrome (e.g. #header z-index ~2000 is hidden in addition) */
     font-family: var(--font-face, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif);
     color: var(--pulse-text, #1a1a1a);
 }
 
-/* Ladezustand + Formular werden zentriert */
+/* Loading state + form are centered */
 .pulse-embed-loading {
     display: flex;
     align-items: center;
@@ -35,7 +38,7 @@ footer.guest-box {
     color: var(--pulse-text-2, #6b6b6b);
 }
 
-/* ── Setup-Formular (Code eingeben) ───────────────────────────── */
+/* ── Setup form (enter the code) ──────────────────────────────── */
 .pulse-embed-setup {
     position: absolute;
     inset: 0;
@@ -45,8 +48,8 @@ footer.guest-box {
     padding: 24px;
     text-align: center;
 }
-/* Wortmarke über dem Feld: die Shell steckt in fremden Folien, dort muss
-   erkennbar sein, was das ist (§9.7). */
+/* Wordmark above the field: the shell sits in other people's slides, so it
+   must be recognizable what this is (§9.7). */
 .pulse-embed-mark {
     display: flex;
     align-items: center;
@@ -78,10 +81,10 @@ footer.guest-box {
     text-transform: uppercase;
     color: var(--pulse-text-2, #6b6b6b);
 }
-/* Sechs Stellen statt eines Feldes — der Code IST sechsstellig.
-   Nextcloud stylt native <input> global über Element-Selektoren und schlägt
-   damit jede Klasse: ohne !important kämen Größe, Rahmen und Schriftgrad von
-   dort (gemessen: 45×34 px, 15 px Schrift, grauer Rahmen statt rotem). */
+/* Six cells instead of one field — the code IS six characters long.
+   Nextcloud styles native <input> globally via element selectors and so
+   beats every class: without !important, size, border and font size would come
+   from there (measured: 45×34 px, 15 px font, gray border instead of red). */
 .pulse-embed-cells {
     display: flex;
     justify-content: center;
@@ -112,21 +115,21 @@ footer.guest-box {
 .pulse-embed-cell--err {
     border-color: var(--pulse-error, #b5261f) !important;
 }
-/* Meldung am Feld, kein Dialog: der Fehler steht dort, wo er entstanden ist. */
+/* Message at the field, no dialog: the error shows up where it occurred. */
 .pulse-embed-err {
     margin: 10px 0 0;
     font-size: 0.85rem;
     font-weight: 600;
     color: var(--pulse-error, #b5261f);
 }
-/* NC stylt native <button> global mit hoher Spezifität — auch die Breite.
-   Deshalb hier !important, wie in pulse-ds.css bei den formgebenden Rollen. */
+/* NC styles native <button> globally with high specificity — including the width.
+   Hence !important here, as in pulse-ds.css for the shape-defining roles. */
 .pulse-embed-go {
     margin-top: 16px;
     width: 100% !important;
 }
 
-/* ── iframe-Ansicht (vollflächig) + Hover-Leiste ──────────────── */
+/* ── iframe view (full-bleed) + hover bar ─────────────────────── */
 .pulse-embed-frame {
     position: absolute;
     inset: 0;
@@ -165,10 +168,10 @@ footer.guest-box {
 }
 
 /*
- * Farbschema folgt der EINBETTUNG, nicht dem Server (§9.7): die Shell steckt in
- * einer fremden Folie, in der weder Theme noch Sitzung bekannt sind. Die Rollen
- * hängen sonst an NCs --color-*, die auf der Gastseite hell bleiben. ID-Selektor,
- * weil die Token-Schicht per JS nachgeladen wird und sonst später käme.
+ * The color scheme follows the EMBEDDING, not the server (§9.7): the shell sits in
+ * someone else's slide, where neither theme nor session is known. Otherwise the
+ * roles hang off NC's --color-*, which stay light on the guest page. ID selector
+ * because the token layer is loaded later via JS and would otherwise win.
  */
 @media (prefers-color-scheme: dark) {
     html, body { background: #171717; }

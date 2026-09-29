@@ -2,18 +2,18 @@
 # SPDX-FileCopyrightText: 2026 hotochan123
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# Erzeugt Schlüssel und Zertifikatsanfrage (CSR) für die App-Signatur.
+# Creates the key and the certificate signing request (CSR) for signing the app.
 #
 #   build/certificate.sh              # -> ~/.nextcloud/certificates/pulse.{key,csr}
-#   OUT=/pfad build/certificate.sh
+#   OUT=/path build/certificate.sh
 #
-# Der Common Name MUSS die App-ID sein, sonst weist Nextcloud das Zertifikat ab.
-# Der private Schlüssel gehört NICHT ins Repo und wird auch nie ausgeliefert.
+# The Common Name MUST be the app ID, otherwise Nextcloud rejects the certificate.
+# The private key does NOT belong in the repository and is never shipped.
 #
-# Achtung beim Ablageort: liegt das Home-Verzeichnis auf einem flüchtigen
-# Dateisystem (Unraid und andere Appliances halten / im RAM), ist der Schlüssel
-# nach dem nächsten Neustart weg — und damit jedes signierte Release. Dann OUT
-# auf dauerhaften Speicher setzen: OUT=/pfad/auf/platte build/certificate.sh
+# Mind where you store it: if the home directory lives on a volatile
+# file system (Unraid and other appliances keep / in RAM), the key is
+# gone after the next reboot — and with it every signed release. In that case
+# point OUT at persistent storage: OUT=/path/on/disk build/certificate.sh
 set -eu
 
 APP_ID=pulse

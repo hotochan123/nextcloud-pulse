@@ -44,23 +44,23 @@
 
 <script>
 /*
- * Kompass am Beamer (Redesign §7.4).
+ * Compass on the projector (redesign notes §7.4, not in the public repository).
  *
- * Quadratisches Feld über die volle Bühnenhöhe. Bis zur Schwelle bleibt jede
- * Antwort ein eigener Punkt, darüber wird die Fläche zur Textur und die
- * Verdichtung ist die Aussage — die Schwelle ist ein Wert, kein Gefühl.
+ * A square field across the full stage height. Up to the threshold every
+ * answer stays a dot of its own, above it the area becomes a texture and the
+ * density is the message — the threshold is a value, not a feeling.
  *
- * Es gibt hier bewusst keinen „Du"-Punkt: auf der Leinwand gibt es kein Ich.
- * Die eigene Antwort hervorzuheben ist Sache des Handys.
+ * There is deliberately no "You" dot here: on the big screen there is no me.
+ * Highlighting one's own answer is the phone's job.
  */
 
-// Raster der Heatmap (Zellen je Kante).
+// Heat map grid (cells per edge).
 const GRID = 12
 
 export default {
 	name: 'StageCompass',
 	props: {
-		// [{ x, y }] in Datenkoordinaten (-range … +range)
+		// [{ x, y }] in data coordinates (-range … +range)
 		points: { type: Array, default: () => [] },
 		centroid: { type: Object, default: null },
 		range: { type: Number, default: 5 },
@@ -106,7 +106,7 @@ export default {
 			const c = this.centroid
 			if (!c || typeof c.x !== 'number' || typeof c.y !== 'number') return null
 			const x = this.sx(c.x), y = this.sy(c.y)
-			// Unter dem Punkt; nahe am unteren Rand darüber.
+			// Below the dot; above it when close to the bottom edge.
 			const flip = y > 80
 			return {
 				x,
@@ -134,7 +134,7 @@ export default {
 .splot-wrap {
 	display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0;
 	box-sizing: border-box;
-	/* Reserve für die Beschriftungen außerhalb des Quadrats. */
+	/* Reserve for the labels outside the square. */
 	padding: 1.4em 5em 0;
 }
 .splot { position: relative; flex: 1 1 auto; min-height: 0; align-self: center; aspect-ratio: 1; margin-bottom: 1.4em; }
@@ -149,8 +149,8 @@ export default {
 .splot-corner--tr { right: 0.4em; top: 0.3em; text-align: right; }
 .splot-corner--bl { left: 0.4em; bottom: 0.3em; }
 .splot-corner--br { right: 0.4em; bottom: 0.3em; text-align: right; }
-/* Schwerpunkt trägt seinen Namen mit — Form allein wäre ein Zeichen ohne
-   Legende, und die Legende steht am unteren Bühnenrand. */
+/* The centre of gravity carries its name — a shape alone would be a sign without
+   a legend, and the legend sits at the bottom edge of the stage. */
 .splot-centre { position: absolute; font-weight: 800; white-space: nowrap; color: var(--pulse-text); font-size: 0.7em; }
 .splot-legend { flex: 0 0 auto; display: flex; flex-wrap: wrap; justify-content: center; gap: 1.2em; padding-top: 0.3em; font-size: 0.55em; color: var(--pulse-meta); }
 .splot-legend span { display: inline-flex; align-items: center; gap: 0.4em; }

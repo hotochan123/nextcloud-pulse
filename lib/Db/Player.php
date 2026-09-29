@@ -10,10 +10,10 @@ namespace OCA\Pulse\Db;
 use OCP\AppFramework\Db\Entity;
 
 /**
- * Ein Quiz-Spieler: Nickname je (Raum, Voter-Token). Der Token stammt aus dem
- * anonymen Cookie — er identifiziert keine Nextcloud-Person, sondern erkennt
- * denselben Browser wieder. Die Punkte werden NICHT hier gehalten, sondern aus
- * den Stimmen (payload) berechnet; so bleibt alles nach Reset/Löschen konsistent.
+ * A quiz player: nickname per (room, voter token). The token comes from the
+ * anonymous cookie — it does not identify a Nextcloud person but recognises
+ * the same browser again. The points are NOT kept here but computed from
+ * the votes (payload); that way everything stays consistent after reset/delete.
  *
  * @method int getRoomId()
  * @method void setRoomId(int $roomId)
@@ -35,7 +35,7 @@ class Player extends Entity implements \JsonSerializable {
         $this->addType('createdAt', 'integer');
     }
 
-    /** Bewusst OHNE voter_token — der ist das Cookie-Geheimnis dieser Person. */
+    /** Deliberately WITHOUT voter_token — that is this person's cookie secret. */
     public function jsonSerialize(): array {
         return [
             'id' => $this->getId(),

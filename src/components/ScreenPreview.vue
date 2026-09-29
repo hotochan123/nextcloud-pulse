@@ -12,18 +12,22 @@
 
 <script>
 /*
- * Beamer-Vorschau (Spezifikation §1.7): die echte Beamer-Seite im iframe,
- * verkleinert in einen 16:9-Kasten. Dieselbe Mechanik wie die
- * Leinwand-Vorschau der Präsentation (Moderator.vue fitFrame/observeCanvas),
- * die unverändert bleibt.
+ * Projector preview (specification §1.7): the real projector page in an iframe,
+ * scaled down into a 16:9 box. The same mechanism as the
+ * canvas preview of the presentation (Moderator.vue fitFrame/observeCanvas),
+ * which stays unchanged.
  *
- * Kein Nachbau: zwei Wahrheiten liefen auseinander. Die Beamer-Seite rechnet
- * in vw/vh und braucht ihren echten Kiosk (1280×720) — verkleinert wird per
- * transform, nicht per Fenstergröße, sonst läge im iframe ein anderes Layout
- * als im Saal, und die Vorschau bewiese nichts.
+ * No replica: two sources of truth would drift apart. The projector page computes
+ * in vw/vh and needs its real kiosk size (1280×720) — scaling is done via
+ * transform, not via the window size, otherwise the iframe would hold a different
+ * layout than in the auditorium, and the preview would prove nothing.
  *
- * Prüfstand: das iframe pollt /s/{code}/state?spectate=1. Vor dem Löschen
- * eines Raums erst weg von der Seite, die es zeigt (Brute-Force, §6.4).
+ * Test bench: the iframe polls /s/{code}/state?spectate=1. Before deleting
+ * a room, first leave the page that shows it (brute force, §6.4).
+ *
+ * Section references (§…) point to the specification of the self-paced quiz,
+ * which is not in the public repository (see "References in code comments" in
+ * the README).
  */
 const W = 1280
 const H = 720
@@ -46,13 +50,13 @@ export default {
 		},
 	},
 	created() {
-		// Absichtlich außerhalb von data(): Vue soll den Beobachter nicht in
-		// einen reaktiven Proxy hüllen.
+		// Deliberately outside data(): Vue should not wrap the observer in
+		// a reactive proxy.
 		this.ro = null
 	},
 	mounted() {
-		// Der Kasten ändert seine Breite auch ohne Fenster-Ereignis (Spalte
-		// darunter statt daneben) — der ResizeObserver misst, wenn es so weit ist.
+		// The box also changes its width without a window event (column
+		// below instead of beside) — the ResizeObserver measures when that happens.
 		if (window.ResizeObserver) {
 			this.ro = new window.ResizeObserver(() => this.fit())
 			this.ro.observe(this.$refs.box)
@@ -66,8 +70,8 @@ export default {
 		window.removeEventListener('resize', this.fit)
 	},
 	methods: {
-		// Maßstab 1280×720 -> Kasten; 2 px für den Rahmen, sonst liefe der
-		// Kasten um genau diese 2 px über die Spalte.
+		// Scale 1280×720 -> box; 2 px for the border, otherwise the
+		// box would overflow the column by exactly those 2 px.
 		fit() {
 			const box = this.$refs.box
 			if (!box) return

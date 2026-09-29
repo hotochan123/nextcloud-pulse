@@ -12,42 +12,42 @@ use OCA\Pulse\Db\Poll;
 use OCA\Pulse\Db\Room;
 
 /**
- * Reine Bausteine der öffentlichen Sicht (Handy, Beamer, öffentliche API):
- * undurchsichtige Versionen und die spoilerfreie Frage. Statisch und ohne DI,
- * damit moderierter und selbstgetakteter Pfad dieselbe Rechenvorschrift
- * benutzen und die Reflection-Tests nichts zusätzlich einspritzen müssen.
- * Das Instanz-Geheimnis reicht der Aufrufer herein.
+ * Pure building blocks of the public view (phone, projector, public API):
+ * opaque versions and the spoiler-free question. Static and without DI, so
+ * that the moderated and the self-paced path use the same computation and
+ * the reflection tests do not have to inject anything extra.
+ * The caller passes in the instance secret.
  */
 class PublicView {
     /**
-     * Der Fingerabdruck geht an jedes Handy und an den Beamer, also nur als
-     * undurchsichtiger Schlüssel-Hash. Roh verriete er die Lösung: ein CRC32
-     * über den answerKey lässt sich bei bekannten Options-IDs durchprobieren
-     * (Reihenfolge n!, Mehrfachauswahl 2^n, Zahl, Freitext-Wörterbuch), und der
-     * Stimmen-Stempel ist ein CRC über alle Payloads samt correct/points. Die
-     * Clients vergleichen die Version nur auf Gleichheit.
+     * The fingerprint goes to every phone and to the projector, so only as an
+     * opaque keyed hash. Raw, it would give away the solution: a CRC32 over the
+     * answerKey can be brute-forced when the option IDs are known (ordering n!,
+     * multiple choice 2^n, number, free-text dictionary), and the vote stamp is
+     * a CRC over all payloads including correct/points. The clients only
+     * compare the version for equality.
      *
-     * Die Protokollnummer steht mit im Hash: ein Sprung ändert jede Version,
-     * sodass kein Client mit einem 204 auf dem alten Zustand sitzen bleibt.
+     * The protocol number is part of the hash: bumping it changes every version,
+     * so no client stays stuck on the old state with a 204.
      */
     public static function opaque(string $raw, string $secret): string {
         return substr(hash_hmac('sha256', 'v' . Application::PROTOCOL . ':' . $raw, 'pulse-state:' . $secret), 0, 24);
     }
 
     /**
-     * Frage für die öffentliche Sicht serialisieren, mit `revealed` — ob die
-     * Frage für den Saal aufgelöst ist. Handy und Beamer richten ihre Ansicht
-     * danach, nicht nach dem Status: bei „Auflösung am Ende" ist 'locked' NICHT
-     * aufgelöst (entsteht, wenn der Schalter nach dem Auflösen umgelegt wird).
+     * Serialise the question for the public view, with `revealed` — whether the
+     * question has been revealed to the room. Phone and projector base their view
+     * on this, not on the status: with "Reveal at the end", 'locked' is NOT
+     * revealed (happens when the switch is flipped after revealing).
      *
-     * Im Quiz ist bei „Reihenfolge" die gespeicherte Optionsfolge die Lösung und
-     * bei „Zuordnung" steht Ziel i neben Item i — beides darf vor dem Auflösen
-     * weder auf dem Beamer noch in der API so ankommen. Gemischt wird über einen
-     * Schlüssel-Hash (Server-Geheimnis + Frage + Option): für alle Betrachter und
-     * jeden Poll gleich (der Beamer springt nicht) und unabhängig von der
-     * Lösung. Dass er sie gelegentlich trifft (1/n!), verrät nichts. Jede Regel
-     * „nie gleich der Lösung" dagegen verriete sie: bei zwei Optionen wäre die
-     * Anzeige immer genau die Umkehrung.
+     * In a quiz, for "Ranking" the stored option order is the solution, and for
+     * "Matching" target i sits next to item i — neither may reach the projector or
+     * the API like that before the reveal. Shuffling uses a keyed hash (server
+     * secret + question + option): the same for every viewer and every poll
+     * (the projector does not jump) and independent of the solution. That it
+     * occasionally matches it (1/n!) gives nothing away. Any rule "never equal
+     * to the solution", on the other hand, would give it away: with two options
+     * the display would always be exactly the reverse.
      */
     public static function poll(Room $room, Poll $poll, bool $revealed, string $secret): array {
         $data = $poll->jsonSerialize();

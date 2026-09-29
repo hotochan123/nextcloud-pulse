@@ -14,12 +14,12 @@ use OCP\Migration\IOutput;
 use OCP\Migration\SimpleMigrationStep;
 
 /**
- * Live-Präsenz: wie viele anonyme Teilnehmer sind gerade im Raum.
+ * Live presence: how many anonymous participants are in the room right now.
  *
- * Eine Zeile pro (Raum, Voter-Token). Der Heartbeat aktualisiert last_seen bei
- * jedem Teilnehmer-Poll (~2,5 s); "gerade dabei" = last_seen innerhalb eines
- * kleinen Fensters. UNIQUE(room_id, voter_token) wie bei den Stimmen: ein
- * Upsert pro Person, kein gemeinsamer Zähler.
+ * One row per (room, voter token). The heartbeat updates last_seen on every
+ * participant poll (~2.5 s); "currently here" = last_seen within a
+ * small window. UNIQUE(room_id, voter_token) as with the votes: one
+ * upsert per person, no shared counter.
  */
 class Version000000Date20260716140000 extends SimpleMigrationStep {
 
@@ -35,7 +35,7 @@ class Version000000Date20260716140000 extends SimpleMigrationStep {
             $table->addColumn('last_seen', Types::BIGINT, ['notnull' => true]);
             $table->setPrimaryKey(['id']);
             $table->addUniqueIndex(['room_id', 'voter_token'], 'pulse_presence_unique_idx');
-            // Zählabfrage: WHERE room_id = ? AND last_seen >= ?
+            // Count query: WHERE room_id = ? AND last_seen >= ?
             $table->addIndex(['room_id', 'last_seen'], 'pulse_presence_active_idx');
         }
 

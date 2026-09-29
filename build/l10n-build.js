@@ -3,12 +3,12 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 /*
- * Erzeugt aus jeder l10n/<lang>.json die passende l10n/<lang>.js.
+ * Generates the matching l10n/<lang>.js from every l10n/<lang>.json.
  *
- * Nextcloud liest beide Formate: PHP nimmt die .json, der Browser bekommt die
- * .js automatisch vor das App-Bundle geladen (Util::addScript -> addTranslations).
- * Gepflegt wird nur die .json — die .js ist generiert, damit die beiden nie
- * auseinanderlaufen.
+ * Nextcloud reads both formats: PHP takes the .json, the browser gets the
+ * .js loaded automatically before the app bundle (Util::addScript -> addTranslations).
+ * Only the .json is maintained — the .js is generated so that the two never
+ * drift apart.
  *
  *   npm run l10n
  */

@@ -20,12 +20,12 @@ use PHPUnit\Framework\TestCase;
 use ReflectionProperty;
 
 /**
- * Cursor setzen (DeckService::setCurrent) und der Startzeitpunkt.
+ * Setting the cursor (DeckService::setCurrent) and the start time.
  *
- * Quiz: jeder Sprung auf eine Frage startet den Timer neu und öffnet sie.
- * Umfrage: kein Timer — aber der ERSTE Sprung vermerkt „wurde gezeigt", damit
- * die öffentliche Gesamtauswertung nie gezeigte Fragen weglassen kann
- * (StateService::wasShown). Spätere Sprünge lassen den Zeitpunkt stehen.
+ * Quiz: every jump to a question restarts the timer and opens it.
+ * Poll: no timer — but the FIRST jump records "was shown", so that
+ * the public overall results can leave out questions that were never shown
+ * (StateService::wasShown). Later jumps leave the timestamp alone.
  */
 #[CoversClass(DeckService::class)]
 class DeckSetCurrentTest extends TestCase {
@@ -116,12 +116,12 @@ class DeckSetCurrentTest extends TestCase {
         $this->assertSame(0, $room->getActivePollId());
     }
 
-    // ── Neuer Lauf beendet das alte Ende ───────────────────────────────────
+    // ── A new run clears the old end ───────────────────────────────────────
 
     public function testQuizSprungNimmtAltesEndeZurueck(): void {
-        // Ein zweiter Lauf (oder ein Schritt zurück nach dem Endstand): jede
-        // ANDERE 'ended'-Frage wird wieder 'locked' — sonst hieße es weiter
-        // „Quiz vorbei" und /summary gäbe ab Frage 1 alle Lösungen frei.
+        // A second run (or a step back after the final standings): every
+        // OTHER 'ended' question becomes 'locked' again — otherwise the quiz would
+        // still count as over and /summary would reveal all answers from question 1 on.
         $this->given('ended', 1234);
         $this->polls->method('update')->willReturnArgument(0);
         $this->polls->expects($this->once())->method('unmarkEnded')->with(1, 7);
@@ -132,8 +132,8 @@ class DeckSetCurrentTest extends TestCase {
     }
 
     public function testQuizNimmtEndeErstNachDemOeffnenZurueck(): void {
-        // Reihenfolge: erst die Zielfrage öffnen, dann die übrigen zurücksetzen —
-        // die Zielfrage ist dabei ausgenommen und steht schon auf 'active'.
+        // Order: open the target question first, then reset the others —
+        // the target question is excluded from that and is already 'active'.
         $this->given('active', 0);
         $calls = [];
         $this->polls->method('update')->willReturnCallback(function (Poll $p) use (&$calls): Poll {
@@ -158,7 +158,7 @@ class DeckSetCurrentTest extends TestCase {
     }
 
     public function testQuizCursorAufNullBehaeltDasEnde(): void {
-        // „Zurück ins Deck" nach /end: der Endstand soll stehen bleiben.
+        // "Back to the deck" after /end: the final standings should stay.
         $this->polls->expects($this->never())->method('unmarkEnded');
 
         $room = $this->room('quiz');

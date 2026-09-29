@@ -10,9 +10,9 @@ namespace OCA\Pulse\Db;
 use OCP\AppFramework\Db\Entity;
 
 /**
- * Eine Stimme pro (Umfrage, Voter-Token). Der voter_token stammt aus einem
- * anonymen Cookie der öffentlichen Teilnehmer-Seite — er verhindert
- * Mehrfachabstimmung, identifiziert aber keine Person (kein Nutzer-Bezug).
+ * One vote per (poll, voter token). The voter_token comes from an
+ * anonymous cookie on the public participant page — it prevents
+ * voting twice but does not identify a person (no link to a user).
  *
  * @method int getPollId()
  * @method void setPollId(int $pollId)
@@ -26,7 +26,7 @@ use OCP\AppFramework\Db\Entity;
 class Vote extends Entity implements \JsonSerializable {
     protected $pollId = 0;
     protected $voterToken = '';
-    protected $payload = '';   // JSON, Struktur abhängig vom Fragetyp
+    protected $payload = '';   // JSON, structure depends on the question type
     protected $createdAt = 0;
 
     public function __construct() {
@@ -34,7 +34,7 @@ class Vote extends Entity implements \JsonSerializable {
         $this->addType('createdAt', 'integer');
     }
 
-    /** @return mixed dekodierter payload.value (string bei choice, list bei words) */
+    /** @return mixed decoded payload.value (string for choice, list for words) */
     public function getValue() {
         $decoded = json_decode($this->getPayload(), true);
         return is_array($decoded) && array_key_exists('value', $decoded) ? $decoded['value'] : null;

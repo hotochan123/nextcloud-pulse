@@ -8,36 +8,36 @@ declare(strict_types=1);
 namespace OCA\Pulse\Service;
 
 /**
- * Rohe Client-Werte (Request-Parameter und die Felder darin) in die Form
- * bringen, die der Aufrufer erwartet — ohne PHP-Warnung und ohne TypeError.
- * Jeder Parameter kann als Liste oder Objekt ankommen (`action[]=x`, JSON):
- * `(string)` darauf schreibt „Array to string conversion“ ins Log, ein
- * string-Parameter wirft TypeError (500), und `(int)` auf 1e100 warnt
- * („not representable as an int“).
+ * Brings raw client values (request parameters and the fields inside them)
+ * into the shape the caller expects — without a PHP warning and without a TypeError.
+ * Any parameter can arrive as a list or an object (`action[]=x`, JSON):
+ * `(string)` on it writes "Array to string conversion" to the log, a
+ * string parameter throws a TypeError (500), and `(int)` on 1e100 warns
+ * ("not representable as an int").
  *
- * Regel: Was nicht passt, gilt als nicht gesendet (null bzw. $default). Ob das
- * die Vorgabe heißt oder 400, entscheidet der Aufrufer — meist liefert die
- * vorhandene Prüfung dieselbe 400 wie für einen leeren Wert. Statisch und ohne
- * DI wie CsvFormat und PublicView.
+ * Rule: whatever does not fit counts as not sent (null or $default). Whether
+ * that means the default or a 400 is up to the caller — usually the existing
+ * check returns the same 400 as for an empty value. Static and without
+ * DI, like CsvFormat and PublicView.
  */
 class Input {
     /**
-     * Skalar als Text. Listen/Objekte, null, Unendlich/NAN und kaputtes UTF-8
-     * (PostgreSQL lehnt es ab -> 500) ergeben $default; NUL-Bytes fallen weg
-     * (ein Textfeld in PostgreSQL kann sie nicht halten).
+     * Scalar as text. Lists/objects, null, infinity/NAN and broken UTF-8
+     * (PostgreSQL rejects it -> 500) yield $default; NUL bytes are dropped
+     * (a text column in PostgreSQL cannot hold them).
      */
     public static function str(mixed $v, string $default = ''): string {
         return str_replace("\0", '', self::rawStr($v, $default));
     }
 
     /**
-     * Wie str(), aber NUL-Bytes bleiben stehen. Nur für Text, der mit
-     * Gespeichertem verglichen und höchstens JSON-kodiert gespeichert wird
-     * (json_encode schreibt \u0000 — PostgreSQL sieht nie ein NUL): die
-     * Freitextantwort beim Bewerten. Die Stimme behält ihr NUL
-     * (VoteService::normalizeValue), die Moderation schickt genau diesen Text
-     * zurück — ohne NUL träfe die Normalform die Gruppe nie, und die Antwort
-     * bliebe für immer „wird geprüft“.
+     * Like str(), but NUL bytes are kept. Only for text that is compared with
+     * stored data and at most stored JSON-encoded
+     * (json_encode writes \u0000 — PostgreSQL never sees a NUL): the
+     * free-text answer when grading. The vote keeps its NUL
+     * (VoteService::normalizeValue), and the moderator sends exactly that text
+     * back — without the NUL the normal form would never match the group, and
+     * the answer would stay "Being checked" forever.
      */
     public static function rawStr(mixed $v, string $default = ''): string {
         if (!is_scalar($v) || (is_float($v) && !is_finite($v))) {
@@ -48,9 +48,9 @@ class Input {
     }
 
     /**
-     * Endliche Zahl aus int, float oder numerischem Text („12“, „1.5“, „1e3“).
-     * „1e999“ und JSON 1e999 werden in PHP INF — keine Zahl, die sich speichern
-     * ließe (json_encode scheitert daran): null. Ebenso bool, Listen, Objekte.
+     * Finite number from an int, a float or numeric text ("12", "1.5", "1e3").
+     * "1e999" and JSON 1e999 become INF in PHP — not a number that could be
+     * stored (json_encode fails on it): null. Likewise bool, lists, objects.
      */
     public static function number(mixed $v): int|float|null {
         if (is_string($v) && is_numeric($v)) {
@@ -63,8 +63,8 @@ class Input {
     }
 
     /**
-     * Ganzzahl wie bisher per (int) — Nachkommastellen werden abgeschnitten —,
-     * aber nur aus einer endlichen Zahl im sicheren Bereich (±1e18), sonst null.
+     * Integer via (int) as before — decimals are truncated —
+     * but only from a finite number in the safe range (±1e18), otherwise null.
      */
     public static function int(mixed $v): ?int {
         $n = self::number($v);
@@ -75,8 +75,8 @@ class Input {
     }
 
     /**
-     * Schalter: bool, int und die Wörter, die filter_var kennt („true“, „off“,
-     * „yes“ …; '' = false). Alles andere (Liste, Kommazahl, „vielleicht“, 2) -> null.
+     * Switch: bool, int and the words filter_var knows ("true", "off",
+     * "yes" …; '' = false). Anything else (list, decimal, "maybe", 2) -> null.
      */
     public static function flag(mixed $v): ?bool {
         if (is_bool($v)) {

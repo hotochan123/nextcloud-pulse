@@ -1,36 +1,36 @@
-# Pulse Beamer-/Publikumsansicht in Präsentationen einbettbar machen (Mentimeter-artig).
+# Make the Pulse projector/audience view embeddable in presentations (Mentimeter-style).
 #
-# Nextcloud blockt Framing auf ZWEI Ebenen:
-#   1. CSP frame-ancestors  -> in der App gelöst (PublicController::screen, '*')
-#   2. X-Frame-Options: SAMEORIGIN -> kommt aus der Core-.htaccess via
-#      "Header always set" und ist per PHP nicht überschreibbar. Deshalb hier.
+# Nextcloud blocks framing on TWO levels:
+#   1. CSP frame-ancestors  -> solved in the app (PublicController::screen, '*')
+#   2. X-Frame-Options: SAMEORIGIN -> comes from the core .htaccess via
+#      "Header always set" and cannot be overridden from PHP. Hence this file.
 #
-# Dieser Router ist spezifischer (Host + PathPrefix) und höher priorisiert als der
-# Router, den dein Provider (z. B. per Docker-Label) für Nextcloud anlegt, greift
-# also NUR für /apps/pulse/screen/… und /apps/pulse/embed (die Add-in-Shell).
-# Alle übrigen Nextcloud-Pfade behalten SAMEORIGIN.
-# Beide Pfadformen: ohne "htaccess.IgnoreFrontController" erzeugt Nextcloud
-# Adressen mit /index.php davor. Gemessen am 15.08.2026: /apps/pulse/embed kam
-# ohne Header zurueck, /index.php/apps/pulse/embed mit SAMEORIGIN — dieselbe
-# Seite, zwei Adressen, und nur eine davon war entsperrt.
-# Anpassen: Host, `entrypoints`, `service` (der Nextcloud-Service deines Providers,
-# cross-provider mit @-Suffix) und `certResolver`. Middlewares am Entrypoint
-# gelten auch hier, die des Nextcloud-Routers nicht — was dort hängt und hier
-# gebraucht wird, unter `middlewares` ergänzen.
+# This router is more specific (Host + PathPrefix) and has a higher priority than the
+# router your provider creates for Nextcloud (e.g. via a Docker label), so it
+# applies ONLY to /apps/pulse/screen/… and /apps/pulse/embed (the add-in shell).
+# All other Nextcloud paths keep SAMEORIGIN.
+# Both path forms: without "htaccess.IgnoreFrontController" Nextcloud generates
+# addresses prefixed with /index.php. Measured on 15.08.2026: /apps/pulse/embed came
+# back without the header, /index.php/apps/pulse/embed with SAMEORIGIN: the same
+# page, two addresses, and only one of them was unblocked.
+# Adjust: Host, `entrypoints`, `service` (your provider's Nextcloud service,
+# cross-provider with an @ suffix) and `certResolver`. Middlewares on the entrypoint
+# apply here too, those of the Nextcloud router do not: whatever is attached there and
+# is needed here, add it under `middlewares`.
 http:
   routers:
     pulse-embed-secure:
       entrypoints: websecure
       rule: "Host(`nextcloud.example.com`) && (PathPrefix(`/apps/pulse/screen/`) || PathPrefix(`/apps/pulse/embed`) || PathPrefix(`/index.php/apps/pulse/screen/`) || PathPrefix(`/index.php/apps/pulse/embed`))"
       priority: 3000
-      service: nextcloud@docker        # anpassen
+      service: nextcloud@docker        # adjust
       middlewares:
         - pulse-strip-xfo@file
       tls:
-        certResolver: letsencrypt      # anpassen
+        certResolver: letsencrypt      # adjust
 
   middlewares:
-    # Entfernt X-Frame-Options aus der Antwort (leerer Wert = Header raus).
+    # Removes X-Frame-Options from the response (empty value = header removed).
     pulse-strip-xfo:
       headers:
         customResponseHeaders:

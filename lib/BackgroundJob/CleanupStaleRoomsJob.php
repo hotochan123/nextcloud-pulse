@@ -13,16 +13,16 @@ use OCP\BackgroundJob\TimedJob;
 use Psr\Log\LoggerInterface;
 
 /**
- * Löscht täglich Räume, die seit über RETENTION_DAYS niemand mehr genutzt hat.
- * Räume sind Session-Artefakte (ein Vortrag, ein Meeting) — sie sollen nicht
- * ewig leben: das hielte alte Codes gültig (Brute-Force-Fläche) und die DB voll.
- * „Genutzt" heißt: Teilnehmer-Heartbeat, im eigenen Tempo auch Öffnen, Frist,
- * Schließen, Freigabe oder ein Besuch des Besitzers — eine Hausaufgabe mit
- * Frist Tag 0, die erst an Tag 32 ausgewertet wird, überlebt so.
- * Die eigentliche Logik liegt in RoomService::cleanupStaleRooms (testbar).
+ * Deletes, once a day, rooms that nobody has used for more than RETENTION_DAYS.
+ * Rooms are session artefacts (one talk, one meeting) and should not live
+ * forever: that would keep old codes valid (brute-force surface) and fill the DB.
+ * "Used" means: a participant heartbeat, in self-paced mode also opening, deadline,
+ * closing, release, or a visit by the owner; so a homework assignment with a
+ * deadline on day 0 that is only evaluated on day 32 survives.
+ * The actual logic lives in RoomService::cleanupStaleRooms (testable).
  */
 class CleanupStaleRoomsJob extends TimedJob {
-    /** Räume ohne Nutzung seit so vielen Tagen werden entfernt. */
+    /** Rooms unused for this many days are removed. */
     private const RETENTION_DAYS = 30;
 
     public function __construct(
@@ -32,7 +32,7 @@ class CleanupStaleRoomsJob extends TimedJob {
     ) {
         parent::__construct($time);
         $this->setInterval(24 * 60 * 60);
-        // Nicht zeitkritisch: darf gebündelt/verzögert laufen.
+        // Not time-critical: may run batched/delayed.
         $this->setTimeSensitivity(self::TIME_INSENSITIVE);
     }
 

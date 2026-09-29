@@ -7,7 +7,7 @@
 		<template v-if="!outline">
 			<span class="srow-track" aria-hidden="true" />
 			<span class="srow-fill" aria-hidden="true" />
-			<!-- Ebene über der Füllung: identischer Inhalt, komplementär beschnitten. -->
+			<!-- Layer above the fill: identical content, clipped complementarily. -->
 			<span class="srow-text srow-text--fill" aria-hidden="true">
 				<span v-if="badge !== ''" class="srow-badge">{{ badge }}</span>
 				<PulseIcon v-if="state === 'correct'" name="check" size="1.2em" class="srow-mark" />
@@ -28,16 +28,17 @@
 
 <script>
 /*
- * Bühnen-Zeile (Redesign §2.4) — der Balken IST die Zeile.
+ * Stage row (design notes §2.4, not in the public repository) — the bar IS
+ * the row.
  *
- * Die Palettenfarbe kommt von außen: die Klasse `pulse-opt-a` … `-h` auf dem
- * Element setzt --opt-fill/--opt-ink (util/palette.js liefert sie). Vue reicht
- * Klassen am Komponenten-Tag an das Wurzelelement durch, deshalb genügt
- * `<StageRow :class="row.pal.cls" …>`.
+ * The palette colour comes from outside: the class `pulse-opt-a` … `-h` on the
+ * element sets --opt-fill/--opt-ink (util/palette.js supplies them). Vue passes
+ * classes on the component tag through to the root element, so
+ * `<StageRow :class="row.pal.cls" …>` is enough.
  *
- * Styling liegt bewusst in pulse-ds.css (global), nicht scoped: Bühne,
- * Endstand und offene Optionsliste teilen sich dasselbe Zeilenmodell, und die
- * jeweiligen Eltern bestimmen die Zeilenhöhe (.srows--stretch/--fixed).
+ * Styling lives in pulse-ds.css (global) on purpose, not scoped: the stage,
+ * final standings and the open option list share the same row model, and the
+ * respective parents decide the row height (.srows--stretch/--fixed).
  */
 import PulseIcon from './ui/PulseIcon.vue'
 
@@ -45,21 +46,21 @@ export default {
 	name: 'StageRow',
 	components: { PulseIcon },
 	props: {
-		// Buchstabe (A–H) oder Rangzahl. Leer = keine Plakette.
+		// Letter (A–H) or rank number. Empty = no badge.
 		badge: { type: [String, Number], default: '' },
 		label: { type: String, default: '' },
-		// Fertig formatierter Wert („9 · 38 %"), rechts im Balken.
+		// Pre-formatted value ("9 · 38 %"), on the right inside the bar.
 		value: { type: [String, Number], default: '' },
-		// Füllanteil in Prozent.
+		// Fill share in percent.
 		pct: { type: Number, default: 0 },
-		// Offene Bühne: Umriss statt Fläche, kein Wert (§6.3).
+		// Open stage: outline instead of a filled area, no value (§6.3).
 		outline: { type: Boolean, default: false },
-		// '' | 'correct' | 'wrong' — Lösungs-Kodierung (§4.2).
+		// '' | 'correct' | 'wrong' — solution encoding (§4.2).
 		state: { type: String, default: '' },
-		// Wort hinter dem Label („correct", „leading") — Farbe ist nie der
-		// einzige Träger.
+		// Word after the label ("correct", "leading") — colour is never the
+		// only carrier.
 		flag: { type: String, default: '' },
-		// Zweizeiliges Label: alle Zeilen der Bühne wachsen gemeinsam (§2.6).
+		// Two-line label: all rows of the stage grow together (§2.6).
 		tall: { type: Boolean, default: false },
 	},
 	computed: {

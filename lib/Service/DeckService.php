@@ -17,21 +17,21 @@ use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\IL10N;
 
 /**
- * Das Deck eines Raums: Fragen anlegen, bearbeiten, sortieren, löschen, den
- * Cursor setzen und die Eigentümer-Sicht darauf bauen. Enthält die gesamte
- * Eingabe-Validierung je Fragetyp (applyPollData + build*-Helfer) — hier landen
- * neue Fragetypen und neue Composer-Felder.
- * Rohe Client-Werte laufen durch Input: Listen, Objekte und Unzahlen gelten als
- * nicht gesendet.
+ * A room's deck: create, edit, sort and delete questions, set the
+ * cursor and build the owner's view of it. Contains the complete
+ * input validation per question type (applyPollData + build* helpers) — new
+ * question types and new composer fields go here.
+ * Raw client values go through Input: lists, objects and non-numbers count as
+ * not sent.
  */
 class DeckService {
     private const TYPES_POLL = ['choice', 'words', 'scale', 'rank', 'match'];
     private const TYPES_QUIZ = ['choice', 'truefalse', 'multi', 'number', 'text', 'rank', 'match'];
-    /** Freitext: Obergrenze für eine Antwort (Zeichen). Auch der VoteService kürzt darauf. */
+    /** Free text: upper limit for one answer (characters). VoteService truncates to it as well. */
     public const TEXT_MAX = 100;
     private const MIN_OPTIONS = 2;
     private const MAX_OPTIONS = 8;
-    /** Zeitlimit einer Quizfrage in Sekunden (Ober-/Untergrenze). */
+    /** Time limit of a quiz question in seconds (lower/upper bound). */
     private const QUIZ_MIN_LIMIT = 5;
     private const QUIZ_MAX_LIMIT = 300;
 
@@ -46,14 +46,14 @@ class DeckService {
     ) {
     }
 
-    // ── Umfragen ──────────────────────────────────────────────────────────────
+    // ── Polls ─────────────────────────────────────────────────────────────────
 
     /**
-     * Frage ans Ende des Decks hängen. Setzt sie NICHT aktiv — die vortragende
-     * Person navigiert per setCurrent(). So lässt sich ein Deck vorab bauen.
+     * Append a question to the end of the deck. Does NOT make it active — the presenter
+     * navigates via setCurrent(). That way a deck can be built in advance.
      *
      * @param array{type?:string, question?:string, options?:array, maxWords?:int} $data
-     * @throws \InvalidArgumentException bei ungültiger Eingabe
+     * @throws \InvalidArgumentException on invalid input
      */
     public function addPoll(Room $room, array $data): Poll {
         $poll = new Poll();
@@ -66,23 +66,23 @@ class DeckService {
     }
 
     /**
-     * Bestehende Frage bearbeiten. Da choice-Options neue IDs bekommen, werden
-     * die bisherigen Stimmen dieser Frage verworfen (sonst zeigen sie ins Leere).
+     * Edit an existing question. Since choice options get new IDs, the
+     * existing votes of this question are discarded (otherwise they would point nowhere).
      *
      * @throws \InvalidArgumentException
      */
     public function updatePoll(Room $room, int $pollId, array $data): Poll {
         $poll = $this->requirePollInRoom($room, $pollId);
         $this->applyPollData($poll, $data, $room->getMode() === 'quiz');
-        // Neuer Inhalt, Stimmen weg — dann gilt auch der alte Ablauf-Stand
-        // nicht mehr. Bliebe 'locked'/startedAt stehen, stünde die geänderte
-        // Frage samt Lösung sofort als „aufgelöst" in der Gesamtauswertung.
-        // Ausnahmen, damit ein Tippfehler-Fix nichts im Saal umwirft:
-        //  · 'ended' bleibt — das Quiz bleibt vorbei, der Saal im Endstand.
-        //    (Die Stimmen dieser Frage gehen wie bei jeder Bearbeitung verloren,
-        //    ihre Punkte also auch aus dem Endstand.)
-        //  · die laufende Frage bleibt, wie sie ist; nur ein laufender
-        //    Quiz-Timer startet neu (die Stimmen sind ja weg).
+        // New content, votes gone — then the old progress state no longer
+        // applies either. If 'locked'/startedAt stayed, the edited question
+        // and its solution would show up as "revealed" in the overall summary at once.
+        // Exceptions, so that fixing a typo does not upset anything in the room:
+        //  · 'ended' stays — the quiz stays over, the room stays on the final standings.
+        //    (The votes of this question are lost as with every edit,
+        //    and so are their points in the final standings.)
+        //  · the running question stays as it is; only a running
+        //    quiz timer restarts (the votes are gone, after all).
         $current = $room->getActivePollId() === $poll->getId();
         if (!$current && $poll->getStatus() !== 'ended') {
             $poll->setStatus('active');
@@ -96,17 +96,17 @@ class DeckService {
     }
 
     /**
-     * Deck neu ordnen: Position = Index in der übergebenen ID-Liste.
-     * Alle IDs müssen zum Raum gehören (sonst Abbruch vor Änderungen wäre schöner,
-     * aber requirePollInRoom wirft je Fremd-ID -> Aufrufer schickt das echte Deck).
+     * Reorder the deck: position = index in the given ID list.
+     * All IDs must belong to the room (otherwise aborting before any change would be nicer,
+     * but requirePollInRoom throws per foreign ID -> the caller sends the real deck).
      *
      * @param array<mixed> $pollIds
-     * @throws \InvalidArgumentException Fremd-ID oder keine Zahl im Deck
+     * @throws \InvalidArgumentException foreign ID or a non-number in the deck
      */
     public function reorder(Room $room, array $pollIds): void {
-        // Erst alle prüfen, dann schreiben -> keine Teiländerung bei Fremd-ID.
-        // array_values: kommt statt der Liste ein JSON-Objekt, wären die Schlüssel
-        // Text, und setPosition(int, int) bräche mit TypeError (500).
+        // Check all first, then write -> no partial change on a foreign ID.
+        // array_values: if a JSON object arrives instead of the list, the keys would be
+        // text, and setPosition(int, int) would break with a TypeError (500).
         $ids = [];
         foreach (array_values($pollIds) as $raw) {
             $id = Input::int($raw);
@@ -124,7 +124,7 @@ class DeckService {
     }
 
     /**
-     * Validiert Typ/Frage/Optionen und schreibt sie in die Entity (ohne Persistenz).
+     * Validates type/question/options and writes them into the entity (without persisting).
      *
      * @throws \InvalidArgumentException
      */
@@ -140,7 +140,7 @@ class DeckService {
         }
         $poll->setType($type);
         $poll->setQuestion($question);
-        // Typ-Felder erst neutralstellen, dann je Typ setzen.
+        // Reset the type fields first, then set them per type.
         $poll->setCorrectOption('');
         $poll->setAnswerKey(null);
         $poll->setMaxWords(0);
@@ -160,8 +160,8 @@ class DeckService {
                 }
                 break;
             case 'truefalse':
-                // Beschriftungen werden mitgespeichert — sie stehen in der Sprache,
-                // in der die Frage angelegt wurde.
+                // The labels are stored as well — they are in the language
+                // in which the question was created.
                 $options = $this->buildOptions([$this->l10n->t('True'), $this->l10n->t('False')]);
                 $poll->setOptions(json_encode($options));
                 $idx = Input::int($data['correctIndex'] ?? null);
@@ -177,10 +177,10 @@ class DeckService {
                 $poll->setAnswerKey(json_encode(['correct' => $correct]));
                 break;
             case 'rank':
-                // Reihenfolge: dieselben Optionen wie bei choice — die Eingabe-
-                // reihenfolge im Composer IST im Quiz die richtige Lösung, deshalb
-                // braucht es kein zusätzliches Feld. In der Umfrage gibt es keine
-                // Lösung; dort zählt nur, wie das Publikum sortiert.
+                // Ordering: the same options as for choice — in the quiz the input
+                // order in the composer IS the correct solution, so no extra
+                // field is needed. A poll has no solution; there only the
+                // audience's order counts.
                 $options = $this->buildOptions($data['options'] ?? []);
                 $poll->setOptions(json_encode($options));
                 if ($quiz) {
@@ -188,10 +188,10 @@ class DeckService {
                 }
                 break;
             case 'match':
-                // Zuordnung: die Paare aus dem Composer werden in zwei Listen
-                // zerlegt (Items links, Ziele rechts). Im Quiz ist die Paarung
-                // die Lösung; in der Umfrage zeigt sie nur, wie das Publikum
-                // zuordnet — dort wird kein answerKey gespeichert.
+                // Matching: the pairs from the composer are split into two lists
+                // (items on the left, targets on the right). In the quiz the pairing
+                // is the solution; in a poll it only shows how the audience
+                // matches — no answerKey is stored there.
                 [$config, $map] = $this->buildMatch($data['pairs'] ?? []);
                 $poll->setOptions(json_encode($config));
                 if ($quiz) {
@@ -221,8 +221,8 @@ class DeckService {
     }
 
     /**
-     * Multi: aus einer Liste von Options-Indizes die zugehörigen Options-IDs
-     * ziehen (mindestens eine, alle im gültigen Bereich).
+     * Multi: take the matching option IDs from a list of option indexes
+     * (at least one, all within the valid range).
      *
      * @param list<array{id:string,label:string}> $options
      * @return list<string>
@@ -248,13 +248,13 @@ class DeckService {
     }
 
     /**
-     * Schätzfrage: Zielzahl (Pflicht) + Toleranz (≥ 0). Beide als Zahl gespeichert.
+     * Estimation question: target number (required) + tolerance (≥ 0). Both stored as numbers.
      *
      * @return array{0: int|float, 1: int|float}
      * @throws \InvalidArgumentException
      */
     private function buildNumberKey(array $data): array {
-        // Endlich: „1e999“ wäre INF, und json_encode scheitert daran.
+        // Finite: "1e999" would be INF, and json_encode fails on that.
         $target = Input::number($data['target'] ?? null);
         if ($target === null) {
             throw new \InvalidArgumentException($this->l10n->t('Please enter a target number.'));
@@ -267,8 +267,8 @@ class DeckService {
     }
 
     /**
-     * Freitext: die vom Autor vorgegebenen akzeptierten Antworten. Roh gespeichert
-     * (für hübsche Anzeige), dedupliziert über die Normalform. Mindestens eine.
+     * Free text: the accepted answers given by the author. Stored raw
+     * (for a nice display), deduplicated via the normal form. At least one.
      *
      * @return list<string>
      * @throws \InvalidArgumentException
@@ -302,8 +302,8 @@ class DeckService {
     }
 
     /**
-     * Skalen-Config. Modus 'single' (min fix 1, scaleMax 2–20, Histogramm) oder
-     * 'spectrum' (min fix 0, 3–8 Aspekte je 0..X, Radar).
+     * Scale config. Mode 'single' (min fixed at 1, scaleMax 2–20, histogram) or
+     * 'spectrum' (min fixed at 0, 3–8 aspects each 0..X, radar).
      *
      * @return array
      */
@@ -343,8 +343,8 @@ class DeckService {
     }
 
     /**
-     * Spektrum-Aspekte: 3–8 Einträge, je mit stabiler ID, Name (Pflicht) und
-     * optionalen Pol-Labels. Leere Namen fallen raus; > 8 wird gekappt.
+     * Spectrum aspects: 3–8 entries, each with a stable ID, a name (required) and
+     * optional pole labels. Empty names are dropped; > 8 is capped.
      *
      * @return list<array{id:string,label:string,poleLow:string,poleHigh:string}>
      * @throws \InvalidArgumentException
@@ -379,7 +379,7 @@ class DeckService {
     }
 
     /**
-     * Kompass-Achse: Titel + zwei Pol-Labels, alle drei Pflicht.
+     * Compass axis: title + two pole labels, all three required.
      *
      * @return array{title:string,poleLow:string,poleHigh:string}
      * @throws \InvalidArgumentException
@@ -396,8 +396,8 @@ class DeckService {
     }
 
     /**
-     * Kompass-Ecklabels: bis zu vier, optional. Reihenfolge
-     * [links-unten, rechts-unten, links-oben, rechts-oben].
+     * Compass corner labels: up to four, optional. Order
+     * [bottom-left, bottom-right, top-left, top-right].
      *
      * @return list<string>
      */
@@ -416,29 +416,29 @@ class DeckService {
     }
 
     /**
-     * Cursor setzen: welche Frage ist gerade dran (0 = keine / Präsentation ruht).
-     * Nur die aktuelle Frage nimmt Stimmen an (recordVote löst über active_poll_id auf).
+     * Set the cursor: which question is on right now (0 = none / presentation at rest).
+     * Only the current question accepts votes (recordVote resolves via active_poll_id).
      *
-     * @throws \InvalidArgumentException Frage gehört nicht zum Raum
+     * @throws \InvalidArgumentException the question does not belong to the room
      */
     public function setCurrent(Room $room, int $pollId): void {
         if ($pollId !== 0) {
             $poll = $this->requirePollInRoom($room, $pollId);
             if ($room->getMode() === 'quiz') {
-                // Timer (neu) starten und Frage öffnen — auch beim Zurückspringen
-                // auf eine schon aufgelöste Frage läuft sie damit wieder an.
+                // (Re)start the timer and open the question — so even when jumping back
+                // to a question that was already revealed, it runs again.
                 $poll->setStartedAt($this->timeFactory->getTime());
                 $poll->setStatus('active');
                 $this->pollMapper->update($poll);
-                // Ein neuer Lauf (oder ein Schritt zurück nach dem Endstand)
-                // beendet das Ende: eine liegengebliebene 'ended'-Frage hieße
-                // sonst weiter „Quiz vorbei" — bei „Auflösung am Ende" gäbe
-                // die Gesamtauswertung dann ab Frage 1 jede Lösung frei.
+                // A new run (or a step back after the final standings)
+                // ends the end: a leftover 'ended' question would otherwise
+                // still mean "quiz over" — with "Reveal at the end" the
+                // overall summary would then give away every solution from question 1 on.
                 $this->pollMapper->unmarkEnded($room->getId(), $poll->getId());
             } elseif ($poll->getStartedAt() === 0) {
-                // Umfrage: kein Timer, aber der Zeitpunkt markiert „wurde gezeigt".
-                // Die Gesamtauswertung fürs Handy nimmt nur gezeigte Fragen auf
-                // (StateService::wasShown) — sonst stünde das ganze Deck vorab darin.
+                // Poll: no timer, but the timestamp marks "has been shown".
+                // The overall summary for the phone only includes questions that were shown
+                // (StateService::wasShown) — otherwise the whole deck would be in it in advance.
                 $poll->setStartedAt($this->timeFactory->getTime());
                 $this->pollMapper->update($poll);
             }
@@ -458,15 +458,15 @@ class DeckService {
         }
     }
 
-    /** @return Poll[] geordnetes Deck */
+    /** @return Poll[] ordered deck */
     public function deck(Room $room): array {
         return $this->pollMapper->findByRoom($room->getId());
     }
 
     /**
-     * Frage samt richtiger Antwort — nur für Eigentümer-Sichten (Deck-Editor,
-     * Präsentation, Zusammenfassung). Teilnehmer bekommen correctOption erst
-     * beim Auflösen (siehe publicState).
+     * Question including the correct answer — only for owner views (deck editor,
+     * presentation, summary). Participants only get correctOption
+     * at the reveal (see publicState).
      */
     public function ownerPoll(Poll $poll): array {
         $data = $poll->jsonSerialize();
@@ -476,8 +476,8 @@ class DeckService {
     }
 
     /**
-     * Raum inkl. Deck als serialisierbares Array (für GET /rooms/{code}). Im
-     * eigenen Tempo samt Fenster (Zustand, Frist, Fragenzahl), sonst
+     * Room including its deck as a serialisable array (for GET /rooms/{code}). In
+     * self-paced mode including the window (state, deadline, question count), otherwise
      * `window: null`.
      */
     public function roomView(Room $room): array {
@@ -498,7 +498,7 @@ class DeckService {
         $this->voteMapper->deleteByPoll($poll->getId());
     }
 
-    /** Abstimmung pausieren (kein neues Abstimmen), Ergebnisse bleiben erhalten. */
+    /** Pause voting (no new votes), results are kept. */
     public function lockPoll(Room $room, int $pollId): void {
         $poll = $this->requirePollInRoom($room, $pollId);
         if ($poll->getStatus() === 'active') {
@@ -513,7 +513,7 @@ class DeckService {
         }
     }
 
-    // ── intern ──────────────────────────────────────────────────────────────
+    // ── internal ────────────────────────────────────────────────────────────
 
     /** @throws \InvalidArgumentException */
     public function requirePollInRoom(Room $room, int $pollId): Poll {
@@ -529,14 +529,14 @@ class DeckService {
     }
 
     /**
-     * Zuordnung: aus den Paaren des Composers [{left, right}, …] die beiden
-     * Listen bauen. Beide Seiten bekommen eigene IDs; die Lösung ist die
-     * Abbildung item-ID -> ziel-ID. Gleiche Ziel-Beschriftungen werden NICHT
-     * zusammengelegt: zwei Items dürfen auf dasselbe Ziel zeigen, dann steht
-     * das Ziel eben zweimal in der Auswahl — sonst verriete die kürzere Liste
-     * die Doppelung.
+     * Matching: build the two lists from the composer's pairs [{left, right}, …].
+     * Both sides get their own IDs; the solution is the
+     * mapping item ID -> target ID. Identical target labels are NOT
+     * merged: two items may point to the same target, in which case the
+     * target simply appears twice in the choice — otherwise the shorter list
+     * would give the duplicate away.
      *
-     * @param mixed $raw Liste von {left, right}
+     * @param mixed $raw list of {left, right}
      * @return array{0: array{items:list<array{id:string,label:string}>, targets:list<array{id:string,label:string}>}, 1: array<string,string>}
      * @throws \InvalidArgumentException
      */
@@ -551,8 +551,8 @@ class DeckService {
             }
             $left = trim(Input::str($entry['left'] ?? null));
             $right = trim(Input::str($entry['right'] ?? null));
-            // Halbe Zeilen sind eine Falle: „links ohne rechts" ließe sich nicht
-            // zuordnen, „rechts ohne links" wäre ein Ziel ohne Zweck.
+            // Half-filled rows are a trap: "left without right" could not be
+            // matched, "right without left" would be a target without a purpose.
             if ($left === '' xor $right === '') {
                 throw new \InvalidArgumentException($this->l10n->t('Please fill in both sides of every pair.'));
             }
@@ -577,7 +577,7 @@ class DeckService {
     }
 
     /**
-     * @param mixed $raw Liste von Labels (Strings)
+     * @param mixed $raw list of labels (strings)
      * @return list<array{id:string,label:string}>
      */
     private function buildOptions(mixed $raw): array {
@@ -586,7 +586,7 @@ class DeckService {
         }
         $labels = [];
         foreach ($raw as $entry) {
-            // akzeptiert sowohl ["A","B"] als auch [{"label":"A"}, …]
+            // accepts both ["A","B"] and [{"label":"A"}, …]
             $label = trim(Input::str(is_array($entry) ? ($entry['label'] ?? null) : $entry));
             if ($label !== '') {
                 $labels[] = $label;

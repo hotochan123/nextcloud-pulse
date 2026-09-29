@@ -5,21 +5,21 @@
 import Vue from 'vue'
 import { loadState } from '@nextcloud/initial-state'
 import { t, n } from './util/l10n.js'
-// Design-System-Fundament (auch auf Handy + Beamer): Tokens + Primitive global.
+// Design-system foundation (on the phone + projector too): tokens + primitives, global.
 import './styles/pulse-tokens.css'
 import './styles/pulse-ds.css'
 import Participant from './Participant.vue'
 import Screen from './Screen.vue'
 
 Vue.prototype.OC = window.OC
-// Übersetzungen global: im Template und Skript steht t/n bereit (App-Kürzel
-// "pulse"). Auf der öffentlichen Seite kommt die Sprache aus dem Browser
-// (Accept-Language), nicht aus einem Konto.
+// Translations global: t/n are available in template and script (app ID
+// "pulse"). On the public page the language comes from the browser
+// (Accept-Language), not from an account.
 Vue.prototype.t = t
 Vue.prototype.n = n
 
-// Dasselbe Bundle für zwei öffentliche Seiten: /s/{code} = Teilnehmer (abstimmen),
-// /screen/{code} = Beamer-/Publikumsansicht (nur zeigen). Der Controller setzt das Flag.
+// The same bundle for two public pages: /s/{code} = participant (voting),
+// /screen/{code} = projector/audience view (display only). The controller sets the flag.
 const isScreen = loadState('pulse', 'screen', false)
 
 // eslint-disable-next-line no-new

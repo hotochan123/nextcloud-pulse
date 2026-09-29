@@ -16,14 +16,14 @@
 				<span class="pace-code" :title="t('pulse', 'Room code')">{{ spacedCode }}</span>
 				<PulseMenu ref="menu" :items="menuItems" :label="t('pulse', 'More actions')" small />
 			</div>
-			<!-- Die beim Öffnen festgelegten Einstellungen bleiben sichtbar — wie am Handy. -->
+			<!-- The settings fixed on opening stay visible — as on the phone. -->
 			<p class="pace-facts">{{ facts }}</p>
 			<p v-if="!online" class="pulse-notice is-warn pace-offline" role="status"><PulseIcon name="warning" size="1.1em" class="pulse-notice-ico" /><span>{{ t('pulse', 'No connection — the room is not answering. The main action stays disabled until it is back.') }}</span></p>
 		</header>
 
 		<div class="pace-body">
-			<!-- Privat: Namen, Stand und Punkte je Person. Projiziert wird das
-			     Beamer-Fenster, nie diese Seite. -->
+			<!-- Private: names, progress and points per person. What gets projected
+			     is the projector window, never this page. -->
 			<section class="pace-people" aria-labelledby="pace-people-head">
 				<h3 id="pace-people-head" class="pace-private-head"><PulseIcon name="lock" size="1.05em" /> {{ t('pulse', 'Only for you') }}</h3>
 				<p class="pace-private-sub">{{ t('pulse', 'Progress per person. Mirror the projector window, not this page.') }}</p>
@@ -52,7 +52,7 @@
 						<tbody>
 							<tr v-for="p in sortedPlayers" :key="p.id">
 								<td>
-									<!-- Wird es eng, rutscht der Chip unter den Namen statt die Tabelle zu verbreitern. -->
+									<!-- When space gets tight, the chip slides below the name instead of widening the table. -->
 									<div class="pace-name">
 										<span class="pace-nick">{{ p.nickname }}</span>
 										<span v-if="p.pending > 0" class="pulse-chip is-warning pace-cell-chip"><PulseIcon name="hourglass" size="1em" /> {{ n('pulse', '%n to check', '%n to check', p.pending) }}</span>
@@ -71,8 +71,8 @@
 									<span v-if="p.online" class="pulse-chip is-live pace-cell-chip"><span class="pulse-chip-dot" />{{ t('pulse', 'online') }}</span>
 									<span v-else class="pace-muted">{{ fmtAgo(p.lastActivity, nowServer) || '—' }}</span>
 								</td>
-								<!-- Genau ein Eintrag, und der ist rot: wer das Gerät verloren
-								     hat oder einen Namen besetzt, wird hier entfernt. -->
+								<!-- Exactly one entry, and it is red: whoever lost their device
+								     or is squatting a name gets removed here. -->
 								<td class="pace-act">
 									<PulseMenu :items="rowMenu(p)" :label="t('pulse', 'Actions for {name}', { name: p.nickname })" small />
 								</td>
@@ -84,8 +84,8 @@
 			</section>
 
 			<aside class="pace-side">
-				<!-- Direkt nach dem Öffnen ist das Teilen des Links die Hauptaufgabe
-				     (Hausaufgabe: in den Chat der Klasse). Nur solange offen. -->
+				<!-- Right after opening, sharing the link is the main task
+				     (homework: into the class chat). Only while open. -->
 				<section v-if="state === 'open'" class="pace-card pace-join" aria-labelledby="pace-join-head">
 					<h3 id="pace-join-head" class="pace-side-head">{{ t('pulse', 'Join in') }}</h3>
 					<div class="pace-join-in">
@@ -98,21 +98,21 @@
 					</div>
 				</section>
 
-				<!-- Offene Freitexte zählen 0 Punkte, bis sie bewertet sind — deshalb
-				     oben und vor der Freigabe als Hauptaktion. Ohne Lösungsschlüssel
-				     (keyless): der Laptop hängt oft am Beamer. -->
+				<!-- Open free texts count 0 points until they are graded — hence
+				     at the top and ahead of the release as the main action. Without the answer key
+				     (keyless): the laptop is often connected to the projector. -->
 				<section v-if="pendingAnswers.length || checked.length" ref="grading" class="pace-card pace-grading" aria-labelledby="pace-grade-head">
-					<!-- Bleibt stehen, solange „Checked just now" etwas hat — dann ohne
-					     „0 … warten". Die Warnung nach der Freigabe nur, solange hier etwas
-					     zu bewerten ist (offen oder die Liste zum Umbewerten aufgeklappt). -->
+					<!-- Stays in place as long as "Checked just now" has something — then without
+					     "0 … waiting". The warning after the release only as long as there is something
+					     to grade here (open, or the list for re-grading expanded). -->
 					<h3 id="pace-grade-head" ref="gradeHead" class="pace-side-head" tabindex="-1">{{ pendingSum ? n('pulse', '%n free text waiting', '%n free texts waiting', pendingSum) : t('pulse', 'All free texts checked') }}</h3>
 					<p v-if="state === 'released' && (pendingSum > 0 || checkedOpen)" class="pulse-notice is-warn pace-grade-warn"><PulseIcon name="warning" size="1.1em" class="pulse-notice-ico" /><span>{{ t('pulse', 'Standings update for everyone.') }}</span></p>
 					<div v-for="g in pendingGroups" :key="g.pollId" class="pace-grade-q">
 						<p class="pace-grade-qhead"><span class="pace-grade-k">{{ t('pulse', 'Question {number}', { number: g.k }) }}</span> <span class="pace-grade-qtext" :title="g.question">{{ g.question }}</span></p>
 						<TextGrading keyless :busy="gradingBusy" :results="g.results" @grade="(sample, ok) => grade(g, sample, ok)" />
 					</div>
-					<!-- Rückgängig ohne Umweg über die Zusammenfassung: derselbe
-					     Endpunkt bewertet um. Nur diese Sitzung. -->
+					<!-- Undo without a detour through the summary: the same
+					     endpoint re-grades. This session only. -->
 					<details v-if="checked.length" class="pace-checked" @toggle="checkedOpen = $event.target.open">
 						<summary>{{ t('pulse', 'Checked just now ({count})', { count: checked.length }) }}</summary>
 						<div v-for="g in checkedGroups" :key="g.pollId" class="pace-grade-q">
@@ -122,7 +122,7 @@
 					</details>
 				</section>
 
-				<!-- Was der Saal sieht — die echte Beamer-Seite, verkleinert. -->
+				<!-- What the room sees — the real projector page, scaled down. -->
 				<section class="pace-card pace-preview" aria-labelledby="pace-preview-head">
 					<h3 id="pace-preview-head" class="pace-side-head">{{ t('pulse', 'Projector view') }}</h3>
 					<ScreenPreview :src="screenPath" :title="t('pulse', 'Preview of the projector view')" />
@@ -145,8 +145,8 @@
 			</aside>
 		</div>
 
-		<!-- Genau EINE gefüllte Hauptaktion, und sie weiß, was gerade dran ist.
-		     Nie rot: das Gewicht trägt die Bestätigung. -->
+		<!-- Exactly ONE filled main action, and it knows what is due right now.
+		     Never red: the confirmation carries the weight. -->
 		<footer class="pace-bar">
 			<button v-if="primary"
 				class="pulse-btn is-primary is-lg pace-primary"
@@ -160,8 +160,8 @@
 			<span class="pulse-chip is-neutral pace-done">{{ doneText }}</span>
 		</footer>
 
-		<!-- „Change the end …" / „Reopen …": derselbe Dialog wie beim Öffnen,
-		     nur mit der Frage nach dem Ende. -->
+		<!-- "Change the end …" / "Reopen …": the same dialog as when opening,
+		     only with the question about the end. -->
 		<PaceOpenDialog v-if="extendOpen"
 			:room="room"
 			:skew="serverSkew"
@@ -174,25 +174,25 @@
 
 <script>
 /*
- * Laufansicht im eigenen Tempo (Spezifikation §1.6) — Phase 'pace' des
- * Moderators, sobald das Quiz geöffnet ist.
+ * Self-paced run view (spec §1.6, not in the public repository) — the
+ * moderator's 'pace' phase once the quiz is open.
  *
- * Nichts hängt an diesem Tab: Fristablauf, Urteile und der Fortschritt der
- * Handys laufen auf dem Server. Die Ansicht ist Anzeige plus Knöpfe — eine
- * Tabelle je Person (privat, mit „entfernen"), die offenen Freitexte zum
- * Bewerten, die Beamer-Vorschau, die Fragen mit ihren Zahlen, der Beitritt
- * zum Teilen, und unten genau eine Hauptaktion (schließen, bewerten,
- * freigeben, CSV).
+ * Nothing depends on this tab: deadline expiry, verdicts and the phones'
+ * progress run on the server. The view is display plus buttons — a
+ * table per person (private, with "Remove from the quiz"), the open free
+ * texts for grading, the projector preview, the questions with their
+ * numbers, joining for sharing, and at the bottom exactly one main action
+ * (close, grade, release, CSV).
  *
- * Eigene /progress-Schleife (progress-poll: höchstens eine Anfrage unterwegs,
- * Überholtes wird verworfen). Nach jeder eigenen Aktion refresh().
+ * Its own /progress loop (progress-poll: at most one request in flight,
+ * stale responses are discarded). After each of our own actions refresh().
  *
- * Das Fenster (`room.window`) ist die Wahrheit für Zustand und Knöpfe: der
- * Moderator hält es über `window` (aus /progress) und `room` (Antwort jedes
- * /pace-Aufrufs) aktuell.
+ * The window (`room.window`) is the truth for state and buttons: the
+ * moderator keeps it current via `window` (from /progress) and `room`
+ * (the response of every /pace call).
  *
  * Emits: room(json) · window(win) · skew(s) · go('deck'|'summary'|'home') ·
- *        reset(counts) · end-practice · copy · reload
+ * reset(counts) · end-practice · copy · reload
  */
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
@@ -211,8 +211,8 @@ import PulseIcon from './ui/PulseIcon.vue'
 import PulseMenu from './ui/PulseMenu.vue'
 import PulseSegmented from './ui/PulseSegmented.vue'
 
-// Jede Anfrage im eigenen Tempo hat ein Zeitlimit — ein hängender Aufruf
-// hielte sonst `busy` und damit die Hauptaktion fest.
+// Every self-paced request has a time limit — otherwise a hanging call
+// would keep `busy`, and with it the main action, stuck.
 const TIMEOUT = 15000
 
 const sumCount = (rows) => rows.reduce((acc, a) => acc + (Number(a.count) || 0), 0)
@@ -226,32 +226,32 @@ export default {
 		joinUrl: { type: String, default: '' },
 		joinUrlFull: { type: String, default: '' },
 		joinPath: { type: String, default: '' },
-		// Übergang per Klick hierher (Moderator.enterPace): Fokus auf den Titel.
+		// Arrived here by a click (Moderator.enterPace): focus on the title.
 		focusTitle: { type: Boolean, default: false },
 	},
 	data() {
 		return {
-			nowSec: Math.floor(Date.now() / 1000), // eigener Sekundentakt (Frist, „vor 3 Min.")
-			busy: false,       // ein /pace-Aufruf läuft
-			showScores: false, // „Show points": Punkte trotz „Auflösung am Ende" (?scores=1)
-			sortPick: '',      // eigene Sortierwahl bis zum Verlassen; leer = Vorgabe
-			extendOpen: false, // Dialog „Change the end …" / „Reopen …"
-			gradingBusy: false, // eine Bewertung läuft
-			// „Checked just now" — nur diese Sitzung: {pollId, k, question, answer, count, ok}
+			nowSec: Math.floor(Date.now() / 1000), // own one-second tick (deadline, "3 min ago")
+			busy: false,       // a /pace call is running
+			showScores: false, // "Show points": points despite "results at the end" (?scores=1)
+			sortPick: '',      // own sort choice until leaving; empty = default
+			extendOpen: false, // dialog "Change the end …" / "Reopen …"
+			gradingBusy: false, // a grading request is running
+			// "Checked just now" — this session only: {pollId, k, question, answer, count, ok}
 			checked: [],
-			checkedOpen: false, // „Checked just now" aufgeklappt
+			checkedOpen: false, // "Checked just now" expanded
 		}
 	},
 	computed: {
-		// Fenster aus dem Raum-JSON (frisch gehalten), zur Not aus /progress.
+		// Window from the room JSON (kept fresh), failing that from /progress.
 		win() {
 			return this.room.window || (this.progress && this.progress.window) || null
 		},
-		// „Jetzt" in Serverzeit — nie die nackte Laptop-Uhr gegen Server-Zeitstempel.
+		// "Now" in server time — never the bare laptop clock against server timestamps.
 		nowServer() {
 			return this.nowSec + this.serverSkew
 		},
-		// Eine lokal abgelaufene Frist gilt schon als geschlossen; der nächste Abruf bestätigt es.
+		// A deadline that expired locally already counts as closed; the next fetch confirms it.
 		state() {
 			return windowState(this.win, this.nowServer)
 		},
@@ -282,15 +282,15 @@ export default {
 		finishedCount() {
 			return this.players.filter((p) => p.finished).length
 		},
-		// Gestartet und noch nicht fertig.
+		// Started and not finished yet.
 		workingCount() {
 			return this.players.filter((p) => p.started && !p.finished).length
 		},
 		scoresHidden() {
 			return !!(this.progress && this.progress.scoresHidden)
 		},
-		// Der Schalter hängt an der Einstellung, nicht an `scoresHidden` — sonst
-		// verschwände er in dem Moment, in dem man ihn einschaltet.
+		// The toggle hangs on the setting, not on `scoresHidden` — otherwise
+		// it would vanish the moment you switch it on.
 		scoresToggle() {
 			return !!this.win && this.win.feedback === 'end' && this.state !== 'released'
 		},
@@ -313,8 +313,8 @@ export default {
 			if (!this.scoresHidden) opts.push({ value: 'points', label: t('pulse', 'Points') })
 			return opts
 		},
-		// Vorgabe: freigegeben mit sichtbaren Punkten nach Punkten, sonst wer am
-		// weitesten ist. Eine eigene Wahl gilt, solange es sie noch gibt.
+		// Default: released with visible points by points, otherwise whoever is
+		// furthest along. A choice of one's own applies as long as it still exists.
 		sortKey: {
 			get() {
 				if (this.sortPick && this.sortOptions.some((o) => o.value === this.sortPick)) return this.sortPick
@@ -331,21 +331,21 @@ export default {
 			if (this.sortKey === 'points') {
 				return list.sort((a, b) => ((b.score || 0) - (a.score || 0)) || ((b.correct || 0) - (a.correct || 0)) || byName(a, b))
 			}
-			// Am weitesten zuerst: fertig, dann nach Frage absteigend, dann Name.
+			// Furthest first: finished, then by question descending, then name.
 			return list.sort((a, b) => (Number(!!b.finished) - Number(!!a.finished)) || ((b.k || 0) - (a.k || 0)) || byName(a, b))
 		},
 		/*
-		 * Offene Freitexte aus /progress (roh, nie mit Lösung). Was hier gerade
-		 * bewertet wurde, fällt sofort heraus, nicht erst mit dem nächsten
-		 * Abruf: der Server wertet jede spätere Antwort mit derselben
-		 * Normalform selbst — ein solcher Eintrag ist also immer veraltet, und
-		 * so tippt niemand dieselbe Antwort zweimal.
+		 * Open free texts from /progress (raw, never with the solution). Whatever was
+		 * just graded here drops out immediately, not only with the next
+		 * fetch: the server grades every later answer with the same
+		 * normal form itself — such an entry is therefore always stale, and
+		 * this way nobody taps the same answer twice.
 		 */
 		pendingAnswers() {
 			const list = (this.progress && Array.isArray(this.progress.pendingAnswers)) ? this.progress.pendingAnswers : []
 			return list.filter((a) => !this.checked.some((c) => c.pollId === a.pollId && c.answer === a.answer))
 		},
-		// Offene Freitext-Antworten insgesamt (Summe der Gruppen).
+		// Open free-text answers in total (sum of the groups).
 		pendingSum() {
 			return sumCount(this.pendingAnswers)
 		},
@@ -355,17 +355,17 @@ export default {
 		checkedGroups() {
 			return this.groupAnswers(this.checked.map((c) => ({ ...c, status: c.ok ? 'accepted' : 'rejected' })))
 		},
-		// Der Satz, der an jede Schluss-/Freigabe-Bestätigung gehängt wird.
+		// The sentence appended to every close/release confirmation.
 		pendingNote() {
 			return this.pendingSum > 0
 				? ' ' + n('pulse', '%n free-text answer is not checked yet — it counts as 0 points.', '%n free-text answers are not checked yet — they count as 0 points.', this.pendingSum)
 				: ''
 		},
 		/*
-		 * DIE Hauptaktion — erste zutreffende Zeile gewinnt (§1.6). Offene
-		 * Freitexte nach dem Schluss gehen vor der Freigabe: sie zählen 0
-		 * Punkte, bis sie bewertet sind, und eine spätere Bewertung änderte
-		 * einen schon gesehenen Endstand.
+		 * THE main action — the first matching row wins (§1.6). Open
+		 * free texts after the close go before the release: they count 0
+		 * points until they are graded, and a later grading would change
+		 * final standings that have already been seen.
 		 */
 		primary() {
 			const st = this.state
@@ -387,10 +387,10 @@ export default {
 			return null
 		},
 		/*
-		 * „Alle durch" zählt nur, wer gerade da ist: wer nicht mehr pollt, hält
-		 * das Rennen nicht auf. Wer da ist und noch nicht gestartet hat, ist
-		 * aber auch nicht durch — und ohne eine anwesende fertige Person stünde
-		 * der Satz sonst in einem leeren Raum.
+		 * "Everyone through" only counts whoever is here right now: whoever no longer
+		 * polls does not hold up the race. But whoever is here and has not started yet
+		 * is not through either — and without a present, finished person
+		 * the sentence would otherwise show up in an empty room.
 		 */
 		allThrough() {
 			const here = this.players.filter((p) => p.online)
@@ -415,9 +415,9 @@ export default {
 			return ''
 		},
 		/*
-		 * „still working" nur, solange offen: `finished` heißt „letzte Frage
-		 * erreicht" (PaceService::isFinished) — wer vorher aufgehört hat, bleibt
-		 * nach dem Schließen gestartet und nicht fertig, kann aber nichts mehr tun.
+		 * "still working" only while open: `finished` means "reached the last
+		 * question" (PaceService::isFinished) — whoever stopped earlier stays
+		 * started and unfinished after the close, but can no longer do anything.
 		 */
 		doneText() {
 			const base = t('pulse', '{done} of {total} finished', { done: this.finishedCount, total: this.players.length })
@@ -425,14 +425,14 @@ export default {
 				? base + ' · ' + n('pulse', '%n still working', '%n still working', this.workingCount)
 				: base
 		},
-		// Zählstand für zerstörende Bestätigungen (Zurücksetzen) — aus dem eigenen Abruf.
+		// Counts for destructive confirmations (reset) — from our own fetch.
 		counts() {
 			return progressCounts(this.progress)
 		},
 		/*
-		 * Überlaufmenü (Tabelle §1.6): Schalter mit Häkchen, dann das Ende,
-		 * die Freigabe, wo sie nicht schon Hauptaktion ist, beide CSV, die
-		 * Wege hinaus, Rotes zuletzt.
+		 * Overflow menu (table §1.6): toggles with a tick, then the end,
+		 * the release where it is not already the main action, both CSVs, the
+		 * ways out, red items last.
 		 */
 		menuItems() {
 			const st = this.state
@@ -449,8 +449,8 @@ export default {
 			if (st === 'closed') {
 				items.push({ key: 'reopen', label: t('pulse', 'Reopen …'), icon: 'reset', act: this.openExtend })
 			}
-			// Offen nur mit Frist (ohne Frist gibt „Close quiz" schon frei);
-			// geschlossen nur, wenn die Hauptaktion etwas anderes ist.
+			// Open only with a deadline (without a deadline "Close quiz" already releases);
+			// closed only if the main action is something else.
 			if (st === 'open' && this.win.closesAt > 0) {
 				items.push({ key: 'release', label: t('pulse', 'Release results'), icon: 'eye', act: this.confirmReleaseOpen })
 			}
@@ -472,13 +472,13 @@ export default {
 		},
 	},
 	created() {
-		// Außerhalb von data(): der Handle muss nicht reaktiv sein.
+		// Outside of data(): the handle does not need to be reactive.
 		this.tick = null
 	},
 	mounted() {
 		this.tick = setInterval(() => { this.nowSec = Math.floor(Date.now() / 1000) }, 1000)
-		// Der Auslöser (Öffnen-Dialog, „Show progress", „Back to progress") ist mit
-		// der alten Ansicht verschwunden — ohne das fiele der Fokus auf <body>.
+		// The trigger (open dialog, "Show progress", "Back to progress") disappeared with
+		// the old view — without this the focus would fall to <body>.
 		if (this.focusTitle) {
 			this.$nextTick(() => {
 				if (this.$refs.title) this.$refs.title.focus({ preventScroll: true })
@@ -502,7 +502,7 @@ export default {
 			return this.showScores ? { scores: 1 } : {}
 		},
 		pollDelay() {
-			if (document.hidden) return null // pausieren -> onPollVisibility weckt auf
+			if (document.hidden) return null // pause -> onPollVisibility wakes it up
 			return progressDelay(this.state, this.players.length, this.idleStreak)
 		},
 		onProgress(data) {
@@ -515,21 +515,21 @@ export default {
 			showError(t('pulse', 'Room not found — it may have been deleted.'))
 			this.$emit('go', 'home')
 		},
-		// 409: der Raum läuft nicht mehr im eigenen Tempo -> neu laden.
+		// 409: the room no longer runs self-paced -> reload.
 		onNotPaced() {
 			this.$emit('reload')
 		},
 
-		// ── Aktionen (/pace) ────────────────────────────────────────────────
+		// ── Actions (/pace) ─────────────────────────────────────────────────
 		async post(body) {
 			const { data } = await axios.post(generateUrl('/apps/pulse/api/1.0/rooms/' + this.room.code + '/pace'), body, { timeout: TIMEOUT })
 			this.$emit('room', data)
 			return data
 		},
 		/*
-		 * Rahmen jedes /pace-Aufrufs: busy an; geschafft -> sofort neu abrufen;
-		 * 400 -> Servermeldung, neu abrufen; 409 -> Servermeldung, Raum neu laden
-		 * (er steht auf dem Server anders als hier); 404/403 -> wie der Abruf.
+		 * Frame of every /pace call: busy on; success -> fetch again immediately;
+		 * 400 -> server message, fetch again; 409 -> server message, reload the room
+		 * (it is in a different state on the server than here); 404/403 -> like the fetch.
 		 */
 		async act(run, fallback) {
 			if (this.busy) return
@@ -561,8 +561,8 @@ export default {
 		runPrimary() {
 			if (this.primary && !this.busy) this.primary.act()
 		},
-		// Ohne Frist gibt Schließen sofort frei — deshalb der dritte Ausgang. `release: true`
-		// hält das Versprechen auch, wenn ein zweiter Tab inzwischen eine Frist gesetzt hat.
+		// Without a deadline, closing releases immediately — hence the third way out. `release: true`
+		// keeps the promise even if a second tab has set a deadline in the meantime.
 		async confirmCloseRace() {
 			const choice = await pulseConfirm({
 				title: t('pulse', 'Close the quiz now?'),
@@ -575,10 +575,10 @@ export default {
 			if (choice === 'alt') return this.stopWithoutRelease()
 			if (choice === true) return this.closeQuiz(true)
 		},
-		// Mit Frist bleibt nach dem Schließen alles verborgen — umkehrbar. Das
-		// verspricht die Bestätigung, und `release: false` hält es auch dann, wenn
-		// ein zweiter Tab das Ende inzwischen auf „When I close it“ gestellt hat
-		// (ohne den Parameter gäbe „close“ dann sofort frei).
+		// With a deadline everything stays hidden after closing — reversible. That
+		// is what the confirmation promises, and `release: false` keeps it even if
+		// a second tab has meanwhile set the end to "When I close it"
+		// (without the parameter "close" would then release immediately).
 		async confirmCloseTimed() {
 			if (!await pulseConfirm({
 				title: t('pulse', 'Close the quiz now?'),
@@ -588,16 +588,16 @@ export default {
 			})) return
 			return this.closeQuiz(false)
 		},
-		// `release` sagt dem Server ausdrücklich, was die Bestätigung versprochen
-		// hat — nie „je nach Frist“ (PaceService::closeWindow).
+		// `release` tells the server explicitly what the confirmation promised
+		// — never "depending on the deadline" (PaceService::closeWindow).
 		closeQuiz(release) {
 			return this.act(() => this.post({ action: 'close', release }), t('pulse', 'Could not close the quiz.'))
 		},
 		/*
-		 * Stoppen ohne Freigabe — EIN Aufruf: close {release: false}. Der Raum
-		 * steht dann auf „closed“ ohne releasedAt, die Frist bleibt 0: bewerten,
-		 * freigeben, wieder öffnen („Reopen …“ belegt „When I close it“ vor) oder
-		 * zurücksetzen.
+		 * Stop without releasing — ONE call: close {release: false}. The room
+		 * is then "closed" without releasedAt, the deadline stays 0: grade,
+		 * release, reopen ("Reopen …" preselects "When I close it") or
+		 * reset.
 		 */
 		stopWithoutRelease() {
 			return this.closeQuiz(false)
@@ -612,8 +612,8 @@ export default {
 			})) return
 			return this.act(() => this.post({ action: 'release' }), t('pulse', 'Could not release the results.'))
 		},
-		// Freigeben aus dem offenen Fenster (Hausaufgabe) schließt zugleich —
-		// wer noch nicht fertig ist, wird dabei gestoppt.
+		// Releasing from the open window (homework) closes at the same time —
+		// whoever has not finished yet is stopped in the process.
 		async confirmReleaseOpen() {
 			const nf = this.players.filter((p) => !p.finished).length
 			const text = nf === 0
@@ -628,7 +628,7 @@ export default {
 			})) return
 			return this.act(() => this.post({ action: 'release' }), t('pulse', 'Could not release the results.'))
 		},
-		// Beitritt sperren: wer schon drin ist, kommt weiter herein.
+		// Lock joining: whoever is already in still gets in.
 		toggleJoinsLocked() {
 			const on = !this.room.joinsLocked
 			return this.act(() => this.post({ action: on ? 'lockJoins' : 'unlockJoins' }), t('pulse', 'Could not change joining.'))
@@ -641,11 +641,11 @@ export default {
 			window.open(window.location.origin + generateUrl('/apps/pulse/screen/' + this.room.code), 'pulse-beamer-' + this.room.code)
 		},
 
-		// ── Person entfernen ────────────────────────────────────────────────
+		// ── Removing a person ───────────────────────────────────────────────
 		rowMenu(p) {
 			return [{ key: 'remove', label: t('pulse', 'Remove from the quiz'), icon: 'trash', danger: true, act: () => this.confirmRemove(p) }]
 		},
-		// Der Name wird frei; wer das Gerät verloren hat, fängt neu an.
+		// The name becomes free; whoever lost their device starts over.
 		async confirmRemove(p) {
 			if (!await pulseConfirm({
 				title: t('pulse', 'Remove {name}?', { name: p.nickname }),
@@ -657,12 +657,12 @@ export default {
 			return this.act(() => this.post({ action: 'removePlayer', playerId: p.id }), t('pulse', 'Could not remove the person.'))
 		},
 
-		// ── Ende ändern / wieder öffnen ─────────────────────────────────────
+		// ── Change the end / reopen ─────────────────────────────────────────
 		openExtend() {
 			this.extendOpen = true
 		},
-		// Der Menüeintrag, der den Dialog geöffnet hat, gibt es danach nicht
-		// mehr — der Fokus geht an den Menü-Auslöser.
+		// The menu entry that opened the dialog no longer exists
+		// afterwards — the focus goes to the menu trigger.
 		closeExtend() {
 			this.extendOpen = false
 			this.$nextTick(() => {
@@ -680,12 +680,12 @@ export default {
 			this.$emit('reload')
 		},
 
-		// ── Freitexte bewerten ──────────────────────────────────────────────
+		// ── Grading free texts ──────────────────────────────────────────────
 		questionOf(pollId) {
 			const q = this.questions.find((x) => x.pollId === pollId)
 			return q ? q.question : ''
 		},
-		// Je Frage (Deck-Reihenfolge) die Form, die TextGrading kennt.
+		// Per question (deck order), the shape that TextGrading knows.
 		groupAnswers(rows) {
 			const byPoll = new Map()
 			for (const a of rows) {
@@ -702,10 +702,10 @@ export default {
 			}))
 		},
 		/*
-		 * Bewerten und Umbewerten — derselbe Endpunkt wie in der
-		 * Zusammenfassung; er wertet alle gleichen Antworten neu. Die Antwort
-		 * enthält die akzeptierten Antworten, also die Lösung, und wird bewusst
-		 * verworfen.
+		 * Grading and re-grading — the same endpoint as in the
+		 * summary; it re-grades all identical answers. The response
+		 * contains the accepted answers, i.e. the solution, and is deliberately
+		 * discarded.
 		 */
 		async grade(group, sample, ok) {
 			if (this.gradingBusy) return
@@ -725,8 +725,8 @@ export default {
 			} finally {
 				this.gradingBusy = false
 			}
-			// Der bewertete Eintrag ist weg und mit ihm der Fokus: weiter zum
-			// nächsten offenen, sonst an die Überschrift der Bewertung.
+			// The graded entry is gone and the focus with it: on to the
+			// next open one, otherwise to the grading heading.
 			this.$nextTick(() => {
 				if (document.activeElement && document.activeElement !== document.body) return
 				const next = this.$refs.grading && this.$refs.grading.querySelector(':scope > .pace-grade-q .tg-ok:not(:disabled)')
@@ -734,7 +734,7 @@ export default {
 				else if (this.$refs.gradeHead) this.$refs.gradeHead.focus()
 			})
 		},
-		// Hauptaktion „Check %n answers": zur Bewertung, Fokus auf ihre Überschrift.
+		// Main action "Check %n answers": to the grading, focus on its heading.
 		focusGrading() {
 			const card = this.$refs.grading
 			if (!card) return
@@ -746,10 +746,10 @@ export default {
 </script>
 
 <style scoped>
-/* Rahmen wie .mod-live: Kopf, Körper (einzige schrumpfende Zeile), Leiste. */
+/* Frame like .mod-live: header, body (the only shrinking row), bar. */
 .pace-run { position: relative; height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; background: var(--pulse-bg); color: var(--pulse-text); }
 
-/* Kopf */
+/* Header */
 .pace-top { min-height: 64px; box-sizing: border-box; padding: 10px 20px 8px; display: flex; flex-direction: column; justify-content: center; gap: 4px; border-block-end: 1px solid var(--pulse-border); }
 .pace-top-row { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; }
 .pace-title { margin: 0; min-width: 0; font-size: 18px; font-weight: 800; line-height: 1.25; overflow-wrap: anywhere; }
@@ -761,7 +761,7 @@ export default {
 .pace-facts { margin: 0; font-size: var(--t-sm); color: var(--pulse-text-2); }
 .pace-offline { margin: 4px 0 0; }
 
-/* Körper: Personen | Seitenspalte; jede Spalte scrollt in sich. */
+/* Body: people | side column; each column scrolls on its own. */
 .pace-body { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 24px; min-height: 0; padding: 16px 20px; }
 .pace-people, .pace-side { min-width: 0; min-height: 0; }
 
@@ -777,7 +777,7 @@ export default {
 .pace-table-wrap { flex: 1 1 auto; min-height: 0; overflow: auto; }
 .pace-empty { margin: 8px 0 0; color: var(--pulse-text-2); }
 
-/* Tabelle: Zahlen rechtsbündig in Tabellenziffern, Kopf bleibt beim Scrollen stehen. */
+/* Table: numbers right-aligned in tabular figures, header stays put while scrolling. */
 .pace-table { width: 100%; border-collapse: collapse; font-size: var(--t-sm); font-variant-numeric: tabular-nums; }
 .pace-table th {
 	position: sticky;
@@ -792,39 +792,40 @@ export default {
 	text-align: start;
 	vertical-align: bottom;
 	line-height: 1.25;
-	/* Nextcloud setzt Tabellenzellen global auf nowrap — Köpfe dürfen umbrechen. */
+	/* Nextcloud sets table cells to nowrap globally — headers may wrap. */
 	white-space: normal;
 }
-/* Lange deutsche Einzelwörter („Beantwortet", „Übersprungen") dürfen trennen,
-   sonst verbreitern sie die Tabelle bei 1024 px über die Spalte hinaus. Nur
-   dort: überall sonst trennte der Browser auch „Rich-tig", obwohl Platz wäre. */
+/* Long single German words („Beantwortet" = Answered, „Übersprungen" = Skipped)
+   may hyphenate, otherwise at 1024 px they widen the table beyond the column.
+   Only there: everywhere else the browser would also split „Rich-tig" (Correct)
+   even with room to spare. */
 .pace-table th.is-long { -webkit-hyphens: auto; hyphens: auto; }
 .pace-table td { padding: 8px; border-block-end: 1px solid var(--pulse-border); vertical-align: middle; white-space: normal; }
 .pace-table tbody tr:last-child td { border-block-end: 0; }
 .pace-table .is-num { text-align: end; }
-/* Zeilenmenü: so schmal wie sein Knopf, am rechten Rand. */
+/* Row menu: as narrow as its button, at the right edge. */
 .pace-table .pace-act { width: 1%; padding-block: 4px; padding-inline: 4px 0; text-align: end; }
 .pace-name { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; min-width: 5em; }
 .pace-nick { font-weight: 700; overflow-wrap: anywhere; }
 .pace-pos { font-weight: 700; white-space: nowrap; }
 .pace-cell-chip { padding: 4px 8px; font-size: 12px; white-space: nowrap; vertical-align: middle; }
 .pace-muted { color: var(--pulse-text-2); }
-/* Nur für Screenreader (Tabellen-Beschriftung, Kopf der Zeilenmenüs). */
+/* Screen readers only (table caption, header of the row menus). */
 .pace-sr { position: absolute !important; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 
-/* Seitenspalte */
+/* Side column */
 .pace-side { display: flex; flex-direction: column; gap: 16px; overflow-y: auto; }
 .pace-card { padding: 14px; border: 1px solid var(--pulse-border); border-radius: var(--pulse-r-card); background: var(--pulse-bg); }
 .pace-side-head { margin: 0 0 10px; font-size: 15px; font-weight: 800; }
 .pace-join-in { display: flex; align-items: center; gap: 16px; margin-block-end: 10px; }
-/* QR bewusst fix auf Weiß (scanbar auch im dunklen Thema) — wie .qr-card im Deck. */
+/* QR deliberately fixed on white (scannable in the dark theme too) — like .qr-card in the deck. */
 .pace-qr { flex: 0 0 104px; width: 104px; box-sizing: border-box; padding: 6px; background: #fff; border: 1px solid var(--pulse-border); border-radius: var(--pulse-r-el); }
 .pace-join-code { min-width: 0; font-size: 30px; font-weight: 800; letter-spacing: 0.08em; line-height: 1.05; font-variant-numeric: tabular-nums; }
 .pace-join-link { display: flex; align-items: flex-start; gap: 8px; }
 .pace-join-url { flex: 1; min-width: 0; font-size: var(--t-sm); font-weight: 600; color: var(--pulse-primary); word-break: break-all; text-decoration: none; }
 .pace-join-url:hover { text-decoration: underline; }
 
-/* Bewertung: je Frage eine Zwischenzeile, darunter TextGrading (ohne Schlüssel). */
+/* Grading: one sub-heading row per question, TextGrading below it (without the key). */
 .pace-grading { font-size: var(--t-sm); }
 .pace-grading .pace-side-head:focus-visible { outline: 2px solid var(--pulse-primary); outline-offset: 2px; }
 .pace-grade-warn { margin: 0 0 10px; }
@@ -832,8 +833,8 @@ export default {
 .pace-grade-qhead { display: flex; gap: 6px; min-width: 0; margin: 0 0 6px; font-size: var(--t-sm); }
 .pace-grade-k { flex: 0 0 auto; font-weight: 800; }
 .pace-grade-qtext { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--pulse-text-2); }
-/* Im schmalen Kasten: der Bedienhinweis nur einmal, die Summenzeile gar nicht
-   (die Überschrift zählt schon). */
+/* In the narrow box: the usage hint only once, the total line not at all
+   (the heading already counts). */
 .pace-grading :deep(.tg-total) { display: none; }
 .pace-grade-q + .pace-grade-q :deep(.tg-hint), .pace-checked :deep(.tg-hint) { display: none; }
 .pace-checked { margin-block-start: 14px; padding-block-start: 8px; border-block-start: 1px solid var(--pulse-border); }
@@ -841,7 +842,7 @@ export default {
 .pace-checked > summary:focus-visible { outline: 2px solid var(--pulse-primary); outline-offset: 2px; }
 .pace-checked[open] > summary { margin-block-end: 8px; }
 
-/* Beamer-Vorschau: volle Spaltenbreite, 16:9. */
+/* Projector preview: full column width, 16:9. */
 .pace-preview-open { margin-block-start: 10px; }
 
 .pace-qlist { list-style: none; margin: 0; padding: 0; }
@@ -855,22 +856,22 @@ export default {
 .pace-qstats b { color: var(--pulse-text); }
 .pace-qstat { white-space: nowrap; }
 
-/* Leiste: eine Hauptaktion, daneben was gerade gilt, rechts der Zähler. */
+/* Bar: one main action, next to it what applies right now, the counter on the right. */
 .pace-bar { display: flex; align-items: center; gap: 12px 16px; flex-wrap: wrap; min-height: 96px; box-sizing: border-box; padding: 12px 20px; border-block-start: 1px solid var(--pulse-border); }
 .pace-primary { min-width: 220px; }
 .pace-status { flex: 0 1 auto; min-width: 0; max-width: 62ch; margin: 0; font-size: var(--t-sm); color: var(--pulse-text-2); }
 .pace-done { flex: 0 0 auto; font-size: var(--t-sm); font-variant-numeric: tabular-nums; }
 
-/* Bis 1200 px: Tabelle neben der 360-px-Spalte enger setzen, damit sie ohne
-   waagerechtes Scrollen passt (1024 × 768) — auch mit Zeilenmenü und drei
-   Chip-Spalten („to check", „Finished", „online"). */
+/* Up to 1200 px: set the table tighter next to the 360 px column, so that it fits
+   without horizontal scrolling (1024 × 768) — even with the row menu and three
+   chip columns ("to check", "Finished", "online"). */
 @media (max-width: 1199px) {
 	.pace-table th, .pace-table td { padding: 7px 4px; }
 	.pace-table .pace-act { padding-block: 4px; padding-inline: 0; }
 	.pace-cell-chip { padding-inline: 6px; }
 }
 
-/* Unter 1000 px untereinander: der Körper scrollt als Ganzes, die Leiste bleibt unten. */
+/* Below 1000 px stacked: the body scrolls as a whole, the bar stays at the bottom. */
 @media (max-width: 999px) {
 	.pace-body { grid-template-columns: minmax(0, 1fr); align-content: start; overflow-y: auto; }
 	.pace-side { overflow: visible; }

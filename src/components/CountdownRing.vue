@@ -16,14 +16,14 @@
 
 <script>
 /*
- * Countdown als Ring im Kopf (Redesign §6.5).
+ * Countdown as a ring in the header (design notes §6.5, not in the public repository).
  *
- * Vorher war er das lauteste Element der Quiz-Bühne: ein fetter Balken über die
- * volle Breite mit der Zahl in Überschriftgröße. Er ist wichtig, aber er ist
- * nicht die Frage — also steht er auf einer Achse mit ihr und bleibt kleiner.
+ * Before, it was the loudest element on the quiz stage: a heavy bar across the
+ * full width with the number at heading size. It matters, but it is
+ * not the question — so it sits on one axis with it and stays smaller.
  *
- * Zwei Stufen, mehr nicht: neutral bis 10 Sekunden, darunter dringlich. Ein
- * weiterer Wechsel bei 5 oder 3 Sekunden wäre Lärm ohne Zusatznutzen.
+ * Two levels, no more: neutral down to 10 seconds, urgent below that. Another
+ * change at 5 or 3 seconds would be noise with no added value.
  */
 const R = 45
 
@@ -31,7 +31,7 @@ export default {
 	name: 'CountdownRing',
 	props: {
 		remaining: { type: Number, required: true },
-		// Gesamtdauer der Frage in Sekunden (für den Restlauf des Rings).
+		// Total duration of the question in seconds (for the ring's remaining arc).
 		total: { type: Number, default: 0 },
 	},
 	data() {
@@ -54,18 +54,18 @@ export default {
 </script>
 
 <style scoped>
-/* Durchmesser 1,9 em der Fragegröße — die Elternzeile setzt font-size auf
-   --scr-q-fs, damit Ring und Frage gemeinsam skalieren. */
+/* Diameter 1.9 em of the question size — the parent row sets font-size to
+   --scr-q-fs so that ring and question scale together. */
 .cdr { position: relative; width: 1.9em; height: 1.9em; flex: 0 0 auto; display: grid; place-items: center; color: var(--pulse-meta); }
 .cdr svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
 .cdr circle { fill: none; stroke-width: 5.3; }
 .cdr-track { stroke: var(--pulse-border); }
 .cdr-run { stroke: currentColor; transition: stroke-dashoffset 1s linear; }
-/* Kleiner als die Frage — zwei Stellen passen in den Ring, ohne ihn zu sprengen. */
+/* Smaller than the question — two digits fit into the ring without bursting it. */
 .cdr-num { position: relative; font-size: 0.85em; font-weight: 900; line-height: 1; font-variant-numeric: tabular-nums; color: var(--pulse-text); }
 .cdr.is-urgent { color: var(--pulse-countdown-urgent); }
 .cdr.is-urgent .cdr-num { color: var(--pulse-countdown-urgent); }
-/* Unter 10 Sekunden pulst der Ring einmal je Sekunde. */
+/* Below 10 seconds the ring pulses once per second. */
 .cdr.is-urgent svg { animation: cdr-beat 1s ease-in-out infinite; }
 .cdr.is-done { color: var(--pulse-meta); }
 @keyframes cdr-beat { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }

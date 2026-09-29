@@ -13,8 +13,8 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Wertung + Rangliste. Reine Rechenlogik ohne DB — hier stecken die Regeln,
- * die im Vortrag sichtbar werden (Tempo-Punkte, Gleichstand auf dem Podium).
+ * Scoring + leaderboard. Pure calculation logic without a DB; this is where the rules
+ * live that become visible during a talk (speed points, ties on the podium).
  */
 #[CoversClass(QuizService::class)]
 class QuizServiceTest extends TestCase {
@@ -44,12 +44,12 @@ class QuizServiceTest extends TestCase {
     }
 
     public function testUeberzogeneZeitFaelltNichtUnterDieHaelfte(): void {
-        // Der Anteil wird auf 1.0 gedeckelt — mehr als die Hälfte kostet es nie.
+        // The fraction is capped at 1.0, so it never costs more than half.
         $this->assertSame(500, $this->service->points(999, 20));
     }
 
     public function testNegativeZeitZaehltAlsSofort(): void {
-        // Uhren-Schieflage darf keine Punkte über BASE erzeugen.
+        // Clock skew must not produce points above BASE.
         $this->assertSame(1000, $this->service->points(-5, 20));
     }
 
@@ -82,15 +82,15 @@ class QuizServiceTest extends TestCase {
             [],
             ['t_Ada' => 5, 't_Bea' => 12, 't_Cid' => 12, 't_Dan' => 30],
         );
-        // 1-2-2-4: der geteilte Rang 2 verbraucht Platz 3.
+        // 1-2-2-4: the shared rank 2 uses up place 3.
         $this->assertSame(['Ada#1', 'Bea#2', 'Cid#2', 'Dan#4'], $this->ranks($rows));
     }
 
     public function testPunktloseTeilenDenRangUnabhaengigVonDerZeit(): void {
-        // Wer nie geantwortet hat (Zeit 0), darf nicht vor jemandem stehen, der
-        // falsch — aber schnell — geantwortet hat. Namen bewusst so gewählt, dass
-        // die Zeitsortierung (Zeno 0 vor Ada 9) der alphabetischen widerspricht:
-        // sonst würde der Test einen Wegfall der Punkte-Bedingung nicht bemerken.
+        // Someone who never answered (time 0) must not rank ahead of someone who
+        // answered wrongly, but quickly. Names deliberately chosen so that
+        // the time order (Zeno 0 before Ada 9) contradicts the alphabetical one:
+        // otherwise the test would not notice the points condition being dropped.
         $rows = $this->service->leaderboard(
             [$this->player('Zeno'), $this->player('Ada')],
             ['t_Zeno' => 0, 't_Ada' => 0],
@@ -141,8 +141,8 @@ class QuizServiceTest extends TestCase {
     }
 
     public function testZeileTraegtDasTokenIntern(): void {
-        // Der Aufrufer (VoteService::leaderboardFor) MUSS es vor dem Ausliefern
-        // entfernen — hier wird nur festgehalten, dass es überhaupt mitkommt.
+        // The caller (VoteService::leaderboardFor) MUST remove it before responding;
+        // this only records that it comes along at all.
         $rows = $this->service->leaderboard([$this->player('Ada')], [], [], []);
         $this->assertSame('t_Ada', $rows[0]['token']);
     }
@@ -151,7 +151,7 @@ class QuizServiceTest extends TestCase {
         $this->assertSame([], $this->service->leaderboard([], [], [], []));
     }
 
-    // ── Helfer ──────────────────────────────────────────────────────────────
+    // ── Helpers ─────────────────────────────────────────────────────────────
 
     private function player(string $nickname): Player {
         $p = new Player();
@@ -162,7 +162,7 @@ class QuizServiceTest extends TestCase {
 
     /**
      * @param list<array{nickname:string, rank:int}> $rows
-     * @return list<string> "Name#Rang" in Ergebnisreihenfolge
+     * @return list<string> "Name#Rank" in result order
      */
     private function ranks(array $rows): array {
         return array_map(static fn (array $r): string => $r['nickname'] . '#' . $r['rank'], $rows);

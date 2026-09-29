@@ -1,122 +1,126 @@
-# Durchgangs-Simulation
+# Flow simulation
 
-Spielt eine Umfrage, vier Quiz-Varianten und das Quiz im eigenen Tempo gegen
-die laufende Instanz durch — ohne Browser, direkt über die HTTP-Endpunkte, so
-wie Moderator-Oberfläche, Handys und Beamer sie benutzen:
+Plays through a poll, four quiz variants and the self-paced quiz against the
+running instance — without a browser, directly through the HTTP endpoints, the
+same way the moderator UI, phones and projector use them:
 
 ```sh
-dev/sim/run.sh          # durchspielen, Räume danach löschen
-KEEP=1 dev/sim/run.sh   # Räume stehen lassen (zum Nachsehen im Browser)
-# Strg-C räumt die bis dahin angelegten Räume ebenfalls weg.
+dev/sim/run.sh          # play through, delete the rooms afterwards
+KEEP=1 dev/sim/run.sh   # keep the rooms (to inspect them in the browser)
+# Ctrl-C also removes the rooms created up to that point.
 ```
 
-Endet mit `N ok / M fehlgeschlagen` und Exit-Code 1, sobald etwas rot ist.
-Ein Lauf dauert knapp fünf Minuten (Antwort-Verzögerungen, Korrekturfenster,
-abgelaufene 5-s-Timer; die Hausaufgabe im eigenen Tempo wartet ihre 90-s-Frist
-ab, die parallel zum Rennen läuft; dazu knapp 30 s Wettläufe).
+Ends with `N ok / M fehlgeschlagen` ("failed") and exit code 1 as soon as
+anything is red. A run takes just under five minutes (answer delays, correction
+windows, expired 5-s timers; the self-paced homework waits out its 90-s
+deadline, which runs in parallel with the race; plus just under 30 s of race
+conditions).
 
-## Was durchgespielt wird
+The console output of `sim.mjs` (pass headings, check labels, the summary
+line) is still in German; the pass names below are English descriptions of
+those passes.
 
-| Durchgang | Inhalt |
-|-----------|--------|
-| Umfrage | alle fünf Typen (Auswahl, Wortwolke, Skala einzeln/Spektrum/Kompass, Reihenfolge, Zuordnung), sechs Handys, Stimme ändern, Auflösen, Wieder öffnen, Zurückblättern, Gesamtauswertung, CSV |
-| Quiz „je Frage" | alle sieben Typen, vier Spielende mit festem Antwortplan, Korrekturfenster, Freitext-Bewertung, Auflösen je Frage, Endstand, CSV |
-| Quiz „am Ende" | wie oben, aber verdeckt bis `/end` |
-| Probelauf | je Frage aufgelöst, keine Rangliste, Ende = Lobby |
-| Probelauf + am Ende | `/end` löst einmal auf (ohne Rangliste), dann Lobby |
-| (jedes Quiz) | danach ein zweiter Lauf ohne Zurücksetzen: das alte Ende gilt nicht mehr |
-| Timer & Deck | Zeitablauf, Wieder öffnen, Bearbeiten leert Stimmen, Duplizieren, Zurücksetzen |
-| „am Ende" nachträglich | nach dem Auflösen eingeschaltet: Frage wieder verdeckt, keine neuen Antworten; offene Handys/Beamer erfahren es (Version ändert sich), zurückgeschaltet wieder aufgelöst |
-| Frage übersprungen | weitergeschaltet ohne Auflösen: ihre Punkte fehlen in jeder öffentlichen Rangliste, bis sie aufgelöst ist; am Ende zählt alles, auf Handy, Beamer, `/summary` und beim Moderator gleich |
-| Wortschlüssel | ❤️/❤ (Variantenwähler) und „guter  Kaffee" (doppelter Leerraum) sind je ein Wort, angezeigt in der ersten Schreibweise |
-| Laufende Frage bearbeitet | Umfrage ohne Stimmen: offene Handys holen die neue Fassung, Stimme mit neuen IDs geht durch |
-| Probelauf-Wechsel | Umschalten leert Test-Teilnehmende und -Stimmen; Handy und Beamer in der Lobby erfahren es |
-| Eigenes Tempo: Rennen | ohne Frist, mit Timer, Urteil je Frage; Cursor-Steuerung und (ab dem Öffnen) Deck gesperrt (409), persönliche Uhr ab `/next`, Vorschau-Sperre, Korrektur nur im Fenster der ersten Antwort, Zeitablauf, Freitext „wird geprüft" und Bewertung, Name nach dem Start fest, Beitritt sperren, Person entfernen, Schließen = Freigabe, beide CSV-Sichten, Zurücksetzen und zurück auf moderiert |
-| Eigenes Tempo: Hausaufgabe | Frist (1 min–30 Tage, aus der Serveruhr), ohne Timer, Urteil erst mit der Freigabe; die Frist läuft ohne Moderator ab, Verlängern, Schließen ohne Freigabe, Freigeben; flach 1000 Punkte, CSV ohne Zeiten |
-| Eigenes Tempo: Probelauf | „Urteil am Ende" wird „je Frage", nie eine Rangliste (Handy, Beamer, `/summary`; Moderator `[]`), Beitritts-Limit je IP und Raum |
-| Eigenes Tempo: Stoppen ohne Freigabe | `close {release:false}` in einem Aufruf: geschlossen, Frist 0, nicht freigegeben, Stimme sofort endgültig, Handy/Beamer ohne Endstand; ungültiges `release` 400 ohne Wirkung; `close` auf geschlossenem Fenster No-op (auch mit `release`); der alte Zwei-Schritt-Weg (Frist in 120 s, dann `close`) wirkt wie bisher; `release: "false"` als Text; `release: true` gibt mit Frist frei |
-| Eigenes Tempo: Wettläufe | echt parallel, die Verzögerung des Handys um den gemessenen Laufzeitunterschied Moderator − Handy durchgestimmt: Entfernen gegen `/vote` und `/next`, Bewerten gegen eine Antwort und gegen ihre Korrektur |
-| Feindliche Eingaben | Listen/Objekte statt Text oder Zahl in Moderator- und Handy-Parametern (JSON und Formular), 1e100/1e999, NUL, kaputtes UTF-8, fremde `pulse_vt`-Cookies (Liste, überlang, kaputt): nie 500, sondern 400 mit der üblichen Meldung, die Vorgabe oder ein neues Cookie; eine Freitextantwort mit NUL bleibt bewertbar |
+## What is played through
 
-## Was geprüft wird
+| Pass | Content |
+|------|---------|
+| Poll | all five types (multiple choice, word cloud, scale single/spectrum/compass, ranking, matching), six phones, changing a vote, revealing, reopening, paging back, summary, CSV |
+| Quiz "per question" | all seven types, four players with a fixed answer plan, correction window, free-text grading, reveal per question, final standings, CSV |
+| Quiz "at the end" | as above, but hidden until `/end` |
+| Practice run | revealed per question, no leaderboard, end = lobby |
+| Practice run + at the end | `/end` reveals once (without a leaderboard), then lobby |
+| (every quiz) | afterwards a second run without resetting: the old end no longer applies |
+| Timer & deck | time running out, reopening, editing clears votes, duplicating, resetting |
+| "At the end" switched on afterwards | switched on after revealing: the question is hidden again, no new answers; open phones/projectors learn about it (the version changes), switched back it is revealed again |
+| Question skipped | moved on without revealing: its points are missing from every public leaderboard until it is revealed; at the end everything counts, alike on phone, projector, `/summary` and for the moderator |
+| Word keys | ❤️/❤ (variation selector) and `guter  Kaffee` (double whitespace) are one word each, displayed in the first spelling |
+| Running question edited | poll without votes: open phones fetch the new version, a vote with the new IDs goes through |
+| Practice run switch | switching clears test participants and test votes; phone and projector in the lobby learn about it |
+| Self-paced: race | no deadline, with timer, verdict per question; cursor controls and (from opening on) the deck are locked (409), personal clock from `/next`, preview lock, correction only within the window of the first answer, time running out, free text "Being checked" and grading, name fixed after starting, "Lock joining", removing a person, closing = release, both CSV views, resetting and switching back to moderated |
+| Self-paced: homework | deadline (1 min–30 days, from the server clock), no timer, verdict only with the release; the deadline passes without a moderator, extending, closing without release, releasing; a flat 1000 points, CSV without times |
+| Self-paced: practice run | "verdict at the end" becomes "per question", never a leaderboard (phone, projector, `/summary`; moderator `[]`), join limit per IP and room |
+| Self-paced: stop without releasing | `close {release:false}` in one call: closed, deadline 0, not released, vote immediately final, phone/projector without final standings; invalid `release` is 400 without effect; `close` on a closed window is a no-op (also with `release`); the old two-step path (deadline in 120 s, then `close`) works as before; `release: "false"` as a string; `release: true` releases with a deadline |
+| Self-paced: race conditions | truly parallel, with the phone's delay swept across the measured runtime difference moderator − phone: removing against `/vote` and `/next`, grading against an answer and against its correction |
+| Hostile input | lists/objects instead of text or a number in moderator and phone parameters (JSON and form), 1e100/1e999, NUL, broken UTF-8, foreign `pulse_vt` cookies (list, overlong, broken): never 500, but 400 with the usual message, the default or a new cookie; a free-text answer with NUL stays gradable |
 
-- Handy-Gesamtauswertung und Moderator zählen dasselbe (je Frage); der Beamer
-  zählt dieselben Antworten. Die CSV der Umfrage wird nur erzeugt (200, BOM);
-  die des moderierten Quiz nennt jede Frage, beim Freitext eine Zeile je
-  Antwortgruppe wie beim Moderator, bei der Schätzung die Zahl.
-- Vor dem Auflösen stehen weder Lösung (`correctOption`, `answerKey`) noch
-  Auszählung noch richtig/falsch im öffentlichen Zustand; Reihenfolge und
-  Zuordnung kommen gemischt (Schlüssel-Hash, für alle gleich, unabhängig von
-  der Lösung); ob eine Frage aufgelöst ist, sagt `poll.revealed`. Die
-  öffentliche `version` ist ein undurchsichtiger Hash, kein CRC der Lösung.
-- Die Gesamtauswertung fürs Handy enthält nur Fragen, die schon gezeigt wurden;
-  ihre Rangliste zählt keine verdeckte Frage mit (laufend oder übersprungen),
-  erst der Endstand zählt alles. Eine bearbeitete Frage gilt wieder als nie
-  gezeigt.
-- Punkte: Summe der Einzelrückmeldungen je Person = Ranglistenpunkte; bei
-  gleicher Trefferzahl liegt die schnellere Person vorn.
-- Eine Antwort mit veralteter `pollId` (Moderator hat weitergeschaltet) wird
-  abgelehnt, nicht der neuen Frage gutgeschrieben.
-- Nicknames sind im Raum eindeutig (ohne Groß/Klein, ohne unsichtbare
-  Zeichen, Variantenwähler und doppelten Leerraum), der eigene darf umgeschrieben werden. Wortwolke: ein Wort je
-  Person, auch mit Nullbreiten-Leerzeichen oder NBSP.
+## What is checked
 
-Im eigenen Tempo zusätzlich:
+- The phone summary and the moderator count the same (per question); the
+  projector counts the same answers. The poll CSV is only generated (200,
+  BOM); the moderated quiz CSV names every question, for free text one row per
+  answer group as in the moderator, for a number guess the number.
+- Before revealing, neither the solution (`correctOption`, `answerKey`) nor the
+  tally nor right/wrong appears in the public state; ranking and matching come
+  shuffled (keyed hash, the same for everyone, independent of the solution);
+  whether a question is revealed is stated by `poll.revealed`. The public
+  `version` is an opaque hash, not a CRC of the solution.
+- The phone summary contains only questions that have already been shown; its
+  leaderboard does not count a hidden question (running or skipped), only the
+  final standings count everything. An edited question counts as never shown
+  again.
+- Points: the sum of the per-question feedback per person = leaderboard points;
+  with the same number of correct answers the faster person ranks first.
+- An answer with a stale `pollId` (the moderator has moved on) is rejected,
+  not credited to the new question.
+- Nicknames are unique within a room (ignoring case, invisible characters,
+  variation selectors and double whitespace); your own may be rewritten. Word
+  cloud: one word per person, even with zero-width spaces or NBSP.
 
-- Vor der Freigabe steht auf dem Handy weder Lösung noch Verteilung noch
-  Rangliste; `/summary` zeigt im offenen Fenster nur verlassene, nach Schluss
-  alle erreichten Fragen, beides ohne Lösung, und einem fremden Cookie nie eine
-  Frage. Der Beamer zeigt nie Fragetexte oder Optionen, nur das Rennen in Zahlen
-  (`race`) und bei „Urteil je Frage" die Spitze. Das Rennen zählt jede gestartete
-  Person genau einmal (auf ihrer Frage oder fertig) und stimmt mit `/progress`
-  überein — offen, freigegeben und nach Fristablauf.
-- Es zählen nur endgültige Stimmen (Korrekturfenster vorbei, korrigiert oder
-  nicht mehr korrigierbar): Handy (`myScore`), Beamer, `/progress`, Endstand
-  und CSV nennen dieselben Punkte. Eine Stimme direkt vor dem Schließen zählt
-  sofort.
-- Die Version springt ohne Job, sobald etwas Zeitgetriebenes kippt (Stimme
-  endgültig, Zeitablauf, Frist), und nach Bewertung und Freigabe; der
-  Heartbeat pollender Handys lässt die `/progress`-Version stehen (204).
-- „Urteil am Ende": bis zur Freigabe nur „gespeichert", `/progress` verdeckt
-  die Punkte (außer `?scores=1`) — auch nach abgelaufener Frist.
-- `close` ohne `release` behält die alte Regel (ohne Frist = Freigabe) — alte
-  Tabs und API-Clients.
-- Beitritt: gesperrt kommen nur bekannte Handys rein, nach dem Start gibt es
-  keinen anderen Namen, eine entfernte Person verliert Namen und Fortschritt
-  und ihr Name wird frei; der 121. Beitrittsversuch je IP und Raum bekommt 429.
-  Den Deckel von 300 Spielenden erreicht eine IP nie (Limit 120) — er steckt nur
-  im Unit-Test.
-- Wettläufe (ob ein Lauf das Millisekunden-Fenster trifft, ist Zufall; geprüft
-  wird, was ein Treffer verletzte): wer mitten in `/vote` oder `/next` entfernt
-  wird, hinterlässt weder Stimme noch Zeile; eine Antwort, die mitten in der
-  Bewertung ihrer Normalform ankommt, bleibt nicht auf „wird geprüft"; eine
-  Korrektur geht gegen eine gleichzeitige Bewertung nicht verloren; keine 500.
-  Das Löschen eines Raums mitten in `/join`/`/next` prüft das Sim nicht: jede
-  404 darauf zählte als Brute-Force-Versuch der Sim-IP (Unit-Tests `RoomGoneTest`,
-  `RoomPaceLifecycleTest`).
+Additionally for self-paced:
 
-## Wie es funktioniert
+- Before the release the phone shows neither solution nor distribution nor
+  leaderboard; `/summary` shows only questions already left while the window
+  is open, all questions reached after closing, both without solutions, and
+  never a question to a foreign cookie. The projector never shows question
+  texts or options, only the race in numbers (`race`) and, with "verdict per
+  question", the top of the leaderboard. The race counts every person who
+  started exactly once (on their question or finished) and matches
+  `/progress` — open, released and after the deadline has passed.
+- Only final votes count (correction window over, corrected or no longer
+  correctable): phone (`myScore`), projector, `/progress`, final standings and
+  CSV report the same points. A vote right before closing counts immediately.
+- The version jumps without a job as soon as something time-driven flips (vote
+  final, time up, deadline), and after grading and release; the heartbeat of
+  polling phones leaves the `/progress` version unchanged (204).
+- "Verdict at the end": until the release only "saved", `/progress` hides the
+  points (except with `?scores=1`) — even after the deadline has passed.
+- `close` without `release` keeps the old rule (no deadline = release) — for
+  old tabs and API clients.
+- Joining: when locked only known phones get in, after starting there is no
+  other name, a removed person loses name and progress and their name becomes
+  free; the 121st join attempt per IP and room gets 429. One IP never reaches
+  the cap of 300 players (limit 120) — that cap is only covered by the unit
+  test.
+- Race conditions (whether a run hits the millisecond window is chance; what is
+  checked is what a hit would violate): whoever is removed in the middle of
+  `/vote` or `/next` leaves neither a vote nor a row behind; an answer that
+  arrives in the middle of grading its normal form does not stay on "Being
+  checked"; a correction is not lost against a simultaneous grading; no 500.
+  The sim does not check deleting a room in the middle of `/join`/`/next`:
+  every 404 on it would count as a brute-force attempt by the sim IP (unit
+  tests `RoomGoneTest`, `RoomPaceLifecycleTest`).
 
-- `run.sh` legt bei Bedarf den Wegwerf-Nutzer `pulse-shots` an (derselbe wie in
-  `dev/design-shots`, Passwort in `dev/design-shots/.shots-pass`), ermittelt die
-  Container-IP und startet `sim.mjs`.
-- Der Moderator spricht per Basic-Auth + `OCS-APIRequest: true` mit der API
-  (kein CSRF-Token nötig), jedes Handy hält sein eigenes `pulse_vt`-Cookie.
-- Die Anfragen gehen direkt an den Container, nicht über den Proxy. Die IP ist
-  keine `trusted_domain`, deshalb schickt `sim.mjs` `Host: localhost` — und
-  nutzt dafür `node:http`, weil `fetch` den Host-Header überschreibt.
-- Eigenes Tempo mit echten Wartezeiten: eine Stimme ist erst endgültig, wenn
-  `(now − created) > fw` in ganzen Sekunden gilt, real also bis zu fw+1 s nach
-  der Antwort — `FINAL(fw)` wartet fw + 1,5 s. Beamer-Zustand und öffentliche
-  Rangliste liegen 2 s im Server-Cache, Beamer-Prüfungen nach einer Änderung
-  warten deshalb vorher 2,1 s. Fristen kommen aus `serverNow` der letzten
-  Antwort, nie aus der Uhr dieses Rechners.
-- Meldungen und CSV-Zellen („yes"/„no") werden englisch verglichen:
-  `pulse-shots` hat die Sprache `en`, die Handys schicken kein
-  `Accept-Language`.
-- Jede Anfrage trägt den User-Agent `pulse-sim`. Nach dem Lauf zeigt ein
-  Log-Scan, ob eine davon eine Warnung oder einen Fehler ins Nextcloud-Log
-  schrieb — erwartet: keine Zeile:
+## How it works
+
+- `run.sh` creates the throwaway user `pulse-shots` if needed (the same one as
+  in `dev/design-shots`, password in `dev/design-shots/.shots-pass`),
+  determines the container IP and starts `sim.mjs`.
+- The moderator talks to the API with Basic auth + `OCS-APIRequest: true` (no
+  CSRF token needed); every phone keeps its own `pulse_vt` cookie.
+- The requests go directly to the container, not through the proxy. The IP is
+  not a `trusted_domain`, so `sim.mjs` sends `Host: localhost` — and uses
+  `node:http` for that, because `fetch` overwrites the Host header.
+- Self-paced with real waiting times: a vote is only final once
+  `(now − created) > fw` holds in whole seconds, so in practice up to fw+1 s
+  after the answer — `FINAL(fw)` waits fw + 1.5 s. The projector state and the
+  public leaderboard sit in the server cache for 2 s, so projector checks after
+  a change first wait 2.1 s. Deadlines come from `serverNow` of the last
+  response, never from this machine's clock.
+- Messages and CSV cells ("yes"/"no") are compared in English: `pulse-shots`
+  has the language `en`, and the phones send no `Accept-Language`.
+- Every request carries the user agent `pulse-sim`. After the run, a log scan
+  shows whether any of them wrote a warning or an error to the Nextcloud log —
+  expected: no line:
 
   ```sh
   LOG=/var/log/nextcloud/nextcloud.log
@@ -125,40 +129,57 @@ Im eigenen Tempo zusätzlich:
   docker exec nextcloud-nextcloud-1 tail -c +$((OFF + 1)) $LOG | grep -a '"userAgent":"pulse-sim"' | grep -a -E '"level":[234]'
   ```
 
-**Nie parallel** zu `dev/design-shots/run.sh` oder einem zweiten Sim-Lauf:
-alle nutzen `pulse-shots`, und der Prüfstand räumt mit `probe destroy
-pulse-shots` jeden Raum dieses Nutzers weg — auch die, die das Sim gerade
-benutzt. Die nächste Handy-Anfrage auf einen gelöschten Code zählt als
-Brute-Force-Versuch der Sim-IP.
+**Never in parallel** with `dev/design-shots/run.sh` or a second sim run:
+they all use `pulse-shots`, and the screenshot harness removes every room of
+that user with `probe destroy pulse-shots` — including the ones the sim is
+using right now. The next phone request to a deleted code counts as a
+brute-force attempt by the sim IP.
 
-Stellschrauben: `CONTAINER`, `PULSE_SIM_URL`, `PULSE_SIM_HOST`,
-`PULSE_SIM_USER` (dann auch `PULSE_SIM_PASS` — `.shots-pass` gehört
-`pulse-shots`). Antwortet `occ` nicht, bricht `run.sh` ab, statt das
-gemeinsame Passwort zu überschreiben.
+Settings: `CONTAINER`, `PULSE_SIM_URL`, `PULSE_SIM_HOST`, `PULSE_SIM_USER`
+(then also `PULSE_SIM_PASS` — `.shots-pass` belongs to `pulse-shots`). If
+`occ` does not answer, `run.sh` aborts instead of overwriting the shared
+password.
 
-`PULSE_SIM_HOST` (Vorgabe `localhost`) ist auch der Ausweg aus dem
-Routencache: Nextcloud legt die Routen je Host-Header eine Stunde in APCu ab
-(`lib/private/Route/CachingRouter.php`, Schlüssel Host + Basis-URL). Eine neu
-eingetragene Route antwortet für einen schon gecachten Host bis dahin mit 404 —
-der HTML-Fehlerseite, nicht dem JSON des Controllers (401/403/400/405 heißt:
-Route geladen). Ein Port ergibt einen frischen Schlüssel, die
-`trusted_domains`-Prüfung ignoriert ihn:
+`PULSE_SIM_HOST` (default `localhost`) is also the way out of the route cache:
+Nextcloud stores the routes per Host header in APCu for one hour
+(`lib/private/Route/CachingRouter.php`, key Host + base URL). Until then, a
+newly added route answers with 404 for a host that is already cached — the
+HTML error page, not the controller's JSON (401/403/400/405 means: route
+loaded). A port gives a fresh key, and the `trusted_domains` check ignores it:
 
 ```sh
 PULSE_SIM_HOST=localhost:34071 dev/sim/run.sh
 ```
 
-Die Durchgänge im eigenen Tempo prüfen das vorab: antwortet `/pace` mit 404,
-meldet das Sim genau einen Fehlschlag mit diesem Hinweis und lässt nur sie aus.
+The self-paced passes check this up front: if `/pace` answers with 404, the
+sim reports exactly one failure with this hint and skips only those passes.
 
-Erst nach dem Ändern von `appinfo/routes.php` und einer Minute Wartezeit
-(opcache prüft Dateien nur alle `opcache.revalidate_freq` Sekunden, hier 60),
-sonst legt der frische Schlüssel die alten Routen für eine Stunde ab. Kein
-Container-Neustart nötig.
+Do this only after changing `appinfo/routes.php` and waiting a minute (opcache
+checks files only every `opcache.revalidate_freq` seconds, 60 here), otherwise
+the fresh key stores the old routes for an hour. No container restart needed.
 
-## Grenze
+## Load run
 
-Die Simulation bildet die Moderator-Knöpfe nach (`moderatorFinish` spiegelt
-den Hauptknopf an der letzten Frage aus `Moderator.vue`), sie klickt sie nicht. Ändert sich dort der
-Ablauf, muss `sim.mjs` mitziehen — und ob die Oberfläche den richtigen Knopf
-anbietet, zeigt nur der Browser.
+`dev/sim/load.mjs` is a separate load run for the self-paced quiz: 100 phones
+join a freshly opened race room, answer and tap "Next question" at the pace the
+phone UI uses, while a moderator polls `/progress` and a projector polls
+`/state?spectate=1`. It prints p50/p95 per endpoint, status code shares and
+requests per second as Markdown. Like the sim it talks directly to the
+container and uses the same throwaway user:
+
+```sh
+PULSE_SIM_URL=http://<container-ip> PULSE_SIM_PASS="$(cat dev/design-shots/.shots-pass)" \
+  node dev/sim/load.mjs
+```
+
+Settings: `LOAD_PHONES` (default 100, at most 110 — `/join` allows 120
+attempts per IP and room in 10 min), `LOAD_SECS` (load phase, default 90),
+`LOAD_TAIL_SECS` (final standings polling, default 30). On a live instance run
+it only at a quiet time, and only once.
+
+## Limit
+
+The simulation reproduces the moderator buttons (`moderatorFinish` mirrors the
+main button on the last question from `Moderator.vue`); it does not click them.
+If the flow changes there, `sim.mjs` has to follow — and whether the UI offers
+the right button, only the browser shows.

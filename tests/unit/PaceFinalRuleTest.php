@@ -15,10 +15,10 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 
 /**
- * EINE Regel für „endgültig", „korrigierbar", „fertig" und den /next-Wert —
- * Handy, Beamer, Fortschritt, Rangliste und CSV rechnen alle damit. Liefe eine
- * Sicht nach einer eigenen Regel, stünde auf dem Beamer ein anderer Punktestand
- * als auf dem Handy.
+ * ONE rule for "final", "correctable", "finished" and the /next value —
+ * phone, projector, progress, leaderboard and CSV all compute with it. If one
+ * view followed a rule of its own, the projector would show a different score
+ * than the phone.
  */
 #[CoversClass(PaceService::class)]
 class PaceFinalRuleTest extends TestCase {
@@ -50,7 +50,7 @@ class PaceFinalRuleTest extends TestCase {
     }
 
     public function testNichtMehrKorrigierbarIstSofortEndgueltig(): void {
-        // Fenster zu oder Frage verlassen: kein Warten auf fw.
+        // Window closed or question left: no waiting for fw.
         $this->assertTrue(PaceService::isFinal(['value' => 'a', 'fw' => 6], 100, 100, false));
     }
 
@@ -65,7 +65,7 @@ class PaceFinalRuleTest extends TestCase {
 
     public function testNichtKorrigierbarBeiGeschlossenemOderFreigegebenemFenster(): void {
         $closed = $this->room(openedAt: self::NOW - 100, closesAt: self::NOW);
-        // Rennen gestoppt, ohne Freigabe (close {release: false}): Frist 0.
+        // Race stopped without release (close {release: false}): deadline 0.
         $stopped = $this->room(openedAt: self::NOW - 100, closedAt: self::NOW - 1);
         $released = $this->room(openedAt: self::NOW - 100, closedAt: self::NOW - 1, releasedAt: self::NOW - 1);
         $draft = $this->room();
@@ -109,7 +109,7 @@ class PaceFinalRuleTest extends TestCase {
     }
 
     public function testAfterOhneOffeneZeileIstDieZuletztErreichte(): void {
-        // Abbruch zwischen Schließen und Starten: keine offene Zeile.
+        // Aborted between closing and starting: no open row.
         $rows = [
             $this->row(seq: 0, pollId: 11, leftAt: self::NOW - 20),
             $this->row(seq: 1, pollId: 12, leftAt: self::NOW - 10),
@@ -121,7 +121,7 @@ class PaceFinalRuleTest extends TestCase {
         $this->assertSame(0, PaceService::afterFor([]));
     }
 
-    // ── Helfer ─────────────────────────────────────────────────────────────
+    // ── Helpers ────────────────────────────────────────────────────────────
 
     private function room(int $openedAt = 0, int $closesAt = 0, int $closedAt = 0, int $releasedAt = 0): Room {
         $room = new Room();

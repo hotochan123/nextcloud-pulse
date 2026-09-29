@@ -28,12 +28,12 @@ use PHPUnit\Framework\TestCase;
 use ReflectionProperty;
 
 /**
- * Fenster-Aktionen im eigenen Tempo: öffnen, schließen, verlängern, freigeben.
+ * Window actions in self-paced mode: open, close, extend, release.
  *
- * Jede Aktion läuft unter der Raumsperre und prüft den Zustand an der frisch
- * gesperrten Zeile (lockForUpdate), NICHT am übergebenen Raum — der kann aus
- * einem zweiten Tab veraltet sein. Jede Ausnahme rollt die Transaktion zurück.
- * Deshalb prüft hier jeder Fall auch die Transaktionsfolge.
+ * Every action runs under the room lock and checks the state on the freshly
+ * locked row (lockForUpdate), NOT on the room passed in — that one may be stale
+ * from a second tab. Every exception rolls the transaction back.
+ * That is why every case here also checks the transaction sequence.
  */
 #[CoversClass(PaceService::class)]
 class PaceWindowTest extends TestCase {
@@ -44,15 +44,15 @@ class PaceWindowTest extends TestCase {
     private PaceService $service;
     private RoomMapper&MockObject $rooms;
 
-    /** Was lockForUpdate liefert — die maßgebliche Zeile. */
+    /** What lockForUpdate returns — the row that counts. */
     private Room $locked;
-    /** Was findByCode nach dem Schreiben liefert (null = die gesperrte Zeile). */
+    /** What findByCode returns after the write (null = the locked row). */
     private ?Room $reloaded = null;
     /** @var Poll[] */
     private array $deck = [];
-    /** @var list<string> Transaktionsfolge */
+    /** @var list<string> transaction sequence */
     private array $tx = [];
-    /** @var ?list<mixed> Argumente von openIfDraft */
+    /** @var ?list<mixed> arguments of openIfDraft */
     private ?array $opened = null;
     private bool $openResult = true;
 
@@ -102,7 +102,7 @@ class PaceWindowTest extends TestCase {
         }
     }
 
-    // ── Öffnen ─────────────────────────────────────────────────────────────
+    // ── Opening ────────────────────────────────────────────────────────────
 
     public function testOeffnenNurImEigenenTempo(): void {
         $this->locked->setPace('live');
@@ -162,7 +162,7 @@ class PaceWindowTest extends TestCase {
 
     public function testVorgabenRennen(): void {
         $this->ok(fn () => $this->service->openWindow($this->room(), 0, null, null));
-        // Reihenfolge = aktuelles Deck, Cursor wird im selben UPDATE zurückgesetzt.
+        // Order = current deck, the cursor is reset in the same UPDATE.
         $this->assertSame([5, '[11,12,13]', self::NOW, 0, true, 'each'], $this->opened);
     }
 
@@ -196,16 +196,16 @@ class PaceWindowTest extends TestCase {
     }
 
     public function testOeffnenLiefertDenFrischGeladenenRaum(): void {
-        // openIfDraft schreibt an der Entität vorbei — zurück kommt die DB-Zeile.
+        // openIfDraft writes past the entity — what comes back is the DB row.
         $this->reloaded = $this->room(self::NOW);
         $result = $this->ok(fn () => $this->service->openWindow($this->room(), 0, null, null));
         $this->assertSame($this->reloaded, $result);
     }
 
-    // ── Zustand an der gesperrten Zeile ────────────────────────────────────
+    // ── State on the locked row ────────────────────────────────────────────
 
     public function testZustandZaehltAnDerGesperrtenZeileNichtAmUebergebenenRaum(): void {
-        // Der übergebene Raum sagt „Entwurf", die gesperrte Zeile ist längst offen.
+        // The room passed in says "draft", the locked row has long been open.
         $this->locked = $this->room(self::NOW - 100);
         $this->conflict(
             fn () => $this->service->openWindow($this->room(), 0, null, null),
@@ -214,7 +214,7 @@ class PaceWindowTest extends TestCase {
     }
 
     public function testVeralteterUebergebenerRaumHindertNicht(): void {
-        // Umgekehrt: übergeben „offen" (veraltet), gesperrt wieder Entwurf.
+        // The other way round: passed in "open" (stale), locked back in draft.
         $this->ok(fn () => $this->service->openWindow($this->room(self::NOW - 100), 0, null, null));
         $this->assertNotNull($this->opened);
     }
@@ -231,9 +231,9 @@ class PaceWindowTest extends TestCase {
         $this->assertSame(['beginTransaction', 'rollBack'], $this->tx);
     }
 
-    // ── Schließen ──────────────────────────────────────────────────────────
+    // ── Closing ────────────────────────────────────────────────────────────
 
-    // (ohne `release`: alte Clients)
+    // (without `release`: old clients)
     public function testSchliessenOhneFristGibtZugleichFrei(): void {
         $this->locked = $this->room(self::NOW - 100);
         $this->expectUpdate();
@@ -278,9 +278,9 @@ class PaceWindowTest extends TestCase {
         $this->conflict(fn () => $this->service->closeWindow($this->room()), 'This room is not self-paced.');
     }
 
-    // ── Schließen mit ausdrücklicher Wahl (release) ────────────────────────
+    // ── Closing with an explicit choice (release) ──────────────────────────
 
-    /** closesAt, release, releasedAt danach */
+    /** closesAt, release, releasedAt afterwards */
     public static function freigabeWahl(): array {
         return [
             'Rennen, release false' => [0, false, 0],
@@ -297,11 +297,11 @@ class PaceWindowTest extends TestCase {
         $this->ok(fn () => $this->service->closeWindow($this->room(), $release));
         $this->assertSame(self::NOW, $this->locked->getClosedAt());
         $this->assertSame($releasedAt, $this->locked->getReleasedAt());
-        // Die Frist bleibt, wie sie war — kein Zwei-Minuten-Umweg mehr.
+        // The deadline stays as it was — no more two-minute detour.
         $this->assertSame($closesAt, $this->locked->getClosesAt());
     }
 
-    /** closesAt, release — das Fenster ist schon geschlossen */
+    /** closesAt, release — the window is already closed */
     public static function schonGeschlossen(): array {
         return [
             'Rennen gestoppt, ohne Angabe' => [0, null],
@@ -317,7 +317,7 @@ class PaceWindowTest extends TestCase {
         $this->rooms->expects($this->never())->method('update');
         $this->ok(fn () => $this->service->closeWindow($this->room(), $release));
         $this->assertSame(self::NOW - 10, $this->locked->getClosedAt());
-        // Freigeben heißt hier `release`, nicht `close` mit true.
+        // Releasing here means `release`, not `close` with true.
         $this->assertSame(0, $this->locked->getReleasedAt());
     }
 
@@ -338,7 +338,7 @@ class PaceWindowTest extends TestCase {
         $this->assertSame('open', PaceService::deriveState($this->locked, self::NOW));
     }
 
-    // ── Verlängern ─────────────────────────────────────────────────────────
+    // ── Extending ──────────────────────────────────────────────────────────
 
     public function testVerlaengernNachFreigabeIstEinKonflikt(): void {
         $this->locked = $this->room(self::NOW - 100, 0, self::NOW - 1, self::NOW - 1);
@@ -361,7 +361,7 @@ class PaceWindowTest extends TestCase {
         $this->assertSame(0, $this->locked->getClosedAt());
         $this->assertSame(self::NOW + 7200, $this->locked->getClosesAt());
         $this->assertSame('open', PaceService::deriveState($this->locked, self::NOW));
-        // Einstellungen und Reihenfolge bleiben.
+        // Settings and order stay.
         $this->assertFalse($this->locked->getTimed());
         $this->assertSame('end', $this->locked->getFeedback());
         $this->assertSame('[13,11,12]', $this->locked->getDeckOrder());
@@ -391,7 +391,7 @@ class PaceWindowTest extends TestCase {
         );
     }
 
-    // ── Freigeben ──────────────────────────────────────────────────────────
+    // ── Releasing ──────────────────────────────────────────────────────────
 
     public function testFreigebenAusDemOffenenFensterSchliesstZugleich(): void {
         $this->locked = $this->room(self::NOW - 100, self::NOW + 3600);
@@ -428,16 +428,16 @@ class PaceWindowTest extends TestCase {
         $this->conflict(fn () => $this->service->releaseWindow($this->room()), 'The quiz is not open.');
     }
 
-    // ── Helfer ─────────────────────────────────────────────────────────────
+    // ── Helpers ────────────────────────────────────────────────────────────
 
-    /** Aktion muss durchlaufen und committen. */
+    /** The action must run through and commit. */
     private function ok(callable $action): Room {
         $result = $action();
         $this->assertSame(['beginTransaction', 'commit'], $this->tx);
         return $result;
     }
 
-    /** Aktion muss mit ConflictException abbrechen und zurückrollen. */
+    /** The action must abort with ConflictException and roll back. */
     private function conflict(callable $action, string $message): void {
         try {
             $action();
@@ -448,7 +448,7 @@ class PaceWindowTest extends TestCase {
         $this->assertSame(['beginTransaction', 'rollBack'], $this->tx);
     }
 
-    /** Aktion muss mit Eingabefehler (400) abbrechen und zurückrollen. */
+    /** The action must abort with an input error (400) and roll back. */
     private function invalid(callable $action, string $message): void {
         try {
             $action();
@@ -459,7 +459,7 @@ class PaceWindowTest extends TestCase {
         $this->assertSame(['beginTransaction', 'rollBack'], $this->tx);
     }
 
-    /** Genau ein UPDATE, und zwar an der gesperrten Zeile. */
+    /** Exactly one UPDATE, and on the locked row. */
     private function expectUpdate(): void {
         $this->rooms->expects($this->once())->method('update')
             ->with($this->identicalTo($this->locked))->willReturnArgument(0);

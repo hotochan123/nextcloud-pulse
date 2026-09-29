@@ -14,12 +14,12 @@ use OCP\Migration\IOutput;
 use OCP\Migration\SimpleMigrationStep;
 
 /**
- * Weitere Quiz-Fragetypen (Wahr/Falsch, Mehrfachauswahl, Schätzfrage, Freitext).
- * Deren korrekte Antwort passt nicht mehr in das kurze `correct_option` (eine
- * Options-ID): Mehrfachauswahl braucht mehrere IDs, Schätzfrage Ziel+Toleranz,
- * Freitext eine wachsende Liste akzeptierter Antworten. Dafür eine flexible
- * TEXT-Spalte `answer_key` (JSON, je Typ) — bleibt serverseitig (nie an
- * Teilnehmer vor dem Auflösen). `correct_option` bleibt für choice/truefalse.
+ * More quiz question types (true/false, multiple choice, estimate, free text).
+ * Their correct answer no longer fits into the short `correct_option` (one
+ * option ID): multiple choice needs several IDs, estimate target+tolerance,
+ * free text a growing list of accepted answers. Hence a flexible
+ * TEXT column `answer_key` (JSON, per type) — stays server-side (never sent to
+ * participants before the reveal). `correct_option` remains for choice/truefalse.
  */
 class Version000000Date20260717140000 extends SimpleMigrationStep {
 

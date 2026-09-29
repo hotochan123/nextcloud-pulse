@@ -4,17 +4,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 /**
- * Einbett-Shell fürs PowerPoint-/Office-Add-in.
- * Lädt (per pulse-embed.js) office.js nach, fragt einmalig den Raumcode ab
- * (persistiert in den Dokument-Settings der .pptx) und rahmt dann die
- * Beamer-Ansicht /apps/pulse/screen/{code} same-origin ein.
- * Rendert bewusst „blank" (keine NC-Chrome) — die Folie soll nur die Umfrage zeigen.
+ * Embed shell for the PowerPoint/Office add-in.
+ * Loads office.js (via pulse-embed.js), asks for the room code once
+ * (persisted in the document settings of the .pptx) and then frames the
+ * projector view /apps/pulse/screen/{code} same-origin.
+ * Deliberately renders "blank" (no NC chrome) — the slide should show only the poll.
  */
-// Übersetzungen der App (OC.L10N.register) — die Shell ist englischsprachig
-// und übersetzt über denselben Weg wie das Bundle.
+// The app's translations (OC.L10N.register) — the shell is in English
+// and is translated the same way as the bundle.
 \OCP\Util::addTranslations(\OCA\Pulse\AppInfo\Application::APP_ID);
-// Token-Schicht + Design-System (eigener Stil-Einstieg, kein Vue-Bundle):
-// die Shell nutzt dieselben Rollen und denselben .pulse-btn wie die App.
+// Token layer + design system (own style entry point, no Vue bundle):
+// the shell uses the same roles and the same .pulse-btn as the app.
 \OCP\Util::addScript('pulse', 'pulse-styles');
 \OCP\Util::addStyle('pulse', 'embed');
 \OCP\Util::addScript('pulse', 'pulse-embed');

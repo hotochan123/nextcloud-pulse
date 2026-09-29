@@ -3,23 +3,27 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 /*
- * Pulse — kleine reine Formatier-/Rechen-Helfer, geteilt über Moderator
- * (Steuerpult), Participant (Handy) und Screen (Beamer). Bewusst ohne
- * Vue-State: so lebt jedes bisherige Duplikat (PIN-Regex 4×, Countdown-Mathe
- * inkl. Server-Skew 3×) an genau EINER Stelle und kann nicht mehr driften.
+ * Pulse: small pure formatting/calculation helpers, shared by Moderator
+ * (control desk), Participant (phone) and Screen (projector). Deliberately without
+ * Vue state: this way every former duplicate (PIN regex 4×, countdown maths
+ * incl. server skew 3×) lives in exactly ONE place and can no longer drift.
+ *
+ * Section references (§…) point to the specification of the self-paced quiz,
+ * which is not in the public repository (see "References in code comments" in
+ * the README).
  */
 import { getCanonicalLocale } from '@nextcloud/l10n'
 import { t, n } from './l10n.js'
 import { splitDuration, windowState } from './pace.js'
 
 /**
- * Zahl im Format der eingestellten Sprache (Dezimaltrenner!). Vorher stand das
- * deutsche Komma fest im Code — in einer englischen Oberfläche wäre „3,5" eine
- * andere Zahl.
- * @param {number|string} value zu formatierende Zahl
- * @param {number} [max] höchstens so viele Nachkommastellen
- * @param {number} [min] mindestens so viele Nachkommastellen
- * @return {string} formatierte Zahl, '' bei ungültiger Eingabe
+ * Number in the format of the configured language (decimal separator!). Previously the
+ * German decimal comma was hard-coded; in an English interface "3,5" would be a
+ * different number.
+ * @param {number|string} value number to format
+ * @param {number} [max] at most this many decimal places
+ * @param {number} [min] at least this many decimal places
+ * @return {string} formatted number, '' for invalid input
  */
 export function fmtNum(value, max = 1, min = 0) {
 	const n = Number(value)
@@ -27,32 +31,32 @@ export function fmtNum(value, max = 1, min = 0) {
 	return n.toLocaleString(getCanonicalLocale(), { maximumFractionDigits: max, minimumFractionDigits: min })
 }
 
-/** Raum-Code als „ABC DEF" gruppieren (leerer/kurzer Code bleibt unverändert). */
+/** Group a room code as "ABC DEF" (an empty/short code stays unchanged). */
 export function formatCode(code) {
 	return (code || '').replace(/(.{3})(.{3})/, '$1 $2')
 }
 
 /**
- * Verbleibende Sekunden eines zeitbegrenzten Polls in Server-Zeit (nowSec +
- * serverSkew), nie negativ. Poll ist das Frage-/Ergebnisobjekt mit timeLimit
- * und startedAt.
- * @return {number|null} null, wenn kein Zeitlimit gesetzt ist.
+ * Remaining seconds of a time-limited poll in server time (nowSec +
+ * serverSkew), never negative. Poll is the question/result object with timeLimit
+ * and startedAt.
+ * @return {number|null} null if no time limit is set.
  */
 export function remainingSecs(poll, nowSec, serverSkew) {
 	if (!poll || !poll.timeLimit) return null
 	return Math.max(0, Math.ceil(poll.timeLimit - ((nowSec + serverSkew) - poll.startedAt)))
 }
 
-/** Fortschritt 0–100 % für den Countdown-Balken (0, wenn kein Zeitlimit). */
+/** Progress 0–100 % for the countdown bar (0 if there is no time limit). */
 export function remainingPct(poll, remaining) {
 	return poll && poll.timeLimit ? Math.round((remaining / poll.timeLimit) * 100) : 0
 }
 
 /**
- * Frist oder Zeitpunkt absolut, in der eingestellten Sprache: „Fr., 3. Okt.,
- * 18:00". Absolut und deshalb ohne Server-Skew.
- * @param {number} ts Unix-Sekunden
- * @return {string} '' ohne Zeitpunkt
+ * Deadline or point in time as an absolute value, in the configured language: "Fri, 3 Oct,
+ * 18:00". Absolute and therefore without server skew.
+ * @param {number} ts Unix seconds
+ * @return {string} '' without a point in time
  */
 export function fmtDeadline(ts) {
 	const v = Number(ts)
@@ -63,12 +67,12 @@ export function fmtDeadline(ts) {
 }
 
 /**
- * „vor 5 Min." — dieselben Texte wie Moderator.ago(), aber gegen die
- * SERVERzeit gerechnet: Zeitstempel aus /progress kommen vom Server, und eine
- * schiefe Laptop-Uhr machte sonst aus „gerade eben" „vor 3 Min.".
- * @param {number} ts Unix-Sekunden (Server)
- * @param {number} nowServer jetzt in Serverzeit (Pflicht)
- * @return {string} '' ohne Zeitstempel
+ * "5 min ago": the same texts as Moderator.ago(), but computed against
+ * SERVER time: timestamps from /progress come from the server, and a skewed
+ * laptop clock would otherwise turn "just now" into "3 min ago".
+ * @param {number} ts Unix seconds (server)
+ * @param {number} nowServer now in server time (required)
+ * @return {string} '' without a timestamp
  */
 export function fmtAgo(ts, nowServer) {
 	if (!ts) return ''
@@ -83,12 +87,12 @@ export function fmtAgo(ts, nowServer) {
 }
 
 /**
- * Zustands-Chip eines Fensters im eigenen Tempo — Deck-Kopf, Raumliste und
- * Laufansicht zeigen dieselben Texte (Spezifikation §1.6). Eine Frist, die
- * nach Serverzeit schon abgelaufen ist, gilt als geschlossen.
- * @param {object} win `window` aus Raum-JSON oder /progress
- * @param {number} nowServer jetzt in Serverzeit (Sekunden)
- * @return {{cls: string, dot: boolean, label: string}} Entwurf: „Self-paced"
+ * State chip of a self-paced window: deck header, room list and
+ * run view show the same texts (specification §1.6). A deadline that has
+ * already passed in server time counts as closed.
+ * @param {object} win `window` from the room JSON or /progress
+ * @param {number} nowServer now in server time (seconds)
+ * @return {{cls: string, dot: boolean, label: string}} draft: "Self-paced"
  */
 export function paceStateChip(win, nowServer) {
 	const st = windowState(win, nowServer)
@@ -103,9 +107,9 @@ export function paceStateChip(win, nowServer) {
 }
 
 /**
- * Restdauer für „Closes in {duration}": unter einer Stunde Minuten, bis 48 h
- * Stunden und Minuten, darüber Tage und Stunden (Nullteile entfallen).
- * @param {number} sec Sekunden
+ * Remaining time for "Closes in {duration}": under one hour minutes, up to 48 h
+ * hours and minutes, beyond that days and hours (zero parts are dropped).
+ * @param {number} sec seconds
  * @return {string}
  */
 export function fmtDuration(sec) {

@@ -11,13 +11,13 @@
 
 <script>
 /*
- * VizEmpty — EIN Leerzustand für alle Ergebnis-Grafiken (Histogramm, Radar,
- * Kompass). Vorher kollabierte das Diagramm bei 0 Stimmen zu einem leeren
- * Kasten und sah kaputt aus; der ruhige gestrichelte Rahmen mit einer Zeile
- * hält die Bühne, bis die erste Antwort kommt (Verfeinerung §1).
+ * VizEmpty — ONE empty state for all result charts (histogram, radar,
+ * compass). Before, the chart collapsed into an empty box at 0 votes and
+ * looked broken; the calm dashed frame with a single line holds the stage
+ * until the first answer arrives (design notes §1, not in the public repository).
  *
- * Alle Maße in em -> skaliert mit der Container-font-size vom Handy bis zum
- * Beamer, genau wie der Rest von ResultsView.
+ * All sizes in em -> scales with the container font-size from phone to
+ * projector, just like the rest of ResultsView.
  */
 import { t } from '../../util/l10n.js'
 

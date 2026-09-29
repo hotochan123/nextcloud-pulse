@@ -4,10 +4,10 @@
 -->
 <template>
 	<div class="pulse-results">
-		<!-- Multiple Choice / Mehrfachauswahl: Balken auf Gesamtstimmen normiert,
-		     Optionsfarbe von der Live-Kachel durchgezogen (Palette-Brücke).
-		     Am Beamer (wide) trägt eine Zeile alles — Plakette, Label und Wert
-		     liegen IM Balken (§2.4); die Legende steht in der Meta-Leiste. -->
+		<!-- Multiple choice / multiple answers: bars normalised to the total votes,
+		     option colour carried over from the live tile (palette bridge).
+		     On the projector (wide) one row carries everything — badge, label and value
+		     sit INSIDE the bar (§2.4); the legend is in the meta bar. -->
 		<div v-if="results && (results.type === 'choice' || results.type === 'multi')" class="bars" :class="{ 'bars--stage': wide }">
 			<div v-if="wide" class="srows srows--stretch" :class="{ 'is-tall': tallLabels }">
 				<StageRow v-for="row in choiceRows" :key="row.id" :class="row.pal.cls"
@@ -31,14 +31,14 @@
 			<p v-if="!wide" class="norm-note">{{ results.type === 'multi' ? t('pulse', '100% = everyone who answered · the sum can exceed 100%') : t('pulse', '100% = all votes') }}</p>
 		</div>
 
-		<!-- Reihenfolge: Konsens-Rangliste. Balken = wie weit oben im Schnitt
-		     (voll = Ø-Platz 1). Im Quiz steht daneben der richtige Platz. -->
+		<!-- Ranking: consensus ranking. Bar = how high up on average
+		     (full = avg. place 1). In a quiz the correct place is shown next to it. -->
 		<div v-else-if="results && results.type === 'rank'" class="ranks" :class="{ 'bars--stage': wide }">
-			<!-- Beamer: die Zeile trägt die VERTEILUNG der Plätze, nicht den
-			     Durchschnitt (§7.5). Die Balkenlänge ist immer 100 % — sie
-			     transportierte vorher Unterschiede von 0,3 Plätzen als volle
-			     Längendifferenz und verschwieg dabei, ob ein Element unstrittig
-			     ist oder polarisiert. -->
+			<!-- Projector: the row carries the DISTRIBUTION of places, not the
+			     average (§7.5). The bar length is always 100 % — before, it
+			     conveyed differences of 0.3 places as a full difference in length
+			     and hid whether an item is undisputed
+			     or polarising. -->
 			<div v-if="wide" class="sstacks" :class="{ 'is-longhead': longHeads }">
 				<StageStack v-for="(row, i) in results.results" :key="row.id"
 					:rank="i + 1" :label="row.label"
@@ -62,14 +62,14 @@
 			<p v-if="!wide" class="norm-note">{{ t('pulse', 'Sorted by average place · a full bar means top on average') }}</p>
 		</div>
 
-		<!-- Zuordnung: je Zeile die Verteilung über die Ziele. Im Quiz ist das
-		     richtige Ziel grün markiert, in der Umfrage das meistgewählte. Am
-		     Beamer (wide) steht nur die Spitze je Zeile, ab fünf Zeilen zweispaltig:
-		     acht Paare mal acht Ziele wären 64 Balken auf einer Leinwand. -->
+		<!-- Matching: per row the distribution across the targets. In a quiz the
+		     correct target is marked green, in a poll the most chosen one. On the
+		     projector (wide) only the top per row is shown, in two columns from five rows:
+		     eight pairs times eight targets would be 64 bars on one screen. -->
 		<div v-else-if="results && results.type === 'match'" class="matchres" :class="{ 'is-wide': wide, 'is-dense': dense, 'is-cols': !wide && !dense && results.results.length > 4 }">
-			<!-- Beamer: eine gestapelte Zeile je Paar zeigt die volle Verteilung
-			     über die Ziele (§7.6). Vorher stand dort nur die Spitze — die
-			     Zeile behauptete Einigkeit, wo eine knappe Mehrheit war. -->
+			<!-- Projector: one stacked row per pair shows the full distribution
+			     across the targets (§7.6). Before, only the top was shown there — the
+			     row claimed agreement where there was only a narrow majority. -->
 			<div v-if="wide" class="sstacks" :class="{ 'is-longhead': longHeads }">
 				<StageStack v-for="row in results.results" :key="row.id"
 					:label="row.label"
@@ -102,10 +102,10 @@
 			<p v-else-if="!wide" class="norm-note">{{ hasMatchKey ? t('pulse', '100% = all answers in this line · green is the correct target') : t('pulse', '100% = all answers in this line') }}</p>
 		</div>
 
-		<!-- Schätzfrage: Zielzahl + Ø + Verteilung der Tipps (Histogramm) -->
+		<!-- Number guess: target number + avg. + distribution of the guesses (histogram) -->
 		<div v-else-if="results && results.type === 'number'" class="dist" :class="{ 'bars--stage': wide }">
-			<!-- Beamer: die drei Kennzahlen als EINE Zeile. Als Block nahmen sie
-			     ein Drittel der Bühnenhöhe, das dann der Verteilung fehlte. -->
+			<!-- Projector: the three figures as ONE row. As a block they took
+			     a third of the stage height, which the distribution then lacked. -->
 			<div v-if="wide" class="numline">
 				<span class="numline-target">{{ numTarget }}</span>
 				<span class="numline-lbl">{{ t('pulse', 'correct number') }}{{ numTol ? ' (± ' + numTol + ')' : '' }}</span>
@@ -134,9 +134,9 @@
 					<span class="metric-label">{{ t('pulse', 'Median') }}</span>
 				</div>
 			</div>
-			<!-- Am Beamer trägt auch die Tipp-Verteilung das Zeilenmodell aus §2.4:
-			     die alte Zwei-Zeilen-Grammatik passte bei fünf Werten selbst am
-			     Boden der Schrumpf-Schleife nicht mehr auf die Bühne. -->
+			<!-- On the projector the distribution of guesses also uses the row model from §2.4:
+			     the old two-line grammar no longer fit five values on the stage, even at the
+			     bottom of the shrink loop. -->
 			<div v-if="wide && results.results.length" class="srows srows--stretch">
 				<StageRow v-for="row in results.results" :key="row.value"
 					:label="String(row.value)" :value="row.count + '×'"
@@ -156,10 +156,10 @@
 			<p v-if="!wide" class="norm-note">{{ t('pulse', 'Distribution of the guesses · bars relative to the most frequent value') }}</p>
 		</div>
 
-		<!-- Freitext: EIN geteilter Baustein — read-only Variante von TextGrading -->
+		<!-- Free text: ONE shared building block — read-only variant of TextGrading -->
 		<TextGrading v-else-if="results && results.type === 'text'" :results="results" readonly />
 
-		<!-- Wortwolke: kompakte Vorschau (die Live-Engine läuft auf dem Beamer) -->
+		<!-- Word cloud: compact preview (the live engine runs on the projector) -->
 		<div v-else-if="results && results.type === 'words'" class="cloud">
 			<span v-for="row in results.results" :key="row.word" class="cloud-word"
 				:style="{ fontSize: cloudEm(row.count) + 'em', opacity: cloudOpacity(row.count) }">
@@ -168,13 +168,13 @@
 			<p v-if="!results.results.length" class="cloud-empty">{{ t('pulse', 'No words yet.') }}</p>
 		</div>
 
-		<!-- Skala · Spektrum: Radar (Ø-Kontur + Streuband + Neutral-Ring + „Du") — nummerierte Speichen + Kennzahl-Spalte, SVG-viewBox skaliert Handy→Beamer -->
+		<!-- Scale · Spectrum: radar (avg. outline + spread band + neutral ring + "You") — numbered spokes + figures column, SVG viewBox scales phone→projector -->
 		<div v-else-if="results && results.type === 'scale' && spectrumMode" class="spectrum-radar" :class="{ 'is-wide': wide }">
 			<VizEmpty v-if="!total" />
-			<!-- Beamer: Namen an den Speichen, kein Ziffern-Nachschlag (§7.3).
-			     Unter drei Aspekten wird keine Fläche aufgespannt — dann sind es
-			     Zeilen statt eines Radars. Der Editor lässt heute nur 3 bis 8 zu,
-			     der Zweig ist die ehrliche Notlage statt einer Fehlermeldung. -->
+			<!-- Projector: names at the spokes, no looking up numbers (§7.3).
+			     Below three aspects no area is spanned — then it is
+			     rows instead of a radar. Today the editor only allows 3 to 8;
+			     the branch is the honest fallback instead of an error message. -->
 			<div v-else-if="wide && spectrumRows.length < 3" class="srows srows--stretch">
 				<StageRow v-for="row in spectrumRows" :key="row.id" :class="row.pal.cls"
 					:badge="row.pal.letter" :label="row.label"
@@ -220,12 +220,12 @@
 			<p v-else class="norm-note">{{ t('pulse', 'Too few aspects for a radar (at least 3).') }}</p>
 		</div>
 
-		<!-- Skala · Kompass: Quadrant Scatter/Heatmap + Schwerpunkt + „Du" — Chart + Kennzahl-Spalte, SVG-viewBox skaliert Handy→Beamer -->
+		<!-- Scale · Compass: quadrant scatter/heat map + centre of gravity + "You" — chart + figures column, SVG viewBox scales phone→projector -->
 		<div v-else-if="results && results.type === 'scale' && compassMode" class="compass-result" :class="{ 'is-wide': wide }">
 			<VizEmpty v-if="!total" />
-			<!-- Beamer: quadratisches Feld über die volle Bühnenhöhe, Punkte bis
-			     zur Schwelle, darüber Heatmap. Kein „Du" — auf der Leinwand gibt
-			     es kein Ich (§7.4). -->
+			<!-- Projector: square field across the full stage height, dots up to
+			     the threshold, a heat map above it. No "You" — on the big screen there
+			     is no me (§7.4). -->
 			<StageCompass v-else-if="wide"
 				:points="results.points || []" :centroid="results.centroid"
 				:range="results.range || 5" :threshold="results.heatmapThreshold || 45"
@@ -278,11 +278,11 @@
 			</template>
 		</div>
 
-		<!-- Skala · Einzel: Verteilung mit Ø-/Median-Marker IN der Verteilung -->
+		<!-- Scale · Single: distribution with avg./median marker INSIDE the distribution -->
 		<div v-else-if="results && results.type === 'scale'" class="dist" :class="{ 'bars--stage': wide }">
 			<VizEmpty v-if="!total" />
-			<!-- Beamer: Säulen über die volle Bühnenhöhe, Median über und
-			     Mittelwert unter den Säulen (§7.2). -->
+			<!-- Projector: columns across the full stage height, median above and
+			     mean below the columns (§7.2). -->
 			<StageHistogram v-else-if="wide"
 				:rows="results.results" :average="results.average"
 				:median="scaleMedian" :min-label="results.minLabel" :max-label="results.maxLabel" />
@@ -315,6 +315,11 @@
 </template>
 
 <script>
+/*
+ * Section references (§…) point to the design notes of the redesign and of the
+ * self-paced quiz, which are not in the public repository (see "References in
+ * code comments" in the README).
+ */
 import { fmtNum } from '../util/format.js'
 import { option, rampStep, withPalette } from '../util/palette.js'
 import PulseIcon from './ui/PulseIcon.vue'
@@ -326,8 +331,8 @@ import StageStack from './StageStack.vue'
 import TextGrading from './TextGrading.vue'
 import VizEmpty from './ui/VizEmpty.vue'
 
-// Ab dieser Labellänge wird zweizeilig gerechnet — und zwar für ALLE Zeilen
-// der Bühne gemeinsam, damit kein springendes Zeilenraster entsteht (§2.6).
+// From this label length on, rows are laid out on two lines — for ALL rows
+// of the stage together, so the row grid does not jump (§2.6).
 const TALL_LABEL_CHARS = 34
 
 export default {
@@ -335,37 +340,37 @@ export default {
 	components: { PulseIcon, StageCompass, StageHistogram, StageRadar, StageRow, StageStack, TextGrading, VizEmpty },
 	props: {
 		results: { type: Object, default: null },
-		// Quiz choice/truefalse: Options-ID der richtigen Antwort -> grün.
+		// Quiz choice/truefalse: option ID of the correct answer -> green.
 		correctId: { type: String, default: '' },
-		// Quiz multi: mehrere richtige Options-IDs.
+		// Quiz multi: several correct option IDs.
 		correctIds: { type: Array, default: () => [] },
-		// Quiz number/text: Zielzahl+Toleranz bzw. akzeptierte Antworten.
+		// Quiz number/text: target number + tolerance, or accepted answers.
 		answerKey: { type: Object, default: null },
-		// Kompass: eigene abgegebene Position ({x,y}) — nur lokal beim eigenen Gerät gesetzt.
+		// Compass: own submitted position ({x,y}) — only set locally on one's own device.
 		mine: { type: Object, default: null },
-		// Spektrum: eigene abgegebene Werte (aspectId -> Wert) für das „Du"-Polygon.
+		// Spectrum: own submitted values (aspectId -> value) for the "You" polygon.
 		mineAspects: { type: Object, default: null },
-		// Beamer-Layout (breit): Chart höhengebunden + Kennzahl-Spalte rechts.
+		// Projector layout (wide): chart bound to the height + figures column on the right.
 		wide: { type: Boolean, default: false },
-		// Vorschau-Panel des Moderators: schmal, aber mit derselben Aussage wie die
-		// Leinwand. Die Zuordnung zeigt hier eine gestapelte Zeile je Paar statt
-		// einer Balkenliste je Ziel — acht Paare mal acht Ziele wären 64 Balken in
-		// einer 340-px-Spalte, und die Reihenfolge der Frage ginge darin unter.
+		// Moderator's preview panel: narrow, but saying the same as the
+		// big screen. Matching shows one stacked row per pair here instead of
+		// a list of bars per target — eight pairs times eight targets would be 64 bars in
+		// a 340 px column, and the order of the question would get lost in them.
 		dense: { type: Boolean, default: false },
 	},
 	computed: {
 		total() {
 			return this.results ? this.results.total : 0
 		},
-		// Zeilenköpfe der gestapelten Bühne stehen in einer festen Spalte (9 em),
-		// damit alle Balken an derselben Kante beginnen. Namen wie „Container
-		// orchestration" endeten darin als Auslassungspunkte, während rechts Platz
-		// frei war: ab 14 Zeichen wird die Spalte breiter und zweizeilig.
+		// Row heads of the stacked stage sit in a fixed column (9 em),
+		// so all bars start at the same edge. Names like "Container
+		// orchestration" ended in an ellipsis there while there was space
+		// on the right: from 14 characters on, the column gets wider and two lines tall.
 		longHeads() {
 			const rows = (this.results && this.results.results) || []
 			return rows.some((r) => String(r.label || '').length > 14)
 		},
-		// Wortwolken-Summe: „N Nennungen · M verschiedene" (§7-Grammatik).
+		// Word cloud total: "N mentions · M different" (§7 grammar).
 		wordsSummary() {
 			const rows = (this.results && this.results.results) || []
 			const mentions = rows.reduce((sum, r) => sum + (r.count || 0), 0)
@@ -376,25 +381,25 @@ export default {
 			if (!this.results || !this.results.results || !this.results.results.length) return 0
 			return Math.max(...this.results.results.map((r) => r.count))
 		},
-		// Zweizeilige Zeilenhöhe für die ganze Bühne, sobald EIN Label lang ist.
+		// Two-line row height for the whole stage as soon as ONE label is long.
 		tallLabels() {
 			const rows = (this.results && this.results.results) || []
 			return rows.some((r) => (r.label || '').length > TALL_LABEL_CHARS)
 		},
-		// Choice/Multi-Zeilen mit stabiler Palette (Buchstabe + Farbe A–H) —
-		// dieselbe Zuordnung wie Live-Kachel (Beamer) und Handy (util/palette.js).
+		// Choice/multi rows with a stable palette (letter + colour A–H) —
+		// the same mapping as the live tile (projector) and the phone (util/palette.js).
 		choiceRows() {
 			return withPalette(this.results && this.results.results)
 		},
-		// Gibt es überhaupt eine „richtige Antwort" (Quiz) -> Grün statt Sieger-Marke.
+		// Is there a "correct answer" at all (quiz) -> green instead of the winner mark.
 		hasCorrect() {
 			return !!this.correctId || (Array.isArray(this.correctIds) && this.correctIds.length > 0)
 		},
-		// Reihenfolge: gibt es eine Lösung (Quiz, erst beim Auflösen mitgeliefert)?
+		// Ranking: is there a solution (quiz, only delivered with the reveal)?
 		hasRankKey() {
 			return !!(this.answerKey && Array.isArray(this.answerKey.order) && this.answerKey.order.length)
 		},
-		// Zuordnung: Lösung nur im Quiz und erst nach dem Auflösen vorhanden.
+		// Matching: a solution exists only in a quiz and only after the reveal.
 		hasMatchKey() {
 			return !!(this.answerKey && this.answerKey.map && Object.keys(this.answerKey.map).length)
 		},
@@ -404,7 +409,7 @@ export default {
 		numTol() {
 			return this.answerKey && this.answerKey.tolerance ? this.answerKey.tolerance : 0
 		},
-		// Ø der abgegebenen Tipps (gewichtet nach Häufigkeit).
+		// Avg. of the submitted guesses (weighted by frequency).
 		numAvg() {
 			if (!this.results || !this.results.results || !this.results.results.length) return null
 			let sum = 0, n = 0
@@ -416,7 +421,7 @@ export default {
 			if (!n) return null
 			return Math.round((sum / n) * 10) / 10
 		},
-		// Median der Skala-Stimmen — aus kumulierten Counts (kein Werte-Array nötig).
+		// Median of the scale votes — from cumulative counts (no value array needed).
 		scaleMedian() {
 			const rows = this.results && this.results.results
 			if (!rows || !rows.length) return null
@@ -435,9 +440,9 @@ export default {
 			}
 			return lo === hi ? lo : Math.round(((lo + hi) / 2) * 10) / 10
 		},
-		// Ø/Median als Marker IN der Verteilung: Wert -> Mitte seiner Säule.
-		// Die Säulen liegen lückenlos nebeneinander (Abstand steckt IM Spalten-
-		// kasten), darum ist Wert v bei ((v-min)+0,5)/N — auch für Bruchwerte.
+		// Avg./median as markers INSIDE the distribution: value -> centre of its column.
+		// The columns sit next to each other without gaps (the spacing is INSIDE the column
+		// box), so value v is at ((v-min)+0.5)/N — also for fractional values.
 		histMarks() {
 			const r = this.results
 			if (!r || r.type !== 'scale' || this.spectrumMode || this.compassMode) return []
@@ -450,12 +455,12 @@ export default {
 			if (this.scaleMedian !== null) out.push({ key: 'med', pct: Math.round(pos(this.scaleMedian) * 10) / 10, label: this.t('pulse', 'median {value}', { value: fmtNum(this.scaleMedian) }) })
 			return out
 		},
-		// Spektrum am Beamer: Aspekte mit Palette, damit der Sonderfall „zwei
-		// Aspekte" dieselbe Zeilen-Grammatik trägt wie eine Auswahlfrage (§7.3).
+		// Spectrum on the projector: aspects with a palette, so the special case "two
+		// aspects" uses the same row grammar as a choice question (§7.3).
 		spectrumRows() {
 			return withPalette(this.spectrumMode ? (this.results.results || []) : [])
 		},
-		// Spektrum-Ergebnis: Radar aus Aspekt-Ø/-min/-max (Zentrum=0, Rand=X).
+		// Spectrum result: radar from aspect avg./min/max (centre=0, edge=X).
 		spectrumMode() {
 			return !!this.results && this.results.mode === 'spectrum'
 		},
@@ -473,9 +478,9 @@ export default {
 			if (!this.spectrumMode || !rows || rows.length < 3) return null
 			const X = this.results.max || 1
 			const N = rows.length
-			// Quadratischer viewBox (440×440): die Aspekt-Namen stehen NICHT mehr am
-			// Rand (Clipping-Quelle „ieherfähigkeit"), sondern als Nummer-Scheibchen
-			// an der Speiche + ausgeschriebene Zuordnung in radarItems (Kennzahl-Spalte).
+			// Square viewBox (440×440): the aspect names are NO longer at the
+			// edge (a source of clipping — long names lost their first letters), but as number discs
+			// at the spoke + the spelled-out mapping in radarItems (figures column).
 			const cx = 220, cy = 220, R = 170
 			const r1 = (x) => Math.round(x * 10) / 10
 			const ang = (i) => (-90 + i * 360 / N) * Math.PI / 180
@@ -490,7 +495,7 @@ export default {
 			const avgPoints = rows.map((row, i) => pt(row.average, i).join(',')).join(' ')
 			const band = 'M' + rows.map((row, i) => pt(row.max, i).join(',')).join('L') + 'Z '
 				+ 'M' + rows.map((row, i) => pt(row.min, i).join(',')).join('L') + 'Z'
-			// Nummer-Scheibchen am äußeren Speichenende (1..N) — kurz, clippt nie.
+			// Number discs at the outer end of the spokes (1..N) — short, never clips.
 			const nums = rows.map((row, i) => {
 				const a = ang(i)
 				return {
@@ -500,7 +505,7 @@ export default {
 					dot: pt(row.average, i),
 				}
 			})
-			// „Du"-Polygon nur, wenn für JEDEN Aspekt ein eigener Wert vorliegt.
+			// "You" polygon only when there is an own value for EVERY aspect.
 			let minePoints = null
 			const ma = this.mineAspects
 			if (ma && rows.every((row) => typeof ma[row.id] === 'number')) {
@@ -508,7 +513,7 @@ export default {
 			}
 			return { cx, cy, R, neutral: r1(0.5 * R), rings, spokes, avgPoints, band, nums, minePoints }
 		},
-		// Kennzahl-Spalte zum Radar: Nummer → Aspekt-Name → Ø (dt. Komma).
+		// Figures column for the radar: number → aspect name → avg. (decimal comma in German).
 		radarItems() {
 			const rows = this.results && this.results.results
 			if (!this.spectrumMode || !rows) return []
@@ -518,7 +523,7 @@ export default {
 				avg: fmtNum(row.average, 1, 1),
 			}))
 		},
-		// Kompass-Ergebnis: Quadrant + Scatter/Heatmap + Schwerpunkt + eigener Punkt.
+		// Compass result: quadrant + scatter/heat map + centre of gravity + own dot.
 		compassMode() {
 			return !!this.results && this.results.mode === 'compass'
 		},
@@ -599,8 +604,8 @@ export default {
 			}
 			return { grid, frame, nullV, nullH, poles, corners, cells, dots, heatmap, centroid, mine }
 		},
-		// Kennzahl-Spalte zum Kompass: Schwerpunkt + „Du" als große tabellarische
-		// X/Y-Anzeige (Werte in der Spalte statt am Rand, §1-Beamer-Layout).
+		// Figures column for the compass: centre of gravity + "You" as a large tabular
+		// X/Y readout (values in the column instead of at the edge, §1 projector layout).
 		compassReadout() {
 			if (!this.compassMode || !this.results) return { centroid: '–', mine: null }
 			const sg = (v) => {
@@ -617,15 +622,15 @@ export default {
 		},
 	},
 	methods: {
-		// Einheitliches Kennzahl-Format: 1 Nachkommastelle in der Sprache der
-		// Oberfläche, tabellenziffrig (Schätzfrage + Skala teilen es, §7-Grammatik).
+		// Uniform figure format: 1 decimal place in the language of the
+		// UI, tabular digits (number guess + scale share it, §7 grammar).
 		num(v) {
 			if (v === null || v === undefined) return '–'
 			return fmtNum(v)
 		},
-		// Lösungs-Kodierung der Bühnenzeile (§4.2): richtig = voll gesättigt +
-		// Ring + Häkchen + Wort, falsch = entsättigt. Ohne Lösung (Umfrage)
-		// bleibt die Zeile neutral; die Führung trägt nur das Wort.
+		// Solution encoding of the stage row (§4.2): correct = fully saturated +
+		// ring + check mark + word, wrong = desaturated. Without a solution (poll)
+		// the row stays neutral; only the word marks the lead.
 		choiceState(row) {
 			if (this.isCorrect(row.id)) return 'correct'
 			return this.hasCorrect ? 'wrong' : ''
@@ -635,7 +640,7 @@ export default {
 			if (!this.hasCorrect && this.isWinner(row.count)) return this.t('pulse', 'leading')
 			return ''
 		},
-		// Gewinner = meiste Stimmen (Gleichstand -> alle markiert).
+		// Winner = most votes (tie -> all marked).
 		isWinner(count) {
 			return count > 0 && count === this.maxCount
 		},
@@ -647,21 +652,21 @@ export default {
 			if (!this.answerKey || this.answerKey.target === undefined) return false
 			return Math.abs(Number(value) - Number(this.answerKey.target)) <= Number(this.answerKey.tolerance || 0)
 		},
-		// Anteil an den Gesamtstimmen (§5.1: eine Balken-Norm).
-		// Balkenlänge: Ø-Platz 1 = voll, letzter Platz = kurz.
+		// Share of the total votes (§5.1: one bar norm).
+		// Bar length: avg. place 1 = full, last place = short.
 		rankPct(row) {
 			const count = (this.results && this.results.results) ? this.results.results.length : 0
 			if (!row.n || count < 2) return row.n ? 100 : 0
 			return Math.max(4, Math.round((1 - (row.average - 1) / (count - 1)) * 100))
 		},
-		// Spektrum-Zeile: Ø als Anteil der Skala (nur der Zwei-Aspekte-Fall).
+		// Spectrum row: avg. as a share of the scale (only the two-aspect case).
 		spectrumPct(row) {
 			const max = (this.results && this.results.max) || 1
 			return Math.max(0, Math.min(100, Math.round((row.average / max) * 100)))
 		},
-		// Platzverteilung einer Reihenfolge-Zeile: Segment k = Anteil der Stimmen,
-		// die dieses Element auf Platz k gesetzt haben. Plätze sind geordnet ->
-		// Helligkeitsstaffel, keine Palette (§7.0).
+		// Place distribution of a ranking row: segment k = share of the votes
+		// that put this item in place k. Places are ordered ->
+		// lightness ramp, no palette (§7.0).
 		rankSegments(row) {
 			const places = Array.isArray(row.places) ? row.places : []
 			const sum = places.reduce((a, b) => a + b, 0)
@@ -673,7 +678,7 @@ export default {
 				const correct = this.hasRankKey && target === k + 1
 				return {
 					key: k,
-					// Häkchen im Segment, nicht am Zeilenanfang (§7.6).
+					// Check mark in the segment, not at the start of the row (§7.6).
 					text: (correct ? '✓ ' : '') + (k + 1),
 					pct: Math.round((count / sum) * 1000) / 10,
 					fill: step.fill,
@@ -687,9 +692,9 @@ export default {
 			const parts = places.map((count, k) => this.t('pulse', 'place {place}', { place: k + 1 }) + ': ' + count)
 			return row.label + ' — ' + parts.join(', ')
 		},
-		// Zuordnung: alle Ziele der Zeile als Segmente. Ziele sind ungeordnet ->
-		// Palette A–H (§7.0). Im Quiz trägt das richtige Segment die Lösungs-
-		// Kodierung, die übrigen sind entsättigt (§7.6).
+		// Matching: all targets of the row as segments. Targets are unordered ->
+		// palette A–H (§7.0). In a quiz the correct segment carries the solution
+		// encoding, the others are desaturated (§7.6).
 		matchSegments(row) {
 			const targets = (this.results && this.results.targets) || []
 			const wanted = this.matchKeyOf(row.id)
@@ -708,8 +713,8 @@ export default {
 				}
 			})
 		},
-		// Rechts steht die Spitze der Zeile — die Zahl, nach der sich der Raum
-		// einig ist (oder eben nicht).
+		// On the right is the top of the row — the figure on which the room
+		// agrees (or not).
 		matchLead(row) {
 			if (!row.n) return '—'
 			const max = (row.targets || []).reduce((m, cell) => Math.max(m, cell.count), 0)
@@ -720,12 +725,12 @@ export default {
 				.map((cell) => cell.label + ': ' + cell.count)
 			return row.label + ' — ' + (parts.length ? parts.join(', ') : this.t('pulse', 'No assignment yet.'))
 		},
-		// Soll-Platz (1-basiert) dieser Antwort laut Lösung.
+		// Target place (1-based) of this answer according to the solution.
 		rankTarget(id) {
 			if (!this.hasRankKey) return null
 			return this.answerKey.order.indexOf(id) + 1
 		},
-		// Steht die Antwort im Konsens auf ihrem richtigen Platz?
+		// Is the answer in its correct place in the consensus?
 		rankCorrect(id, i) {
 			return this.hasRankKey && this.rankTarget(id) === i + 1
 		},
@@ -739,14 +744,14 @@ export default {
 		matchIsCorrect(row, cell) {
 			return this.hasMatchKey && cell.id === this.matchKeyOf(row.id)
 		},
-		// Nur gewählte Ziele zeigen — plus das richtige, auch wenn es niemand
-		// getroffen hat (sonst fehlt beim Auflösen genau die Zeile, die zählt).
+		// Only show chosen targets — plus the correct one, even if nobody
+		// picked it (otherwise exactly the row that matters is missing at the reveal).
 		matchCells(row) {
 			const wanted = this.matchKeyOf(row.id)
 			const shown = row.targets.filter((cell) => cell.count > 0 || cell.id === wanted)
 			if (!this.wide) return shown
-			// Beamer: die Spitze der Zeile (bei Gleichstand beide führenden) und
-			// das richtige Ziel. Der Rest ist auf Entfernung ohnehin nicht lesbar.
+			// Projector: the top of the row (both leaders in a tie) and
+			// the correct target. The rest is unreadable from a distance anyway.
 			const max = shown.reduce((m, cell) => Math.max(m, cell.count), 0)
 			const lead = shown.filter((cell) => cell.count === max && max > 0).slice(0, 2)
 			if (!wanted || lead.some((cell) => cell.id === wanted)) return lead
@@ -758,7 +763,7 @@ export default {
 		percent(count) {
 			return this.total ? Math.round((count / this.total) * 100) : 0
 		},
-		// Verteilungstypen: Balken relativ zum häufigsten Wert (Histogramm).
+		// Distribution types: bars relative to the most frequent value (histogram).
 		scalePercent(count) {
 			return this.maxCount ? Math.round((count / this.maxCount) * 100) : 0
 		},
@@ -773,16 +778,16 @@ export default {
 </script>
 
 <style scoped>
-/* Zuordnung: je Item ein kleiner Block mit Balken darunter. */
+/* Matching: per item a small block with bars below it. */
 .matchres { display: flex; flex-direction: column; gap: 1em; }
 .mres-head { display: flex; align-items: center; gap: 0.6em; flex-wrap: wrap; margin-bottom: 0.35em; }
 .mres-item { font-weight: 700; }
 .bars--match { gap: 0.45em; }
-/* Beamer: zwei Spalten ab fünf Zeilen, damit acht Paare in die Höhe passen.
-   align-content:start — die Zeilen sollen oben stehen, nicht gestreckt werden. */
+/* Projector: two columns from five rows on, so eight pairs fit in the height.
+   align-content:start — the rows should sit at the top, not be stretched. */
 .matchres.is-cols { display: grid; grid-template-columns: 1fr 1fr; align-content: start; gap: 0.9em clamp(1.5em, 4vw, 3em); }
-/* Vorschau-Panel: eine Zeile je Paar, Kopf darüber. Der Wert steht im Kopf,
-   nicht neben dem Balken — in 340 px nähme eine eigene Wertspalte ein Fünftel. */
+/* Preview panel: one row per pair, head above it. The value sits in the head,
+   not next to the bar — in 340 px a value column of its own would take a fifth. */
 .matchres.is-dense { gap: 0.7em; }
 .matchres.is-dense .mres-head { margin-bottom: 0.25em; }
 .matchres.is-dense .mres-lead { margin-left: auto; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -790,34 +795,34 @@ export default {
 .matchres.is-wide .bar-row { margin-bottom: 0.45em; }
 .matchres.is-wide .mres-head { margin-bottom: 0.25em; }
 
-/* Alle Maße in em -> die Komponente skaliert über die Container-font-size:
-   Handy klein, Beamer groß (§5.4, der Fix für „Auflösung bleibt zu klein"). */
+/* All sizes in em -> the component scales via the container font-size:
+   small on the phone, large on the projector (§5.4, the fix for "reveal stays too small"). */
 .pulse-results { width: 100%; font-size: inherit; }
 
-/* Bühne (Beamer, §2.4): die Zeilen bekommen die Resthöhe und teilen sie unter
-   sich auf — vier Optionen füllen das Bild, acht schrumpfen bis zum Minimum
-   und danach greift die Schrumpf-Schleife. */
+/* Stage (projector, §2.4): the rows get the remaining height and share it
+   among themselves — four options fill the screen, eight shrink down to the minimum
+   and after that the shrink loop takes over. */
 .bars--stage { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
-/* Kennzahlen behalten ihre Höhe, die Zeilen bekommen den Rest. */
+/* Figures keep their height, the rows get the rest. */
 .bars--stage .dist-metrics { flex: 0 0 auto; }
 .matchres.is-wide { flex: 1 1 auto; min-height: 0; }
 .matchres.is-wide .mres-row { min-width: 0; }
 .matchres.is-wide .mres-item { font-weight: 700; }
 
-/* Gestapelte Bühnenzeilen (§7.5/§7.6): wie .srows--stretch teilen sie sich die
-   Resthöhe, damit vier Paare das Bild füllen und acht noch hineinpassen. */
+/* Stacked stage rows (§7.5/§7.6): like .srows--stretch they share the
+   remaining height, so that four pairs fill the screen and eight still fit. */
 .sstacks { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; justify-content: center; gap: 0.5em; }
-/* Wie die Zeilenbühne (§2.4) teilen sich die Zeilen die Resthöhe, bleiben aber
-   gedeckelt — sonst würden vier Zeilen zu Bändern. */
+/* Like the row stage (§2.4) the rows share the remaining height, but stay
+   capped — otherwise four rows would turn into bands. */
 .sstacks > * { flex: 1 1 2.4em; min-height: 2.2em; max-height: 3.4em; }
-/* Lange Zeilenköpfe: breitere Spalte, zwei Zeilen, keine Auslassungspunkte. */
+/* Long row heads: wider column, two lines, no ellipsis. */
 .sstacks.is-longhead :deep(.sstack-head) {
 	flex-basis: 12em; width: 12em;
 	white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
 }
 .sstacks :deep(.sstack) { height: 100%; max-height: 3.2em; }
 
-/* Schätzfrage am Beamer: Kennzahlen als eine Zeile in Klasse B. */
+/* Number guess on the projector: figures as one row in class B. */
 .numline { flex: 0 0 auto; display: flex; align-items: baseline; flex-wrap: wrap; gap: 0.4em; margin-bottom: 0.5em; font-weight: 700; }
 .numline-target { font-size: 1.3em; font-weight: 900; color: var(--pulse-success); font-variant-numeric: tabular-nums; }
 .numline-lbl { color: var(--pulse-meta); font-weight: 600; }
@@ -836,7 +841,7 @@ export default {
 .bar-label { display: inline-flex; align-items: center; gap: 0.5em; min-width: 0; font-weight: 600; }
 .bar-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .bar-badge {
-	/* Buchstaben-Badge in der Optionsfarbe (Palette-Brücke). */
+	/* Letter badge in the option colour (palette bridge). */
 	flex: 0 0 auto; font-size: 0.85em;
 	background: var(--opt-fill, var(--pulse-fill)); color: var(--opt-ink, var(--pulse-text));
 }
@@ -844,9 +849,9 @@ export default {
 .bar-flag.is-correct { color: var(--pulse-success); }
 .bar-flag.is-winner { color: var(--pulse-warning); }
 .is-correct .bar-text, .is-winner .bar-text { font-weight: 800; }
-/* Nur die alten Zwei-Zeilen-Balken dämpfen. Die Bühnenzeile (§2.4) kodiert
-   „falsch" über die Sättigung der Füllung — eine zusätzliche Deckkraft auf der
-   ganzen Zeile nähme auch dem Text seinen Kontrast. */
+/* Only dim the old two-line bars. The stage row (§2.4) encodes
+   "wrong" through the saturation of the fill — extra opacity on the
+   whole row would also take the text's contrast away. */
 .bar-row.is-wrong, .rank-row.is-wrong { opacity: 0.55; }
 .bar-count { flex: 0 0 auto; color: var(--pulse-readout); font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .bar-track {
@@ -859,11 +864,11 @@ export default {
 	height: 100%;
 	border-radius: var(--pulse-r-el);
 	min-width: 0.2em;
-	/* Palette-Brücke: Balken in der Optionsfarbe (nicht pauschal Primärblau). */
+	/* Palette bridge: bar in the option colour (not blanket primary blue). */
 	background: var(--opt-fill, var(--pulse-primary));
 	transition: width 0.7s cubic-bezier(.22, 1, .36, 1);
 }
-/* Verteilungs-Balken (Skala/Zahl) tragen keine Options-Palette -> Primär. */
+/* Distribution bars (scale/number) carry no option palette -> primary. */
 .bars--dist .bar-fill { background: var(--pulse-primary); }
 
 .ranks { display: flex; flex-direction: column; gap: 0.7em; }
@@ -873,7 +878,7 @@ export default {
 .rank-first { color: var(--pulse-text-2); }
 .norm-note { margin: 0.4em 0 0; font-size: 0.8em; color: var(--pulse-text-2); }
 
-/* Verteilungs-Kennzahlen (Ø, Zielzahl) */
+/* Distribution figures (avg., target number) */
 .dist-metrics { display: flex; flex-wrap: wrap; gap: 1.5em; justify-content: center; margin-bottom: 1.3em; }
 .metric { text-align: center; }
 .metric-val { display: block; font-size: 3.4em; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; color: var(--pulse-primary); }
@@ -882,23 +887,24 @@ export default {
 .metric-label { font-size: 0.85em; color: var(--pulse-text-2); }
 .bar-label em { font-style: normal; color: var(--pulse-text-2); font-weight: 400; }
 
-/* Skala-Histogramm (Handoff §6) — alles in em, skaliert Handy -> Beamer.
-   KEIN gap: der Abstand steckt in der Säulenbreite (62 % der Spalte). Nur so
-   liegt Wert v exakt bei ((v-min)+0,5)/N — die Rechnung, mit der die Ø-/Median-
-   Marker positioniert werden. Mit gap würden sie gegen die Säulen verrutschen. */
+/* Scale histogram (handoff §6; design notes, not in the public repository) —
+   everything in em, scales phone -> projector.
+   NO gap: the spacing is in the column width (62 % of the column). Only then
+   does value v sit exactly at ((v-min)+0.5)/N — the formula used to position the avg./median
+   markers. With a gap they would drift against the columns. */
 .hist-wrap { position: relative; }
 .hist { display: flex; align-items: flex-end; gap: 0; margin-top: 0.4em; border-bottom: 1px solid var(--pulse-border-strong); }
 .hist-col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 0.3em; }
 .hist-cnt { font-size: 0.72em; line-height: 1; min-height: 1em; color: var(--pulse-text-2); font-variant-numeric: tabular-nums; }
 .hist-track { width: 100%; height: 6.5em; display: flex; align-items: flex-end; }
 .hist-bar { width: 62%; min-height: 0.15em; border-radius: 0.25em 0.25em 0 0; background: var(--pulse-viz); transition: height 0.7s cubic-bezier(.22, 1, .36, 1); }
-/* Werte ohne Stimmen bleiben als ruhiger Sockel stehen -> vollständige Achse
-   statt einer einsamen Säule im Leerraum. */
+/* Values without votes stay as a quiet plinth -> a complete axis
+   instead of a lonely column in empty space. */
 .hist-bar.is-zero { height: 0.3em; background: var(--pulse-border-strong); border-radius: 0.15em; }
 
-/* Ø-/Median-Marker: Linie durch die Verteilung + Fähnchen oben.
-   Ø durchgezogen in der Daten-Farbe, Median gestrichelt in Textfarbe —
-   unterscheidbar über die FORM, nicht nur über Farbe (AA). */
+/* Avg./median marker: a line through the distribution + a small flag on top.
+   Avg. solid in the data colour, median dashed in the text colour —
+   distinguishable by SHAPE, not only by colour (AA). */
 .hmark { position: absolute; top: 0; bottom: 1.6em; width: 0; pointer-events: none; }
 .hmark::before { content: ''; position: absolute; top: 1.5em; bottom: 0; left: -1.5px; width: 3px; }
 .hmark--avg::before { background: var(--pulse-viz); }
@@ -918,29 +924,30 @@ export default {
 .hist--dense .hist-lab { font-size: 0.68em; }
 .hist--dense .hist-cnt { font-size: 0.6em; }
 
-/* Skala · Spektrum-Radar (Handoff §4) — SVG-viewBox skaliert Handy→Beamer. */
+/* Scale · spectrum radar (handoff §4; design notes, not in the public
+   repository) — SVG viewBox scales phone→projector. */
 .spectrum-radar { display: flex; flex-direction: column; align-items: stretch; }
 .radar-main { display: flex; flex-direction: column; align-items: center; gap: 0.6em; }
 .radar-wrap { width: 100%; }
 .radar-wrap svg { width: 100%; max-width: 42em; height: auto; display: block; margin: 0 auto; }
-/* Nummer-Scheibchen am Speichenende — ersetzt den Text am Rand (kein Clipping). */
+/* Number discs at the spoke end — replace the text at the edge (no clipping). */
 .rnum-bg { fill: var(--pulse-viz); stroke: var(--pulse-bg); stroke-width: 2; }
 .rnum { fill: var(--pulse-bg); font-family: var(--pulse-mono); font-weight: 800; font-size: 15px; }
-/* Kennzahl-Spalte: Nummer → Aspekt → Ø. Am Beamer (is-wide) rechts neben dem
-   Chart -> nutzt die Breite; am Handy darunter. */
+/* Figures column: number → aspect → avg. On the projector (is-wide) to the right of the
+   chart -> uses the width; on the phone below it. */
 .viz-col { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.4em; min-width: 0; }
 .viz-item { display: flex; align-items: baseline; gap: 0.55em; min-width: 0; }
 .viz-num { flex: 0 0 auto; width: 1.7em; height: 1.7em; align-self: center; border-radius: 50%; display: inline-grid; place-items: center; background: var(--pulse-viz); color: var(--pulse-bg); font-family: var(--pulse-mono); font-weight: 800; font-size: 0.72em; }
 .viz-label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
 .viz-val { flex: 0 0 auto; font-variant-numeric: tabular-nums; font-weight: 800; color: var(--pulse-viz); white-space: nowrap; }
 
-/* Beamer-Layout: Chart an der Höhe (quadratisch), Kennzahl-Spalte rechts. */
+/* Projector layout: chart sized by the height (square), figures column on the right. */
 .spectrum-radar.is-wide, .compass-result.is-wide { flex: 1 1 auto; min-height: 0; }
 .is-wide .radar-main, .is-wide .compass-main { flex: 1 1 auto; min-height: 0; flex-direction: row; align-items: center; gap: clamp(1em, 3vw, 3em); }
-/* Breite aus der Hoehe: das SVG traegt zwar ein viewBox-Seitenverhaeltnis,
-   aber width:auto an einem Flex-Item loest Firefox zu 0 auf — Radar und
-   Kompassfeld verschwanden am Beamer komplett. Mit aspect-ratio steht die
-   Breite fest, bevor das SVG gemessen wird. */
+/* Width from the height: the SVG does carry a viewBox aspect ratio,
+   but Firefox resolves width:auto on a flex item to 0 — radar and
+   compass field disappeared completely on the projector. With aspect-ratio the
+   width is fixed before the SVG is measured. */
 .is-wide .radar-wrap, .is-wide .compass-wrap { flex: 0 1 auto; width: auto; height: 100%; display: flex; align-items: center; justify-content: center; }
 .is-wide .radar-wrap { aspect-ratio: 1 / 1; }
 .is-wide .compass-wrap { aspect-ratio: 460 / 440; }
@@ -955,12 +962,12 @@ export default {
 .rsw-neutral { background: transparent; border: 1.5px dashed var(--pulse-text-2); }
 .rsw-mine { background: transparent; border: 1.5px dashed var(--pulse-self); }
 
-/* Skala · Kompass-Feld — SVG-viewBox skaliert Handy→Beamer. */
+/* Scale · compass field — SVG viewBox scales phone→projector. */
 .compass-result { display: flex; flex-direction: column; align-items: stretch; }
 .compass-main { display: flex; flex-direction: column; align-items: center; gap: 0.6em; }
 .compass-wrap { width: 100%; }
 .compass-wrap svg { width: 100%; max-width: 40em; height: auto; display: block; margin: 0 auto; }
-/* Kompass-Kennzahlen: Schwerpunkt + „Du" als große X/Y-Anzeige. */
+/* Compass figures: centre of gravity + "You" as a large X/Y readout. */
 .compass-readout { align-items: center; gap: 0.9em; }
 .is-wide .compass-readout { align-items: flex-start; }
 .viz-kpi { display: flex; flex-direction: column; gap: 0.05em; }

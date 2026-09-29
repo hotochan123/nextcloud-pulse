@@ -2,15 +2,15 @@
 # SPDX-FileCopyrightText: 2026 hotochan123
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# Baut das Release-Archiv für den Nextcloud App Store.
+# Builds the release archive for the Nextcloud App Store.
 #
-#   build/package.sh                  # bauen + packen (unsigniert)
-#   PULSE_KEY=~/pulse.key PULSE_CRT=~/pulse.crt build/package.sh   # + signieren
-#   SKIP_BUILD=1 build/package.sh     # js/ so lassen, wie es liegt
+#   build/package.sh                  # build + pack (unsigned)
+#   PULSE_KEY=~/pulse.key PULSE_CRT=~/pulse.crt build/package.sh   # + sign
+#   SKIP_BUILD=1 build/package.sh     # leave js/ as it is
 #
-# Ergebnis: build/pulse-<version>.tar.gz mit genau einem Ordner `pulse/` darin —
-# so erwartet es der Store. Quellen (src/, node_modules/, docs/, tests/) bleiben
-# draußen; ausgeliefert wird das fertige Bundle in js/.
+# Result: build/pulse-<version>.tar.gz with exactly one folder `pulse/` inside —
+# that is what the store expects. Sources (src/, node_modules/, docs/, tests/) stay
+# out; what ships is the finished bundle in js/.
 set -eu
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -44,8 +44,8 @@ fi
 echo "==> Dateien zusammenstellen"
 rm -rf "$DIST"
 mkdir -p "$STAGE"
-# Ausgeliefert wird nur, was die App zur Laufzeit braucht, plus Lizenz und
-# Änderungsprotokoll (der Store liest die Release-Notizen aus CHANGELOG.md).
+# Ship only what the app needs at runtime, plus the licence and the
+# changelog (the store reads the release notes from CHANGELOG.md).
 for item in appinfo css img js l10n lib templates office-addin \
 		README.md LICENSE CHANGELOG.md; do
 	[ -e "$ROOT/$item" ] || { echo "fehlt: $item" >&2; exit 1; }
@@ -53,8 +53,8 @@ for item in appinfo css img js l10n lib templates office-addin \
 done
 rm -f "$STAGE"/js/*.map
 
-# Nichts Unerwartetes im Archiv: keine Quellen, keine Wegwerf-Skripte, kein
-# Schlüsselmaterial. Lieber hier abbrechen als es hochladen.
+# Nothing unexpected in the archive: no sources, no throwaway scripts, no
+# key material. Better to abort here than to upload it.
 if find "$STAGE" \( -name 'node_modules' -o -name '*.key' -o -name '*.pem' \
 		-o -name '_*.php' -o -name '*.map' \) -print | grep -q .; then
 	echo "Archiv enthält Dateien, die nicht ausgeliefert werden dürfen:" >&2
@@ -65,8 +65,8 @@ fi
 
 if [ -n "${PULSE_KEY:-}" ] && [ -n "${PULSE_CRT:-}" ]; then
 	echo "==> Signieren (occ integrity:sign-app im Container $CONTAINER)"
-	# Der Schlüssel bleibt außerhalb des Repos; er wandert nur für den Lauf in
-	# den Container und wird danach gelöscht.
+	# The key stays outside the repository; it only goes into the container
+	# for this run and is deleted afterwards.
 	docker cp "$PULSE_KEY" "$CONTAINER:/tmp/pulse-sign.key"
 	docker cp "$PULSE_CRT" "$CONTAINER:/tmp/pulse-sign.crt"
 	docker exec "$CONTAINER" chown www-data /tmp/pulse-sign.key /tmp/pulse-sign.crt

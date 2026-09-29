@@ -8,9 +8,9 @@ declare(strict_types=1);
 namespace OCA\Pulse\Service;
 
 /**
- * Die Aktion passt nicht zum Zustand des Raums (z. B. Fragen bearbeiten,
- * während das Quiz im eigenen Tempo geöffnet ist). Vom Controller auf HTTP 409
- * abgebildet, nur in der Moderator-API; Eingabefehler bleiben
+ * The action does not fit the room's state (e.g. editing questions while
+ * the self-paced quiz is open). The controller maps it to HTTP 409, only in
+ * the moderator API; input errors stay
  * \InvalidArgumentException (400).
  */
 class ConflictException extends \RuntimeException {

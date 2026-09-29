@@ -3,38 +3,38 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 /*
- * Pulse — Protokollnummer zwischen Server und Bundle (Handy + Beamer).
- * Dieselbe Zahl wie Application::PROTOCOL (ProtocolConstantTest hält beide
- * gleich). Meldet /state eine andere, läuft im Tab noch ein Skript aus dem
- * Browser-Cache gegen einen neueren (oder älteren) Server: einmal neu laden
- * holt das passende Bundle.
+ * Pulse — protocol number between server and bundle (phone + projector).
+ * The same number as Application::PROTOCOL (ProtocolConstantTest keeps both
+ * equal). If /state reports a different one, the tab is still running a script from the
+ * browser cache against a newer (or older) server: reloading once
+ * fetches the matching bundle.
  */
 
 export const PROTOCOL = 3
 
-// Vermerk je Tab: für welches Server-Protokoll schon neu geladen wurde.
+// Marker per tab: for which server protocol a reload has already happened.
 const MARK_KEY = 'pulse-protocol-reload'
 
 /**
- * true = Seite wird neu geladen. Höchstens einmal je Server-Protokoll und Tab
- * (sessionStorage), sonst entstünde bei hängendem Cache eine Reload-Schleife;
- * ohne sessionStorage kein Reload.
- * @param {number|undefined} serverProtocol `protocol` aus /state
- * @return {boolean} true, wenn der Reload angestoßen wurde (Aufrufer bricht ab)
+ * true = the page is being reloaded. At most once per server protocol and tab
+ * (sessionStorage), otherwise a stuck cache would cause a reload loop;
+ * without sessionStorage no reload.
+ * @param {number|undefined} serverProtocol `protocol` from /state
+ * @return {boolean} true if the reload was triggered (the caller aborts)
  */
 export function reloadOnProtocolMismatch(serverProtocol) {
 	if (serverProtocol === undefined || serverProtocol === null) return false
 	if (Number(serverProtocol) === PROTOCOL) return false
 	const mark = String(serverProtocol)
 	try {
-		// Im Einbett-Rahmen des PowerPoint-Add-ins ist das ein Drittanbieter-
-		// Speicher: je nach Browser wirft schon der Zugriff auf sessionStorage
-		// (SecurityError) oder er fehlt ganz — dann lieber ohne Reload weiter.
+		// In the embed frame of the PowerPoint add-in this is third-party
+		// storage: depending on the browser, even accessing sessionStorage throws
+		// (SecurityError) or it is missing entirely — then better carry on without a reload.
 		const store = window.sessionStorage
 		if (!store || store.getItem(MARK_KEY) === mark) return false
 		store.setItem(MARK_KEY, mark)
-		// Nur neu laden, wenn der Vermerk wirklich steht: ein Speicher, der
-		// Schreibzugriffe still verwirft, ergäbe sonst genau die Schleife.
+		// Only reload if the marker really is set: storage that silently
+		// discards writes would otherwise produce exactly that loop.
 		if (store.getItem(MARK_KEY) !== mark) return false
 		window.location.reload()
 		return true

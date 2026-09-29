@@ -11,12 +11,12 @@ use OCA\Pulse\Service\PaceStateService;
 use PHPUnit\Framework\Attributes\CoversClass;
 
 /**
- * Fortschritt für den Moderator (PaceStateService::progress).
+ * Progress for the moderator (PaceStateService::progress).
  *
- * Der Laptop hängt oft am Beamer: bei „Rückmeldung am Ende" sind Punkte,
- * Treffer und Rangliste bis zur Freigabe verdeckt, außer mit dem
- * ausdrücklichen Schalter. `skipped` macht Wegwerf-Spieler sichtbar, die nur
- * durchblättern; `online` nimmt dasselbe 15-s-Fenster wie „N dabei".
+ * The laptop is often connected to the projector: with feedback "At the end", points,
+ * hits and leaderboard stay hidden until the release, unless the
+ * explicit switch is on. `skipped` exposes throwaway players who only
+ * click through; `online` uses the same 15 s window as "N here".
  */
 #[CoversClass(PaceStateService::class)]
 class SelfProgressTest extends PaceStateTestCase {
@@ -66,7 +66,7 @@ class SelfProgressTest extends PaceStateTestCase {
 
     public function testNurEndgueltigeStimmenZaehlen(): void {
         $this->race();
-        // Cem hat gerade eben richtig geantwortet: noch im Korrekturfenster.
+        // Cem has just answered correctly: still inside the correction window.
         $this->vote(11, 'tok-cem', 'AA', 990, true, self::NOW - 1);
 
         $data = $this->service->progress($this->room);
@@ -79,7 +79,7 @@ class SelfProgressTest extends PaceStateTestCase {
 
     public function testUebersprungenZaehltVerlasseneOhneStimme(): void {
         $this->race();
-        // Wegwerf-Spieler blättert ohne Antwort durch.
+        // Throwaway player clicks through without answering.
         $this->players[] = $this->player(34, 'tok-dora', 'Dora');
         $this->row(11, 'tok-dora', self::NOW - 90, self::NOW - 60);
         $this->row(12, 'tok-dora', self::NOW - 60, self::NOW - 30);
@@ -152,9 +152,9 @@ class SelfProgressTest extends PaceStateTestCase {
     }
 
     /**
-     * Anna: Q1 richtig (verlassen), auf Q2 geantwortet (falsch, endgültig).
-     * Ben: Q1 richtig (verlassen), Q2 ohne Antwort verlassen, kein Q3.
-     * Cem: steht auf Q1.
+     * Anna: Q1 correct (left), answered Q2 (wrong, final).
+     * Ben: Q1 correct (left), left Q2 without answering, no Q3.
+     * Cem: is on Q1.
      */
     private function race(): void {
         $this->row(11, 'tok-anna', self::NOW - 60, self::NOW - 40);

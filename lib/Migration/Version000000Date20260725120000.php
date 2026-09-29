@@ -14,13 +14,13 @@ use OCP\Migration\IOutput;
 use OCP\Migration\SimpleMigrationStep;
 
 /**
- * Raum-Titel: frei wählbarer Name („Retrospektive KW 30"), damit „Meine Räume"
- * bei mehreren Räumen unterscheidbar bleibt — der 6-stellige Code allein sagt
- * nichts. Optional: leerer Titel = bisheriges Verhalten (nur Code).
+ * Room title: a freely chosen name ("Retrospective week 30") so that "My rooms"
+ * stays easy to tell apart with several rooms; the 6-digit code alone says
+ * nothing. Optional: an empty title keeps the previous behaviour (code only).
  *
- * Spalte bewusst NULLABLE mit Default '' — NC lehnt NOT-NULL-Textspalten mit
- * Leerstring-Default ab (Oracle behandelt '' wie NULL); dieselbe Falle wie
- * seinerzeit bei `correct_option`. Die Entity normalisiert NULL zu ''.
+ * The column is deliberately NULLABLE with default '': NC rejects NOT NULL text
+ * columns with an empty-string default (Oracle treats '' as NULL); the same trap
+ * as back then with `correct_option`. The entity normalises NULL to ''.
  */
 class Version000000Date20260725120000 extends SimpleMigrationStep {
 

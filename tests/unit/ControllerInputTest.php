@@ -35,34 +35,34 @@ use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Parameter und Cookie kommen roh vom Client. Als Liste, Objekt, 1e100 oder in
- * einer Form, die der Server nie vergeben hat, dürfen sie keine PHP-Warnung
- * auslösen (phpunit.xml: failOnWarning), keinen TypeError und keine 500 —
- * sie gelten als nicht gesendet: die übliche 400, die Vorgabe oder ein neues
- * Cookie. Dazu ein Quelltext-Wächter gegen rohe Casts auf Request-Werte.
+ * Parameters and cookie come raw from the client. As a list, an object, 1e100
+ * or in a shape the server never handed out, they must not trigger a PHP
+ * warning (phpunit.xml: failOnWarning), a TypeError or a 500 —
+ * they count as not sent: the usual 400, the default or a new
+ * cookie. Plus a source-code guard against raw casts on request values.
  *
- * Die Dienste sind Attrappen; hier zählt nur, was der Controller aus der
- * Anfrage liest und weiterreicht. Die Dienste selbst prüft HostileInputTest.
+ * The services are dummies; all that counts here is what the controller reads
+ * from the request and passes on. HostileInputTest checks the services themselves.
  */
 #[CoversClass(RoomApiController::class)]
 #[CoversClass(PublicVoteController::class)]
 class ControllerInputTest extends TestCase {
 
-    /** Verschachteltes Objekt — `x[y]=…` im Formular, {"x":["y"]} in JSON. */
+    /** Nested object — `x[y]=…` in a form, {"x":["y"]} in JSON. */
     private const HOSTILE = ['x' => ['y']];
-    /** Das Token, das die Attrappe von CodeGenerator::voterToken neu vergibt. */
+    /** The token that the CodeGenerator::voterToken dummy hands out anew. */
     private const FRESH = 'BennBennBennBennBennBennBennBenn';
 
-    /** @var array<string, mixed> gesendete Parameter; fehlt ein Schlüssel, gilt $fallback */
+    /** @var array<string, mixed> sent parameters; if a key is missing, $fallback applies */
     private array $params = [];
-    /** Wert jedes Parameters, der nicht in $params steht (null = fehlt). */
+    /** Value of every parameter that is not in $params (null = missing). */
     private mixed $fallback = self::HOSTILE;
     private mixed $cookie = self::HOSTILE;
-    /** @var list<array{0: string, 1: list<mixed>}> PaceService-Aufrufe, ohne den Raum */
+    /** @var list<array{0: string, 1: list<mixed>}> PaceService calls, without the room */
     private array $paceCalls = [];
-    /** @var list<array{0: string, 1: list<mixed>}> Aufrufe an Deck/Vote/State/Room, ohne den Raum */
+    /** @var list<array{0: string, 1: list<mixed>}> calls to Deck/Vote/State/Room, without the room */
     private array $calls = [];
-    /** Wie oft CodeGenerator::voterToken ein neues Token vergab. */
+    /** How often CodeGenerator::voterToken handed out a new token. */
     private int $issued = 0;
 
     private Room $room;
@@ -80,12 +80,12 @@ class ControllerInputTest extends TestCase {
         $this->room = $this->quizRoom();
 
         $this->request = $this->createMock(IRequest::class);
-        // Wie Nextcloud: ein Wert null (JSON null, fehlt) ergibt die Vorgabe.
+        // Like Nextcloud: a null value (JSON null, missing) yields the default.
         $this->request->method('getParam')->willReturnCallback(
             fn (string $key, mixed $default = null): mixed => (array_key_exists($key, $this->params) ? $this->params[$key] : $this->fallback) ?? $default
         );
         $this->request->method('getCookie')->willReturnCallback(fn () => $this->cookie);
-        // `image[]=…`: PHP legt jedes Feld des Uploads als Liste an.
+        // `image[]=…`: PHP creates every field of the upload as a list.
         $this->request->method('getUploadedFile')->willReturn(['name' => ['a.png'], 'tmp_name' => ['/tmp/x'], 'error' => [0], 'size' => [1]]);
         $this->request->method('getRemoteAddress')->willReturn('192.0.2.1');
 
@@ -140,12 +140,12 @@ class ControllerInputTest extends TestCase {
         $this->time->method('getTime')->willReturn(1800000000);
     }
 
-    // ── Moderator: jede Aktion, jeder Parameter eine Liste ─────────────────
+    // ── Moderator: every action, every parameter a list ────────────────────
 
     /**
-     * Jede öffentliche Aktion des Moderator-Controllers: [Methode, Argumente,
-     * Raum im eigenen Tempo?]. testJedeAktionIstAbgedeckt hält die Liste
-     * vollständig — eine neue Aktion ohne Zeile hier fällt dort auf.
+     * Every public action of the moderator controller: [method, arguments,
+     * self-paced room?]. testJedeAktionIstAbgedeckt keeps the list
+     * complete — a new action without a row here is caught there.
      */
     public static function moderatorAktionen(): array {
         $c = ['ABCDEF'];
@@ -217,7 +217,7 @@ class ControllerInputTest extends TestCase {
     }
 
     public function testFristUnendlichIst400(): void {
-        // JSON 1e999 kommt in PHP als float INF an.
+        // JSON 1e999 arrives in PHP as float INF.
         $response = $this->paceAction('open', ['closesAt' => INF]);
 
         $this->assertBadRequest($response, 'The deadline must be between one minute and 30 days from now.');
@@ -225,7 +225,7 @@ class ControllerInputTest extends TestCase {
     }
 
     public function testVerlaengernMitFristAlsListeIst400(): void {
-        // Still „ohne Frist“ hieße beim Verlängern: offen, bis jemand schließt.
+        // Silently "no deadline" would mean, when extending: open until someone closes.
         $response = $this->paceAction('extend', ['closesAt' => self::HOSTILE]);
 
         $this->assertBadRequest($response, 'The deadline must be between one minute and 30 days from now.');
@@ -240,7 +240,7 @@ class ControllerInputTest extends TestCase {
     }
 
     public function testRueckmeldungAlsListeKommtLeerBeimDienstAn(): void {
-        // Der Dienst prüft sie ohnehin: '' -> „Unknown feedback setting.“
+        // The service checks it anyway: '' -> "Unknown feedback setting."
         $this->paceAction('open', ['feedback' => self::HOSTILE]);
 
         $this->assertSame([['openWindow', [0, null, '']]], $this->paceCalls);
@@ -308,7 +308,7 @@ class ControllerInputTest extends TestCase {
 
     // ── close {release} ────────────────────────────────────────────────────
 
-    /** gesendet -> was closeWindow bekommt (null = Regel nach der Frist) */
+    /** sent -> what closeWindow receives (null = rule based on the deadline) */
     public static function gueltigesRelease(): array {
         return [
             'fehlt' => [[], null],
@@ -346,7 +346,7 @@ class ControllerInputTest extends TestCase {
 
     #[DataProvider('ungueltigesRelease')]
     public function testUngueltigesReleaseIst400OhneSchliessen(mixed $release): void {
-        // Nie still die alte Regel: die hieße im Rennen „freigeben“.
+        // Never silently the old rule: in a race it would mean "release".
         $response = $this->paceAction('close', ['release' => $release]);
 
         $this->assertBadRequest($response, 'Invalid request.');
@@ -364,12 +364,12 @@ class ControllerInputTest extends TestCase {
         $this->assertSame([['extendWindow', [0]]], $this->paceCalls);
     }
 
-    // ── Freitext bewerten ──────────────────────────────────────────────────
+    // ── Grading free text ──────────────────────────────────────────────────
 
     public function testBewertungBehaeltNul(): void {
-        // Die Stimme „Pa\0ris“ behält ihr NUL (normalizeValue); die Moderation
-        // schickt genau diesen Text zurück. Ohne NUL fände gradeText die Gruppe
-        // nie, und die Antwort bliebe für immer „wird geprüft“.
+        // The vote "Pa\0ris" keeps its NUL (normalizeValue); the moderator
+        // sends exactly this text back. Without the NUL gradeText would never find
+        // the group, and the answer would stay "Being checked" forever.
         $this->fallback = null;
         $this->params = ['answer' => "Pa\0ris", 'correct' => true];
 
@@ -379,7 +379,7 @@ class ControllerInputTest extends TestCase {
     }
 
     public function testBewertungMitListenKommtLeerAn(): void {
-        // Der Dienst meldet dann „Empty answer.“ (400).
+        // The service then reports "Empty answer." (400).
         $this->params = ['answer' => self::HOSTILE, 'correct' => self::HOSTILE];
 
         $this->moderator()->gradeAnswer('ABCDEF', 7);
@@ -418,7 +418,7 @@ class ControllerInputTest extends TestCase {
         $this->assertSame([[0]], $this->callsTo('setCurrent'));
     }
 
-    // ── Öffentlich ─────────────────────────────────────────────────────────
+    // ── Public ─────────────────────────────────────────────────────────────
 
     public static function oeffentlicheAktionen(): array {
         $rows = [];
@@ -464,17 +464,17 @@ class ControllerInputTest extends TestCase {
         $this->fallback = null;
         $this->cookie = $cookie;
 
-        // /state vergibt ein neues Cookie und zählt die Person damit.
+        // /state hands out a new cookie and thereby counts the person.
         $response = $this->public()->state('ABCDEF');
         $this->assertSame(Http::STATUS_OK, $response->getStatus());
         $this->assertSame([[self::FRESH]], $this->callsTo('heartbeat'));
         $this->assertSame(self::FRESH, $response->getCookies()['pulse_vt']['value'] ?? null);
 
-        // /summary liest ohne Cookie.
+        // /summary reads without a cookie.
         $this->public()->summary('ABCDEF');
         $this->assertSame([[null]], $this->callsTo('publicSummary'));
 
-        // /next ohne Cookie: kein Spieler, nichts zu starten.
+        // /next without a cookie: no player, nothing to start.
         $this->room = $this->selfRoom();
         $this->assertBadRequest($this->public()->next('ABCDEF'), 'Please choose a name first.');
     }
@@ -491,7 +491,7 @@ class ControllerInputTest extends TestCase {
     }
 
     public function testNameAlsListeKommtLeerAn(): void {
-        // Der Dienst meldet dann „Please enter a name.“ (400).
+        // The service then reports "Please enter a name." (400).
         $this->params = ['nickname' => self::HOSTILE];
 
         $this->public()->join('ABCDEF');
@@ -508,7 +508,7 @@ class ControllerInputTest extends TestCase {
         $this->assertSame([[self::FRESH, 'AA', false, null]], $this->callsTo('recordVote'));
     }
 
-    // ── Quelltext-Wächter ──────────────────────────────────────────────────
+    // ── Source-code guard ──────────────────────────────────────────────────
 
     public function testKeinRoherCastAufRequestWerte(): void {
         $files = glob(dirname(__DIR__, 2) . '/lib/Controller/*.php');
@@ -519,15 +519,15 @@ class ControllerInputTest extends TestCase {
             $this->assertDoesNotMatchRegularExpression('/\((?:string|int|float|bool)\)\s*\$this->request->/', $source, basename($file));
             $this->assertDoesNotMatchRegularExpression('/(?:intval|floatval|strval|settype|filter_var)\(\s*\$this->request->/', $source, basename($file));
         }
-        // Das Voter-Cookie liest nur PublicVoteController::voterToken().
+        // Only PublicVoteController::voterToken() reads the voter cookie.
         $controllers = dirname(__DIR__, 2) . '/lib/Controller/';
         $this->assertSame(1, substr_count((string)file_get_contents($controllers . 'PublicVoteController.php'), '->getCookie('));
         $this->assertSame(0, substr_count((string)file_get_contents($controllers . 'RoomApiController.php'), '->getCookie('));
     }
 
-    // ── Helfer ─────────────────────────────────────────────────────────────
+    // ── Helpers ────────────────────────────────────────────────────────────
 
-    /** /pace im eigenen Tempo; alles außer $params fehlt. */
+    /** /pace in a self-paced room; everything except $params is missing. */
     private function paceAction(mixed $action, array $params): JSONResponse {
         $this->room = $this->selfRoom();
         $this->fallback = null;
@@ -535,7 +535,7 @@ class ControllerInputTest extends TestCase {
         return $this->moderator()->pace('ABCDEF');
     }
 
-    /** @return list<list<mixed>> die Argumente jedes Aufrufs von $method */
+    /** @return list<list<mixed>> the arguments of every call of $method */
     private function callsTo(string $method): array {
         return array_values(array_map(
             static fn (array $c): array => $c[1],
@@ -585,7 +585,7 @@ class ControllerInputTest extends TestCase {
         );
     }
 
-    /** Moderiertes Quiz (Cursor, keine Raumsperre). */
+    /** Moderated quiz (cursor, no room lock). */
     private function quizRoom(): Room {
         $room = new Room();
         $room->setId(5);
@@ -596,7 +596,7 @@ class ControllerInputTest extends TestCase {
         return $room;
     }
 
-    /** Quiz im eigenen Tempo, Fenster offen. */
+    /** Self-paced quiz, window open. */
     private function selfRoom(): Room {
         $room = $this->quizRoom();
         $room->setPace('self');

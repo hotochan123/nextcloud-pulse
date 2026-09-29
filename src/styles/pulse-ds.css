@@ -3,16 +3,20 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 /*
- * Pulse — Design-System-Primitive (Schritt 1).
- * Global, un-scoped; aus dem Konzept (Stufe 1) portiert, `pulse-`-präfigiert
- * (Kollisionsschutz zu den alten scoped Klassen während der Migration).
+ * Pulse — design-system primitives (step 1).
+ * Global, un-scoped; ported from the concept (stage 1), prefixed with `pulse-`
+ * (to avoid collisions with the old scoped classes during the migration).
  *
- * Enthält die NC-`<button>`-Resets: Nextcloud stylt native <button> global mit
- * hoher Spezifität -> ohne appearance/Reset schlägt das durch.
- * Farben/Radien/Typo kommen aus pulse-tokens.css.
+ * Contains the NC `<button>` resets: Nextcloud styles native <button> globally with
+ * high specificity -> without appearance/reset that shows through.
+ * Colours/radii/type come from pulse-tokens.css.
+ *
+ * Section references (§…) point to the design notes of the redesign and of the
+ * self-paced quiz, which are not in the public repository (see "References in
+ * code comments" in the README).
  */
 
-/* ══ Buttons — EINE Hierarchie ══════════════════════════════════════════════ */
+/* ══ Buttons — ONE hierarchy ════════════════════════════════════════════════ */
 .pulse-btn {
 	font-family: inherit;
 	font-size: var(--t-body);
@@ -25,9 +29,9 @@
 	min-height: 44px;
 	height: auto !important;
 	padding: 0 18px;
-	/* NC stylt <button> auf authentifizierten Seiten (Steuerpult) mit hoher
-	   Spezifität -> die formgebenden Rollen tragen !important, Layout/Größe
-	   (padding/min-height) bleiben frei überschreibbar (Modifier, is-sm …). */
+	/* NC styles <button> on authenticated pages (control desk) with high
+	   specificity -> the shape-defining roles carry !important, layout/size
+	   (padding/min-height) stay freely overridable (modifiers, is-sm …). */
 	border: 1px solid transparent !important;
 	border-radius: var(--pulse-r-pill) !important;
 	background: var(--pulse-fill) !important;
@@ -53,7 +57,7 @@
 .pulse-btn.is-quiz:hover:not(:disabled)      { filter: brightness(1.06); }
 .pulse-btn.is-on        { background: var(--pulse-primary) !important; color: var(--pulse-on-primary) !important; }
 
-/* Danger: default abgesetzt (Outline), nur die ernste Aktion bekommt .is-solid */
+/* Danger: set apart by default (outline), only the serious action gets .is-solid */
 .pulse-btn.is-danger {
 	background: transparent !important;
 	color: var(--pulse-error) !important;
@@ -62,9 +66,9 @@
 }
 .pulse-btn.is-danger:hover:not(:disabled) { background: var(--pulse-error-soft) !important; }
 .pulse-btn.is-danger.is-solid { background: var(--pulse-error) !important; color: #fff !important; border-color: var(--pulse-error) !important; }
-/* Ohne diese Zeile gewinnt die Hover-Regel der Outline-Variante (eine Klasse
-   mehr in der Spezifität) und der gefüllte Danger-Knopf wird beim Zeigen HELLER
-   — er sah aus wie deaktiviert. */
+/* Without this line the hover rule of the outline variant wins (one class
+   more in specificity) and the filled danger button turns LIGHTER on hover
+   — it looked disabled. */
 .pulse-btn.is-danger.is-solid:hover:not(:disabled) { background: var(--pulse-error) !important; filter: brightness(.92); }
 
 .pulse-btn.is-lg { min-height: 52px; font-size: 18px; padding: 0 32px; }
@@ -74,7 +78,7 @@
 .pulse-btn.is-icon.is-sm { width: 36px; }
 .pulse-btn.is-icon.is-xs { width: 30px; }
 
-/* ══ Chip / Badge — EINE Familie ════════════════════════════════════════════ */
+/* ══ Chip / Badge — ONE family ══════════════════════════════════════════════ */
 .pulse-chip {
 	display: inline-flex;
 	align-items: center;
@@ -97,8 +101,8 @@
 .pulse-chip.is-success { background: var(--pulse-success-soft); color: var(--pulse-success); }
 .pulse-chip.is-quiz    { background: var(--pulse-quiz-soft); color: var(--pulse-quiz); }
 
-/* Puls-Punkt für "Läuft" o.ä. — eigener Name, kollidiert nicht mit den
-   bestehenden scoped .pulse-dot in Participant/Screen. */
+/* Pulsing dot for "Running" and the like — its own name, does not collide with the
+   existing scoped .pulse-dot in Participant/Screen. */
 .pulse-chip-dot {
 	width: 8px;
 	height: 8px;
@@ -124,11 +128,11 @@
 .pulse-notice.is-success { background: var(--pulse-success-soft); color: var(--pulse-success); }
 .pulse-notice strong { display: block; color: var(--pulse-text); }
 
-/* ══ Antwort-Palette A–H — Verkabelung ══════════════════════════════════════
-   Eine Klasse pro Index setzt --opt-fill/--opt-ink; Buchstaben-Badge UND
-   Ergebnis-Balken lesen dieselben Variablen -> die Optionsfarbe wandert von
-   der Live-Kachel bis in den ausgefüllten Balken (util/palette.js liefert die
-   Klasse). Amber (D) trägt zusätzlich .is-ink für dunkle Letter-Chip-Tönung. */
+/* ══ Answer palette A–H — wiring ════════════════════════════════════════════
+   One class per index sets --opt-fill/--opt-ink; the letter badge AND the
+   result bar read the same variables -> the option colour travels from
+   the live tile all the way into the filled bar (util/palette.js supplies the
+   class). Amber (D) additionally carries .is-ink for a dark letter-chip tint. */
 .pulse-opt-a { --opt-fill: var(--opt-a); --opt-ink: var(--opt-a-ink); }
 .pulse-opt-b { --opt-fill: var(--opt-b); --opt-ink: var(--opt-b-ink); }
 .pulse-opt-c { --opt-fill: var(--opt-c); --opt-ink: var(--opt-c-ink); }
@@ -138,8 +142,8 @@
 .pulse-opt-g { --opt-fill: var(--opt-g); --opt-ink: var(--opt-g-ink); }
 .pulse-opt-h { --opt-fill: var(--opt-h); --opt-ink: var(--opt-h-ink); }
 
-/* Buchstaben-Badge — Größe relativ (em), damit es auf Handy klein und auf dem
-   Beamer groß rendert; Fläche = Optionsfarbe, Text = geprüfte Ink-Farbe. */
+/* Letter badge — relative size (em) so that it renders small on the phone and large
+   on the projector; surface = option colour, text = verified ink colour. */
 .pulse-badge {
 	display: inline-grid;
 	place-items: center;
@@ -152,10 +156,10 @@
 	color: var(--opt-ink, var(--pulse-text));
 }
 
-/* ══ Ergebnis-Grammatik — Basis-Balken, komplett in `em` ════════════════════
-   Container-font-size steuert die Größe (Handy klein / Beamer groß). Kind-
-   Elemente NICHT in px, sonst bricht die Beamer-Skalierung (das ist der Fix
-   für §4.9 "Auflösung bleibt zu klein"). */
+/* ══ Result grammar — base bar, entirely in `em` ════════════════════════════
+   The container's font-size controls the size (phone small / projector large). Child
+   elements NOT in px, otherwise the projector scaling breaks (this is the fix
+   for §4.9 "reveal stays too small" in the design notes, not in the public repository). */
 .pulse-rbar { margin-bottom: .55em; }
 .pulse-rbar-top {
 	display: flex;
@@ -187,25 +191,25 @@
 	white-space: nowrap;
 }
 
-/* ══ Bühnen-Zeilenmodell (Redesign §2.4) ════════════════════════════════════
-   EINE Zeile pro Option: der Balken IST die Zeile, Plakette/Label/Wert liegen
-   darüber. Löst zwei Befunde zusammen — die doppelte Höhe je Option (die Bühne
-   endete bei 78 %) und den 1800-px-Augenweg vom Label links zur Zahl rechts
-   außen.
+/* ══ Stage row model (design notes §2.4, not in the public repository) ══════
+   ONE row per option: the bar IS the row, badge/label/value sit
+   on top of it. Solves two findings at once — the double height per option (the stage
+   ended at 78 %) and the 1800 px eye travel from the label on the left to the number
+   on the far right.
 
-   Alle Maße in em von --scr-stage-fs; die Schrumpf-Schleife schreibt nur
-   diesen einen Wert (§2.3).
+   All sizes in em of --scr-stage-fs; the shrink loop writes only
+   this one value (§2.3).
 
-   Lesbarkeit über Füllung UND Spur ohne Messung: zwei deckungsgleiche
-   Textebenen mit komplementärem clip-path. Ein Buchstabe auf der Kante wird
-   sauber halbiert und bleibt in beiden Hälften lesbar. */
+   Readability over fill AND track without measuring: two congruent
+   text layers with complementary clip-paths. A letter on the edge is
+   cleanly halved and stays readable in both halves. */
 .srows { display: flex; flex-direction: column; gap: .5em; min-width: 0; min-height: 0; }
-/* Die Zeile hat KEINE Eigenhöhe: Spur, Füllung und beide Textebenen liegen
-   absolut übereinander. Ohne gesetzte Höhe bliebe sie 0 hoch — deshalb ist die
-   feste Zeilenhöhe der Standard und die Streckung der Sonderfall. */
+/* The row has NO intrinsic height: track, fill and both text layers are stacked
+   absolutely. Without a set height it would stay 0 tall — that is why the
+   fixed row height is the default and stretching is the special case. */
 .srows > .srow { flex: 0 0 auto; height: 2.4em; }
-/* Bühne: die Zeilen teilen sich die Höhe zwischen Minimum und Maximum. Bei zwei
-   Optionen wächst nichts ins Riesenhafte (3,2 em Deckel), der Block zentriert. */
+/* Stage: the rows share the height between minimum and maximum. With two
+   options nothing grows to giant size (3.2 em cap); the block is centred. */
 .srows--stretch { height: 100%; justify-content: center; }
 .srows--stretch > .srow { flex: 1 1 2.4em; height: auto; min-height: 1.9em; max-height: 3.2em; }
 .srows--stretch.is-tall > .srow { max-height: 3.4em; }
@@ -228,9 +232,9 @@
 	padding-inline: .35em .5em;
 	min-width: 0;
 }
-/* Auf der Füllung: geprüfter Kontrastpartner der Palettenfarbe (--opt-ink). */
+/* On the fill: the verified contrast partner of the palette colour (--opt-ink). */
 .srow-text--fill  { color: var(--opt-ink, var(--pulse-on-primary)); clip-path: inset(0 calc(100% - var(--p, 0%)) 0 0); }
-/* Auf der Spur: normale Textfarbe. */
+/* On the track: normal text colour. */
 .srow-text--track { color: var(--pulse-text); clip-path: inset(0 0 0 var(--p, 0%)); }
 
 .srow-badge {
@@ -241,16 +245,16 @@
 	font-weight: 800; line-height: 1;
 	font-variant-numeric: tabular-nums;
 }
-/* Über der Füllung wäre eine Plakette in der Optionsfarbe unsichtbar — dort
-   trägt sie eine Tönung des Kontrastpartners. Über der Spur die Vollfarbe. */
+/* Over the fill a badge in the option colour would be invisible — there
+   it carries a tint of the contrast partner. Over the track, the full colour. */
 .srow-text--fill  .srow-badge { background: color-mix(in srgb, var(--opt-ink, #fff) 22%, transparent); color: var(--opt-ink, var(--pulse-on-primary)); }
 .srow-text--track .srow-badge { background: var(--opt-fill, var(--pulse-fill)); color: var(--opt-ink, var(--pulse-text)); }
 
 .srow-label {
 	min-width: 0; flex: 0 1 auto;
 	font-weight: 600; line-height: 1.15;
-	/* Unterlängen-Reserve: 1,15 liegt unter der natürlichen Texthöhe (≈1,36 em),
-	   und die Zeile clippt — ohne Reserve verlieren g, p, ü, ß ihre Unterlänge. */
+	/* Descender reserve: 1.15 is below the natural text height (≈1.36 em),
+	   and the row clips — without a reserve g, p, ü, ß lose their descenders. */
 	padding-block: .14em;
 	overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
@@ -262,11 +266,11 @@
 .srow-flag { flex: 0 0 auto; display: inline-flex; align-items: center; gap: .2em; font-weight: 800; white-space: nowrap; }
 .srow-mark { flex: 0 0 auto; }
 
-/* Auflösung (§4.2): vier Träger für die Lösung — Sättigung, Ring, Häkchen,
-   Wort. Erkennbar aus 10 m und auch bei Farbfehlsichtigkeit, weil die
-   Sättigungsdifferenz trägt. */
-/* Der Ring liegt als eigene Ebene über Spur und Füllung: ein inset-Schatten am
-   .srow selbst läge UNTER den absolut gesetzten Kindern und wäre unsichtbar. */
+/* Reveal (§4.2): four carriers for the solution — saturation, ring, check mark,
+   word. Recognisable from 10 m and with colour-vision deficiency too, because the
+   saturation difference carries it. */
+/* The ring sits as its own layer over track and fill: an inset shadow on the
+   .srow itself would lie BELOW the absolutely positioned children and be invisible. */
 .srow.is-correct::after {
 	content: ''; position: absolute; inset: 0; z-index: 2; pointer-events: none;
 	border: .12em solid var(--pulse-solution-ring); border-radius: inherit;
@@ -274,16 +278,16 @@
 .srow.is-correct .srow-label { font-weight: 700; }
 .srow.is-wrong .srow-fill { filter: saturate(.35); }
 
-/* Offene Bühne (§6.3): Umriss statt Fläche — dieselbe Familie, anderer
-   Zustand. Kein Wert, keine Füllung. */
+/* Open stage (§6.3): outline instead of surface — the same family, a different
+   state. No value, no fill. */
 .srow--outline { border: .05em solid var(--pulse-border); background: transparent; }
 .srow--outline .srow-text { color: var(--pulse-text); position: static; height: 100%; }
 
-/* ── Gestapelte Zeile (§7.5/§7.6) ───────────────────────────────────────
-   Die Zeile ist immer zu 100 % gefüllt und in Segmente geteilt; das Segment
-   trägt den Anteil, nicht die Balkenlänge. Anders als bei .srow steht das
-   Label AUSSERHALB — über Segmentgrenzen hinweg gäbe es keinen Ort, an dem
-   ein durchlaufendes Label lesbar bliebe. */
+/* ── Stacked row (§7.5/§7.6) ────────────────────────────────────────────
+   The row is always 100 % filled and split into segments; the segment
+   carries the share, not the bar length. Unlike .srow the
+   label sits OUTSIDE — across segment boundaries there would be no place where
+   a continuous label stayed readable. */
 .sstack-row { display: flex; align-items: center; gap: .6em; min-width: 0; }
 .sstack-rank {
 	flex: 0 0 auto; display: grid; place-items: center;
@@ -311,8 +315,8 @@
 	background: var(--seg-fill, var(--pulse-primary));
 	color: var(--seg-ink, var(--pulse-on-primary));
 }
-/* Lösung im Segment, nicht am Zeilenanfang (§7.6) — der Ring liegt als eigene
-   Ebene darüber, damit er nicht unter dem Nachbarsegment verschwindet. */
+/* Solution in the segment, not at the start of the row (§7.6) — the ring sits as its own
+   layer on top so that it does not disappear under the neighbouring segment. */
 .sseg.is-correct::after {
 	content: ''; position: absolute; inset: 0; z-index: 2; pointer-events: none;
 	border: .12em solid var(--pulse-solution-ring);
@@ -323,30 +327,30 @@
 	font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap;
 }
 
-/* ── Rennen im eigenen Tempo (Beamer, §3.3) ─────────────────────────────
-   Dieselbe Zeile wie die Auflösung, aber Zählstände statt Antworten: die
-   Fragezeilen in der Datenfarbe, „Finished" in der Abschlussfarbe (das
-   Readout-Grau, am Element aufgelöst: dunkel #c3d2e4 — --pulse-state-done
-   bliebe dort #33465e, 1,5:1 auf der Spur), „Not started" grau. Die
-   Kontrastpartner (--*-ink) sind in pulse-tokens.css
-   gemessen. „Not started" nimmt das Nebentext-Grau, nicht --pulse-border-
-   strong: dessen Füllung stand mit 1,2:1 auf der Spur, die Balkenlänge war
-   nicht zu sehen (gemessen 28.09.: Grau/Spur hell 4,5:1, Schrift darauf
-   --pulse-bg ≥ 4,5:1 hell und dunkel — beide Rollen folgen dem NC-Theme,
-   auch auf der öffentlichen Seite). Der Wert ist nur eine Zahl — die
-   Mindestbreite für „9 · 38 %" nähme den Fragezeilen in zwei Spalten den
-   Platz fürs Label. */
+/* ── Self-paced race (projector, §3.3) ──────────────────────────────────
+   The same row as the reveal, but counts instead of answers: the
+   question rows in the data colour, "Finished" in the completion colour (the
+   readout grey, resolved on the element: dark #c3d2e4 — --pulse-state-done
+   would stay #33465e there, 1.5:1 on the track), "Not started" grey. The
+   contrast partners (--*-ink) are measured in
+   pulse-tokens.css. "Not started" takes the secondary-text grey, not --pulse-border-
+   strong: its fill stood at 1.2:1 on the track, the bar length could
+   not be seen (measured 28.09.: grey/track light 4.5:1, text on it
+   --pulse-bg ≥ 4.5:1 light and dark — both roles follow the NC theme,
+   on the public page too). The value is just a number — the
+   minimum width for "9 · 38 %" would take the room for the label away from
+   the question rows in two columns. */
 .pace-race-row { --opt-fill: var(--pulse-viz); --opt-ink: var(--pulse-viz-ink); }
 .pace-race-row.is-done { --opt-fill: var(--pulse-readout); --opt-ink: var(--pulse-state-done-ink); }
 .pace-race-row.is-idle { --opt-fill: var(--pulse-text-2); --opt-ink: var(--pulse-bg); }
-/* Öffentliche Seite ohne Theme-Wahl (<body data-themes="">, der Beamer im
-   Klassenraum): NC schaltet dort nur über prefers-color-scheme auf dunkel
-   (:root), keiner der Dunkel-Blöcke in pulse-tokens.css greift. Spur und
-   Text werden dunkel, Datenfarbe und Readout blieben hell — gemessen 28.09.:
-   „Finished" #33465e auf #292929 = 1,51:1, Fragen #0e7c8b = 2,96:1. Nur die
-   Rennzeilen ziehen deshalb die Dunkelwerte nach (dieselben wie in den
-   Token-Blöcken: #43c3d8 = 6,9:1 und #c3d2e4 = 9,5:1 auf #292929); der
-   übrige öffentliche Beamer bleibt, wie er ist (moderiert unverändert). */
+/* Public page without a theme choice (<body data-themes="">, the projector in the
+   classroom): NC only switches to dark there via prefers-color-scheme
+   (:root), and none of the dark blocks in pulse-tokens.css apply. Track and
+   text turn dark, data colour and readout would stay light — measured 28.09.:
+   "Finished" #33465e on #292929 = 1.51:1, questions #0e7c8b = 2.96:1. So only the
+   race rows pull in the dark values (the same as in the
+   token blocks: #43c3d8 = 6.9:1 and #c3d2e4 = 9.5:1 on #292929); the
+   rest of the public projector stays as it is (moderated mode unchanged). */
 @media (prefers-color-scheme: dark) {
 	[data-themes=""] .pace-race-row {
 		--pulse-viz: #43c3d8;
@@ -357,7 +361,7 @@
 }
 .pace-race-row .srow-val { min-width: 2.5em; }
 
-/* "Du"-Pille — identisch in Liste, Balken, Podium. */
+/* "You" pill — identical in list, bar, podium. */
 .pulse-du {
 	display: inline-flex;
 	align-items: center;
@@ -372,7 +376,7 @@
 @media (prefers-reduced-motion: reduce) {
 	.pulse-chip-dot { animation: none; }
 	.pulse-rbar-fill { transition: none; }
-	/* Das Rennen ändert sich alle 2 s, die ganze Sitzung lang (§3.3). */
+	/* The race changes every 2 s, for the whole session (§3.3). */
 	.pace-race-row .srow-fill { transition: none; }
 	.pulse-btn { transition: none; }
 }

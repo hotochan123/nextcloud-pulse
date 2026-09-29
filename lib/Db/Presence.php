@@ -10,9 +10,9 @@ namespace OCA\Pulse\Db;
 use OCP\AppFramework\Db\Entity;
 
 /**
- * Anwesenheit eines anonymen Teilnehmers in einem Raum. Der voter_token stammt
- * aus demselben Cookie wie die Stimmen (siehe {@see Vote}) — er zählt Geräte,
- * nicht Personen, und identifiziert niemanden.
+ * Presence of an anonymous participant in a room. The voter_token comes
+ * from the same cookie as the votes (see {@see Vote}) — it counts devices,
+ * not people, and identifies nobody.
  *
  * @method int getRoomId()
  * @method void setRoomId(int $roomId)

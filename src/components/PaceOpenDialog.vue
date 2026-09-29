@@ -15,9 +15,9 @@
 			<h2 id="pace-open-title" class="pod-title">{{ title }}</h2>
 
 			<div class="pod-body">
-				<!-- Probelauf: Reset und „Reset quiz" behalten ihn (Server) — wer
-				     jetzt „echt" öffnen will, muss ihn hier sehen, nicht erst am
-				     Endstand ohne Rangliste. -->
+				<!-- Practice run: reset and "Reset quiz" keep it (server) — anyone who
+				     wants to open "for real" now has to see it here, not only at the
+				     final standings without a leaderboard. -->
 				<div v-if="practice && !extend" class="pulse-notice is-warn pod-practice">
 					<PulseIcon name="warning" size="1.1em" class="pulse-notice-ico" />
 					<span class="pod-practice-txt">{{ t('pulse', 'This is a practice run — nothing counts.') }}</span>
@@ -25,12 +25,12 @@
 				</div>
 
 				<section class="pod-group">
-					<!-- Beim Verlängern stellt der Titel diese Frage schon. -->
+					<!-- When extending, the title already asks this question. -->
 					<h3 v-if="!extend" class="pod-label">{{ t('pulse', 'When does the quiz end?') }}</h3>
 					<PulseSegmented :value="end" :options="endOptions" :label="t('pulse', 'When does the quiz end?')" @input="setEnd" />
 					<div v-if="end === 'deadline'" class="pod-deadline">
 						<label class="pod-sublabel" for="pace-open-deadline">{{ t('pulse', 'Deadline') }}</label>
-						<!-- Vorwahl setzt nur das Feld — das Feld bleibt die Wahrheit. -->
+						<!-- A preset only fills the field — the field stays the source of truth. -->
 						<div class="pod-presets">
 							<button v-for="p in presets"
 								:key="p.key"
@@ -50,13 +50,13 @@
 							:max="maxInput"
 							:aria-invalid="deadlineError ? 'true' : 'false'"
 							aria-describedby="pace-open-rel">
-						<!-- Relativ + absolut: ein AM/PM- oder Datumsdreher fällt vor dem
-						     Absenden auf, nicht erst am Handy. -->
+						<!-- Relative + absolute: an AM/PM or date mix-up shows before
+						     submitting, not only on the phone. -->
 						<p id="pace-open-rel" class="pod-rel" :class="{ 'is-error': !!deadlineError }" aria-live="polite">
 							{{ deadlineError || relLine }}
 						</p>
-						<!-- Die alte Frist war vorbei oder zu nah: vorbelegt ist morgen,
-						     zum Vergleich steht die alte darunter. -->
+						<!-- The old deadline had passed or was too close: tomorrow is prefilled,
+						     with the old one below for comparison. -->
 						<p v-if="wasAt" class="pod-help pod-was">{{ t('pulse', 'Was: {time}', { time: wasText }) }}</p>
 						<p v-if="!extend" class="pod-help">{{ t('pulse', 'Participants must finish on the same device.') }}</p>
 					</div>
@@ -66,8 +66,8 @@
 					</template>
 				</section>
 
-				<!-- Timer und Rückmeldung stehen seit dem Öffnen fest (Server) —
-				     beim Verlängern geht es nur um das Ende. -->
+				<!-- Timer and feedback are fixed since opening (server) —
+				     when extending, only the end is in question. -->
 				<template v-if="!extend">
 					<section class="pod-group">
 						<h3 class="pod-label">{{ t('pulse', 'Timer and speed points') }}</h3>
@@ -109,29 +109,29 @@
 
 <script>
 /*
- * Quiz im eigenen Tempo öffnen (Spezifikation §1.5, Modus `open`) und das
- * Ende ändern bzw. wieder öffnen (Modus `extend`, aus der Laufansicht).
+ * Open a self-paced quiz (spec §1.5, not in the public repository; mode `open`) and change
+ * its end or reopen it (mode `extend`, from the run view).
  *
- * Ein Formular-Dialog in der Optik von PulseConfirm — pulseConfirm selbst hat
- * keine Felder. Beim Öffnen drei Fragen, jede eine Auswahl: Wann endet es?
- * Mit Timer? Wann sehen alle, ob es stimmt? Das Ende gibt die Vorgaben der
- * beiden anderen (ohne Frist ein Rennen: Timer an, Rückmeldung je Frage; mit
- * Frist eine Hausaufgabe: ohne Timer, Auflösung am Ende). Die im Raum
- * gespeicherten timed/feedback übernimmt der Dialog bewusst nicht — er
- * schickt beide Werte ausdrücklich mit, dann steht im Formular genau das,
- * was gilt.
+ * A form dialog in the look of PulseConfirm — pulseConfirm itself has
+ * no fields. On opening there are three questions, each one a choice: When does it end?
+ * With a timer? When does everyone see if they are right? The end sets the defaults of the
+ * other two (no deadline means a race: timer on, feedback after each question; with a
+ * deadline it is homework: no timer, reveal at the end). The dialog deliberately does not
+ * take over the timed/feedback values stored in the room — it
+ * sends both values explicitly, so the form shows exactly
+ * what applies.
  *
- * Beim Verlängern bleibt nur die erste Frage: Timer und Rückmeldung stehen
- * seit dem Öffnen fest. Vorbelegt ist das jetzige Ende; eine Frist, die schon
- * vorbei (oder zu nah) ist, wird durch „morgen" ersetzt, die alte steht als
- * „Was: …" darunter. Aus einem geschlossenen Fenster heißt das Wieder öffnen.
+ * When extending, only the first question remains: timer and feedback are
+ * fixed since opening. The current end is prefilled; a deadline that has already
+ * passed (or is too close) is replaced by "tomorrow", with the old one shown as
+ * "Was: …" below. From a closed window this means reopening.
  *
- * Der Dialog schickt den Aufruf selbst ab; Fehler bleiben im Dialog (400
- * inline), nur 409 geht nach oben (`conflict`): dann stimmt der Raum hier
- * nicht mehr, und der Moderator lädt ihn neu.
+ * The dialog sends the request itself; errors stay in the dialog (400
+ * inline), only 409 goes up (`conflict`): then the room here is out of date,
+ * and the moderator reloads it.
  *
- * „Jetzt" ist Serverzeit (Laptopzeit + skew), sekündlich getaktet — die
- * Fristgrenzen prüft der Server gegen seine Uhr.
+ * "Now" is server time (laptop time + skew), ticking every second — the
+ * server checks the deadline limits against its own clock.
  *
  * Emits: done(roomJson) · conflict(message) · end-practice · cancel
  */
@@ -146,15 +146,15 @@ import PulseSegmented from './ui/PulseSegmented.vue'
 const serverNow = (skew) => Math.floor(Date.now() / 1000) + (Number(skew) || 0)
 
 /**
- * Vorbelegung beim Verlängern: ohne Frist „bis ich schließe"; mit Frist
- * diese — außer sie ist vorbei oder zu nah für den Server, dann morgen (volle
- * Stunde) und die alte zum Vergleich. Altlast: eine Frist, die das frühere
- * „Stoppen ohne Freigabe“ gesetzt hat (Frist in zwei Minuten, dann schließen —
- * zwei Aufrufe), gilt als keine (stopDeadline): niemand hat sie gewählt. Seit
- * close {release: false} bleibt die Frist beim Stoppen 0, und die erste Zeile
- * greift von selbst.
+ * Prefill when extending: without a deadline "When I close it"; with a deadline
+ * that one — unless it has passed or is too close for the server, then tomorrow (on the full
+ * hour) and the old one for comparison. Legacy: a deadline set by the former
+ * "Stop without releasing" (deadline in two minutes, then close —
+ * two calls) counts as none (stopDeadline): nobody chose it. Since
+ * close {release: false} the deadline stays 0 when stopping, and the first line
+ * takes effect by itself.
  * @param {object|null} win `room.window`
- * @param {number} now jetzt in Serverzeit
+ * @param {number} now now in server time
  * @return {{end: string, deadline: string, wasAt: number}}
  */
 function extendStart(win, now) {
@@ -169,7 +169,7 @@ export default {
 	components: { PulseIcon, PulseSegmented },
 	props: {
 		room: { type: Object, required: true },
-		// 'open' (Deck, Entwurf) | 'extend' (Laufansicht: Ende ändern / wieder öffnen)
+		// 'open' (deck, draft) | 'extend' (run view: change the end / reopen)
 		mode: { type: String, default: 'open', validator: (v) => v === 'open' || v === 'extend' },
 		skew: { type: Number, default: 0 },
 	},
@@ -178,9 +178,9 @@ export default {
 		const start = this.mode === 'extend' ? extendStart(this.room.window, now) : { end: 'manual', deadline: '', wasAt: 0 }
 		return {
 			now,
-			end: start.end,     // 'manual' (bis ich schließe) | 'deadline'
-			deadline: start.deadline, // Wert des datetime-local-Felds (Ortszeit)
-			wasAt: start.wasAt, // alte, abgelaufene Frist (nur Verlängern)
+			end: start.end,     // 'manual' (When I close it) | 'deadline'
+			deadline: start.deadline, // value of the datetime-local field (local time)
+			wasAt: start.wasAt, // old, expired deadline (extending only)
 			timed: true,
 			feedback: 'each',
 			busy: false,
@@ -191,7 +191,7 @@ export default {
 		extend() {
 			return this.mode === 'extend'
 		},
-		// Verlängern eines geschlossenen Fensters = wieder öffnen.
+		// Extending a closed window = reopening.
 		reopen() {
 			return this.extend && windowState(this.room.window, this.now) === 'closed'
 		},
@@ -237,7 +237,7 @@ export default {
 			}
 			return deadlinePresets(this.now).map((p) => ({ ...p, label: label[p.key] }))
 		},
-		// Browsergrenzen des Felds; die eigentliche Prüfung ist deadlineError.
+		// Browser limits of the field; the actual validation is deadlineError.
 		minInput() {
 			return toLocalInput(this.now + DEADLINE_MIN + 60)
 		},
@@ -247,7 +247,7 @@ export default {
 		closesAt() {
 			return this.end === 'manual' ? 0 : fromLocalInput(this.deadline)
 		},
-		// Eine Minute Luft an beiden Enden: zwischen Klick und Server vergeht Zeit.
+		// One minute of slack at both ends: time passes between the click and the server.
 		deadlineError() {
 			if (this.end !== 'deadline') return ''
 			const lead = this.closesAt - this.now
@@ -265,8 +265,8 @@ export default {
 		},
 	},
 	mounted() {
-		// Nach dem Schließen zurück auf den Auslöser (im Deck: „Open quiz …";
-		// in der Laufansicht setzt PaceRun den Fokus selbst auf ihr Menü).
+		// After closing, back to the trigger (in the deck: "Open quiz …";
+		// in the run view PaceRun sets the focus on its menu itself).
 		this.returnFocus = document.activeElement
 		this.tick = setInterval(() => { this.now = serverNow(this.skew) }, 1000)
 		document.addEventListener('keydown', this.onDocKey)
@@ -284,7 +284,7 @@ export default {
 	methods: {
 		t,
 		n,
-		// Das Ende bestimmt die Vorgaben der beiden anderen Fragen.
+		// The end determines the defaults of the other two questions.
 		setEnd(v) {
 			this.end = v
 			this.timed = v === 'manual'
@@ -308,7 +308,7 @@ export default {
 			this.busy = true
 			const fallback = this.extend ? t('pulse', 'Could not change the end.') : t('pulse', 'Could not open the quiz.')
 			try {
-				// Verlängern schickt nur das Ende — Timer und Rückmeldung bleiben (Server).
+				// Extending sends only the end — timer and feedback stay (server).
 				const body = this.extend
 					? { action: 'extend', closesAt: this.closesAt }
 					: { action: 'open', closesAt: this.closesAt, timed: this.timed, feedback: this.practice ? 'each' : this.feedback }
@@ -331,7 +331,7 @@ export default {
 				this.cancel()
 			}
 		},
-		// Fokusfang: Tab bleibt im Dialog.
+		// Focus trap: Tab stays inside the dialog.
 		onKey(e) {
 			if (e.key !== 'Tab') return
 			const els = Array.from(this.$refs.dialog.querySelectorAll('button, input, [tabindex="0"]'))
@@ -358,13 +358,13 @@ export default {
 	z-index: 10000;
 	display: grid;
 	place-items: center;
-	/* Unter dem Nextcloud-Kopf bleiben: dessen Suchleiste liegt sonst über
-	   der Oberkante eines hohen Dialogs. */
+	/* Stay below the Nextcloud header: its search bar would otherwise lie over
+	   the top edge of a tall dialog. */
 	padding: calc(var(--header-height, 50px) + 12px) 16px 12px;
 	background: rgba(0, 0, 0, .5);
 }
-/* Kopf und Fuß stehen, nur der Körper scrollt — die Knöpfe bleiben in
-   Reichweite, auch bei 768 px Höhe mit Frist und Warnung. */
+/* Head and foot stay put, only the body scrolls — the buttons stay within
+   reach, even at 768 px height with a deadline and a warning. */
 .pod {
 	width: 100%;
 	max-width: 560px;
@@ -399,9 +399,9 @@ export default {
 .pod-sum { flex: 1 1 auto; font-size: var(--t-sm); font-weight: 700; color: var(--pulse-text-2); font-variant-numeric: tabular-nums; }
 .pod-submit { min-width: 150px; }
 
-/* Datum + Uhrzeit: dieselben Regeln wie .pinput im Moderator (Rahmen, Fokus,
-   Pulse-Tokens), Schrift 16 px — kleiner zoomt iOS beim Antippen. NC stylt
-   Eingaben global über Element-Selektoren, daher die !important-Resets. */
+/* Date + time: the same rules as .pinput in the moderator (border, focus,
+   Pulse tokens), 16 px font — anything smaller makes iOS zoom on tap. NC styles
+   inputs globally via element selectors, hence the !important resets. */
 .pace-input {
 	background: var(--pulse-bg) !important;
 	color: var(--pulse-text) !important;

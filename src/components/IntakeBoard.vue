@@ -8,8 +8,8 @@
 		<p v-if="slots" class="intake-ref">{{ t('pulse', 'of {total} here', { total: slots }) }}</p>
 		<p v-else class="intake-ref">{{ n('pulse', 'answer', 'answers', shownAnswered) }}</p>
 
-		<!-- Über 200 Verbundenen wird das Raster zur Textur ohne Aussage; dann
-		     trägt eine Zeile in der Bühnen-Grammatik dieselbe Aussage. -->
+		<!-- Above 200 connected people the grid turns into a texture that says
+		     nothing; then a row in the stage grammar carries the same message. -->
 		<div v-if="asBar" class="srows intake-bar">
 			<StageRow :label="t('pulse', 'Answers')" :value="shownAnswered + ' / ' + slots" :pct="barPct" />
 		</div>
@@ -21,20 +21,20 @@
 
 <script>
 /*
- * Eingangs-Anzeige (Redesign §6.2) — ein Bauteil für alle Fragetypen.
+ * Intake display (redesign §6.2, design notes not in the public
+ * repository) — one component for all question types.
  *
- * Zeigt, wie viele geantwortet haben, und setzt es ins Verhältnis zu den
- * Verbundenen. Die Zahl allein wäre eine Behauptung; erst der Bezug macht sie
- * zur Entscheidungsgrundlage — der Moderator sieht, wie viele noch fehlen.
+ * Shows how many have answered and relates it to the number of connected
+ * people. The number alone would be a claim; only the reference makes it a
+ * basis for decisions — the moderator sees how many are still missing.
  *
- * Anonymität ist Bauprinzip, nicht Beiwerk: die Plätze füllen sich in fester
- * Reihenfolge von oben links, sind untereinander nicht unterscheidbar, tragen
- * keine Kennung und werden nie neu sortiert. Aus dem Raster ist nicht
- * ableitbar, wer wann was geantwortet hat.
+ * Anonymity is a design principle, not an add-on: the slots fill in a fixed
+ * order from the top left, cannot be told apart, carry no identifier and are
+ * never re-sorted. The grid does not reveal who answered what and when.
  */
 import StageRow from './StageRow.vue'
 
-// Ab hier wird das Raster verdichtet bzw. ganz durch eine Zeile ersetzt.
+// From here on the grid gets denser, or is replaced by a row altogether.
 const DENSE_FROM = 61
 const BAR_FROM = 201
 
@@ -43,18 +43,18 @@ export default {
 	components: { StageRow },
 	props: {
 		answered: { type: Number, default: 0 },
-		// Verbundene Personen; 0 = unbekannt (dann entfällt der Bezug).
+		// Connected people; 0 = unknown (then the reference is dropped).
 		present: { type: Number, default: 0 },
-		// Zeit abgelaufen: der Eingang friert ein (§6.5).
+		// Time is up: the intake freezes (§6.5).
 		frozen: { type: Boolean, default: false },
-		// Schmale Form neben einem Bild: Zahl und Bezug einzeilig, Raster
-		// einreihig (§7.1). Der Eingang bleibt sichtbar, nur flacher.
+		// Narrow form next to an image: number and reference on one line, grid
+		// in a single row (§7.1). The intake stays visible, just flatter.
 		compact: { type: Boolean, default: false },
 	},
 	data() {
 		return {
-			// Das Raster schrumpft während einer laufenden Frage nie — sonst
-			// springt die Fläche, sobald jemand die Seite schließt (§6.6).
+			// The grid never shrinks while a question is running — otherwise
+			// the area jumps as soon as someone closes the page (§6.6).
 			maxSlots: 0,
 			frozenAt: null,
 		}
@@ -70,12 +70,12 @@ export default {
 			return this.slots >= DENSE_FROM
 		},
 		asBar() {
-			// Schmal neben einem Bild ist schon ab dem verdichteten Raster kein
-			// Platz mehr für mehrere Reihen — dort trägt die Zeile früher (§7.1).
+			// Narrow next to an image there is no room for several rows once the grid
+			// gets dense — the row takes over earlier there (§7.1).
 			return this.slots >= (this.compact ? DENSE_FROM : BAR_FROM)
 		},
-		// Ohne bekannte Präsenz (eingebettete Ansicht) wächst das Raster ohne
-		// leere Plätze mit.
+		// Without a known presence (embedded view) the grid grows along without
+		// empty slots.
 		gridSlots() {
 			return Math.max(this.slots, this.shownAnswered)
 		},
@@ -112,7 +112,7 @@ export default {
 </script>
 
 <style scoped>
-/* Alles in em der Bühne (§2.3): die Schrumpf-Schleife nimmt den Eingang mit. */
+/* Everything in em of the stage (§2.3): the shrink loop takes the intake along. */
 .intake { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.1em; min-height: 0; text-align: center; }
 .intake-num { margin: 0; font-size: 1.6em; font-weight: 900; line-height: 1.05; font-variant-numeric: tabular-nums; }
 .intake-ref { margin: 0 0 0.6em; color: var(--pulse-meta); font-weight: 600; }
@@ -120,8 +120,8 @@ export default {
 .intake-grid {
 	display: flex; flex-wrap: wrap; justify-content: center; align-content: center;
 	gap: 0.35em; min-height: 0;
-	/* Deckel auf die Breite, damit die Plätze ein Raster bilden statt einer
-	   einzelnen langen Reihe — nur im Raster sind sie auf einen Blick zählbar. */
+	/* Cap the width so that the slots form a grid instead of a single long
+	   row — only in a grid can they be counted at a glance. */
 	max-width: min(100%, 14em);
 }
 .intake-grid.is-dense { gap: 0.22em; }
@@ -135,11 +135,11 @@ export default {
 .intake-bar { width: 100%; }
 .is-frozen .intake-num { color: var(--pulse-meta); }
 
-/* Schmale Form (§7.1): eine Zeile aus Zahl, Bezug und Raster. */
+/* Narrow form (§7.1): one row of number, reference and grid. */
 .intake.is-compact { flex-direction: row; align-items: center; justify-content: flex-start; gap: 0.5em; text-align: left; }
-/* Die Zeilenhöhe muss die Schriftbox der Ziffern (≈1,29 em) fassen — 1,05
-   schnitt sie auf 0,86 em zu, und die Überlänge zählte als 2 px Überlauf der
-   Bühne, obwohl auf dem Bild nichts fehlte. */
+/* The line height must fit the font box of the digits (≈1.29 em) — 1.05
+   cut it to 0.86 em, and the overhang counted as a 2 px overflow of the
+   stage, although nothing was missing in the picture. */
 .intake.is-compact .intake-num { flex: 0 0 auto; font-size: 1.15em; line-height: 1.35; }
 .intake.is-compact .intake-ref { flex: 0 0 auto; margin: 0; white-space: nowrap; }
 .intake.is-compact .intake-grid { flex: 1 1 auto; max-width: none; justify-content: flex-start; gap: 0.25em; }

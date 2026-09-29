@@ -10,14 +10,14 @@ namespace OCA\Pulse\Service;
 use OCP\IL10N;
 
 /**
- * Formatierung für die CSV-Exporte. Statisch, damit moderierter und
- * selbstgetakteter Export dieselben Zahlen und Bezeichnungen schreiben.
+ * Formatting for the CSV exports. Static, so that the moderated and the
+ * self-paced export write the same numbers and labels.
  */
 class CsvFormat {
     /**
-     * Zahl für den Export in der Sprache des Exports formatiert. Ohne das
-     * schreibt der deutsche Export einen Punkt und Excel liest die Spalte als
-     * Text (und umgekehrt beim englischen Export ein Komma).
+     * Formats a number for the export in the export's language. Without
+     * this the German export writes a dot and Excel reads the column as
+     * text (and the English export a comma, the other way round).
      */
     public static function number(float|int|string $v, string $locale): string {
         $n = (float)$v;
@@ -31,15 +31,15 @@ class CsvFormat {
     }
 
     /**
-     * Freier Text aus dem Publikum (Namen, Freitext-Antworten, Wörter) für die
-     * CSV: beginnt er wie eine Formel, stellt ein Apostroph davor — sonst
-     * führte Excel „=HYPERLINK(…)" aus einem Spielernamen beim Öffnen aus.
+     * Free text from the audience (names, free-text answers, words) for the
+     * CSV: if it starts like a formula, prefix an apostrophe — otherwise
+     * Excel would run "=HYPERLINK(…)" from a player name when opening the file.
      */
     public static function cell(string $s): string {
         return preg_match('/^[=+\-@\t\r]/', $s) === 1 ? "'" . $s : $s;
     }
 
-    /** Lesbarer Name eines Fragetyps für die Spalte „Typ". */
+    /** Readable name of a question type for the "Type" column. */
     public static function typeLabel(string $type, IL10N $l10n): string {
         return match ($type) {
             'words' => $l10n->t('Word cloud'),

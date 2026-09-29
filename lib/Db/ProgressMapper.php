@@ -13,10 +13,10 @@ use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 
 /**
- * Fortschritt im eigenen Tempo. Kein Transaktionsblock: Auf PostgreSQL bricht
- * ein Unique-Verstoß die ganze Transaktion ab — start() läuft deshalb außerhalb
- * und wertet den Verstoß als „war schon da". Die Lücke zwischen closeIfOpen()
- * und start() schließt die Selbstheilung in PaceService::next.
+ * Self-paced progress. No transaction block: on PostgreSQL a unique
+ * violation aborts the whole transaction — start() therefore runs outside of one
+ * and treats the violation as "already there". The gap between closeIfOpen()
+ * and start() is closed by the self-healing in PaceService::next.
  *
  * @extends QBMapper<Progress>
  */
@@ -26,7 +26,7 @@ class ProgressMapper extends QBMapper {
     }
 
     /**
-     * @return Progress[] Zeilen einer Person, nach seq aufsteigend
+     * @return Progress[] one person's rows, ascending by seq
      */
     public function findByRoomAndToken(int $roomId, string $voterToken): array {
         $qb = $this->db->getQueryBuilder();
@@ -40,7 +40,7 @@ class ProgressMapper extends QBMapper {
     }
 
     /**
-     * @return Progress[] alle Zeilen eines Raums, nach Token, dann seq
+     * @return Progress[] all rows of a room, by token, then seq
      */
     public function findByRoom(int $roomId): array {
         $qb = $this->db->getQueryBuilder();
@@ -54,10 +54,10 @@ class ProgressMapper extends QBMapper {
     }
 
     /**
-     * Frage für diese Person starten. Unique-Verstoß (poll_id, voter_token)
-     * -> false (Doppeltipp oder paralleler Tab war schneller), sonst true.
-     * Andere DB-Fehler werfen weiter. Nicht innerhalb einer Transaktion rufen
-     * (s. Klassenkommentar).
+     * Start a question for this person. Unique violation (poll_id, voter_token)
+     * -> false (double tap or a parallel tab was faster), otherwise true.
+     * Other DB errors are rethrown. Do not call inside a transaction
+     * (see the class comment).
      */
     public function start(int $roomId, int $pollId, string $voterToken, int $seq, int $now): bool {
         $row = new Progress();
@@ -66,7 +66,7 @@ class ProgressMapper extends QBMapper {
         $row->setVoterToken($voterToken);
         $row->setSeq($seq);
         $row->setStartedAt($now);
-        // left_at bleibt 0 (Default) = offen
+        // left_at stays 0 (default) = open
         try {
             $this->insert($row);
             return true;
@@ -79,8 +79,8 @@ class ProgressMapper extends QBMapper {
     }
 
     /**
-     * Compare-and-set: Zeile nur schließen, wenn sie noch offen ist.
-     * @return bool true genau dann, wenn DIESE Anfrage die Zeile geschlossen hat
+     * Compare-and-set: close the row only if it is still open.
+     * @return bool true exactly when THIS request closed the row
      */
     public function closeIfOpen(int $id, int $now): bool {
         $qb = $this->db->getQueryBuilder();
@@ -91,7 +91,7 @@ class ProgressMapper extends QBMapper {
         return $qb->executeStatement() === 1;
     }
 
-    /** Hat diese Person die Frage je erreicht? (Bildfreigabe) */
+    /** Has this person ever reached the question? (image release) */
     public function hasRow(int $pollId, string $voterToken): bool {
         $qb = $this->db->getQueryBuilder();
         $qb->select('id')
@@ -112,7 +112,7 @@ class ProgressMapper extends QBMapper {
         $qb->executeStatement();
     }
 
-    /** Eine Person aus dem Raum entfernen (PaceService::removePlayer). */
+    /** Remove a person from the room (PaceService::removePlayer). */
     public function deleteByRoomAndToken(int $roomId, string $voterToken): void {
         $qb = $this->db->getQueryBuilder();
         $qb->delete($this->getTableName())
@@ -121,7 +121,7 @@ class ProgressMapper extends QBMapper {
         $qb->executeStatement();
     }
 
-    /** Nur Demo-/Test-Fortschritt eines Raums löschen (Token-Präfix „demo:"). */
+    /** Delete only the demo/test progress of a room (token prefix "demo:"). */
     public function deleteDemoByRoom(int $roomId): void {
         $qb = $this->db->getQueryBuilder();
         $qb->delete($this->getTableName())

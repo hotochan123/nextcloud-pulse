@@ -72,8 +72,30 @@ this file, so every published version needs an entry here.
     `GET /api/1.0/rooms/{code}/progress` follows everyone,
     `POST /s/{code}/next` moves a phone on, and the CSV export takes
     `?view=players` and `?view=answers`.
+- An AI disclosure. Pulse is vibe-coded: its code, tests, development tools,
+  documentation and German translation were written by AI coding agents
+  (Anthropic's Claude Code), and there has been no independent human code
+  review and no security audit. The README now says so in a notice right under
+  the title and in a section "How this app was built (AI disclosure)" with the
+  models, the commit counts and what the tests can and cannot vouch for; the
+  App Store description carries a short version in English and German.
 
 ### Changed
+- Documentation and code comments are in English now. The READMEs, the App
+  Store guide and the comments in PHP, JavaScript, Vue, CSS, shell and
+  configuration files used to be mostly German. The German translation of the
+  interface (`l10n/`) and the German store description stay German on purpose.
+  Still German, for a later round: German inside the code itself — test data
+  and test method names, messages of the development and release scripts, the
+  CI step names, the `package.json` description, the seed words of the demo
+  mode, the comments inside the add-in manifest template and inside the browser
+  scripts of the screenshot harness.
+- The README was brought up to date for a public audience: installation from
+  the repository, a section on security notes, the adaptive polling intervals
+  instead of a fixed 2.5 s, and the App Store status (the screenshots exist; the
+  pull request for the signing certificate has not been opened yet). It no
+  longer says that `info.xml` advertises Nextcloud 29 and later — it has
+  declared 34 only since 0.18.0.
 - The add-in manifest is no longer German-only: source locale `en-US` with a
   German override, like the rest of the app. Its `<Version>` now comes from
   `info.xml`, so PowerPoint recognises an updated add-in.
@@ -226,6 +248,13 @@ this file, so every published version needs an entry here.
 ### Removed
 - `office-addin/manifest.xml`. It is generated now, and a second editable copy
   next to the generated one is exactly the trap this change removes.
+- Internal design notes — design briefs, handoffs and HTML mockups from the
+  design rounds under `docs/` — are no longer part of the public repository.
+  They were working material of those rounds, not documentation of the app.
+  Code comments still cite their section numbers, and those of the self-paced
+  quiz specification, which was never in the repository; every file that does
+  so says in a note that these documents are not public, and the README
+  explains such references under "References in code comments".
 
 ## [0.18.0] - 2026-08-14
 

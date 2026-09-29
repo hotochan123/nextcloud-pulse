@@ -3,15 +3,15 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 /*
- * Handy im eigenen Tempo (Spezifikation Stufe 4, §2): Daten, Computeds,
- * Watcher, nextStep, Urteilsband, Überspringen- und Antwortsperre, Fokus und
- * Ansagen (§2.5, §2.11). Die Kartentexte stehen im Template von
- * Participant.vue — die scoped Klassen (.center, .code-badge, .you, .submit …)
- * wirken nur dort. Die reinen Entscheidungen (paceCard, canNext, phoneDelay)
- * liegen in util/pace.js und sind ohne Browser geprüft.
+ * The phone in self-paced mode (stage 4 spec, §2; design notes, not in the
+ * public repository): data, computeds, watchers, nextStep, verdict band, skip
+ * and answer lock, focus and announcements (§2.5, §2.11). The card texts live
+ * in the template of Participant.vue — the scoped classes (.center, .code-badge,
+ * .you, .submit …) only apply there. The pure decisions (paceCard, canNext,
+ * phoneDelay) live in util/pace.js and are tested without a browser.
  *
- * Moderiert bleibt alles beim Alten: jeder Zweig hängt an isPaced, und
- * applyPace läuft nur für einen Zustand mit room.pace === 'self'.
+ * Moderated mode stays exactly as before: every branch hangs on isPaced, and
+ * applyPace only runs for a state with room.pace === 'self'.
  */
 import axios from '@nextcloud/axios'
 import { t } from '../util/l10n.js'
@@ -19,56 +19,56 @@ import { showError } from '../toast.js'
 import { fmtDeadline } from '../util/format.js'
 import { CLOSING_SOON, canNext, paceCard, windowState } from '../util/pace.js'
 
-// Gemerkter Name je Raum: {nick, openedAt}. Übersteht Neuladen und einen
-// verworfenen Hintergrund-Tab — nur so kann das Handy „entfernt" von „neue
-// Runde" unterscheiden, wenn der Server nur noch `nickname: null` meldet.
+// Remembered name per room: {nick, openedAt}. Survives a reload and a
+// discarded background tab — only this way can the phone tell "removed" from
+// "new round" when the server only reports `nickname: null`.
 const STORE_PREFIX = 'pulse-pace:'
 
-// Sperre der Antworttipps nach jeder neuen Frage (ms). Deckt den zweiten Tipp
-// eines Doppeltipps auf „Next question" ab, auch wenn /next schneller zurück
-// ist als der Finger; wer die Frage liest, merkt davon nichts.
+// Lock on answer taps after every new question (ms). Covers the second tap
+// of a double tap on "Next question", even when /next is back faster
+// than the finger; anyone reading the question notices nothing.
 const ANSWER_HOLD_MS = 600
 
 export default {
 	data() {
 		return {
-			pace: '',             // room.pace aus /state ('' = moderiert)
-			paceWindow: null,     // window aus /state: Zustand, Frist, Einstellungen
+			pace: '',             // room.pace from /state ('' = moderated)
+			paceWindow: null,     // window from /state: state, deadline, settings
 			progress: null,       // {k, n, started, finished, timeUp, currentPollId, after}
-			myScore: null,        // eigene Punkte (null = verborgen, „am Ende")
-			nextBusy: false,      // /next unterwegs
-			paceNotice: '',       // ''|'removed'|'newRound' — Hinweis am Namensbildschirm
-			paceStored: null,     // {nick, openedAt} — gemerkter Name dieses Raums
-			paceLostDraft: false, // Eingabe da, aber das Fenster schloss vor dem Senden
-			reviewState: '',      // Fensterzustand beim Öffnen der Auswertung
-			skipArmed: false,     // „Skip question" erst 1,5 s nach jeder neuen Frage scharf
-			skipTimer: null,      // Timer dazu (beforeDestroy räumt ihn ab)
-			answerArmed: true,    // Antworttipps: nach jeder neuen Frage erst nach ANSWER_HOLD_MS scharf
-			answerTimer: null,    // Timer dazu (beforeDestroy räumt ihn ab)
-			paceAnnounce: '',     // Ansage für Screenreader (aria-live, §2.11)
-			paceFocusNext: false, // nach eigenem Übergang: Fokus auf die neue Überschrift
+			myScore: null,        // own points (null = hidden, "At the end")
+			nextBusy: false,      // /next in flight
+			paceNotice: '',       // ''|'removed'|'newRound' — notice on the name screen
+			paceStored: null,     // {nick, openedAt} — remembered name for this room
+			paceLostDraft: false, // input present, but the window closed before sending
+			reviewState: '',      // window state when the review was opened
+			skipArmed: false,     // "Skip question" only armed 1.5 s after every new question
+			skipTimer: null,      // its timer (beforeDestroy clears it)
+			answerArmed: true,    // answer taps: after every new question only armed after ANSWER_HOLD_MS
+			answerTimer: null,    // its timer (beforeDestroy clears it)
+			paceAnnounce: '',     // announcement for screen readers (aria-live, §2.11)
+			paceFocusNext: false, // after an own transition: focus on the new heading
 		}
 	},
 	computed: {
 		isPaced() {
 			return this.isQuiz && this.pace === 'self'
 		},
-		// Eine lokal abgelaufene Frist gilt schon als geschlossen; der nächste
-		// Abruf bestätigt es. Serverzeit über serverSkew, nie die nackte Uhr.
+		// A deadline that has passed locally already counts as closed; the next
+		// fetch confirms it. Server time via serverSkew, never the bare clock.
 		paceState() {
 			return windowState(this.paceWindow, this.nowSec + this.serverSkew)
 		},
-		// Geschlossen oder freigegeben: beitreten geht nicht mehr, also kein
-		// Namensbildschirm (der Server lehnte ohnehin mit 400 ab).
+		// Closed or released: joining is no longer possible, so no
+		// name screen (the server would reject it with 400 anyway).
 		paceNoJoin() {
 			return this.isPaced && (this.paceState === 'closed' || this.paceState === 'released')
 		},
-		// Freigegeben mit Rangliste: dann der bestehende Endstand (Zweig 7).
+		// Released with a leaderboard: then the existing final standings (branch 7).
 		paceFinal() {
 			return this.isPaced && this.paceState === 'released'
 				&& Array.isArray(this.leaderboard) && this.leaderboard.length > 0
 		},
-		// Urteil erst, wenn die Antwort endgültig ist — davor keines (kein grüner Blitz).
+		// A verdict only once the answer is final — none before that (no green flash).
 		paceVerdict() {
 			return this.myResult && this.myResult.final ? this.myResult.verdict : null
 		},
@@ -76,12 +76,12 @@ export default {
 			return !!(this.myResult && this.myResult.final)
 		},
 		/*
-		 * Antworttipps kurz gesperrt (§2.5, Gate 4.4b): „Next question" steht beim
-		 * Zeitablauf mittig und sonst unten — genau dort liegen danach die Karten
-		 * der nächsten Frage (Wahr/Falsch: B) bzw. ihr „Submit" (Reihenfolge ist
-		 * sofort absendebereit). Auswahl und Wahr/Falsch senden im Quiz sofort; der
-		 * zweite Tipp eines Doppeltipps gäbe so eine Antwort ab, die niemand
-		 * gewählt hat. Moderiert immer false.
+		 * Answer taps briefly locked (§2.5, gate 4.4b): "Next question" sits in the
+		 * middle when time is up and at the bottom otherwise — exactly where the cards
+		 * of the next question land afterwards (True/False: B) or its "Submit" (ordering
+		 * is ready to submit at once). Choice and True/False submit immediately in the
+		 * quiz; the second tap of a double tap would thus submit an answer nobody
+		 * chose. Always false when moderated.
 		 */
 		paceHold() {
 			return this.isPaced && !this.answerArmed
@@ -89,7 +89,7 @@ export default {
 		paceLast() {
 			return !!this.progress && this.progress.k >= this.progress.n
 		},
-		// Karte ohne Frage (§2.2): '' = keine, dann greifen die übrigen Zweige.
+		// Card without a question (§2.2): '' = none, then the other branches apply.
 		paceCard() {
 			return paceCard({
 				isPaced: this.isPaced,
@@ -115,9 +115,9 @@ export default {
 		nextLabel() {
 			return this.paceLast ? t('pulse', 'I’m done') : t('pulse', 'Next question')
 		},
-		// Urteilsband der Absende-Zone (§2.5): Klasse, Icon, Wort — Farbe nie allein.
-		// Vor dem endgültigen Urteil neutral (kein grüner Blitz); „am Ende" sagt
-		// schon jetzt dasselbe wie danach. Nie die Lösung, nie eine Verteilung.
+		// Verdict band of the submit zone (§2.5): class, icon, word — never colour alone.
+		// Neutral before the final verdict (no green flash); "At the end" already
+		// says the same now as afterwards. Never the solution, never a distribution.
 		paceBand() {
 			switch (this.paceVerdict) {
 			case 'correct':
@@ -133,11 +133,11 @@ export default {
 			return { cls: 'is-mut', icon: 'check', text: end ? t('pulse', 'Answer saved') : t('pulse', 'Answer sent') }
 		},
 		/*
-		 * Was die Ansage-Region sagt (§2.11): die Überschrift der neuen Karte bzw.
-		 * „Question {number} of {total}" — auch bei Wechseln durch den Server
-		 * (Frist, entfernt, freigegeben). Warten und Weiter tragen dieselbe
-		 * Überschrift wie der Start („Ready, …"); dort sagt die Statuszeile, was
-		 * sich geändert hat.
+		 * What the announcement region says (§2.11): the heading of the new card or
+		 * "Question {number} of {total}" — also on changes made by the server
+		 * (deadline, removed, released). The wait and continue cards carry the same
+		 * heading as the start ("Ready, …"); there the status line says what
+		 * has changed.
 		 */
 		paceHeadline() {
 			if (!this.isPaced) return ''
@@ -165,11 +165,11 @@ export default {
 		paceClosesAt() {
 			return (this.paceWindow && this.paceWindow.closesAt) || 0
 		},
-		// Frist absolut („Fr., 3. Okt., 18:00"), nur solange offen.
+		// Deadline as an absolute time ("Fri, Oct 3, 18:00"), only while open.
 		paceUntil() {
 			return this.paceClosesAt > 0 && this.paceState === 'open' ? fmtDeadline(this.paceClosesAt) : ''
 		},
-		// „Closes in %n min" erst in der letzten Viertelstunde, Minuten aufgerundet.
+		// "Closes in %n min" only in the last quarter of an hour, minutes rounded up.
 		closesInMin() {
 			if (!this.paceUntil) return 0
 			const rest = this.paceClosesAt - (this.nowSec + this.serverSkew)
@@ -177,20 +177,20 @@ export default {
 		},
 	},
 	watch: {
-		// Korrekturmodus im eigenen Tempo nie hängen lassen (§2.1): wer „Change"
-		// tippt und dann wartet, bekäme von /vote nur noch 400 — ein toter
-		// Bildschirm bis zum Neuladen. (a) Das lokale Fenster ist um …
+		// Never leave the correction mode hanging in self-paced mode (§2.1): anyone who
+		// taps "Change" and then waits would only get 400 from /vote — a dead
+		// screen until a reload. (a) The local window is over …
 		nowSec(now) {
 			if (this.isPaced && this.changing && this.fixUntil > 0 && now >= this.fixUntil) this.paceEndChange()
 		},
-		// … (b) oder der Server meldet die Antwort als endgültig.
+		// … (b) or the server reports the answer as final.
 		paceAnswerFinal(final) {
 			if (final && this.isPaced && this.changing) this.paceEndChange()
 		},
-		// Neue Frage (pollKey-Wechsel): „Skip question" erst nach 1,5 s scharf, die
-		// Antworten nach 0,6 s — ein Doppeltipp auf „Next question" überspringt oder
-		// beantwortet so nie die nächste Frage. Der Watcher läuft vor dem Rendern:
-		// die neue Frage erscheint schon gesperrt.
+		// New question (pollKey change): "Skip question" only armed after 1.5 s, the
+		// answers after 0.6 s — so a double tap on "Next question" never skips or
+		// answers the next question. The watcher runs before rendering:
+		// the new question already appears locked.
 		lastPollKey() {
 			if (!this.isPaced) return
 			this.armSkip()
@@ -209,12 +209,12 @@ export default {
 				this.paceStored = { nick: v.nick, openedAt: Number(v.openedAt) || 0 }
 			}
 		} catch (e) {
-			// Kein Speicher (privates Fenster, gesperrt) oder kaputter Eintrag:
-			// wie beim ersten Besuch.
+			// No storage (private window, blocked) or a broken entry:
+			// same as on the first visit.
 		}
 	},
-	// Fokus nach einem eigenen Übergang (Beitritt, Start, Weiter, Überspringen,
-	// §2.11): sonst fiele er mit dem getippten Knopf auf <body>. Einmal je Flag.
+	// Focus after an own transition (join, start, next, skip,
+	// §2.11): otherwise it would fall to <body> with the tapped button. Once per flag.
 	updated() {
 		if (!this.paceFocusNext) return
 		this.paceFocusNext = false
@@ -226,15 +226,15 @@ export default {
 	},
 	methods: {
 		/*
-		 * Zustand im eigenen Tempo übernehmen (§2.1). Läuft in applyState VOR den
-		 * bestehenden Zeilen — es braucht noch die alte Frage und `voted` — und
-		 * nur mit Antworten, die die submitSeq-Wache passiert haben.
+		 * Take over the self-paced state (§2.1). Runs in applyState BEFORE the
+		 * existing lines — it still needs the old question and `voted` — and
+		 * only with responses that passed the submitSeq guard.
 		 */
 		applyPace(data) {
 			const win = data.window || null
 			const st = win ? win.state : ''
-			// Eingabe verloren? Offene, unbeantwortete Frage mit Eingabe, und das
-			// Fenster ist zu (Frist oder geschlossen, während getippt wurde).
+			// Input lost? An open, unanswered question with input, and the
+			// window is shut (deadline or closed while typing).
 			if (this.poll && !this.voted && this.needsSubmit && this.submitReady && st && st !== 'open') this.paceLostDraft = true
 			if (st === 'open' && data.poll) this.paceLostDraft = false
 			this.paceWindow = win
@@ -244,11 +244,11 @@ export default {
 				this.paceNotice = ''
 				this.rememberPace({ nick: data.nickname, openedAt: win ? win.openedAt : 0 })
 			} else if (this.paceStored && this.paceStored.nick && (st === 'draft' || st === 'open')) {
-				// Gleiche Runde (openedAt unverändert) und offen: entfernt. Sonst neue
-				// Runde (zurückgesetzt, Probelauf/Tempo umgeschaltet, neu geöffnet).
+				// Same round (openedAt unchanged) and open: removed. Otherwise a new
+				// round (reset, practice run/pace switched, reopened).
 				this.paceNotice = (st === 'open' && win.openedAt > 0 && win.openedAt === this.paceStored.openedAt) ? 'removed' : 'newRound'
 			}
-			// Die Auswertung gehört zum Fensterzustand, in dem sie geladen wurde.
+			// The review belongs to the window state in which it was loaded.
 			if (this.review && st !== this.reviewState) this.review = null
 		},
 		rememberPace(entry) {
@@ -258,7 +258,7 @@ export default {
 			try {
 				window.localStorage.setItem(STORE_PREFIX + this.code, JSON.stringify(entry))
 			} catch (e) {
-				// Ohne Speicher gilt nur der Stand in diesem Tab.
+				// Without storage only the state in this tab counts.
 			}
 		},
 		armSkip() {
@@ -277,26 +277,26 @@ export default {
 				this.answerArmed = true
 			}, ANSWER_HOLD_MS)
 		},
-		// Abfrage-Schleife (mixins/polling.js) im eigenen Tempo einflugig: jeder
-		// Abruf hat hier ein Timeout, und ein Handy, das mit einer hängenden
-		// Anfrage entsperrt wird, startete sonst eine zweite Kette.
+		// Polling loop (mixins/polling.js) single-flight in self-paced mode: every
+		// fetch has a timeout here, and a phone that is unlocked with a hanging
+		// request would otherwise start a second chain.
 		pollSingleFlight() {
 			return this.isPaced
 		},
-		// Die Überschrift der neuen Ansicht (Karte bzw. Frage) trägt tabindex="-1".
+		// The heading of the new view (card or question) carries tabindex="-1".
 		paceFocusHeading() {
 			const root = this.$el
 			const h = root && root.querySelector ? root.querySelector('.pace-card h1, .pace-timeup h1.q, .h-app h1.q') : null
 			if (h && typeof h.focus === 'function') h.focus()
 		},
-		// Korrektur abbrechen und die gesendete Antwort wieder zeigen — sonst
-		// stünde eine ungesendete Änderung neben „gesendet".
+		// Cancel the correction and show the sent answer again — otherwise
+		// an unsent change would sit next to "sent".
 		paceEndChange() {
 			this.changing = false
 			this.restoreMine()
 		},
-		// Eingaben aus der gesendeten Antwort (myValue) neu setzen — nur die
-		// Quiz-Typen; Auswahl und Wahr/Falsch markiert isPicked über myValue.
+		// Reset the inputs from the sent answer (myValue) — only the
+		// quiz types; choice and True/False are marked by isPicked via myValue.
 		restoreMine() {
 			const p = this.poll
 			const v = this.myValue
@@ -310,17 +310,17 @@ export default {
 			else if (p.type === 'match' && typeof v === 'object') this.matchPick = this.initMatch(p, v).pick
 		},
 		/*
-		 * Nächste Frage holen (§2.7) — auch „Start quiz" und „Next" auf der
-		 * Weiter-Karte. `after` ist immer progress.after, nie poll.id: so heilt
-		 * /next auch eine Anfrage, die zwischen Schließen und Starten abbrach.
-		 * Die Antwort IST der neue Zustand, ein No-op (Doppeltipp, veraltetes
-		 * `after`) ist 200 mit unverändertem Zustand. Das Timeout verhindert
-		 * einen dauerhaft toten Knopf; bei Fehlern holt die Schleife den Stand.
+		 * Fetch the next question (§2.7) — also "Start quiz" and "Next" on the
+		 * continue card. `after` is always progress.after, never poll.id: that way
+		 * /next also heals a request that broke off between closing and starting.
+		 * The response IS the new state; a no-op (double tap, stale
+		 * `after`) is a 200 with an unchanged state. The timeout prevents
+		 * a permanently dead button; on errors the loop fetches the state.
 		 */
 		async nextStep() {
-			if (this.nextBusy || this.busy || !this.progress) return // nie, während /vote läuft
+			if (this.nextBusy || this.busy || !this.progress) return // never while /vote is running
 			this.nextBusy = true
-			this.submitSeq++ // laufende /state-Antworten verwerfen
+			this.submitSeq++ // discard /state responses still in flight
 			try {
 				const { data } = await axios.post(this.base('/next'), { after: this.progress.after }, { timeout: 10000 })
 				this.online = true
@@ -328,13 +328,13 @@ export default {
 				this.paceFocusNext = true
 			} catch (e) {
 				if (e?.response?.status === 404) {
-					// Raum weg: dauerhaft aus (Brute-Force-Drossel, wie pollOnce).
+					// Room gone: permanently off (brute-force throttle, like pollOnce).
 					this.roomExists = false
 					this.pollStopped = true
 					this.pollClear()
 					return
 				}
-				if (!e?.response) this.online = false // Zeitüberschreitung/Netz: der Knopf wird wieder frei
+				if (!e?.response) this.online = false // timeout/network: the button becomes free again
 				else showError(e.response.data?.message || t('pulse', 'Could not load the next question.'))
 			} finally {
 				this.submitSeq++

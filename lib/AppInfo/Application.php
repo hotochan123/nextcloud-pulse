@@ -16,17 +16,17 @@ use OCP\AppFramework\Bootstrap\IRegistrationContext;
 class Application extends App implements IBootstrap {
     public const APP_ID = 'pulse';
 
-    /** Name des anonymen Voter-Cookies auf der öffentlichen Teilnehmer-Seite. */
+    /** Name of the anonymous voter cookie on the public participant page. */
     public const VOTER_COOKIE = 'pulse_vt';
 
     /**
-     * Protokollnummer zwischen Server und Handy-/Beamer-Bundle. Hochzählen,
-     * sobald Server und Bundle nicht mehr zueinander passen; 1 = alles vor
-     * 0.19.0. `/state` trägt sie, und ein Tab mit älterem Skript aus dem
-     * Browser-Cache lädt sich daraufhin einmal neu (src/util/protocol.js,
-     * dort steht dieselbe Zahl — ProtocolConstantTest hält beide gleich).
-     * 3 = Quiz im eigenen Tempo: ein Bundle von davor zeigte einen solchen
-     * Raum für immer als „Waiting for the next question …".
+     * Protocol number between the server and the phone/projector bundle. Bump it
+     * as soon as server and bundle no longer match; 1 = everything before
+     * 0.19.0. `/state` carries it, and a tab running an older script from the
+     * browser cache then reloads itself once (src/util/protocol.js holds the
+     * same number — ProtocolConstantTest keeps the two in sync).
+     * 3 = self-paced quiz: an older bundle showed such a room forever
+     * as "Waiting for the next question …".
      */
     public const PROTOCOL = 3;
 
@@ -35,8 +35,8 @@ class Application extends App implements IBootstrap {
     }
 
     public function register(IRegistrationContext $context): void {
-        // Alle Abhängigkeiten werden per Konstruktor-Autowiring aufgelöst;
-        // manuell registriert wird nur, was Nextcloud von sich aus nicht findet.
+        // All dependencies are resolved via constructor autowiring;
+        // only what Nextcloud cannot find on its own is registered by hand.
         $context->registerSetupCheck(EmbedFraming::class);
     }
 

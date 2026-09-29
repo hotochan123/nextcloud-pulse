@@ -1,20 +1,20 @@
 // SPDX-FileCopyrightText: 2026 hotochan123
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //
-// Durchgangs-Simulation: ein Moderator (Basic-Auth) und mehrere anonyme
-// Teilnehmende (je ein pulse_vt-Cookie) spielen Umfrage und Quiz gegen die
-// laufende Instanz durch; ein Beamer schaut per ?spectate=1 zu. Geprüft wird,
-// ob Handy, Beamer, Moderator, Gesamtauswertung und CSV dieselbe Geschichte
-// erzählen und ob vor dem Auflösen nichts durchsickert. Dazu das Quiz im
-// eigenen Tempo (Rennen, Hausaufgabe, Probelauf) mit echten Wartezeiten.
+// Run-through simulation: a moderator (Basic auth) and several anonymous
+// participants (one pulse_vt cookie each) play through poll and quiz against the
+// running instance; a projector watches via ?spectate=1. It checks
+// whether phone, projector, moderator, overall summary and CSV tell the same story
+// and whether nothing leaks before the reveal. Plus the self-paced
+// quiz (race, homework, practice run) with real waiting times.
 //
-// Die Moderator-Schritte bilden nach, was die Oberfläche (Moderator.vue) je
-// Knopf an den Server schickt — insbesondere finish(). Ändert sich dort der
-// Ablauf, muss er hier mitziehen.
+// The moderator steps replicate what the UI (Moderator.vue) sends to the server
+// per button — finish() in particular. If the flow changes there, it has to
+// follow here.
 //
-// Aufruf über run.sh (setzt die Umgebung); direkt:
+// Called via run.sh (sets up the environment); directly:
 //   PULSE_SIM_URL=http://<container-ip> PULSE_SIM_PASS=… node dev/sim/sim.mjs
-// KEEP=1 lässt die Räume stehen.
+// KEEP=1 keeps the rooms.
 import http from 'node:http'
 
 const URL_BASE = (process.env.PULSE_SIM_URL || 'http://127.0.0.1').replace(/\/$/, '')
@@ -25,8 +25,8 @@ const BASE = URL_BASE + '/index.php/apps/pulse'
 const AUTH = 'Basic ' + Buffer.from(USER + ':' + PASS).toString('base64')
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
-// node:http statt fetch: fetch (undici) überschreibt den Host-Header, und die
-// Container-IP ist keine trusted_domain.
+// node:http instead of fetch: fetch (undici) overwrites the Host header, and the
+// container IP is not a trusted_domain.
 function request(url, opts = {}) {
 	return new Promise((resolve, reject) => {
 		const u = new URL(url)
@@ -35,7 +35,7 @@ function request(url, opts = {}) {
 			port: u.port || 80,
 			path: u.pathname + u.search,
 			method: opts.method || 'GET',
-			// Eigener User-Agent: so findet der Log-Scan (README) genau die Einträge dieses Laufs.
+			// Own user agent: this is how the log scan (README) finds exactly this run's entries.
 			headers: { 'User-Agent': 'pulse-sim', ...(opts.headers || {}), Host: HOST_HEADER },
 		}, (res) => {
 			const chunks = []
@@ -95,7 +95,7 @@ class Phone {
 	state(v = '') { return this.req('GET', '/state', undefined, v ? '?v=' + encodeURIComponent(v) : '') }
 	vote(value, keyboard = false, pollId) { return this.req('POST', '/vote', pollId === undefined ? { value, keyboard } : { value, keyboard, pollId }) }
 	join(nickname) { return this.req('POST', '/join', { nickname }) }
-	// Eigenes Tempo: nächste Frage holen (after = progress.after des letzten Zustands)
+	// Self-paced: fetch the next question (after = progress.after of the last state)
 	next(after) { return this.req('POST', '/next', { after }) }
 	summary() { return this.req('GET', '/summary') }
 }
@@ -103,13 +103,13 @@ class Beamer extends Phone {
 	state(v = '') { return this.req('GET', '/state', undefined, '?spectate=1' + (v ? '&v=' + encodeURIComponent(v) : '')) }
 }
 
-// Lösungsfelder dürfen vor dem Auflösen nirgends öffentlich stehen.
+// Solution fields must not appear publicly anywhere before the reveal.
 const leakKeys = (poll) => (poll ? ['correctOption', 'answerKey'].filter((k) => k in poll) : [])
 const idsOf = (list) => (list || []).map((x) => x.id)
 const sortedIds = (list) => idsOf(list).slice().sort()
-// Vor dem Auflösen mischt der Server per Schlüssel-Hash: dieselbe Folge für
-// alle, dieselben Elemente, aber unabhängig von der Lösung (sie darf sie
-// zufällig treffen — eine Regel „nie gleich" verriete sie).
+// Before the reveal the server shuffles via a key hash: the same order for
+// everyone, the same items, but independent of the solution (it may match it
+// by chance — a "never equal" rule would give it away).
 
 const created = []
 async function newRoom(mode, title) {
@@ -118,7 +118,7 @@ async function newRoom(mode, title) {
 	return room
 }
 
-// Ein Wert, der auch auf die gerade laufende Frage passen würde.
+// A value that would also fit the question currently running.
 function v0ForStale(poll) {
 	if (poll.type === 'words') return ['spät']
 	if (poll.scale && poll.scale.mode === 'single') return 3
@@ -128,7 +128,7 @@ function v0ForStale(poll) {
 	return v
 }
 
-// ═════════════════════════ Umfrage ═════════════════════════
+// ═════════════════════════ Poll ═════════════════════════
 async function survey() {
 	console.log('\n=== Umfrage ===')
 	const { code } = await newRoom('poll', 'SIM Umfrage')
@@ -168,7 +168,7 @@ async function survey() {
 		if (poll.type === 'rank') {
 			check(idsOf(s0.data.poll.options).join() === idsOf(poll.options).join(), `${tag}: Umfrage-Reihenfolge bleibt Editor-Folge (keine Lösung zu verbergen)`)
 		}
-		// Gesamtauswertung wächst mit: nur gezeigte Fragen
+		// The overall summary grows along: only questions shown so far
 		const mid = await phones[0].summary()
 		check((mid.data.items || []).length === qi + 1, `${tag}: /summary enthält genau die ${qi + 1} gezeigten Fragen`, (mid.data.items || []).map((it) => it.poll.question))
 
@@ -191,7 +191,7 @@ async function survey() {
 			check(r.status === 200 && r.data.hasVoted === true, `${tag}: Stimme ${phones[pi].name}`, r.status === 200 ? undefined : r.data)
 		}
 		if (qi > 0 && ['words', 'scale'].includes(poll.type)) {
-			// Später Tipp auf die vorige Frage: nicht auf diese buchen.
+			// Late tap on the previous question: do not count it for this one.
 			const stale = await new Phone('spät', code).vote(v0ForStale(poll), false, polls[qi - 1].id)
 			check(stale.status === 400, `${tag}: Antwort mit alter pollId abgelehnt`, stale.status)
 		}
@@ -232,8 +232,8 @@ async function survey() {
 	await modOk('POST', '/' + code + '/current', { pollId: polls[0].id })
 	const back = await phones[2].state()
 	check(back.data.poll.status === 'locked' && back.data.poll.revealed === true, 'Umfrage: Zurückblättern lässt aufgelöste Frage aufgelöst', back.data.poll.status)
-	// „Auflösung am Ende" gilt nur im Quiz — per API gesetzt, darf es eine
-	// pausierte Umfrage-Frage nicht verdecken.
+	// "Reveal at the end" only applies to quizzes — set via the API, it must not
+	// hide a paused poll question.
 	await modOk('POST', '/' + code + '/reveal', { on: true })
 	const rv = await beamer.state()
 	check(rv.data.poll.revealed === true && rv.data.results && rv.data.results.total === 6, 'Umfrage: „am Ende"-Flag verdeckt nichts', { rv: rv.data.poll.revealed })
@@ -289,10 +289,10 @@ function quizAnswer(poll, right, variant = 0) {
 	}
 }
 
-// Hauptknopf an der letzten Frage (Moderator.vue primary()): Quiz -> /end
-// („Endstand zeigen" / „Auflösen & Endstand"); Probelauf mit „am Ende" -> /end
-// als Auflösung (revealLast), „Beenden" danach -> Lobby; Probelauf je Frage ->
-// Lobby. „Quiz beenden" im Menü (finish()) ist im Probelauf immer die Lobby.
+// Main button on the last question (Moderator.vue primary()): quiz -> /end
+// ("Show final standings" / "Reveal & final standings"); practice run with "At the end" -> /end
+// as the reveal (revealLast), "Finish" afterwards -> lobby; practice run per question ->
+// lobby. "Finish quiz" in the menu (finish()) is always the lobby in a practice run.
 async function moderatorFinish(code, { revealAtEnd, practice }) {
 	if (!practice) return modOk('POST', '/' + code + '/end')
 	if (revealAtEnd) return modOk('POST', '/' + code + '/end')
@@ -385,8 +385,8 @@ async function quizRun({ revealAtEnd, practice, label }) {
 			check(late.status === 400, `${tag}: Korrektur nach dem Fenster abgelehnt`, late.status)
 		}
 		if (!practice && !revealAtEnd && qi > 0) {
-			// /summary darf den Punktestand der laufenden, verdeckten Frage nicht
-			// mitzählen — sonst verriete er „richtig" direkt nach dem Antippen.
+			// /summary must not include the score of the running, hidden question —
+			// otherwise it would give away "correct" right after the tap.
 			const ls = await phones[0].summary()
 			const me = (ls.data.leaderboard || []).find((r) => r.me)
 			check(me && me.score === myPoints.Anna && me.correct === myCorrect.Anna, `${tag}: /summary-Rangliste ohne die laufende Frage`, { me, sum: [myPoints.Anna, myCorrect.Anna] })
@@ -480,8 +480,8 @@ async function quizRun({ revealAtEnd, practice, label }) {
 		}
 	}
 	const ms = await modOk('GET', '/' + code + '/summary')
-	// CSV des moderierten Quiz: jede Frage; der Freitext eine Zeile je
-	// Antwortgruppe (lief früher in eine 500), die Schätzung mit ihrer Zahl.
+	// CSV of the moderated quiz: every question; the free text one row per
+	// answer group (used to run into a 500), the estimate with its number.
 	const csv = await request(BASE + '/api/1.0/rooms/' + code + '/export', { headers: { Authorization: AUTH, 'OCS-APIRequest': 'true' } })
 	const rows = csvRows(csv.text)
 	const rowsOf = (type) => rows.filter((r) => r[1] === polls.find((p) => p.type === type).question)
@@ -498,12 +498,12 @@ async function quizRun({ revealAtEnd, practice, label }) {
 		}
 	}
 	if (practice && revealAtEnd) {
-		// Zweiter Klick auf denselben Knopf: Lauf beenden -> Lobby.
+		// Second click on the same button: end the run -> lobby.
 		await modOk('POST', '/' + code + '/current', { pollId: 0 })
 		check((await phones[0].state()).data.poll === null, `${label}: danach zurück in der Lobby`)
 	}
 
-	// Noch ein Lauf ohne Zurücksetzen: der alte Endstand darf nicht weiterleben.
+	// Another run without a reset: the old final standings must not live on.
 	await modOk('POST', '/' + code + '/current', { pollId: polls[0].id })
 	const deck2 = await modOk('GET', '/' + code)
 	check(!deck2.polls.some((p) => p.status === 'ended'), `${label}: neuer Lauf nimmt das alte Ende zurück`, deck2.polls.map((p) => p.status))
@@ -538,8 +538,8 @@ async function quizTiming() {
 	check((await modOk('GET', `/${code}/polls/${p1.id}/results`)).total === 0, 'Quiz: Bearbeiten leert die Stimmen')
 	const ed = await a.state()
 	check(ed.data.hasVoted === false && ed.data.poll.status === 'active' && ed.data.poll.question === 'Schnell? (neu)', 'Quiz: nach Bearbeiten erneut antwortbar, laufend', { st: ed.data.poll.status, q: ed.data.poll.question })
-	// Eine aufgelöste, nicht laufende Frage bearbeiten: der neue Inhalt ist noch
-	// nie gezeigt worden und darf nicht samt Lösung in /summary stehen.
+	// Edit a revealed question that is not running: the new content has never
+	// been shown and must not appear in /summary along with its solution.
 	await modOk('POST', `/${code}/polls/${p1.id}/lock`)
 	await modOk('POST', '/' + code + '/current', { pollId: p0.id })
 	await modOk('PUT', `/${code}/polls/${p1.id}`, { type: 'choice', question: 'Ganz neu?', options: ['x', 'y'], correctIndex: 1, timeLimit: 30 })
@@ -555,8 +555,8 @@ async function quizTiming() {
 	check((await a.summary()).data.items.length === 0, 'Zurücksetzen: Auswertung wieder leer')
 }
 
-// „Auflösung am Ende" nach dem Auflösen einschalten: die Frage steht dann auf
-// 'locked', ist für den Saal aber wieder verdeckt — poll.revealed sagt es.
+// Turn on "Reveal at the end" after the reveal: the question is then
+// 'locked' but hidden from the room again — poll.revealed says so.
 async function revealToggle() {
 	console.log('\n=== Quiz: „am Ende" nachträglich eingeschaltet ===')
 	const { code } = await newRoom('quiz', 'SIM Toggle')
@@ -585,10 +585,10 @@ async function revealToggle() {
 	check((await late.vote(p.correctOption)).status === 400, 'Toggle: keine neuen Antworten auf die geschlossene Frage')
 }
 
-// Übersprungene Frage: der Moderator schaltet weiter, ohne aufzulösen. Ihre
-// Punkte dürfen in keiner öffentlichen Rangliste auftauchen, bis sie aufgelöst
-// ist — sonst verriete der Punktestand richtig/falsch, und die Frage kann
-// wieder geöffnet werden. Am Ende zählt alles, wie beim Moderator.
+// Skipped question: the moderator moves on without revealing. Its
+// points must not show up in any public leaderboard until it is revealed
+// — otherwise the score would give away correct/wrong, and the question can
+// be reopened. At the end everything counts, as it does for the moderator.
 async function skippedQuestion() {
 	console.log('\n=== Quiz: Frage übersprungen ===')
 	const { code } = await newRoom('quiz', 'SIM Skip')
@@ -607,7 +607,7 @@ async function skippedQuestion() {
 	await lock(polls[0])
 	await cur(polls[1])
 	await dora.vote(quizAnswer(polls[1], true), false, polls[1].id)
-	await cur(polls[2]) // Q2 übersprungen, nie aufgelöst
+	await cur(polls[2]) // Q2 skipped, never revealed
 	const sm = await dora.summary()
 	const q2 = (sm.data.items || []).find((it) => it.poll.id === polls[1].id)
 	check(q2 && q2.revealed === false && mine(sm.data.leaderboard).score === 0 && mine(sm.data.leaderboard).correct === 0, 'Skip: /summary-Rangliste ohne die übersprungene Frage', { rev: q2 && q2.revealed, me: mine(sm.data.leaderboard) })
@@ -628,7 +628,7 @@ async function skippedQuestion() {
 	check(mine(endState.data.leaderboard).correct === 1, 'Skip: am Ende zählt die übersprungene Frage', mine(endState.data.leaderboard))
 	check(key(endState.data.leaderboard) === key(lb) && key(endBeam.data.leaderboard) === key(lb) && key(endSum.data.leaderboard) === key(lb), 'Skip: Endstand auf Handy, Beamer, /summary und beim Moderator gleich', { mod: key(lb), phone: key(endState.data.leaderboard), beam: key(endBeam.data.leaderboard), sum: key(endSum.data.leaderboard) })
 
-	// Nach dem Ende zurück zur übersprungenen Frage: wieder verdeckt.
+	// After the end, back to the skipped question: hidden again.
 	await cur(polls[1])
 	const re = await dora.state()
 	check(re.data.poll.revealed === false && re.data.leaderboard === null, 'Skip: wieder geöffnet, verdeckt', re.data.poll.revealed)
@@ -640,8 +640,8 @@ async function skippedQuestion() {
 	check(mine(done.data.leaderboard).correct === 1, 'Skip: nach dem Auflösen zählt sie', mine(done.data.leaderboard))
 }
 
-// Wortwolke: Variantenwähler und doppelter Leerraum machen kein neues Wort,
-// angezeigt wird die erste Schreibweise.
+// Word cloud: variation selectors and doubled whitespace do not make a new word;
+// the first spelling is the one displayed.
 async function wordKeys() {
 	console.log('\n=== Umfrage: Wortschlüssel ===')
 	const { code } = await newRoom('poll', 'SIM Words')
@@ -657,8 +657,8 @@ async function wordKeys() {
 	check(map['\u2764\uFE0F'] === 4 && map['guter kaffee'] === 3 && mr.results.length === 2, 'Wörter: Herz mit/ohne Variantenwähler und „guter  Kaffee" je ein Wort, erste Schreibweise angezeigt', map)
 }
 
-// Laufende Umfrage-Frage ohne Stimmen bearbeiten: Status, Startzeit und
-// Stempel bleiben gleich — die Handys müssen trotzdem die neue Fassung holen.
+// Edit a running poll question without votes: status, start time and
+// stamp stay the same — the phones still have to fetch the new version.
 async function editRunning() {
 	console.log('\n=== Umfrage: laufende Frage bearbeitet ===')
 	const { code } = await newRoom('poll', 'SIM Edit')
@@ -682,7 +682,7 @@ async function practiceToggle() {
 	await ph.join('P')
 	await modOk('POST', '/' + code + '/current', { pollId: p.id })
 	await ph.vote(p.correctOption)
-	// Probelauf-Ende wie im Moderator: zurück in die Lobby, dann ausschalten.
+	// End of the practice run as in the moderator view: back to the lobby, then switch it off.
 	await modOk('POST', '/' + code + '/current', { pollId: 0 })
 	const lobby = await ph.state()
 	const beamer = new Beamer('beamer', code)
@@ -697,14 +697,14 @@ async function practiceToggle() {
 	check((await modOk('GET', `/${code}/polls/${p.id}/results`)).total === 0, 'Probelauf aus: keine Test-Stimme übrig')
 }
 
-// ═════════════════════════ Quiz im eigenen Tempo ═════════════════════════
-// Jede Person läuft allein durch das beim Öffnen eingefrorene Deck, ihre Uhr
-// startet je Frage erst mit /next. Gespielt wird mit echten Wartezeiten:
-// endgültig ist eine Stimme erst nach ihrem Korrekturfenster fw, und die
-// Regel (now − created) > fw rechnet in ganzen Sekunden — real also bis zu
-// fw+1 s nach der Antwort. FINAL(fw) wartet deshalb fw + 1,5 s. Beamer-Zustand
-// und öffentliche Rangliste liegen 2 s im Server-Cache: Beamer-Prüfungen nach
-// einer Stimmen-/Fortschrittsänderung warten vorher BEAMER_CACHE.
+// ═════════════════════════ Self-paced quiz ═════════════════════════
+// Each person runs alone through the deck frozen at opening; their clock
+// starts per question only with /next. It is played with real waiting times:
+// a vote is only final after its correction window fw, and the
+// rule (now − created) > fw counts in whole seconds — so in reality up to
+// fw+1 s after the answer. That is why FINAL(fw) waits fw + 1.5 s. Projector state
+// and public leaderboard sit in the server cache for 2 s: projector checks after
+// a vote/progress change wait BEAMER_CACHE first.
 const wait = (s) => sleep(s * 1000)
 const FINAL = (fw) => fw + 1.5
 const BEAMER_CACHE = 2.1
@@ -712,8 +712,8 @@ const pace = (code, body) => mod('POST', '/' + code + '/pace', body)
 const progressOf = (code, query = '') => mod('GET', '/' + code + '/progress' + query)
 const csvView = (code, view) => request(BASE + '/api/1.0/rooms/' + code + '/export?view=' + view, { headers: { Authorization: AUTH, 'OCS-APIRequest': 'true' } })
 const lbKey = (rows) => (rows || []).map((r) => r.nickname + ':' + r.score + ':' + r.correct).join()
-// Beamer-Rennen: jede gestartete Person genau einmal — auf ihrer Frage oder
-// fertig. Dieselbe Aufteilung liefert /progress (fertig, sonst Frage k).
+// Projector race: every person who started exactly once — on their question or
+// finished. /progress gives the same split (finished, otherwise question k).
 const raceSum = (r) => (r?.onQuestion || []).reduce((a, x) => a + x, 0) + (r?.finished || 0)
 const raceSplits = (r) => !!r && raceSum(r) === r.started && r.started <= r.joined
 function raceOfProgress(pr) {
@@ -724,11 +724,11 @@ function raceOfProgress(pr) {
 }
 const raceKey = (r) => (r ? [r.n, r.joined, r.started, r.finished, (r.onQuestion || []).join('.')].join('|') : '')
 
-// Handy vor der Freigabe: keine Lösung, keine Verteilung, keine fremden
-// Spielenden (die Rangliste kommt erst mit der Freigabe), kein Rennen.
+// Phone before the release: no solution, no distribution, no other
+// players (the leaderboard only comes with the release), no race.
 const sealed = (s) => leakKeys(s.poll).length === 0 && s.results === null && s.leaderboard === null && !('race' in s)
 
-// CSV der Lehrkraft (;, BOM, Felder ggf. in Anführungszeichen) -> Zeilen.
+// The teacher's CSV (;, BOM, fields quoted where needed) -> rows.
 function csvRows(text) {
 	const rows = []
 	let row = []
@@ -747,9 +747,9 @@ function csvRows(text) {
 	return rows
 }
 
-// Vorabprobe: die Routen des eigenen Tempos sind neu. Hält Nextcloud für
-// diesen Host noch die alte Routentabelle in APCu, antwortet /pace mit der
-// HTML-404 — dann fallen nur die self-Durchgänge aus (README: PULSE_SIM_HOST).
+// Preliminary probe: the self-paced routes are new. If Nextcloud still holds the
+// old route table for this host in APCu, /pace answers with the
+// HTML 404 — then only the self-paced runs are skipped (README: PULSE_SIM_HOST).
 async function selfRoutesLoaded() {
 	console.log('\n=== Eigenes Tempo: Routen ===')
 	const { code } = await newRoom('quiz', 'SIM Self Probe')
@@ -762,9 +762,9 @@ async function selfRoutesLoaded() {
 	return true
 }
 
-// Rennen: ohne Frist, mit Timer, Urteil je Frage; Schließen = Freigabe.
-// Anna läuft durch, Ben dicht dahinter, Cem hängt an Frage 1, Dora kommt spät;
-// dazu Wegwerf-Identitäten gegen Beitrittssperre und Entfernen.
+// Race: no deadline, with a timer, verdict per question; closing = release.
+// Anna runs through, Ben close behind, Cem is stuck on question 1, Dora comes late;
+// plus throwaway identities against the join lock and removal.
 async function selfRace() {
 	console.log('\n=== Eigenes Tempo: Rennen ===')
 	const { code } = await newRoom('quiz', 'SIM Self Race')
@@ -777,7 +777,7 @@ async function selfRace() {
 	const C = new Phone('Cem', code)
 	const beamer = new Beamer('beamer', code)
 
-	// 1. Tempo umschalten: Entwurf, die Cursor-Steuerung ist gesperrt
+	// 1. Switch the pace: draft, cursor control is locked
 	const set = await pace(code, { action: 'set', pace: 'self' })
 	check(set.status === 200 && set.data.pace === 'self' && set.data.window?.state === 'draft', 'Rennen: set self -> Entwurf', set.data.window)
 	for (const [label, call] of [
@@ -790,7 +790,7 @@ async function selfRace() {
 		check(r.status === 409, `Rennen Entwurf: ${label} -> 409`, [r.status, r.data])
 	}
 
-	// 2. Beitritt schon im Entwurf; weiter geht es erst nach dem Öffnen
+	// 2. Joining already works in the draft; moving on only after opening
 	for (const p of [A, B, C]) {
 		const r = await p.join(p.name)
 		check(r.status === 200 && r.data.nickname === p.name, `Rennen: Beitritt ${p.name} im Entwurf`, r.data)
@@ -799,7 +799,7 @@ async function selfRace() {
 	const bDraft = (await beamer.state()).data
 	check(bDraft.window?.state === 'draft' && bDraft.poll === null, 'Rennen: Beamer im Entwurf ohne Frage', { w: bDraft.window, poll: bDraft.poll })
 
-	// 3. Öffnen ohne Parameter = Vorgaben des Rennens; ab jetzt ist das Deck gesperrt
+	// 3. Opening without parameters = race defaults; from now on the deck is locked
 	const op = await pace(code, { action: 'open' })
 	const w = op.data.window || {}
 	check(op.status === 200 && w.state === 'open' && w.timed === true && w.feedback === 'each' && w.total === 4 && w.closesAt === 0, 'Rennen: geöffnet mit Timer, Urteil je Frage, 4 Fragen', w)
@@ -818,7 +818,7 @@ async function selfRace() {
 	const listed = (await modOk('GET', '')).find((r) => r.code === code)
 	check(listed && listed.pace === 'self' && listed.window?.state === 'open', 'Rennen: „Meine Räume" mit Tempo und Fenster', listed && [listed.pace, listed.window])
 
-	// 4. Die Uhr startet nur mit /next — für jede Person eigens
+	// 4. The clock only starts with /next — separately for each person
 	check((await A.vote(quizAnswer(q1, true), false, q1.id)).status === 400, 'Rennen: Antwort ohne offene Frage abgelehnt')
 	const a1 = (await A.next(0)).data
 	check(a1.poll?.id === q1.id && a1.progress?.k === 1 && a1.progress.n === 4 && a1.progress.after === q1.id, 'Rennen: A /next 0 -> Frage 1 von 4, after = Frage 1', a1.progress)
@@ -828,11 +828,11 @@ async function selfRace() {
 	check(a1b.poll?.id === q1.id && a1b.poll.startedAt === a1.poll.startedAt, 'Rennen: zweites /next 0 ändert nichts (gleiche Uhr)', [a1b.poll?.startedAt, a1.poll.startedAt])
 	const b1 = (await B.next(0)).data
 	check(b1.poll?.id === q1.id && b1.poll.startedAt >= a1.poll.startedAt, 'Rennen: B startet eine eigene Uhr', [b1.poll?.startedAt, a1.poll.startedAt])
-	// 4a. Vorschau-Sperre: mit Timer unbeantwortet erst nach Zeitablauf weiter
+	// 4a. Preview lock: with a timer, move on unanswered only after the time is up
 	const peek = await A.next(q1.id)
 	check(peek.status === 200 && peek.data.poll?.id === q1.id && peek.data.poll.startedAt === a1.poll.startedAt, 'Rennen: unbeantwortet vor Zeitablauf kein Weiter (Vorschau-Sperre)', peek.data.progress)
 
-	// 5. Korrektur im Fenster; die korrigierte Antwort ist sofort endgültig
+	// 5. Correction within the window; the corrected answer is final immediately
 	const first = await A.vote(quizAnswer(q1, false), false, q1.id)
 	const fr = first.data.myResult || {}
 	check(first.status === 200 && fr.final === false && fr.verdict === null && fr.correct === null && fr.points === null, 'Rennen: erste Antwort im Korrekturfenster ohne Urteil', fr)
@@ -841,7 +841,7 @@ async function selfRace() {
 	check(fix.status === 200 && xr.final === true && xr.verdict === 'correct' && xr.points > 0 && fix.data.myScore === xr.points, 'Rennen: Korrektur endgültig -> richtig mit Punkten', { xr, myScore: fix.data.myScore })
 	check((await A.vote(quizAnswer(q2, true), false, q2.id)).status === 400, 'Rennen: Antwort auf eine nicht erreichte Frage abgelehnt')
 
-	// 6. Kein Umweg über das Tastatur-Fenster: es zählt das Fenster der ERSTEN Antwort
+	// 6. No detour via the keyboard window: the window of the FIRST answer counts
 	await C.next(0)
 	await C.vote(quizAnswer(q1, false), false, q1.id)
 	await wait(FINAL(3))
@@ -850,7 +850,7 @@ async function selfRace() {
 	const cs = (await C.state()).data
 	check(cs.myResult?.verdict === 'wrong' && cs.myResult.points === 0 && cs.myScore === 0, 'Rennen: C bleibt falsch', cs.myResult)
 
-	// 7. Die Version springt, sobald die Stimme endgültig wird — ohne Job
+	// 7. The version changes as soon as the vote becomes final — without a job
 	const bv = await B.vote(quizAnswer(q1, true), false, q1.id)
 	check(bv.status === 200 && bv.data.myResult?.final === false, 'Rennen: B antwortet (noch nicht endgültig)', bv.data.myResult)
 	check((await B.state(bv.data.version)).status === 204, 'Rennen: direkt danach unverändert (204)')
@@ -858,7 +858,7 @@ async function selfRace() {
 	const bFinal = await B.state(bv.data.version)
 	check(bFinal.status === 200 && bFinal.data.myResult?.verdict === 'correct', 'Rennen: nach fw neue Version mit Urteil', [bFinal.status, bFinal.data.myResult])
 
-	// 8. Beantwortet -> sofort weiter; alter Stand und Sprung nach vorn sind No-ops
+	// 8. Answered -> move on immediately; a stale state and a jump ahead are no-ops
 	const a2 = (await A.next(q1.id)).data
 	check(a2.poll?.id === q2.id && a2.progress?.k === 2 && a2.poll.timeLimit === 5, 'Rennen: A beantwortet -> Frage 2 (Limit 5 s)', a2.progress)
 	const a2b = (await A.next(q1.id)).data
@@ -866,7 +866,7 @@ async function selfRace() {
 	const a2c = (await A.next(q4.id)).data
 	check(a2c.poll?.id === q2.id && a2c.poll.startedAt === a2.poll.startedAt, 'Rennen: /next mit einer späteren Frage ändert nichts', a2c.progress)
 
-	// 9. Zeitablauf: keine Antwort mehr, aber unbeantwortet weiter
+	// 9. Time up: no more answers, but moving on unanswered works
 	await wait(6.5)
 	check((await A.vote(quizAnswer(q2, true), false, q2.id)).status === 400, 'Rennen: Antwort nach Zeitablauf abgelehnt')
 	const up = await A.state(a2c.version)
@@ -874,7 +874,7 @@ async function selfRace() {
 	const a3 = (await A.next(q2.id)).data
 	check(a3.poll?.id === q3.id && a3.progress?.timeUp === false, 'Rennen: nach Zeitablauf unbeantwortet weiter zu Frage 3', a3.progress)
 
-	// 10. Freitext ohne Moderator im Takt: bekannt -> gewertet, unbekannt -> „wird geprüft"
+	// 10. Free text without a moderator keeping pace: known -> scored, unknown -> "Being checked"
 	check((await A.vote('Saturn', false, q3.id)).status === 200, 'Rennen: A „Saturn"')
 	await B.next(q1.id)
 	check((await B.vote(quizAnswer(q2, true), false, q2.id)).status === 200, 'Rennen: B beantwortet Frage 2')
@@ -891,12 +891,12 @@ async function selfRace() {
 	const graded = await A.state(aPend.version)
 	check(graded.status === 200 && graded.data.myResult?.verdict === 'correct' && graded.data.myResult.points > 0, 'Rennen: bewertet -> richtig mit Punkten (neue Version)', [graded.status, graded.data.myResult])
 
-	// 10a. Reihenfolge-Vertrag: /next erst nach der /vote-Antwort, sonst ist die Frage zu
+	// 10a. Ordering contract: /next only after the /vote response, otherwise the question is closed
 	await B.next(q3.id)
 	const stale = await B.vote('Jupiter', false, q3.id)
 	check(stale.status === 400 && stale.data.message === 'This question is closed.', 'Rennen: Antwort nach /next auf die verlassene Frage abgelehnt', stale.data)
 
-	// 11. Beamer: das Rennen in Zahlen und die Spitze — nie Fragen oder Optionen
+	// 11. Projector: the race in numbers and the leaders — never questions or options
 	await wait(BEAMER_CACHE)
 	const bs = (await beamer.state()).data
 	const bsText = JSON.stringify(bs)
@@ -916,7 +916,7 @@ async function selfRace() {
 		check(sealed(ps), `Rennen: ${p.name} vor der Freigabe ohne Lösung und Rangliste`, { leak: leakKeys(ps.poll), lb: ps.leaderboard })
 	}
 
-	// 12. Rückblick im offenen Fenster: nur verlassene Fragen, ohne Lösung
+	// 12. Review while the window is open: only questions already left, without solution
 	const sumA = (await A.summary()).data
 	const itA = sumA.items || []
 	check(itA.map((it) => it.poll.id).join() === [q1.id, q2.id].join(), 'Rennen: /summary A nur mit den verlassenen Fragen 1 und 2', itA.map((it) => it.poll.id))
@@ -925,7 +925,7 @@ async function selfRace() {
 	const stranger = (await new Phone('fremd', code).summary()).data
 	check((stranger.items || []).length === 0 && stranger.leaderboard === null && stranger.available === false, 'Rennen: /summary mit fremdem Cookie leer', stranger)
 
-	// 12a. Nach dem Start ist der Name fest; Groß/Klein am eigenen bleibt änderbar
+	// 12a. After the start the name is fixed; the case of one's own name can still change
 	const ren = await A.join('Anna2')
 	check(ren.status === 400 && ren.data.message === 'You can\'t change your name after starting.', 'Rennen: umbenennen nach dem Start abgelehnt', ren.data)
 	const caps = await A.join('ANNA')
@@ -934,7 +934,7 @@ async function selfRace() {
 	const dup = await new Phone('X', code).join('anna')
 	check(dup.status === 400 && /already taken/.test(dup.data.message || ''), 'Rennen: „anna" von einem anderen Handy abgelehnt', dup.data)
 
-	// 13. A läuft durch: letzte Frage beantworten, dann „Fertig" (= /next hinter der letzten)
+	// 13. A runs through: answer the last question, then "I’m done" (= /next past the last one)
 	const a4 = (await A.next(q3.id)).data
 	check(a4.poll?.id === q4.id && idsOf(a4.poll.options).slice().sort().join() === sortedIds(q4.options).join() && sealed(a4), 'Rennen: A auf Frage 4 (gemischt, vollständig, ohne Lösung)', a4.progress)
 	check((await A.vote(quizAnswer(q4, true), false, q4.id)).status === 200, 'Rennen: A beantwortet Frage 4')
@@ -945,7 +945,7 @@ async function selfRace() {
 	const d1 = (await D.next(0)).data
 	check(d1.poll?.id === q1.id && d1.progress?.k === 1, 'Rennen: Nachzüglerin Dora startet bei Frage 1', d1.progress)
 
-	// 13a. Gegen Wegwerf-Identitäten: Beitritt sperren, Person entfernen
+	// 13a. Against throwaway identities: lock joining, remove a person
 	const lock = await pace(code, { action: 'lockJoins' })
 	check(lock.status === 200 && lock.data.joinsLocked === true, 'Rennen: Beitritt gesperrt', lock.data.joinsLocked)
 	const wim = await new Phone('W', code).join('Wim')
@@ -970,9 +970,9 @@ async function selfRace() {
 	const z2 = await new Phone('Zed2', code).join('Zed')
 	check(z2.status === 200 && z2.data.nickname === 'Zed', 'Rennen: Name nach dem Entfernen wieder frei', z2.data)
 
-	// 14. Moderator-Fortschritt; pollende Handys (Heartbeat) ändern die Version nicht.
-	// Vorher alle Handys dieses Raums einmal pollen: sonst kippt `online` oder
-	// `present` für eines, dessen letzter Abruf knapp 15 s zurückliegt.
+	// 14. Moderator progress; polling phones (heartbeat) do not change the version.
+	// Poll every phone in this room once beforehand: otherwise `online` or
+	// `present` flips for one whose last poll was almost 15 s ago.
 	for (const p of [A, B, C, D, Z]) await p.state()
 	const pr14 = (await progressOf(code)).data
 	const pl = Object.fromEntries((pr14.players || []).map((p) => [p.nickname, p]))
@@ -985,7 +985,7 @@ async function selfRace() {
 	const same = await progressOf(code, '?v=' + encodeURIComponent(pr14.version))
 	check(same.status === 204, 'Rennen: /progress ?v= -> 204, obwohl ein Handy weiter pollt', same.status)
 
-	// 15. Dora antwortet knapp vor dem Schließen: Schließen macht jede Stimme sofort endgültig
+	// 15. Dora answers just before closing: closing makes every vote final immediately
 	const bBefore = (await beamer.state()).data
 	const dv = await D.vote(quizAnswer(q1, true), false, q1.id)
 	check(dv.status === 200 && dv.data.myResult?.final === false, 'Rennen: Dora antwortet (noch im Fenster)', dv.data.myResult)
@@ -1002,11 +1002,11 @@ async function selfRace() {
 	check((await new Phone('E', code).join('Emil')).status === 400, 'Rennen: nach dem Schließen kein Beitritt')
 	const bClosed = await beamer.state(bBefore.version)
 	check(bClosed.status === 200 && bClosed.data.window?.state === 'released' && (bClosed.data.leaderboard || []).length === (pr15.players || []).length, 'Rennen: Beamer erfährt die Freigabe sofort (voller Endstand)', [bClosed.status, bClosed.data.window?.state, (bClosed.data.leaderboard || []).length])
-	// Ben steht offen auf der letzten Frage: nach dem Schluss nur unter „fertig“, nicht zugleich auf Frage 4.
+	// Ben is open on the last question: after the close only under "finished", not also on question 4.
 	const rc = bClosed.data.race || {}
 	check(raceSplits(rc) && (rc.onQuestion || []).join() === '2,0,0,0' && rc.finished === 2 && rc.started === 4 && rc.joined === 5 && raceKey(rc) === raceKey(raceOfProgress(pr15)), 'Rennen: freigegeben — Cem und Dora auf Frage 1, Anna und Ben fertig, Zed nicht gestartet (= /progress)', { beamer: rc, progress: raceOfProgress(pr15) })
 
-	// 16. Nach der Freigabe: Lösungen genau der erreichten Fragen, Endstand für alle
+	// 16. After the release: solutions for exactly the questions reached, final standings for everyone
 	const sum16 = (await A.summary()).data
 	const items = sum16.items || []
 	check(items.map((it) => it.poll.id).join() === ids.join() && items.every((it) => it.revealed && 'correctOption' in it.poll && 'answerKey' in it.poll), 'Rennen: /summary A mit allen erreichten Fragen, aufgelöst', items.map((it) => [it.poll.id, it.revealed]))
@@ -1029,13 +1029,13 @@ async function selfRace() {
 	note('Endstand: ' + lb.map((r) => `${r.rank}. ${r.nickname} ${r.score} (${r.correct}✓)`).join(' | '))
 	check([ds.leaderboard, beamEnd.leaderboard, pr15.leaderboard, fSum.leaderboard, sum16.leaderboard].every((rows) => lbKey(rows) === lbKey(lb)), 'Rennen: Endstand auf Handy, Beamer, /progress, /summary und beim Moderator gleich', { mod: lbKey(lb), beam: lbKey(beamEnd.leaderboard), progress: lbKey(pr15.leaderboard) })
 
-	// 17. Freigegeben: nichts mehr zu öffnen; CSV für die Lehrkraft
+	// 17. Released: nothing left to open; CSV for the teacher
 	check((await pace(code, { action: 'extend', closesAt: 0 })).status === 409, 'Rennen: extend nach Freigabe -> 409')
 	check((await pace(code, { action: 'open' })).status === 409, 'Rennen: open nach Freigabe -> 409')
 	const cp = await csvView(code, 'players')
 	const rp = csvRows(cp.text)
 	check(cp.status === 200 && cp.text.startsWith('﻿') && rp.length === (pr15.players || []).length + 1 && rp[0].length === 10, 'Rennen: CSV Spielende (BOM, eine Zeile je Person)', [cp.status, rp.length])
-	// Spalten: Rank; Name; Score; Correct; Answered; Reached; Finished; Started; Last activity; Time (s)
+	// Columns: Rank; Name; Score; Correct; Answered; Reached; Finished; Started; Last activity; Time (s)
 	const csvLb = rp.slice(1).map((r) => ({ nickname: r[1], score: Number(r[2]), correct: Number(r[3]) }))
 	check(lbKey(csvLb) === lbKey(lb), 'Rennen: CSV-Reihenfolge und Punkte = Endstand', lbKey(csvLb))
 	const fin = Object.fromEntries(rp.slice(1).map((r) => [r[1], r[6]]))
@@ -1047,7 +1047,7 @@ async function selfRace() {
 	const answered = (pr15.players || []).reduce((a, p) => a + p.answered, 0)
 	check(ca.status === 200 && ca.text.startsWith('﻿') && answered === votes && csvRows(ca.text).length === votes + 1, 'Rennen: CSV Antworten (eine Zeile je Stimme)', { rows: csvRows(ca.text).length, votes, answered })
 
-	// 18. Zurücksetzen: Entwurf, Deck wieder frei; zurück auf moderiert
+	// 18. Reset: draft, deck editable again; back to moderated
 	const rs = await modOk('POST', '/' + code + '/reset')
 	check(rs.window?.state === 'draft' && rs.openedAt === 0 && rs.joinsLocked === false, 'Rennen: zurückgesetzt -> Entwurf', rs.window)
 	const as = (await A.state()).data
@@ -1058,17 +1058,17 @@ async function selfRace() {
 	check((await mod('POST', '/' + code + '/current', { pollId: q1.id })).status === 200, 'Rennen: moderiert wieder steuerbar (/current)')
 }
 
-// Hausaufgabe: Frist statt Schließen, ohne Timer, Urteil erst mit der Freigabe.
-// Geöffnet VOR dem Rennen: die 90 s bis zur Frist laufen, während Rennen und
-// Probelauf spielen; selfHomeworkFinish wartet den Rest ab.
+// Homework: a deadline instead of closing, no timer, verdict only with the release.
+// Opened BEFORE the race: the 90 s until the deadline run while the race and the
+// practice run play; selfHomeworkFinish waits out the rest.
 async function selfHomeworkOpen() {
 	console.log('\n=== Eigenes Tempo: Hausaufgabe (offen) ===')
 	const { code } = await newRoom('quiz', 'SIM Self Homework')
 	const q1 = await modOk('POST', '/' + code + '/polls', QUIZ_QS[0])
 	const q2 = await modOk('POST', '/' + code + '/polls', QUIZ_QS[3])
 	await modOk('POST', '/' + code + '/pace', { action: 'set', pace: 'self' })
-	// Fristen aus der Serveruhr der unmittelbar davor geholten Antwort — nie aus
-	// der Uhr dieses Rechners (Latenz, Versatz ließen „+61" zufällig scheitern).
+	// Deadlines from the server clock of the response fetched immediately before — never from
+	// this machine's clock (latency and skew made "+61" fail at random).
 	const serverNow = async () => (await modOk('GET', '/' + code + '/progress')).serverNow
 	check((await pace(code, { action: 'open', closesAt: (await serverNow()) + 10 })).status === 400, 'Hausaufgabe: Frist unter einer Minute abgelehnt')
 	check((await pace(code, { action: 'open', closesAt: (await serverNow()) + 31 * 86400 })).status === 400, 'Hausaufgabe: Frist über 30 Tage abgelehnt')
@@ -1086,7 +1086,7 @@ async function selfHomeworkOpen() {
 	check(av.status === 200 && av.data.myResult?.final === false && av.data.myScore === null, 'Hausaufgabe: A antwortet richtig (noch nicht endgültig)', av.data.myResult)
 	await B.next(0)
 	check((await B.vote(quizAnswer(q1, false), false, q1.id)).status === 200, 'Hausaufgabe: B antwortet falsch')
-	// Ohne Timer keine Vorschau-Sperre: auch unbeantwortet sofort weiter
+	// Without a timer there is no preview lock: move on immediately even unanswered
 	const H = new Phone('Hilde', code)
 	await H.join('Hilde')
 	await H.next(0)
@@ -1112,7 +1112,7 @@ async function selfHomeworkOpen() {
 	const sc = Object.fromEntries((prs.players || []).map((p) => [p.nickname, p.score]))
 	check(prs.scoresHidden === false && sc.Anna === 1000 && sc.Ben === 0, 'Hausaufgabe: ?scores=1 zeigt Punkte (flach 1000 ohne Timer)', sc)
 	check((await pace(code, { action: 'removePlayer', playerId: hilde?.id })).status === 200, 'Hausaufgabe: Hilde (nur Vorschau-Probe) entfernt')
-	// A beantwortet die letzte Frage (falsch), tippt aber nicht „Fertig"
+	// A answers the last question (wrongly) but does not tap "I’m done"
 	const a2v = await A.vote(quizAnswer(q2, false), false, q2.id)
 	check(a2v.status === 200 && a2v.data.progress?.finished === true && a2v.data.poll?.id === q2.id, 'Hausaufgabe: letzte Frage beantwortet = fertig, auch ohne „Fertig"', a2v.data.progress)
 	check((await B.state()).data.progress?.finished === false, 'Hausaufgabe: B auf der letzten Frage, unbeantwortet -> noch nicht fertig')
@@ -1136,7 +1136,7 @@ async function selfHomeworkFinish({ code, closesAt, A, B, polls: [q1, q2] }) {
 	check((await A.vote(quizAnswer(q2, true), false, q2.id)).status === 400, 'Hausaufgabe: nach der Frist keine Antwort')
 	check((await A.next(q2.id)).status === 400, 'Hausaufgabe: nach der Frist kein /next')
 	check((await new Phone('late', code).join('Lena')).status === 400, 'Hausaufgabe: nach der Frist kein Beitritt')
-	// Geschlossen ist nicht freigegeben: weiter keine Lösung, kein Urteil, keine Rangliste
+	// Closed is not released: still no solution, no verdict, no leaderboard
 	check(sealed(st) && st.myScore === null, 'Hausaufgabe: nach Schluss ohne Punkte und Rangliste', { lb: st.leaderboard, myScore: st.myScore })
 	const sm = (await A.summary()).data
 	check((sm.items || []).length === 2 && sm.items.every((it) => !it.revealed && it.results === null && leakKeys(it.poll).length === 0 && it.mine?.correct === null) && sm.leaderboard === null, 'Hausaufgabe: /summary nach Schluss beide Fragen, ohne Lösung', (sm.items || []).map((it) => it.mine))
@@ -1147,7 +1147,7 @@ async function selfHomeworkFinish({ code, closesAt, A, B, polls: [q1, q2] }) {
 	const prh = raceOfProgress((await progressOf(code)).data)
 	check(raceKey(rh) === raceKey(prh), 'Hausaufgabe: Beamer nach der Frist = /progress', { beamer: rh, progress: prh })
 
-	// Verlängern öffnet wieder; Schließen mit Frist gibt nicht frei; dann Freigabe
+	// Extending reopens; closing with a deadline does not release; then the release
 	const now = (await modOk('GET', '/' + code + '/progress')).serverNow
 	const ext = await pace(code, { action: 'extend', closesAt: now + 120 })
 	check(ext.status === 200 && ext.data.window?.state === 'open' && ext.data.window.closesAt === now + 120, 'Hausaufgabe: verlängert -> wieder offen', ext.data.window)
@@ -1171,7 +1171,7 @@ async function selfHomeworkFinish({ code, closesAt, A, B, polls: [q1, q2] }) {
 	check(ca.status === 200 && answered === 3 && ra.length === answered + 1 && ra.slice(1).every((row) => row[7] === ''), 'Hausaufgabe: CSV Antworten ohne Zeit (ohne Timer)', ra.slice(1).map((row) => row[7]))
 }
 
-// Probelauf im eigenen Tempo: Urteil immer sofort, nie eine Rangliste.
+// Self-paced practice run: verdict always immediate, never a leaderboard.
 async function selfPractice() {
 	console.log('\n=== Eigenes Tempo: Probelauf ===')
 	const { code } = await newRoom('quiz', 'SIM Self Practice')
@@ -1185,7 +1185,7 @@ async function selfPractice() {
 	await P.join('Pia')
 	await P.next(0)
 	check((await P.vote(quizAnswer(q1, true), false, q1.id)).status === 200, 'Probelauf: Antwort')
-	await wait(FINAL(3)) // deckt auch den 2-s-Cache des Beamers ab
+	await wait(FINAL(3)) // also covers the projector's 2 s cache
 	const ps = (await P.state()).data
 	check(ps.myResult?.verdict === 'correct' && ps.myResult.points > 0 && ps.leaderboard === null, 'Probelauf: Urteil nach fw, keine Rangliste', ps.myResult)
 	const bs = (await new Beamer('beamer', code).state()).data
@@ -1200,8 +1200,8 @@ async function selfPractice() {
 	check(after.leaderboard === null && sm.leaderboard === null && Array.isArray(pr.leaderboard) && pr.leaderboard.length === 0, 'Probelauf: auch nach der Freigabe keine Rangliste (Handy, /summary; /progress [])', [after.leaderboard, sm.leaderboard, pr.leaderboard])
 	check(sm.available === true && (sm.items || []).length === 1 && sm.items[0].revealed === true, 'Probelauf: Auswertung mit Auflösung', sm.items)
 
-	// Beitritts-Limit je IP und Raum (120 in 10 min): zählt jeden Versuch, auch
-	// abgelehnte. Pias Beitritt oben war der erste.
+	// Join limit per IP and room (120 in 10 min): counts every attempt, rejected
+	// ones too. Pia's join above was the first.
 	let attempt = 1
 	let first429 = 0
 	while (!first429 && attempt < 130) {
@@ -1212,9 +1212,9 @@ async function selfPractice() {
 	check(first429 === 121, 'Probelauf: Beitritts-Limit greift beim 121. Versuch (429)', first429)
 }
 
-// Stoppen ohne Freigabe in EINEM Aufruf: close {release: false}. `release` wirkt
-// nur beim Schließen eines offenen Fensters; ohne ihn gilt die alte Regel (ohne
-// Frist = Freigabe) — alte Tabs mit dem Zwei-Schritt-Weg laufen unverändert.
+// Stopping without release in ONE call: close {release: false}. `release` only takes
+// effect when closing an open window; without it the old rule applies (no
+// deadline = release) — old tabs using the two-step path work unchanged.
 async function selfStop() {
 	console.log('\n=== Eigenes Tempo: Stoppen ohne Freigabe ===')
 	const { code } = await newRoom('quiz', 'SIM Self Stop')
@@ -1248,7 +1248,7 @@ async function selfStop() {
 	}
 	const re = await pace(code, { action: 'extend', closesAt: 0 })
 	check(re.status === 200 && re.data.window?.state === 'open' && re.data.window.closesAt === 0, 'Stoppen: wieder offen (ohne Frist)', re.data.window)
-	// Alter Tab: Zwei-Schritt-Weg (Frist in 120 s, dann close ohne release) wirkt wie bisher.
+	// Old tab: the two-step path (deadline in 120 s, then close without release) works as before.
 	const now1 = (await progressOf(code)).data.serverNow
 	check((await pace(code, { action: 'extend', closesAt: now1 + 120 })).data.window?.state === 'open', 'Stoppen (alter Tab): Frist in 120 s gesetzt')
 	const old = await pace(code, { action: 'close' })
@@ -1264,14 +1264,14 @@ async function selfStop() {
 	check(lb.length === 1 && lb[0].nickname === 'Sina', 'Stoppen: Endstand nach der Freigabe', lb)
 }
 
-// Wettläufe im eigenen Tempo, echt parallel: Entfernen gegen /vote und /next,
-// Bewerten gegen eine Antwort und gegen eine Korrektur. Die Fenster sind
-// Millisekunden breit (zwischen Prüfen und Schreiben einer Anfrage), deshalb
-// wird die Verzögerung des Handys um den gemessenen Laufzeitunterschied
-// Moderator (Basic-Auth, langsamer) − Handy herum durchgestimmt. Ob ein Lauf
-// ein Fenster trifft, ist Zufall; geprüft wird, was jeder Treffer verletzte:
-// keine Stimme und keine Zeile einer entfernten Person, keine Antwort auf
-// „wird geprüft", deren Normalform schon bewertet ist, keine verlorene Korrektur.
+// Self-paced race conditions, truly parallel: removal against /vote and /next,
+// grading against an answer and against a correction. The windows are
+// milliseconds wide (between a request's check and its write), so the phone's
+// delay is swept around the measured response-time difference
+// moderator (Basic auth, slower) − phone. Whether a run
+// hits a window is chance; what is checked is what each hit would violate:
+// no vote and no row of a removed person, no answer left on
+// "Being checked" whose normal form is already graded, no lost correction.
 async function selfRaces() {
 	console.log('\n=== Eigenes Tempo: Wettläufe ===')
 	const ROUNDS = 12
@@ -1279,23 +1279,23 @@ async function selfRaces() {
 	const q1 = await modOk('POST', '/' + code + '/polls', QUIZ_QS[4])
 	await modOk('POST', '/' + code + '/polls', QUIZ_QS[0])
 	await modOk('POST', '/' + code + '/pace', { action: 'set', pace: 'self' })
-	// Ohne Timer: /next geht auch unbeantwortet sofort (keine Vorschau-Sperre).
+	// Without a timer: /next works immediately even unanswered (no preview lock).
 	check((await pace(code, { action: 'open', timed: false })).status === 200, 'Wettläufe: geöffnet (ohne Timer)')
 	const probe = new Phone('probe', code)
 	const took = async (fn) => { const t = Date.now(); await fn(); return Date.now() - t }
 	let lag = 0
 	for (let i = 0; i < 3; i++) lag += (await took(() => progressOf(code))) - (await took(() => probe.state()))
 	lag = Math.round(lag / 3)
-	// Die Fenster lagen gemessen knapp VOR diesem Unterschied (beide Anfragen
-	// antworten nach dem Schreiben noch mit dem Zustand): in 2-ms-Schritten
-	// von 18 ms davor bis 4 ms danach.
+	// As measured, the windows lay just BEFORE this difference (both requests
+	// still respond with the state after writing): in 2 ms steps
+	// from 18 ms before to 4 ms after.
 	const delay = (i) => Math.max(0, lag - 18 + 2 * i)
 	note('Laufzeitunterschied Moderator − Handy ≈ ' + lag + ' ms, Handy-Verzögerung ' + delay(0) + '…' + delay(ROUNDS - 1) + ' ms')
 	const at = (i) => sleep(delay(i))
 	const seen = {}
 	const count = (label, r) => { seen[label + ':' + r.status] = (seen[label + ':' + r.status] || 0) + 1 }
 
-	// Entfernen gegen /vote bzw. /next derselben Person
+	// Removal against /vote or /next of the same person
 	for (const kind of ['vote', 'next']) {
 		for (let i = 0; i < ROUNDS; i++) {
 			const P = new Phone('Racer', code)
@@ -1311,7 +1311,7 @@ async function selfRaces() {
 	const pr = (await progressOf(code)).data
 	check((pr.players || []).length === 0 && (pr.questions || []).every((q) => q.reached === 0 && q.answered === 0), 'Wettläufe: Entfernen gegen /vote und /next hinterlässt keine Stimme und keine Zeile', { seen, questions: pr.questions })
 
-	// Bewerten gegen die Antwort mit derselben Normalform
+	// Grading against the answer with the same normal form
 	for (let i = 0; i < ROUNDS; i++) {
 		const G = new Phone('G' + i, code)
 		await G.join('G' + i)
@@ -1323,7 +1323,7 @@ async function selfRaces() {
 	const pg = (await progressOf(code)).data
 	check((pg.pendingAnswers || []).length === 0 && pg.questions?.[0]?.answered === ROUNDS && pg.questions[0].pending === 0, 'Wettläufe: bewertet, während die Antwort unterwegs war -> nichts bleibt „wird geprüft"', { seen, pending: pg.pendingAnswers })
 
-	// Bewerten der ersten Antwort gegen ihre Korrektur
+	// Grading the first answer against its correction
 	for (let i = 0; i < ROUNDS; i++) {
 		const K = new Phone('K' + i, code)
 		await K.join('K' + i)
@@ -1339,13 +1339,13 @@ async function selfRaces() {
 	check(Object.keys(seen).every((k) => /:(200|400)$/.test(k)), 'Wettläufe: nur 200/400, kein 500', seen)
 }
 
-// ═════════════════════════ Feindliche Eingaben ═════════════════════════
-// Listen und Objekte, wo Text oder eine Zahl erwartet wird (JSON und Formular),
-// 1e100/1e999, NUL, kaputtes UTF-8 und Cookies, die der Server nie vergeben hat:
-// nie 500, sondern die übliche 400, die Vorgabe oder ein neues Cookie — und kein
-// Warnungs-Eintrag im Nextcloud-Log (Log-Scan nach dem Lauf, README). Nur Codes,
-// die dieses Sim angelegt hat: ein unbekannter Code wäre ein Brute-Force-Versuch.
-// Nie `code` oder `pollId` als Route-Ersatz in Body oder Query.
+// ═════════════════════════ Hostile input ═════════════════════════
+// Lists and objects where text or a number is expected (JSON and form),
+// 1e100/1e999, NUL, broken UTF-8 and cookies the server never issued:
+// never a 500, but the usual 400, the default or a new cookie — and no
+// warning entry in the Nextcloud log (log scan after the run, README). Only codes
+// this sim created: an unknown code would be a brute-force attempt.
+// Never `code` or `pollId` as a route substitute in the body or query.
 async function hostileInput() {
 	console.log('\n=== Feindliche Eingaben ===')
 	const FORM = 'application/x-www-form-urlencoded'
@@ -1365,7 +1365,7 @@ async function hostileInput() {
 	const fresh = (r, sent = '') => { const t = issued(r); return t.length === 1 && /^[A-Za-z0-9]{32}$/.test(t[0]) && t[0] !== sent }
 	const msg = (r) => (r.data && r.data.message) || ''
 
-	// ── Moderator, Umfrage-Raum ──
+	// ── Moderator, poll room ──
 	const { code: P } = await newRoom('poll', 'SIM Hostile Poll')
 	const p1 = await modOk('POST', '/' + P + '/polls', { type: 'choice', question: 'Farbe?', options: ['Rot', 'Blau'] })
 	const cr = await mod('POST', '', { mode: ['quiz'], title: { a: 1 } })
@@ -1397,7 +1397,7 @@ async function hostileInput() {
 	const bnd = 'simhostile'
 	const img = await modRaw('POST', '/' + P + '/polls/' + p1.id + '/image', '--' + bnd + '\r\nContent-Disposition: form-data; name="image[]"; filename="a.png"\r\nContent-Type: image/png\r\n\r\nx\r\n--' + bnd + '--\r\n', 'multipart/form-data; boundary=' + bnd)
 	check(img.status === 400 && msg(img) === 'No image received.', 'Feindlich: Bildfeld als Liste -> „No image received.“', [img.status, msg(img)])
-	// ── Handys, Umfrage-Raum ──
+	// ── Phones, poll room ──
 	const v1 = await pubRaw(P, 'POST', '/vote', { body: JSON.stringify({ value: p1.options[0].id }), cookie: 'pulse_vt[x]=y' })
 	check(v1.status === 200 && fresh(v1), 'Feindlich: Stimme mit Cookie-Liste -> 200, neues Cookie', [v1.status, issued(v1)])
 	const v2 = await pubRaw(P, 'POST', '/vote', { body: '{"value":"' + p1.options[0].id + '","pollId":1e100}' })
@@ -1408,7 +1408,7 @@ async function hostileInput() {
 	const s2 = await pubRaw(P, 'GET', '/state', { cookie: 'pulse_vt=%FF%FE' })
 	check(s2.status === 200 && fresh(s2), 'Feindlich: /state mit kaputtem Cookie -> 200, neues Cookie', [s2.status, issued(s2)])
 
-	// ── Moderator, eigenes Tempo ──
+	// ── Moderator, self-paced ──
 	const { code: S } = await newRoom('quiz', 'SIM Hostile Self')
 	const n1 = await modRaw('POST', '/' + S + '/polls', '{"type":"number","question":"N?","target":1e999,"timeLimit":30}')
 	check(n1.status === 400 && msg(n1) === 'Please enter a target number.', 'Feindlich: Zielzahl 1e999 -> 400', [n1.status, msg(n1)])
@@ -1434,7 +1434,7 @@ async function hostileInput() {
 	check((await modGet('/' + S + '/progress?v[]=x&scores[]=1')).status === 200, 'Feindlich: /progress mit v[]=x&scores[]=1 -> 200')
 	const gr = await mod('POST', '/' + S + '/polls/' + q.id + '/grade', { answer: ['x'], correct: ['y'] })
 	check(gr.status === 400, 'Feindlich: Bewerten mit Listen -> 400 (kein Freitext), kein 500', [gr.status, msg(gr)])
-	// ── Handys, eigenes Tempo ──
+	// ── Phones, self-paced ──
 	const nj = await pubRaw(S, 'POST', '/join', { body: JSON.stringify({ nickname: ['x'] }) })
 	check(nj.status === 400 && msg(nj) === 'Please enter a name.', 'Feindlich: Name als Liste -> 400', [nj.status, msg(nj)])
 	const H = new Phone('Hana', S)
@@ -1450,10 +1450,10 @@ async function hostileInput() {
 	const cj = await pubRaw(S, 'POST', '/join', { body: JSON.stringify({ nickname: 'Ida' }), cookie: 'pulse_vt=' + 'B'.repeat(33) })
 	check(cj.status === 200 && fresh(cj) && cj.data.nickname === 'Ida', 'Feindlich: Beitritt mit überlangem Cookie -> 200 mit neuem Cookie', [cj.status, issued(cj)])
 
-	// ── Freitext mit NUL (moderiertes Quiz) ──
-	// Die Stimme behält ihr NUL (JSON \u0000), die Moderation schickt die
-	// Schreibweise aus der Liste zurück. Striche die Bewertung das NUL, fände
-	// sie die Gruppe nie: „pending“ für immer.
+	// ── Free text with NUL (moderated quiz) ──
+	// The vote keeps its NUL (JSON \u0000), and the moderator sends back the
+	// spelling from the list. If grading stripped the NUL, it would never
+	// find the group: "pending" forever.
 	const { code: T } = await newRoom('quiz', 'SIM Hostile Text')
 	const tq = await modOk('POST', '/' + T + '/polls', QUIZ_QS.find((x) => x.type === 'text'))
 	await modOk('POST', '/' + T + '/current', { pollId: tq.id })
@@ -1467,7 +1467,7 @@ async function hostileInput() {
 	check(nv.status === 200 && nb?.status === 'pending' && ng.status === 200 && na?.status === 'accepted', 'Feindlich: Freitext mit NUL bleibt bewertbar (pending -> accepted)', [nv.status, nb?.status, ng.status, na?.status])
 }
 
-// Räume auch bei Strg-C/SIGTERM wegräumen — sonst blieben sie im Konto liegen.
+// Clean up the rooms on Ctrl-C/SIGTERM too — otherwise they would stay in the account.
 const keep = process.env.KEEP === '1'
 async function cleanup() {
 	if (keep) return
@@ -1497,8 +1497,8 @@ try {
 	await wordKeys()
 	await editRunning()
 	await practiceToggle()
-	// Eigenes Tempo: die Hausaufgabe zuerst öffnen — ihre 90 s bis zur Frist
-	// laufen, während Rennen und Probelauf spielen.
+	// Self-paced: open the homework first — its 90 s until the deadline
+	// run while the race and the practice run play.
 	if (await selfRoutesLoaded()) {
 		const hw = await selfHomeworkOpen()
 		await selfRace()

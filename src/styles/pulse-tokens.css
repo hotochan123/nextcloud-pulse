@@ -3,19 +3,20 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 /*
- * Pulse — Token-Schicht (Schritt 1 des Design-Systems).
- * Global, un-scoped; wird in main.js UND public.js importiert -> erreicht
- * Moderator (Steuerpult), Participant (Handy) und Screen (Beamer).
+ * Pulse — token layer (step 1 of the design system).
+ * Global, un-scoped; imported in main.js AND public.js -> reaches the
+ * Moderator (control desk), Participant (phone) and Screen (projector).
  *
- * Regel (Handoff §3): theme-abhängige Rollen binden an die echten NC-Vars
- * (--color-*) mit JE EINEM Fallback -> Light/Dark folgt NC automatisch und
- * die Fallback-Drift (#767676/#999/#555, #c33/#c73e3e, Radius 8/10/12/14)
- * verschwindet, weil jede Rolle nur noch an EINER Stelle definiert ist.
- * Fest bleiben bewusst nur: Antwort-Palette A–H, Quiz-Akzent.
+ * Rule (design notes §3, not in the public repository): theme-dependent roles
+ * bind to the real NC vars (--color-*) with EXACTLY ONE fallback each ->
+ * light/dark follows NC automatically and the fallback drift (#767676/#999/#555,
+ * #c33/#c73e3e, radius 8/10/12/14) disappears, because every role is now
+ * defined in only ONE place.
+ * Deliberately fixed are only: the answer palette A–H and the quiz accent.
  */
 
 :root {
-	/* ── Theme-Rollen (an NC-Theme gebunden, je EIN Fallback) ─────────────── */
+	/* ── Theme roles (bound to the NC theme, ONE fallback each) ──────────── */
 	--pulse-bg:            var(--color-main-background, #ffffff);
 	--pulse-text:          var(--color-main-text, #1a1a1a);
 	--pulse-text-2:        var(--color-text-maxcontrast, #6b6b6b);
@@ -28,15 +29,15 @@
 	--pulse-primary-hover: var(--color-primary-element-hover, #00538a);
 	--pulse-on-primary:    var(--color-primary-element-text, #ffffff);
 
-	/* WICHTIG: an die -text-Varianten binden, NICHT an --color-success/-error!
-	   NC nutzt --color-success/-error als HELLE Flächen-Tönung (#D8F3DA/#FFE7E7),
-	   --color-*-text als dunkle, AA-lesbare Text-/Icon-Farbe (#005416/#8A0000).
-	   Diese Rollen sind Text/Rand/Solid-Danger-BG -> müssen dunkel sein. */
+	/* IMPORTANT: bind to the -text variants, NOT to --color-success/-error!
+	   NC uses --color-success/-error as a LIGHT surface tint (#D8F3DA/#FFE7E7),
+	   and --color-*-text as the dark, AA-readable text/icon colour (#005416/#8A0000).
+	   These roles are text/border/solid danger background -> they must be dark. */
 	--pulse-success:       var(--color-success-text, #1d7a3e);
-	--pulse-warning:       var(--color-warning-text, #9a6b00); /* Text/Icon-Rolle, AA auf Weiß */
+	--pulse-warning:       var(--color-warning-text, #9a6b00); /* text/icon role, AA on white */
 	--pulse-error:         var(--color-error-text, #b5261f);
 
-	/* ── Soft-Tönungen: color-mix aus der Rolle (folgt Theme) + rgba-Fallback ─ */
+	/* ── Soft tints: color-mix from the role (follows theme) + rgba fallback ── */
 	--pulse-primary-soft: rgba(0, 106, 163, .12);
 	--pulse-primary-soft: color-mix(in srgb, var(--pulse-primary) 12%, transparent);
 	--pulse-success-soft: rgba(45, 125, 70, .14);
@@ -46,112 +47,114 @@
 	--pulse-error-soft:   rgba(193, 48, 48, .13);
 	--pulse-error-soft:   color-mix(in srgb, var(--pulse-error) 13%, transparent);
 
-	/* ── Quiz-Akzent (theme-UNABHÄNGIG, eigener Dark-Wert weiter unten) ────── */
+	/* ── Quiz accent (theme-INDEPENDENT, own dark value further down) ──────── */
 	--pulse-quiz:      #7a3ea8;
 	--pulse-quiz-on:   #ffffff;
 	--pulse-quiz-soft: rgba(122, 62, 168, .13);
 
-	/* ── Typo-Skala (§3.5 — eine statt ~14) ───────────────────────────────── */
-	--t-cap:  12px; /* Meta, Labels                       */
-	--t-sm:   14px; /* Sekundärtext                       */
-	--t-body: 16px; /* Fließtext, Buttons (kein iOS-Zoom) */
-	--t-lead: 20px; /* Frage Handy, Kartentitel           */
-	--t-h2:   26px; /* Screen-Titel                       */
-	--t-h1:   34px; /* Landing                            */
+	/* ── Type scale (§3.5 — one instead of ~14) ───────────────────────────── */
+	--t-cap:  12px; /* meta, labels                       */
+	--t-sm:   14px; /* secondary text                     */
+	--t-body: 16px; /* body text, buttons (no iOS zoom)   */
+	--t-lead: 20px; /* question on the phone, card title  */
+	--t-h2:   26px; /* screen title                       */
+	--t-h1:   34px; /* landing                            */
 
-	/* Eine Mono-Familie für DATEN-Zahlen (Skala-Wert, Kompass-Readout, Counts):
-	   tabellenziffrig -> die Zahl springt beim Ziehen nicht in der Breite. */
+	/* One mono family for DATA numbers (scale value, compass readout, counts):
+	   tabular figures -> the number does not change width while dragging. */
 	--pulse-mono: ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
 
-	/* ── Beamer-Skala (fern-lesbar, relativ zum Viewport) ─────────────────── */
+	/* ── Projector scale (readable from afar, relative to the viewport) ───── */
 	--b-meta: clamp(15px, 1.4vw, 26px);
 	--b-body: clamp(20px, 2.2vw, 40px);
 	--b-tile: clamp(22px, 2.4vw, 46px);
 	--b-q:    clamp(34px, 4.2vw, 84px);
 	--b-huge: clamp(64px, 9vw, 168px);
 
-	/* ── Bühnen-Typografie (Redesign §2.2) ────────────────────────────────
-	   Gerechnet, nicht geschätzt: Bezugsprojektion 3,0 m Bildbreite bei
-	   1920 px -> 1 px = 1,5625 mm. Versalhöhe ≈ 0,70 × Schriftgrad, lesbar
-	   ab Cap ≥ Leseabstand / 200.
-	     Klasse A (15 m): Frage, Bühnentitel, Raumcode      -> 68 px
-	     Klasse B (10 m): Labels, Werte, Namen, Achsen      -> 46 px
-	     Klasse C ( 5 m): Meta-Leiste, Legende, „+N weitere" -> 23 px
-	   --scr-stage-fs ist der EINZIGE px-Wert der Bühne; alles darin rechnet
-	   in em davon, damit die Schrumpf-Schleife mit einem Schreibzugriff
-	   auskommt (§2.3). */
+	/* ── Stage typography (redesign §2.2) ─────────────────────────────────
+	   (Design notes, not in the public repository.)
+	   Calculated, not guessed: reference projection 3.0 m image width at
+	   1920 px -> 1 px = 1.5625 mm. Cap height ≈ 0.70 × font size, readable
+	   when cap ≥ reading distance / 200.
+	     Class A (15 m): question, stage title, room code   -> 68 px
+	     Class B (10 m): labels, values, names, axes        -> 46 px
+	     Class C ( 5 m): meta bar, legend, "+{count} more"  -> 23 px
+	   --scr-stage-fs is the ONLY px value of the stage; everything inside it
+	   is in em of that value, so the shrink loop gets by with a single
+	   write (§2.3). */
 	--scr-pad:      clamp(24px, 2.5vw, 56px);
 	--scr-q-fs:     clamp(34px, 3.6vw, 72px);
 	--scr-stage-fs: clamp(24px, 2.4vw, 46px);
 	--scr-meta-fs:  clamp(16px, 1.25vw, 26px);
 
-	/* ── EIN Radius-Set (§3.4) ────────────────────────────────────────────── */
+	/* ── ONE radius set (§3.4) ────────────────────────────────────────────── */
 	--pulse-r-el:   8px;
 	--pulse-r-card: 14px;
 	--pulse-r-pill: 9999px;
 
-	/* ── Schatten (Dark-Werte weiter unten) ───────────────────────────────── */
+	/* ── Shadows (dark values further down) ───────────────────────────────── */
 	--pulse-shadow-card: 0 2px 8px rgba(0, 0, 0, .07);
 	--pulse-shadow-pop:  0 8px 28px rgba(0, 0, 0, .16);
 
-	/* ── Kanonische Antwort-Palette A–H — AA-geprüft, THEME-UNABHÄNGIG ──────
-	   Jede Farbe trägt ihre eigene, geprüfte Textfarbe (--opt-*-ink). Wird von
-	   der Live-Kachel über den Handy-Button bis in den Ergebnis-Balken
-	   durchgezogen (die Kahoot-Brücke, siehe util/palette.js). */
-	--opt-a: #c23b2e; --opt-a-ink: #ffffff; /* Rot     */
-	--opt-b: #1d6fb0; --opt-b-ink: #ffffff; /* Blau    */
-	--opt-c: #2e7d46; --opt-c-ink: #ffffff; /* Grün    */
-	--opt-d: #e8a200; --opt-d-ink: #241a00; /* Amber → dunkler Text (AA-Fix) */
-	--opt-e: #5b46c4; --opt-e-ink: #ffffff; /* Indigo — von Quiz-Lila (--pulse-quiz) abgerückt (§5/§8) */
-	--opt-f: #0f7c8c; --opt-f-ink: #ffffff; /* Türkis (abgedunkelt, AA-Fix) */
-	--opt-g: #c2255c; --opt-g-ink: #ffffff; /* Magenta */
-	--opt-h: #495057; --opt-h-ink: #ffffff; /* Schiefer */
+	/* ── Canonical answer palette A–H — AA-checked, THEME-INDEPENDENT ───────
+	   Every colour carries its own checked text colour (--opt-*-ink). It runs
+	   from the live tile via the phone button all the way into the result bar
+	   (the Kahoot bridge, see util/palette.js). */
+	--opt-a: #c23b2e; --opt-a-ink: #ffffff; /* red     */
+	--opt-b: #1d6fb0; --opt-b-ink: #ffffff; /* blue    */
+	--opt-c: #2e7d46; --opt-c-ink: #ffffff; /* green   */
+	--opt-d: #e8a200; --opt-d-ink: #241a00; /* amber → dark text (AA fix) */
+	--opt-e: #5b46c4; --opt-e-ink: #ffffff; /* indigo — moved away from the quiz purple (--pulse-quiz) (§5/§8) */
+	--opt-f: #0f7c8c; --opt-f-ink: #ffffff; /* turquoise (darkened, AA fix) */
+	--opt-g: #c2255c; --opt-g-ink: #ffffff; /* magenta */
+	--opt-h: #495057; --opt-h-ink: #ffffff; /* slate   */
 
-	/* ── Bühnen-Rollen (Redesign §3.2/§3.3) ───────────────────────────────
-	   Der Kontrastpartner der Antwort-Palette (§3.1) ist bereits da: jede
-	   Farbe trägt ihr geprüftes --opt-*-ink. Das Balken-Label liest es über
-	   --opt-ink, deshalb entstehen hier keine acht neuen Tokens. */
+	/* ── Stage roles (redesign §3.2/§3.3) ─────────────────────────────────
+	   The contrast partner of the answer palette (§3.1) already exists: every
+	   colour carries its checked --opt-*-ink. The bar label reads it via
+	   --opt-ink, so no eight new tokens are needed here. */
 	--pulse-screen-bg:     var(--pulse-bg);
 	--pulse-bar-track:     var(--pulse-fill);
 	--pulse-meta:          var(--pulse-readout);
 	--pulse-state-open:    var(--pulse-success);
 	--pulse-state-done:    var(--pulse-readout);
-	/* Schrift AUF der done-Fläche (Rennzeile „Finished", eigenes Tempo):
-	   #fff auf #33465e = 9,64:1. Die Rennzeile füllt mit --pulse-readout, am
-	   Element aufgelöst — NICHT mit --pulse-state-done: das wird hier in :root
-	   aufgelöst (var() rechnet am deklarierenden Element) und bliebe in den
-	   Dunkel-Blöcken #33465e, auf der dunklen Spur #292929 nur 1,51:1
-	   (Review 28.09.). Dunkel ist die Fläche #c3d2e4, die Schrift #0d1620. */
+	/* Text ON the done surface (race row "Finished", self-paced):
+	   #fff on #33465e = 9.64:1. The race row fills with --pulse-readout, resolved
+	   on the element — NOT with --pulse-state-done: that one is resolved here in :root
+	   (var() is computed on the declaring element) and would stay #33465e in the
+	   dark blocks, only 1.51:1 on the dark track #292929
+	   (review 28.09.). In dark mode the surface is #c3d2e4 and the text #0d1620. */
 	--pulse-state-done-ink: #ffffff;
 	--pulse-solution-ring: var(--pulse-success);
 	--pulse-solution-mark: var(--pulse-success);
 	--pulse-countdown-urgent: var(--pulse-error);
-	/* Bildfrage (§7.8): im Hellen trägt das Bild eine ruhige Fläche, im Dunklen
-	   nimmt sie zusammen mit der leichten Abdunklung das Leuchten aus weißen
-	   Bildgründen. Keine Invertierung — Diagramme und Logos würden falsch. */
+	/* Image question (§7.8): in light mode the image sits on a calm surface; in dark
+	   mode that surface, together with the slight dimming, takes the glare out of
+	   white image backgrounds. No inversion — diagrams and logos would come out wrong. */
 	--pulse-image-mat:     var(--pulse-fill);
 	--pulse-image-filter:  none;
 
-	/* ── §0 Verfeinerung: vier neue Rollen (THEME-UNABHÄNGIG, Dark unten) ────
-	   Warum eigene Rollen statt --pulse-primary/-quiz/-text-2:
-	   • self  = "Du"/Ich-Identität — EINE Farbe über Rangliste, Podium, Balken,
-	             Kompass-Punkt/Regler. Vorher lieh sie sich das Quiz-Lila, was
-	             "Du" und "Quiz-Modus" visuell verschmolz.
-	   • viz   = Datenvisualisierung (Histogramm/Radar/Kompass). Vorher UI-Blau
-	             -> Diagramm und Bedienelement sahen gleich wichtig aus.
-	   • readout = DATENTRAGENDES Grau (Counts, %, N Stimmen, Mini-PIN, Code).
-	             Kräftiger als --pulse-text-2, das weglassbare Beschriftung bleibt.
-	   • gold/silver/bronze = Podium (§2).
-	   AA-Regel: Farbe ist nie einziger Träger — "Du"/Schwerpunkt/Rang immer
-	   zusätzlich als Text oder Form. */
+	/* ── §0 refinement: four new roles (THEME-INDEPENDENT, dark below) ───────
+	   (Design notes, not in the public repository.)
+	   Why separate roles instead of --pulse-primary/-quiz/-text-2:
+	   • self  = "You"/own identity — ONE colour across leaderboard, podium, bars,
+	             compass dot/slider. Before, it borrowed the quiz purple, which
+	             visually merged "You" and "quiz mode".
+	   • viz   = data visualisation (histogram/radar/compass). Before: UI blue
+	             -> chart and control looked equally important.
+	   • readout = DATA-CARRYING grey (counts, %, N votes, mini PIN, code).
+	             Stronger than --pulse-text-2, which stays for optional captions.
+	   • gold/silver/bronze = podium (§2).
+	   AA rule: colour is never the only carrier — "You"/centroid/rank always
+	   also as text or shape. */
 	--pulse-self:      #c2255c;
 	--pulse-self-ink:  #ffffff;
 	--pulse-self-soft: rgba(194, 37, 92, .12);
 
-	--pulse-viz:       #0e7c8b; /* Ø / Kontur / Säule */
-	--pulse-viz-2:     #7ac6d2; /* Streuung / Fläche  */
+	--pulse-viz:       #0e7c8b; /* Ø / outline / bar  */
+	--pulse-viz-2:     #7ac6d2; /* spread / area      */
 	--pulse-viz-soft:  rgba(14, 124, 139, .14);
-	/* Schrift AUF einer viz-Fläche (Rennbalken, eigenes Tempo): #fff auf #0e7c8b = 4,91:1. */
+	/* Text ON a viz surface (race bar, self-paced): #fff on #0e7c8b = 4.91:1. */
 	--pulse-viz-ink:   #ffffff;
 
 	--pulse-readout:   #33465e;
@@ -160,19 +163,19 @@
 	--pulse-silver: #8b93a0; --pulse-silver-2: #c3cad4;
 	--pulse-bronze: #a56a3c; --pulse-bronze-2: #cf9463;
 
-	/* ── Wort-Palette (§7) — kategorial je Wort, THEME-ABHÄNGIG (Dark-Varianten
-	   weiter unten). BEWUSST GETRENNT von der Antwort-Palette A–H und vom
-	   UI-Akzent: die Wortwolke ist Zufallsfarbe-je-Wort, keine Options-Brücke.
-	   Farbe ist hier reine Kategorie-Deko — Informationsträger ist das Wort. */
+	/* ── Word palette (§7) — categorical per word, THEME-DEPENDENT (dark variants
+	   further down). DELIBERATELY SEPARATE from the answer palette A–H and from the
+	   UI accent: the word cloud is a random colour per word, not an option bridge.
+	   Colour is pure category decoration here — the word carries the information. */
 	--w1: #E23744; --w2: #E86B12; --w3: #C08400; --w4: #0E9E90;
 	--w5: #2D6FE0; --w6: #7C4DD6; --w7: #D6409A; --w8: #1BA25A;
 }
 
 /*
- * Dark: nur die theme-UNABHÄNGIGEN Tokens anfassen, die trotzdem einen
- * eigenen Dark-Wert haben (Quiz-Akzent, Schatten). Alles andere folgt NC
- * automatisch, weil es an --color-* gebunden ist. Selektoren = die von NC
- * kompiliert genutzten Dark-Marker.
+ * Dark: only touch the theme-INDEPENDENT tokens that nevertheless have their
+ * own dark value (quiz accent, shadows). Everything else follows NC
+ * automatically, because it is bound to --color-*. Selectors = the dark markers
+ * NC uses in its compiled CSS.
  */
 [data-theme-dark],
 [data-themes*="dark"],
@@ -186,8 +189,8 @@
 	--pulse-viz:       #43c3d8;
 	--pulse-viz-2:     #9fe0ea;
 	--pulse-viz-soft:  rgba(67, 195, 216, .18);
-	--pulse-viz-ink:   #062a30; /* auf #43c3d8 = 7,26:1 */
-	--pulse-state-done-ink: #0d1620; /* auf readout #c3d2e4 = 11,9:1 (Rennzeile „Finished") */
+	--pulse-viz-ink:   #062a30; /* on #43c3d8 = 7.26:1 */
+	--pulse-state-done-ink: #0d1620; /* on readout #c3d2e4 = 11.9:1 (race row "Finished") */
 	--pulse-readout:   #c3d2e4;
 	--pulse-image-mat:    #2b2b2b;
 	--pulse-image-filter: brightness(.94);
@@ -196,12 +199,12 @@
 	--pulse-bronze: #c98a56; --pulse-bronze-2: #e0aa7e;
 	--pulse-shadow-card: 0 2px 10px rgba(0, 0, 0, .45);
 	--pulse-shadow-pop:  0 10px 34px rgba(0, 0, 0, .6);
-	/* Wort-Palette Dark: hellere Varianten (Kontrast auf dunklem Beamer) */
+	/* Word palette dark: lighter variants (contrast on a dark projector) */
 	--w1: #FF6B77; --w2: #FFA24D; --w3: #F4C24A; --w4: #31CEB4;
 	--w5: #5B96FF; --w6: #B48CFF; --w7: #FF74B4; --w8: #4CD888;
 }
 
-/* NC-Standardtheme folgt dem Betriebssystem — dort Dark ebenfalls schalten. */
+/* The NC default theme follows the operating system — switch to dark there as well. */
 @media (prefers-color-scheme: dark) {
 	[data-theme-default],
 	[data-themes*="default"] {
@@ -214,8 +217,8 @@
 		--pulse-viz:       #43c3d8;
 		--pulse-viz-2:     #9fe0ea;
 		--pulse-viz-soft:  rgba(67, 195, 216, .18);
-		--pulse-viz-ink:   #062a30; /* auf #43c3d8 = 7,26:1 */
-		--pulse-state-done-ink: #0d1620; /* auf readout #c3d2e4 = 11,9:1 (Rennzeile „Finished") */
+		--pulse-viz-ink:   #062a30; /* on #43c3d8 = 7.26:1 */
+		--pulse-state-done-ink: #0d1620; /* on readout #c3d2e4 = 11.9:1 (race row "Finished") */
 		--pulse-readout:   #c3d2e4;
 	--pulse-image-mat:    #2b2b2b;
 	--pulse-image-filter: brightness(.94);

@@ -20,8 +20,8 @@ use OCP\AppFramework\Services\IInitialState;
 use OCP\IRequest;
 
 /**
- * Öffentliche Teilnehmer-Seite: kein Nextcloud-Konto nötig. Der Raumcode in der
- * URL (/apps/pulse/s/{code}) wirkt wie das Token eines Freigabe-Links.
+ * Public participant page: no Nextcloud account needed. The room code in the
+ * URL (/apps/pulse/s/{code}) acts like the token of a share link.
  */
 class PublicController extends Controller {
     public function __construct(
@@ -33,8 +33,8 @@ class PublicController extends Controller {
     }
 
     /**
-     * Beitritts-Seite ohne Code: Teilnehmende tippen den 6-stelligen Code ein.
-     * Rendert dasselbe Bundle; leerer Code => Participant.vue zeigt die Eingabe.
+     * Join page without a code: participants type in the 6-digit code.
+     * Renders the same bundle; empty code => Participant.vue shows the input.
      */
     #[PublicPage]
     #[NoCSRFRequired]
@@ -63,8 +63,8 @@ class PublicController extends Controller {
             $exists = false;
         }
 
-        // Die SPA holt sich den Zustand selbst; Code + Existenz vorab mitgeben,
-        // damit sie ohne URL-Parsing startet und ein fehlender Raum sofort sichtbar ist.
+        // The SPA fetches the state itself; pass code + existence up front
+        // so it starts without URL parsing and a missing room is visible immediately.
         $this->initialState->provideInitialState('code', $code);
         $this->initialState->provideInitialState('roomExists', $exists);
 
@@ -75,7 +75,7 @@ class PublicController extends Controller {
             TemplateResponse::RENDER_AS_PUBLIC,
         );
         $response->setContentSecurityPolicy(new ContentSecurityPolicy());
-        // Aufruf mit unbekanntem Code als Brute-Force-Fehlversuch werten.
+        // Count a call with an unknown code as a failed brute-force attempt.
         if (!$exists) {
             $response->throttle(['action' => 'pulseRoomCode']);
         }
@@ -83,10 +83,10 @@ class PublicController extends Controller {
     }
 
     /**
-     * Beamer-/Publikumsansicht (öffentlich, ohne Konto): dieselbe SPA, aber das
-     * Flag `screen` schaltet das Bundle auf die Großbild-Präsentation statt auf
-     * die Abstimm-Oberfläche. Rein lesend — nutzt denselben abgesicherten
-     * publicState, der die richtige Antwort erst nach dem Auflösen herausgibt.
+     * Projector/audience view (public, no account): the same SPA, but the
+     * `screen` flag switches the bundle to the big-screen presentation instead of
+     * the voting UI. Read-only — uses the same secured
+     * publicState, which only hands out the correct answer after the reveal.
      */
     #[PublicPage]
     #[NoCSRFRequired]
@@ -109,15 +109,15 @@ class PublicController extends Controller {
             [],
             TemplateResponse::RENDER_AS_PUBLIC,
         );
-        // Die Beamer-/Publikumsansicht ist rein lesend (keine Aktion, die sich
-        // per Clickjacking missbrauchen ließe) und soll sich wie eine Mentimeter-
-        // Folie in Präsentations-Tools einbetten lassen — allen voran das
-        // „Web Viewer"-Add-in in PowerPoint. Darum frame-ancestors offen.
-        // Achtung: der zweite Framing-Blocker X-Frame-Options: SAMEORIGIN kommt
-        // aus der Core-.htaccess (Header always set) und ist per PHP NICHT
-        // überschreibbar — er wird für /screen im Traefik entfernt
-        // (dynamic_conf/http.routers.pulse-embed.yml). Die Abstimm-Seiten
-        // (show/join) bleiben bewusst hart auf 'self'.
+        // The projector/audience view is read-only (no action that could be
+        // abused via clickjacking) and should embed in presentation tools like a
+        // Mentimeter slide — above all the
+        // "Web Viewer" add-in in PowerPoint. Hence frame-ancestors open.
+        // Caution: the second framing blocker, X-Frame-Options: SAMEORIGIN, comes
+        // from the core .htaccess (Header always set) and can NOT be
+        // overridden from PHP — it is removed for /screen in Traefik
+        // (dynamic_conf/http.routers.pulse-embed.yml). The voting pages
+        // (show/join) deliberately stay strictly on 'self'.
         $csp = new ContentSecurityPolicy();
         $csp->addAllowedFrameAncestorDomain('*');
         $response->setContentSecurityPolicy($csp);
@@ -128,21 +128,21 @@ class PublicController extends Controller {
     }
 
     /**
-     * Einbett-Shell fürs Office-/PowerPoint-Add-in (Content-Add-in). Lädt office.js,
-     * fragt einmalig den Raumcode ab (persistiert in den Dokument-Settings der .pptx)
-     * und rahmt dann /screen/{code} same-origin ein. Muss von Office framebar sein
-     * (frame-ancestors offen) und office.js aus Microsofts CDN laden dürfen — rein
-     * lesende Shell, keine sensiblen NC-Inhalte. Der zweite Framing-Blocker
-     * X-Frame-Options wird für diesen Pfad zusätzlich im Traefik entfernt
+     * Embed shell for the Office/PowerPoint add-in (content add-in). Loads office.js,
+     * asks once for the room code (persisted in the document settings of the .pptx)
+     * and then frames /screen/{code} same-origin. Must be frameable by Office
+     * (frame-ancestors open) and allowed to load office.js from Microsoft's CDN — a
+     * read-only shell, no sensitive NC content. The second framing blocker,
+     * X-Frame-Options, is additionally removed for this path in Traefik
      * (dynamic_conf/http.routers.pulse-embed.yml).
      */
     #[PublicPage]
     #[NoCSRFRequired]
     public function embed(): TemplateResponse {
-        // RENDER_AS_PUBLIC (nicht BLANK!): nur der Public-Layout bindet die per
-        // addScript/addStyle registrierten Assets samt CSP-Nonce ein. BLANK gibt
-        // ausschließlich den Template-Inhalt zurück (ohne <head> → office.js/JS
-        // würden nie laden). Die NC-Gast-Chrome versteckt embed.css.
+        // RENDER_AS_PUBLIC (not BLANK!): only the public layout includes the assets
+        // registered via addScript/addStyle together with the CSP nonce. BLANK returns
+        // nothing but the template content (without <head> → office.js/JS
+        // would never load). embed.css hides the NC guest chrome.
         $response = new TemplateResponse(
             Application::APP_ID,
             'embed',
@@ -151,7 +151,7 @@ class PublicController extends Controller {
         );
         $csp = new ContentSecurityPolicy();
         $csp->addAllowedFrameAncestorDomain('*');
-        // office.js + dessen dynamisch nachgeladene Ressourcen aus Microsofts CDN
+        // office.js + its dynamically loaded resources from Microsoft's CDN
         $csp->addAllowedScriptDomain('https://appsjs.microsoft.com');
         $csp->addAllowedScriptDomain('https://*.microsoft.com');
         $csp->addAllowedConnectDomain('https://appsjs.microsoft.com');

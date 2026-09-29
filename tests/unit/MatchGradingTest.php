@@ -15,11 +15,11 @@ use PHPUnit\Framework\TestCase;
 use ReflectionProperty;
 
 /**
- * Wertung der Zuordnung im Quiz: alles-oder-nichts, wie bei Mehrfachauswahl und
- * Reihenfolge. Teilpunkte würden „richtig" in der Rangliste verwässern.
+ * Grading of matching in a quiz: all-or-nothing, as with multiple choice and
+ * ranking. Partial points would water down "correct" in the leaderboard.
  *
- * quizPayload() rechnet DB-frei; die Instanz entsteht daher ohne Konstruktor
- * (newInstanceWithoutConstructor), nur die Punkte-Rechnung wird nachgereicht.
+ * quizPayload() computes without a DB; the instance is therefore created without a constructor
+ * (newInstanceWithoutConstructor), only the points calculation is injected afterwards.
  */
 #[CoversClass(VoteService::class)]
 class MatchGradingTest extends TestCase {
@@ -40,7 +40,7 @@ class MatchGradingTest extends TestCase {
     }
 
     public function testReihenfolgeDerZeilenIstEgal(): void {
-        // Der Client schickt die Zeilen in seiner (gemischten) Anzeigereihenfolge.
+        // The client sends the rows in its own (shuffled) display order.
         $payload = $this->service->quizPayload($this->poll(), ['I2' => 'T2', 'I1' => 'T1'], 0);
 
         $this->assertTrue($payload['correct']);
@@ -60,8 +60,8 @@ class MatchGradingTest extends TestCase {
     }
 
     public function testOhneLoesungGibtEsKeinenPunkt(): void {
-        // Umfrage-Zuordnung hat keinen answerKey — eine leere Lösung darf nicht
-        // versehentlich auf eine leere Antwort passen.
+        // A poll-mode matching has no answerKey — an empty solution must not
+        // accidentally match an empty answer.
         $poll = $this->poll();
         $poll->setAnswerKey(null);
 

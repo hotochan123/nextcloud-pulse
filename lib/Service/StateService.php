@@ -18,14 +18,18 @@ use OCP\IConfig;
 use OCP\IL10N;
 
 /**
- * Lesesichten auf einen Raum: Live-Ergebnisse für den Moderator, der öffentliche
- * Teilnehmer-Zustand, die Gesamtauswertung (intern wie öffentlich), der
- * CSV-Export und die billigen Änderungs-Fingerabdrücke fürs adaptive Polling.
- * Schreibt nichts.
+ * Read views on a room: live results for the moderator, the public
+ * participant state, the overall results (internal and public), the
+ * CSV export and the cheap change fingerprints for adaptive polling.
+ * Writes nothing.
  *
- * Quiz im eigenen Tempo (PaceService::isSelf): die öffentlichen Sichten, die
- * Moderator-Ergebnisse und ihre Versionen delegieren in der ersten Zeile an
- * PaceStateService — der moderierte Code hier bleibt unberührt.
+ * Self-paced quiz (PaceService::isSelf): the public views, the
+ * moderator results and their versions delegate to PaceStateService in their
+ * first line — the moderated code here stays untouched.
+ *
+ * Section references (§…) point to the design notes of the redesign and of the
+ * self-paced quiz, which are not in the public repository (see "References in
+ * code comments" in the README).
  */
 class StateService {
     public function __construct(
@@ -38,13 +42,13 @@ class StateService {
         private ITimeFactory $timeFactory,
         private IL10N $l10n,
         private IConfig $config,
-        // nur im eigenen Tempo angefasst:
+        // only touched in self-paced mode:
         private PaceStateService $paceState,
     ) {
     }
 
     /**
-     * Gesamt-Zusammenfassung: jede Frage des Decks mit ihrer Auszählung.
+     * Overall summary: every question of the deck with its tally.
      *
      * @return list<array{poll:array, results:array}>
      */
@@ -60,11 +64,11 @@ class StateService {
     }
 
     /**
-     * Ergebnisse aller Fragen als CSV (Long-Format, eine Zeile je Antwort).
-     * `;`-getrennt + UTF-8-BOM → öffnet in Excel korrekt mit Umlauten; Zahlen
-     * in der Sprache des Exports (siehe num()). Anführungszeichen nach RFC 4180
-     * verdoppelt, ohne Backslash-Escape (wie PaceStateService; PHP 8.4 will das
-     * Escape-Zeichen ausdrücklich).
+     * Results of all questions as CSV (long format, one row per answer).
+     * `;`-separated + UTF-8 BOM → opens correctly in Excel, umlauts included; numbers
+     * in the export's language (see num()). Quotes doubled as per RFC 4180,
+     * without backslash escaping (like PaceStateService; PHP 8.4 wants the
+     * escape character stated explicitly).
      */
     public function exportCsv(Room $room): string {
         $fh = fopen('php://temp', 'r+');
@@ -85,7 +89,7 @@ class StateService {
             $question = $poll->getQuestion();
             $typeLabel = $this->typeLabel($poll->getType());
 
-            // Spektrum: eine Zeile je Aspekt (Ø + Antwortzahl) statt Wert/Anteil.
+            // Spectrum: one row per aspect (mean + answer count) instead of value/share.
             if ($poll->getType() === 'scale' && ($tally['mode'] ?? 'single') === 'spectrum') {
                 foreach ($tally['results'] as $row) {
                     $avg = $this->num($row['average']);
@@ -98,7 +102,7 @@ class StateService {
                 continue;
             }
 
-            // Kompass: Schwerpunkt + je Stimme ein Punkt (X / Y).
+            // Compass: centre of gravity + one point (X / Y) per vote.
             if ($poll->getType() === 'scale' && ($tally['mode'] ?? 'single') === 'compass') {
                 $c = $tally['centroid'] ?? null;
                 $ct = $c
@@ -111,8 +115,8 @@ class StateService {
                 continue;
             }
 
-            // Zuordnung: eine Zeile je tatsächlich gewählter Paarung „Item → Ziel".
-            // Alle Kombinationen wären bei acht Paaren 64 Zeilen Rauschen.
+            // Matching: one row per pairing "item → target" that was actually chosen.
+            // All combinations would be 64 rows of noise with eight pairs.
             if ($poll->getType() === 'match') {
                 if ($total === 0) {
                     fputcsv($fh, [$nr, $question, $typeLabel, $this->l10n->t('(no answers)'), 0, ''], ';', '"', '');
@@ -131,7 +135,7 @@ class StateService {
                 continue;
             }
 
-            // Reihenfolge: eine Zeile je Option mit Ø-Platz und Zahl der Erstplätze.
+            // Ranking: one row per option with the mean place and the number of first places.
             if ($poll->getType() === 'rank') {
                 foreach ($tally['results'] as $rank => $row) {
                     $avg = $this->num($row['average']);
@@ -147,10 +151,10 @@ class StateService {
                 continue;
             }
 
-            // Freitext: eine Zeile je Antwortgruppe (gleiche Normalform) in der
-            // Schreibweise der ersten Antwort, wie beim Bewerten, gegen Formeln
-            // entschärft (CsvFormat::cell). Die Auszählung heißt hier `answers`,
-            // nicht `results` — der allgemeine Zweig unten lief deshalb in einen
+            // Free text: one row per answer group (same normal form) in the
+            // spelling of the first answer, as in grading, defused against formulas
+            // (CsvFormat::cell). The tally is called `answers` here,
+            // not `results` — which is why the generic branch below ran into a
             // TypeError (500).
             if ($poll->getType() === 'text') {
                 foreach ($tally['answers'] as $row) {
@@ -173,7 +177,7 @@ class StateService {
                 fputcsv($fh, [$nr, $question, $typeLabel, $this->l10n->t('Average'), $this->num($tally['average']), ''], ';', '"', '');
             }
             if (count($tally['results']) === 0) {
-                // Wortwolke ohne Antworten -> Frage trotzdem im Export sichtbar.
+                // Word cloud without answers -> the question is still visible in the export.
                 fputcsv($fh, [$nr, $question, $typeLabel, $this->l10n->t('(no answers)'), 0, ''], ';', '"', '');
             }
         }
@@ -181,24 +185,24 @@ class StateService {
         rewind($fh);
         $csv = stream_get_contents($fh);
         fclose($fh);
-        return "\xEF\xBB\xBF" . $csv; // UTF-8-BOM
+        return "\xEF\xBB\xBF" . $csv; // UTF-8 BOM
     }
 
-    /** Zahl in der Sprache des Exports (Regel in CsvFormat::number). */
+    /** A number in the export's language (rule in CsvFormat::number). */
     private function num(float|int|string $value): string {
         return CsvFormat::number($value, $this->l10n->getLocaleCode());
     }
 
-    /** Typ-Bezeichnung (Regel in CsvFormat::typeLabel, auch für den Export im eigenen Tempo). */
+    /** Type label (rule in CsvFormat::typeLabel, also used by the self-paced export). */
     private function typeLabel(string $type): string {
         return CsvFormat::typeLabel($type, $this->l10n);
     }
 
     /**
-     * Wörter kommen aus dem Publikum und laufen durch CsvFormat::cell; eine
-     * Schätzung trägt ihre Zahl in `value` (kein `label` — die Spalte blieb leer).
+     * Words come from the audience and go through CsvFormat::cell; a
+     * guess carries its number in `value` (no `label` — the column stayed empty).
      *
-     * @param array $row Ergebniszeile aus TallyService
+     * @param array $row result row from TallyService
      */
     private function answerLabel(string $type, array $row): string {
         return match ($type) {
@@ -211,7 +215,7 @@ class StateService {
 
     /**
      * @return array{type:string, total:int, results:array, present:int}
-     * @throws \InvalidArgumentException Frage gehört nicht zum Raum
+     * @throws \InvalidArgumentException question does not belong to the room
      */
     public function results(Room $room, int $pollId): array {
         if (PaceService::isSelf($room)) {
@@ -219,37 +223,37 @@ class StateService {
         }
         $poll = $this->deckService->requirePollInRoom($room, $pollId);
         $tally = $this->tallyService->tally($poll, $this->voteMapper->findByPoll($poll->getId()));
-        // Live-Teilnehmerzahl fürs Moderator-Badge huckepack im Poll (2,5 s).
+        // Live participant count for the moderator badge, piggybacked on the poll (2.5 s).
         $tally['present'] = $this->roomService->presentCount($room);
         if ($room->getMode() === 'quiz') {
-            // Serverzeit + Frage-Timing für den Countdown, Status + Live-Rangliste.
+            // Server time + question timing for the countdown, status + live leaderboard.
             $tally['serverNow'] = $this->timeFactory->getTime();
             $tally['startedAt'] = $poll->getStartedAt();
             $tally['timeLimit'] = $poll->getTimeLimit();
             $tally['status'] = $poll->getStatus();
             $tally['practice'] = $room->getPractice();
-            // Keine mitlaufende Rangliste im Probelauf (keine Wertung) und bei
-            // „Auflösung am Ende" (die gibt es erst beim Endstand).
+            // No running leaderboard in a practice run (no scoring) or with
+            // "Reveal at the end" (that only exists with the final standings).
             $tally['leaderboard'] = ($room->getPractice() || $room->getRevealAtEnd())
                 ? [] : $this->voteService->leaderboardFor($room, null);
         }
         return $tally;
     }
 
-    // ── Änderungs-Version (adaptives Polling) ───────────────────────────────
+    // ── Change version (adaptive polling) ─────────────────────────────────
 
     /**
-     * Billiger Fingerabdruck des Teilnehmer-Zustands: ändert sich genau dann,
-     * wenn sich für Teilnehmer etwas zu sehen ändert (Frage gewechselt, gesperrt/
-     * aufgelöst, Timer neu gestartet, neue Stimme). Kostet einen Row-Fetch + ein
-     * COUNT — kein Tally. Der Client pollt mit `?v=<version>`; stimmt sie überein,
-     * antwortet der Controller mit 204 (winzig), sonst mit dem vollen Zustand.
-     * Bewusst OHNE Präsenz (die zählt nur der Moderator; sonst triebe jeder
-     * Heartbeat die Version hoch → alle würden dauernd voll pollen).
+     * Cheap fingerprint of the participant state: changes exactly when
+     * something visible to participants changes (question switched, locked/
+     * revealed, timer restarted, new vote). Costs one row fetch + one
+     * COUNT — no tally. The client polls with `?v=<version>`; if it matches,
+     * the controller answers with 204 (tiny), otherwise with the full state.
+     * Deliberately WITHOUT presence (only the moderator counts that; otherwise every
+     * heartbeat would bump the version → everyone would poll in full all the time).
      *
-     * Im eigenen Tempo gibt es keinen billigen Fingerabdruck: die Version ist
-     * ein Hash über den fertig gebauten Zustand dieses Tokens (selfVersion).
-     * $voterToken zählt nur dort; moderiert ist die Version für alle gleich.
+     * In self-paced mode there is no cheap fingerprint: the version is
+     * a hash over the fully built state for this token (selfVersion).
+     * $voterToken only matters there; when moderated, the version is the same for everyone.
      */
     public function stateVersion(Room $room, bool $withPresence = false, ?string $voterToken = null): string {
         if (PaceService::isSelf($room)) {
@@ -257,12 +261,12 @@ class StateService {
         }
         $activeId = $room->getActivePollId();
         if ($activeId === 0) {
-            // Lobby: der „N dabei"-Zähler soll live sein -> Präsenzzahl in den
-            // Fingerabdruck, sonst quittiert der 204-Cache jede Änderung weg.
-            // Dazu, was die Lobby sonst zeigt: Titel, Probelauf-Banner und ob
-            // der eigene Name noch steht — Zurücksetzen und der Probelauf-
-            // Schalter löschen alle Spielenden, und ohne die Anzahl hielte ein
-            // Handy „Bereit, Anna" fest, bis die erste Frage schon läuft.
+            // Lobby: the "N here" counter should be live -> presence count goes into the
+            // fingerprint, otherwise the 204 cache swallows every change.
+            // Plus what else the lobby shows: title, practice-run banner and whether
+            // one's own name still stands — a reset and the practice-run
+            // switch delete all players, and without the count a
+            // phone would hold on to "Ready, Anna" until the first question is already running.
             return $this->opaque('idle:' . $this->roomService->presentCount($room)
                 . ':' . $this->roomFlags($room) . ':' . $this->voteService->playerCount($room));
         }
@@ -271,23 +275,23 @@ class StateService {
         } catch (DoesNotExistException) {
             return $this->opaque('idle');
         }
-        // Inhalts-Fingerabdruck statt reiner Anzahl: eine GEÄNDERTE Umfrage-
-        // Antwort (Upsert) lässt die Anzahl gleich, würde also mit 204
-        // „unverändert" quittiert und Beamer/Live-Sicht nicht aktualisieren.
-        // Freitext-Bewerten wiederum ändert answerKey.
+        // Content fingerprint instead of a plain count: a CHANGED poll
+        // answer (upsert) leaves the count unchanged, so it would be answered with 204
+        // "unchanged" and the projector/live view would not update.
+        // Grading free text, in turn, changes answerKey.
         $stamp = $this->voteMapper->changeStamp($activeId);
-        // Für die Zuschauer-Ansicht gehört die Präsenz in den Fingerabdruck:
-        // ihre Eingangs-Anzeige zeigt „12 von 24", und ohne die Zahl im
-        // Fingerabdruck quittiert der 204-Cache eine neu beigetretene Person
-        // weg, bis zufällig jemand abstimmt. Für Abstimmende bleibt sie draußen
-        // — dort würde jeder Heartbeat alle zu einem vollen Poll zwingen.
+        // For the audience view, presence belongs in the fingerprint:
+        // its incoming-answers display shows "12 of 24", and without the number in the
+        // fingerprint the 204 cache swallows a newly joined person
+        // until someone happens to vote. For voters it stays out
+        // — there every heartbeat would force everyone into a full poll.
         $presence = $withPresence ? ':p' . $this->roomService->presentCount($room) : '';
-        // Aufgelöst ja/nein und Probelauf gehören hinein: „Auflösung am Ende"
-        // nachträglich umschalten ändert keinen Status, aber was Handy und
-        // Beamer zeigen dürfen — sonst hielte der 204 die alte Auflösung fest.
-        // Dazu der Inhalt der Frage: eine bearbeitete Umfrage-Frage ohne
-        // Stimmen ändert sonst weder Status noch Startzeit noch Stempel — die
-        // Handys behielten die alten Options-IDs, und jede Stimme scheiterte.
+        // Revealed yes/no and the practice run belong in it: toggling "Reveal at the end"
+        // afterwards changes no status, but it changes what phone and
+        // projector may show — otherwise the 204 would hold on to the old reveal.
+        // Plus the content of the question: an edited poll question without
+        // votes otherwise changes neither status nor start time nor stamp — the
+        // phones would keep the old option IDs, and every vote would fail.
         $flags = ':' . ($this->isRevealed($room, $poll) ? 'r' : 'h') . ':' . $this->roomFlags($room)
             . ':' . crc32((string)json_encode($poll->jsonSerialize()));
         return $this->opaque($activeId . ':' . $poll->getStatus() . ':' . $poll->getStartedAt() . ':' . $stamp
@@ -295,32 +299,32 @@ class StateService {
     }
 
     /**
-     * Version eines fertig gebauten Zustands im eigenen Tempo (ohne serverNow).
-     * Der Controller baut den Zustand einmal und leitet die Version daraus ab —
-     * alles Zeitgetriebene (Frist, Endgültigkeit, Zeitablauf) steht darin.
+     * Version of a fully built self-paced state (without serverNow).
+     * The controller builds the state once and derives the version from it —
+     * everything time-driven (deadline, finality, time running out) is contained in it.
      */
     public function selfVersion(array $state): string {
         return $this->paceState->version($state);
     }
 
-    /** Raum-Einstellungen, die das Publikum sieht: Probelauf-Banner und Titel. */
+    /** Room settings the audience sees: practice-run banner and title. */
     private function roomFlags(Room $room): string {
         return ($room->getPractice() ? 'p' : '-') . crc32($room->titleOrEmpty());
     }
 
-    /** Fingerabdruck als undurchsichtiger Schlüssel-Hash (warum: PublicView::opaque). */
+    /** Fingerprint as an opaque keyed hash (why: PublicView::opaque). */
     private function opaque(string $raw): string {
         return PublicView::opaque($raw, $this->config->getSystemValueString('secret', ''));
     }
 
     /**
-     * Wie stateVersion, aber für den Moderator inkl. Präsenzzahl (die er anzeigt).
+     * Like stateVersion, but for the moderator, including the presence count (which it displays).
      *
-     * @throws \InvalidArgumentException Frage gehört nicht zum Raum
+     * @throws \InvalidArgumentException question does not belong to the room
      */
     public function resultsVersion(Room $room, int $pollId): string {
         if (PaceService::isSelf($room)) {
-            // Baut doppelt, wenn sich etwas geändert hat — nur ein Moderator, akzeptiert.
+            // Builds twice when something changed — only one moderator, accepted.
             return $this->paceState->version($this->paceState->results($room, $pollId));
         }
         $poll = $this->deckService->requirePollInRoom($room, $pollId);
@@ -331,15 +335,15 @@ class StateService {
             . ':' . (int)$room->getRevealAtEnd() . (int)$room->getPractice();
     }
 
-    // ── Öffentliche Teilnehmer-Sicht ────────────────────────────────────────
+    // ── Public participant view ──────────────────────────────────────────
 
     /**
-     * Darf ein Bild dieser Frage öffentlich ausgeliefert werden? Nur wenn die
-     * Frage gerade läuft oder aufgelöst ist — sonst verriete es die nächste
-     * Frage im Deck. Dieselbe Reveal-Regel wie publicState/publicSummary.
+     * May an image of this question be served publicly? Only if the
+     * question is running right now or has been revealed — otherwise it would give away
+     * the next question in the deck. The same reveal rule as publicState/publicSummary.
      *
-     * Im eigenen Tempo nur für Personen, die die Frage erreicht haben
-     * ($voterToken aus dem Cookie, das das <img> same-site mitschickt).
+     * In self-paced mode only for people who have reached the question
+     * ($voterToken from the cookie that the <img> sends along same-site).
      */
     public function imageVisible(Room $room, Poll $poll, ?string $voterToken = null): bool {
         if (PaceService::isSelf($room)) {
@@ -352,8 +356,8 @@ class StateService {
     }
 
     /**
-     * Ist diese Frage fürs Publikum aufgelöst? Quiz mit „Auflösung am Ende":
-     * erst wenn sie beendet ist; sonst, sobald sie gesperrt oder beendet ist.
+     * Is this question revealed to the audience? Quiz with "Reveal at the end":
+     * only once it has ended; otherwise as soon as it is locked or ended.
      */
     private function isRevealed(Room $room, Poll $poll): bool {
         return $this->quizRevealAtEnd($room)
@@ -362,10 +366,10 @@ class StateService {
     }
 
     /**
-     * IDs aller Fragen des Raums, die fürs Publikum noch nicht aufgelöst sind.
-     * Ihre Punkte gehören in keine öffentliche Rangliste: übersprungene der
-     * Moderator eine Frage ohne Auflösen, verriete der Punktestand sonst, ob die
-     * eigene Antwort richtig war — und die Frage kann wieder geöffnet werden.
+     * IDs of all questions of the room that are not yet revealed to the audience.
+     * Their points belong in no public leaderboard: if the moderator skipped a
+     * question without revealing it, the score would otherwise give away whether
+     * one's own answer was right — and the question can be opened again.
      *
      * @return list<int>
      */
@@ -380,22 +384,22 @@ class StateService {
     }
 
     /**
-     * „Auflösung am Ende" gilt nur im Quiz. Die Moderator-Oberfläche bietet den
-     * Schalter nur dort an, gespeichert werden kann er aber für jeden Raum —
-     * eine Umfrage darf davon nicht verdeckt werden.
+     * "Reveal at the end" only applies to quizzes. The moderator UI only offers the
+     * switch there, but it can be saved for any room —
+     * a poll must not be hidden by it.
      */
     private function quizRevealAtEnd(Room $room): bool {
         return $room->getMode() === 'quiz' && $room->getRevealAtEnd();
     }
 
     /**
-     * Zustand für die Teilnehmer-Seite: aktive Frage (falls vorhanden),
-     * Live-Ergebnisse und ob dieses Cookie bereits abgestimmt hat.
+     * State for the participant page: the active question (if any),
+     * live results and whether this cookie has already voted.
      *
-     * `$withPresence` schaltet die Präsenzzahl auch während einer laufenden
-     * Frage zu — die Eingangs-Anzeige der Beamer-Bühne setzt die eingegangenen
-     * Antworten dazu ins Verhältnis („12 von 24"). Nur die Zuschauer-Ansicht
-     * fragt danach; auf dem Abstimmungs-Pfad bliebe der COUNT reine Last.
+     * `$withPresence` adds the presence count during a running question
+     * as well — the incoming-answers display of the projector stage puts the answers
+     * received in relation to it ("12 of 24"). Only the audience view
+     * asks for it; on the voting path the COUNT would be pure load.
      *
      * @return array{protocol:int, room:array{code:string}, poll:?array, results:?array, hasVoted:bool, myValue:mixed}
      */
@@ -405,8 +409,8 @@ class StateService {
         }
         $quiz = $room->getMode() === 'quiz';
         $base = [
-            // Passt das Bundle im Tab nicht mehr zum Server, lädt es sich einmal
-            // neu (src/util/protocol.js).
+            // If the bundle in the tab no longer matches the server, it reloads itself
+            // once (src/util/protocol.js).
             'protocol' => Application::PROTOCOL,
             'room' => ['code' => $room->getCode(), 'title' => $room->titleOrEmpty(), 'mode' => $room->getMode()],
             'poll' => null,
@@ -414,9 +418,9 @@ class StateService {
             'hasVoted' => false,
             'myValue' => null,
             'serverNow' => $this->timeFactory->getTime(),
-            // 'present' (Lobby-Momentum, §3) wird NUR im Lobby-Zweig gesetzt —
-            // während einer laufenden Frage rendert es niemand, der COUNT bliebe
-            // reine Last auf dem heißen Abstimmungs-Pfad.
+            // 'present' (lobby momentum, §3) is set ONLY in the lobby branch —
+            // during a running question nobody renders it, and the COUNT would be
+            // pure load on the hot voting path.
             'present' => 0,
         ];
         if ($quiz) {
@@ -428,7 +432,7 @@ class StateService {
 
         $activeId = $room->getActivePollId();
         if ($activeId === 0) {
-            // Lobby: hier — und nur hier — die Live-Teilnehmerzahl fürs Momentum.
+            // Lobby: here — and only here — the live participant count for the momentum.
             $base['present'] = $this->roomService->presentCount($room);
             return $base;
         }
@@ -439,9 +443,9 @@ class StateService {
             return $base;
         }
 
-        // „Auflösung am Ende": einzelne Fragen bleiben verdeckt — erst wenn das
-        // Quiz beendet wird (Frage als 'ended' markiert), gibt es Ergebnisse +
-        // Rangliste. Sonst löst jede pausierte/beendete Frage direkt auf.
+        // "Reveal at the end": individual questions stay hidden — only when the
+        // quiz is ended (question marked 'ended') are there results +
+        // leaderboard. Otherwise every paused/ended question reveals right away.
         $revealed = $this->isRevealed($room, $poll);
 
         $hasVoted = false;
@@ -453,47 +457,47 @@ class StateService {
                 $hasVoted = true;
                 $myValue = $myVote->getValue();
             } catch (DoesNotExistException) {
-                // noch nicht abgestimmt
+                // not voted yet
             }
         }
 
         $pollData = $this->publicPoll($room, $poll, $revealed);
         if ($quiz && $revealed) {
-            // Richtige Antwort(en) erst beim Auflösen offenlegen: choice/truefalse
-            // via correctOption, die übrigen Typen über den answerKey (correct-Set /
-            // Zielzahl+Toleranz / akzeptierte Freitext-Antworten).
+            // Disclose the right answer(s) only on reveal: choice/truefalse
+            // via correctOption, the other types via the answerKey (correct set /
+            // target number + tolerance / accepted free-text answers).
             $pollData['correctOption'] = $poll->getCorrectOption();
             $pollData['answerKey'] = $poll->getAnswerKeyArray();
         }
         $base['poll'] = $pollData;
         $base['hasVoted'] = $hasVoted;
         $base['myValue'] = $myValue;
-        // Präsenz gehört in die Antwort, nicht in den Fingerabdruck: das Handy
-        // zeigt nach dem Absenden „18 von 24 haben geantwortet" (§8.5), und die
-        // Zahl ist frisch, weil ohnehin jede neue Stimme einen vollen Poll
-        // auslöst. Im Fingerabdruck stünde sie nur bei der Zuschauer-Ansicht —
-        // sonst triebe jeder Heartbeat alle Abstimmenden zum vollen Poll.
+        // Presence belongs in the answer, not in the fingerprint: after submitting, the phone
+        // shows "18 of 24 have answered" (§8.5), and the
+        // number is fresh because every new vote triggers a full poll
+        // anyway. In the fingerprint it would only be there for the audience view —
+        // otherwise every heartbeat would drive all voters to a full poll.
         $base['present'] = $this->roomService->presentCount($room);
-        // Reine Antwort-Anzahl (keine Verteilung) — für den Live-Zähler auf der
-        // Beamer-Ansicht; kein Spoiler, deckt sich mit dem Zähler in stateVersion.
+        // Plain answer count (no distribution) — for the live counter on the
+        // projector view; no spoiler, matches the counter in stateVersion.
         $base['answered'] = $this->voteMapper->countByPoll($poll->getId());
 
         if ($quiz) {
-            // Live-Balken erst beim Auflösen — vorher würde die Verteilung spoilern.
+            // Live bars only on reveal — before that the distribution would be a spoiler.
             $base['results'] = $revealed
                 ? $this->tallyService->tally($poll, $this->voteMapper->findByPoll($poll->getId()))
                 : null;
             if ($hasVoted) {
                 $d = json_decode($myVote->getPayload(), true) ?: [];
-                // Vor dem Auflösen nur "abgegeben" bestätigen, richtig/Punkte noch nicht.
+                // Before the reveal only confirm "submitted", not yet right/points.
                 $base['myResult'] = $revealed
                     ? ['answered' => true, 'correct' => !empty($d['correct']), 'points' => (int)($d['points'] ?? 0)]
                     : ['answered' => true, 'correct' => null, 'points' => null];
             }
-            // Probelauf: keine Rangliste (die Einzel-Rückmeldung richtig/falsch
-            // bleibt, damit man die Fragen beim Testen prüfen kann).
-            // Ohne noch verdeckte (etwa übersprungene) Fragen — außer am Ende:
-            // der Endstand zählt alles, genau wie beim Moderator.
+            // Practice run: no leaderboard (the individual right/wrong feedback
+            // stays, so the questions can be checked while testing).
+            // Without questions that are still hidden (e.g. skipped ones) — except at the end:
+            // the final standings count everything, just as for the moderator.
             if ($revealed && !$room->getPractice()) {
                 $base['leaderboard'] = $this->voteService->leaderboardFor(
                     $room,
@@ -509,22 +513,22 @@ class StateService {
     }
 
     /**
-     * Gesamtauswertung für Teilnehmende („Alle Ergebnisse"): jede Frage des
-     * Decks mit Auszählung, der eigenen Antwort und — im Quiz — der Auflösung.
-     * Schließt die Lücke, dass am Quiz-Ende nur die LETZTE Frage aufgelöst zu
-     * sehen war; der Gesamtblick gab es bisher nur im Moderator-`summary`.
+     * Overall results for participants ("All results"): every question of the
+     * deck with its tally, one's own answer and — in a quiz — the reveal.
+     * Closes the gap that at the end of a quiz only the LAST question could be seen
+     * revealed; the overall view used to exist only in the moderator `summary`.
      *
-     * Freigabe-Regeln (dieselbe Logik wie publicState, nur übers ganze Deck):
-     * - Umfrage: Ergebnisse sind ohnehin live öffentlich -> alles sichtbar.
-     * - Quiz „je Frage": jede Frage, die pausiert/beendet wurde (locked|ended).
-     * - Quiz „Auflösung am Ende": nichts, bis `endQuiz` gelaufen ist (eine Frage
-     *   steht auf 'ended') — dann das ganze Deck.
+     * Release rules (the same logic as publicState, just across the whole deck):
+     * - Poll: results are live and public anyway -> everything visible.
+     * - Quiz "after each question": every question that was paused/ended (locked|ended).
+     * - Quiz "Reveal at the end": nothing until `endQuiz` has run (one question
+     *   is at 'ended') — then the whole deck.
      *
-     * Fragen, die noch nie gezeigt wurden (wasShown), fehlen ganz — ihr Text
-     * wäre sonst eine Vorschau aufs restliche Deck.
+     * Questions that were never shown (wasShown) are left out entirely — their text
+     * would otherwise be a preview of the rest of the deck.
      *
-     * `available` sagt dem Client, ob es überhaupt etwas zu zeigen gibt; nicht
-     * freigegebene Fragen kommen ohne Ergebnisse und ohne Lösung heraus.
+     * `available` tells the client whether there is anything to show at all;
+     * questions that are not released come out without results and without a solution.
      *
      * @return array{available:bool, mode:string, practice:bool, title:string, leaderboard:?list<array>, items:list<array{poll:array, revealed:bool, results:?array, mine:?array}>}
      */
@@ -535,12 +539,12 @@ class StateService {
         $quiz = $room->getMode() === 'quiz';
         $deck = $this->pollMapper->findByRoom($room->getId());
 
-        // „Auflösung am Ende": erst nach endQuiz gibt es überhaupt etwas zu sehen.
-        // Das Ende gilt nur, solange nichts Neues läuft: steht der Cursor auf
-        // einer Frage, muss GENAU die beendet sein. Eine liegengebliebene
-        // 'ended'-Frage aus einem früheren Lauf gäbe sonst ab der ersten Frage
-        // jede Lösung frei (setCurrent räumt sie auch weg; das hier ist die
-        // zweite Sicherung für Räume, die vorher so stehen geblieben sind).
+        // "Reveal at the end": only after endQuiz is there anything to see at all.
+        // The end only counts as long as nothing new is running: if the cursor is on
+        // a question, EXACTLY that one must be ended. A leftover
+        // 'ended' question from an earlier run would otherwise release every
+        // solution from the first question on (setCurrent clears it away too; this is the
+        // second safeguard for rooms that were left in that state before).
         $activeId = $room->getActivePollId();
         $endReached = false;
         foreach ($deck as $poll) {
@@ -560,9 +564,9 @@ class StateService {
             if (!$revealed) {
                 $hidden[] = $poll->getId();
             }
-            // Nie gezeigte Fragen gehören nicht hinein — auch nicht als Text:
-            // sonst läge das ganze Deck vorab auf jedem Handy (im Quiz samt
-            // Antwortmöglichkeiten). Dieselbe Schranke wie beim Fragebild.
+            // Questions never shown do not belong in here — not even as text:
+            // otherwise the whole deck would be on every phone in advance (in a quiz including
+            // the answer options). The same barrier as for the question image.
             if (!$this->wasShown($room, $poll)) {
                 continue;
             }
@@ -589,11 +593,11 @@ class StateService {
             'mode' => $room->getMode(),
             'practice' => $room->getPractice(),
             'title' => $room->titleOrEmpty(),
-            // Rangliste nur, wenn es auch etwas zu sehen gibt und nicht geprobt wird —
-            // und ohne jede noch verdeckte Frage (die laufende ebenso wie eine
-            // übersprungene): sonst zeigte der Punktestand, ob die Antwort
-            // richtig war, bevor die Frage aufgelöst ist. Am Ende zählt alles,
-            // damit Handy, Beamer und Moderator denselben Endstand zeigen.
+            // Leaderboard only when there is something to see and it is not a practice run —
+            // and without any question that is still hidden (the running one as well as a
+            // skipped one): otherwise the score would show whether the answer
+            // was right before the question is revealed. At the end everything counts,
+            // so that phone, projector and moderator show the same final standings.
             'leaderboard' => ($quiz && $anyRevealed && !$room->getPractice())
                 ? $this->voteService->leaderboardFor($room, $voterToken, $endReached ? [] : $hidden)
                 : null,
@@ -602,12 +606,12 @@ class StateService {
     }
 
     /**
-     * Wurde diese Frage dem Publikum schon gezeigt? Läuft sie gerade, hat sie
-     * einen Startzeitpunkt (setCurrent setzt ihn in beiden Modi) oder ist sie
-     * aufgelöst. Umfragen setzen den Startzeitpunkt erst seit v0.18.x; ihre
-     * früher gezeigten Fragen erkennt man an den Stimmen (abstimmen geht nur
-     * auf der laufenden Frage). Im Quiz genügt das nicht als Beleg — dort
-     * setzt setCurrent den Zeitpunkt schon immer.
+     * Has this question already been shown to the audience? It is running right now, has
+     * a start time (setCurrent sets it in both modes) or it has been
+     * revealed. Polls only set the start time since v0.18.x; their
+     * questions shown earlier are recognised by their votes (voting is only possible
+     * on the running question). In a quiz that is not enough as evidence — there
+     * setCurrent has always set the time.
      */
     private function wasShown(Room $room, Poll $poll): bool {
         return $poll->getId() === $room->getActivePollId()
@@ -617,16 +621,16 @@ class StateService {
     }
 
     /**
-     * Frage für die öffentliche Sicht, vor dem Auflösen spoilerfrei gemischt
-     * (Regeln und Begründung: PublicView::poll).
+     * Question for the public view, shuffled spoiler-free before the reveal
+     * (rules and reasoning: PublicView::poll).
      */
     private function publicPoll(Room $room, Poll $poll, bool $revealed): array {
         return PublicView::poll($room, $poll, $revealed, $this->config->getSystemValueString('secret', ''));
     }
 
     /**
-     * Eigene Antwort auf eine Frage — richtig/Punkte erst, wenn die Frage
-     * aufgelöst ist (sonst verriete die Rückmeldung die Lösung).
+     * One's own answer to a question — right/points only once the question
+     * has been revealed (otherwise the feedback would give away the solution).
      *
      * @return ?array{value:mixed, correct:?bool, points:?int}
      */

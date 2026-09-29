@@ -21,15 +21,15 @@ use PHPUnit\Framework\TestCase;
 use ReflectionProperty;
 
 /**
- * Frage bearbeiten (DeckService::updatePoll) und ihr Ablauf-Stand.
+ * Editing a question (DeckService::updatePoll) and its run state.
  *
- * Neuer Inhalt, Stimmen weg — dann gilt der alte Stand auch nicht mehr. Eine
- * nicht laufende Frage zählt danach als „nie gezeigt" ('active', Startzeit 0),
- * sonst stünde die geänderte Frage samt Lösung sofort als aufgelöst in der
- * Gesamtauswertung. Ausnahmen, damit ein Tippfehler-Fix im Saal nichts umwirft:
- * 'ended' bleibt immer (das Quiz ist vorbei), und die laufende Frage bleibt,
- * wie sie ist — nur ein offener Quiz-Timer startet neu. Gesperrt bleibt
- * gesperrt, in beiden Modi.
+ * New content, votes gone — then the old state no longer applies either. A
+ * question that is not running counts as "never shown" afterwards ('active', start time 0),
+ * otherwise the changed question, solution included, would immediately show up as revealed in the
+ * overall results. Exceptions, so that a typo fix in the room does not upset anything:
+ * 'ended' always stays (the quiz is over), and the running question stays
+ * as it is — only an open quiz timer restarts. Locked stays
+ * locked, in both modes.
  */
 #[CoversClass(DeckService::class)]
 class DeckUpdatePollTest extends TestCase {
@@ -86,9 +86,9 @@ class DeckUpdatePollTest extends TestCase {
     }
 
     public function testNichtLaufendeBeendeteFrageBehaeltDasEnde(): void {
-        // Nach /end und „Zurück ins Deck": ein Tippfehler-Fix an der beendeten
-        // Frage darf das Quiz nicht wieder aufmachen. Die Stimmen gehen
-        // trotzdem — der Inhalt ist neu.
+        // After /end and "Back to the deck": a typo fix on the ended
+        // question must not reopen the quiz. The votes go
+        // anyway — the content is new.
         $this->given('ended', 1234);
         $this->votes->expects($this->once())->method('deleteByPoll')->with(7);
 
@@ -108,8 +108,8 @@ class DeckUpdatePollTest extends TestCase {
     }
 
     public function testLaufendeOffeneQuizfrageStartetNeu(): void {
-        // Die Stimmen sind weg — wer schon geantwortet hatte, bekommt die
-        // volle Zeit noch einmal.
+        // The votes are gone — whoever had already answered gets the
+        // full time once more.
         $this->given('active', 1234);
 
         $this->service->updatePoll($this->room('quiz', active: 7), 7, $this->quizData());
@@ -119,8 +119,8 @@ class DeckUpdatePollTest extends TestCase {
     }
 
     public function testLaufendeGesperrteQuizfrageBleibtGesperrt(): void {
-        // Gesperrt heißt im Quiz: Antworten zu, ggf. schon aufgelöst. Das
-        // Bearbeiten öffnet sie nicht wieder und startet keinen Timer.
+        // In a quiz, locked means: answers closed, possibly already revealed.
+        // Editing does not reopen it and starts no timer.
         $this->given('locked', 1234);
 
         $this->service->updatePoll($this->room('quiz', active: 7), 7, $this->quizData());
@@ -130,7 +130,7 @@ class DeckUpdatePollTest extends TestCase {
     }
 
     public function testLaufendeBeendeteQuizfrageBleibtBeendet(): void {
-        // /end steht auf der laufenden Frage — der Endstand bleibt stehen.
+        // /end sits on the running question — the final standings stay.
         $this->given('ended', 1234);
 
         $this->service->updatePoll($this->room('quiz', active: 7), 7, $this->quizData());
@@ -140,7 +140,7 @@ class DeckUpdatePollTest extends TestCase {
     }
 
     public function testLaufendeUmfragefrageBehaeltIhrenStatus(): void {
-        // Pausiert bleibt pausiert; der erste Zeigezeitpunkt bleibt ebenfalls.
+        // Paused stays paused; the first time it was shown stays as well.
         $this->given('locked', 1234);
 
         $this->service->updatePoll($this->room('poll', active: 7), 7, $this->pollData());
@@ -159,7 +159,7 @@ class DeckUpdatePollTest extends TestCase {
     }
 
     public function testStandWirdMitGespeichert(): void {
-        // Der Reset muss VOR dem update() passieren, sonst landet er nie in der DB.
+        // The reset has to happen BEFORE update(), otherwise it never reaches the DB.
         $this->given('locked', 1234);
         $this->polls = $this->createMock(PollMapper::class);
         $this->polls->method('find')->willReturnCallback(fn (): Poll => $this->poll);

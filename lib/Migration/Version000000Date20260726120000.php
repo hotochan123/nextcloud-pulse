@@ -14,14 +14,14 @@ use OCP\Migration\IOutput;
 use OCP\Migration\SimpleMigrationStep;
 
 /**
- * Bild zur Frage. In der Spalte steht NUR der Dateiname innerhalb des
- * App-Datenordners (`<token>.<ext>`), nicht das Bild selbst — die Datei liegt im
- * AppData-Bereich von Nextcloud und wird über einen eigenen Endpunkt
- * ausgeliefert. Der Token im Namen wirkt zugleich als Cache-Buster, wenn ein
- * Bild ersetzt wird.
+ * Image for a question. The column holds ONLY the file name inside the
+ * app data folder (`<token>.<ext>`), not the image itself — the file lives in
+ * Nextcloud's AppData area and is served through a dedicated endpoint.
+ * The token in the name doubles as a cache buster when an
+ * image is replaced.
  *
- * Spalte nullable mit Default '' — NC lehnt NOT-NULL-Textspalten mit
- * Leerstring-Default ab (Oracle behandelt '' wie NULL).
+ * Column nullable with default '' — NC rejects NOT NULL text columns with an
+ * empty-string default (Oracle treats '' like NULL).
  */
 class Version000000Date20260726120000 extends SimpleMigrationStep {
 

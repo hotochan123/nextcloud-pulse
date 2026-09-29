@@ -14,19 +14,19 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
- * Öffentlicher Zustand im eigenen Tempo (PaceStateService::publicState).
+ * Self-paced public state (PaceStateService::publicState).
  *
- * Was Handy und Beamer vor der Freigabe NICHT bekommen dürfen: Lösung
- * (correctOption/answerKey), Verteilung (results), die ungemischte Folge bei
- * Reihenfolge-Fragen, ein Urteil vor „endgültig" und bei „Rückmeldung am
- * Ende" überhaupt eines. Was sie brauchen: die persönliche Uhr, ohne Timer
- * kein Limit, und `progress.after` — ohne den fände ein neu geladenes Handy
- * nach einem Abbruch zwischen Schließen und Starten nie weiter.
+ * What phone and projector must NOT get before the release: the solution
+ * (correctOption/answerKey), the distribution (results), the unshuffled order of
+ * ranking questions, a verdict before "final", and with feedback "At the
+ * end" any verdict at all. What they need: the personal clock, no limit
+ * without a timer, and `progress.after` — without it a reloaded phone would
+ * never get any further after an abort between closing and starting.
  */
 #[CoversClass(PaceStateService::class)]
 class SelfStateGateTest extends PaceStateTestCase {
 
-    // ── Keine Lösung, keine Verteilung ─────────────────────────────────────
+    // ── No solution, no distribution ───────────────────────────────────────
 
     public static function unreleasedStates(): array {
         return ['Entwurf' => ['draft'], 'offen' => ['open'], 'geschlossen' => ['closed']];
@@ -72,10 +72,10 @@ class SelfStateGateTest extends PaceStateTestCase {
         $this->assertSame(PublicView::poll($this->room, $this->polls[12], false, self::SECRET)['options'], $served);
     }
 
-    // ── Persönliche Uhr ────────────────────────────────────────────────────
+    // ── Personal clock ─────────────────────────────────────────────────────
 
     public function testPersoenlicheUhrUndPosition(): void {
-        // poll.startedAt ist im eigenen Tempo bedeutungslos — die Uhr läuft ab /next.
+        // poll.startedAt is meaningless when self-paced — the clock runs from /next.
         $this->polls[12]->setStartedAt(self::NOW - 5000);
         $this->row(11, 'tok-anna', self::NOW - 50, self::NOW - 30);
         $this->row(12, 'tok-anna', self::NOW - 7);
@@ -98,7 +98,7 @@ class SelfStateGateTest extends PaceStateTestCase {
         $this->assertFalse($data['progress']['timeUp'], 'und die Zeit läuft nie ab');
     }
 
-    // ── Urteil ─────────────────────────────────────────────────────────────
+    // ── Verdict ────────────────────────────────────────────────────────────
 
     public function testJeFrageVorEndgueltigKeinUrteil(): void {
         $this->row(11, 'tok-anna', self::NOW - 10);
@@ -189,7 +189,7 @@ class SelfStateGateTest extends PaceStateTestCase {
         );
     }
 
-    // ── Rangliste ──────────────────────────────────────────────────────────
+    // ── Leaderboard ────────────────────────────────────────────────────────
 
     public function testProbelaufNachDerFreigabeKeineRangliste(): void {
         $this->room->setPractice(true);
@@ -222,7 +222,7 @@ class SelfStateGateTest extends PaceStateTestCase {
         $this->assertNull($this->phone()['leaderboard']);
     }
 
-    // ── Fortschritt ────────────────────────────────────────────────────────
+    // ── Progress ───────────────────────────────────────────────────────────
 
     public function testGeschlossenKeinPollAberFortschritt(): void {
         $this->row(11, 'tok-anna', self::NOW - 50, self::NOW - 30);
@@ -246,7 +246,7 @@ class SelfStateGateTest extends PaceStateTestCase {
     }
 
     public function testNachAbbruchOhneOffeneZeileZeigtAfterAufDieVerlassene(): void {
-        // /next schloss Q11 und brach vor dem Start von Q12 ab.
+        // /next closed Q11 and aborted before starting Q12.
         $this->row(11, 'tok-anna', self::NOW - 50, self::NOW - 30);
 
         $data = $this->phone();
@@ -321,7 +321,7 @@ class SelfStateGateTest extends PaceStateTestCase {
         $this->assertSame(0, $data['answered']);
     }
 
-    // ── Beamer ─────────────────────────────────────────────────────────────
+    // ── Projector ──────────────────────────────────────────────────────────
 
     public function testBeamerOhneFragenUndOptionen(): void {
         $this->raceWithThreePlayers();
@@ -343,7 +343,7 @@ class SelfStateGateTest extends PaceStateTestCase {
 
         $race = $this->beamer()['race'];
 
-        // Anna auf Q3, Ben fertig (Q3 beantwortet, „Fertig“ nicht getippt — zählt nur als fertig), Cem auf Q1.
+        // Anna on Q3, Ben done (answered Q3, did not tap "I’m done" — counts only as done), Cem on Q1.
         $this->assertSame(['n' => 3, 'joined' => 3, 'started' => 3, 'finished' => 1, 'onQuestion' => [1, 0, 1]], $race);
         $this->assertSame($race['joined'], $race['joined'] - $race['started'] + array_sum($race['onQuestion']) + $race['finished'], 'jede Person genau einmal');
     }
@@ -377,7 +377,7 @@ class SelfStateGateTest extends PaceStateTestCase {
     }
 
     public function testBeamerPunkteGleichHandyPunkte(): void {
-        // Alle Sichten zählen nur endgültige Stimmen.
+        // All views count only final votes.
         $this->raceWithThreePlayers();
 
         $board = self::column($this->beamer()['leaderboard'], 'score');
@@ -396,9 +396,9 @@ class SelfStateGateTest extends PaceStateTestCase {
     }
 
     /**
-     * Jede gestartete Person steht in genau einer Zeile des Rennens — fertig
-     * oder auf der Frage, die auch Handy und Laufansicht nennen. Nicht
-     * gestartet + je Frage + fertig = beigetreten, in jedem Fensterzustand.
+     * Every person who started is in exactly one row of the race — done
+     * or on the question that phone and progress view also name. Not
+     * started + per question + done = joined, in every window state.
      */
     #[DataProvider('raceStates')]
     public function testBeamerZaehltJedePersonGenauEinmal(string $state, array $onQuestion, int $finished): void {
@@ -413,7 +413,7 @@ class SelfStateGateTest extends PaceStateTestCase {
 
         $this->assertSame(['n' => 3, 'joined' => 6, 'started' => 5, 'finished' => $finished, 'onQuestion' => $onQuestion], $race);
         $this->assertSame(6, 6 - $race['started'] + array_sum($race['onQuestion']) + $race['finished'], 'Zeilen teilen die Beigetretenen auf');
-        // Dieselbe Aufteilung wie die Laufansicht: fertig, sonst Frage k.
+        // The same split as the progress view: done, otherwise question k.
         $on = array_fill(0, 3, 0);
         $done = 0;
         foreach ($this->service->progress($this->room)['players'] as $p) {
@@ -427,9 +427,9 @@ class SelfStateGateTest extends PaceStateTestCase {
     }
 
     /**
-     * Anna: Q1 richtig (verlassen), Q2 falsch (verlassen), steht auf Q3.
-     * Ben: alle drei beantwortet, Q3 noch im Korrekturfenster (zählt noch nicht).
-     * Cem: steht auf Q1, Antwort gerade eben (nicht endgültig).
+     * Anna: Q1 correct (left), Q2 wrong (left), is on Q3.
+     * Ben: answered all three, Q3 still within the correction window (does not count yet).
+     * Cem: is on Q1, answered just now (not final).
      */
     private function raceWithThreePlayers(): void {
         $this->row(11, 'tok-anna', self::NOW - 60, self::NOW - 50);
@@ -450,13 +450,13 @@ class SelfStateGateTest extends PaceStateTestCase {
     }
 
     /**
-     * Sechs Beigetretene, fünf gestartet (Deck 11, 12, 13):
-     * Anna auf Q3, beantwortet, „Fertig“ nicht getippt -> offen schon fertig.
-     * Ben hat Q3 verlassen („Fertig“) -> fertig.
-     * Cem steht auf Q1.
-     * Dora auf Q3, unbeantwortet -> offen auf Q3, nach Schluss fertig.
-     * Emil hat Q1 verlassen, Q2 nie gestartet (Abbruch in /next) -> zählt auf Q1.
-     * Fay ist beigetreten, aber nicht gestartet.
+     * Six joined, five started (deck 11, 12, 13):
+     * Anna on Q3, answered, did not tap "I’m done" -> already done while open.
+     * Ben has left Q3 ("I’m done") -> done.
+     * Cem is on Q1.
+     * Dora on Q3, unanswered -> on Q3 while open, done after closing.
+     * Emil has left Q1, never started Q2 (abort in /next) -> counts on Q1.
+     * Fay has joined but not started.
      */
     private function raceWithSixPlayers(): void {
         $this->players = array_merge($this->players, [

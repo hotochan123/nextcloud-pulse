@@ -26,19 +26,19 @@ use PHPUnit\Framework\TestCase;
 use ReflectionProperty;
 
 /**
- * Rangliste im eigenen Tempo (VoteService::selfLeaderboard).
+ * Self-paced leaderboard (VoteService::selfLeaderboard).
  *
- * Nur endgültige Stimmen zählen — eine Antwort im Korrekturfenster verrät
- * sich sonst über den Punktestand. „Endgültig" schließt „nicht mehr
- * korrigierbar" ein: Fenster zu oder Frage verlassen zählt sofort. Ohne Timer
- * gibt es keinen Zeit-Tiebreak (die Zeiten enthalten Leerlauf). Das ganze Deck
- * kommt in EINER Abfrage; öffentliche Aufrufer lesen die Rohzeilen aus einem
- * 2-s-Cache, dessen Schlüssel die Fensterfelder trägt.
+ * Only final votes count — otherwise an answer in the correction window
+ * gives itself away through the score. "Final" includes "no longer
+ * correctable": window closed or question left counts immediately. Without a
+ * timer there is no time tie-break (the times include idle time). The whole
+ * deck comes in ONE query; public callers read the raw rows from a
+ * 2 s cache whose key carries the window fields.
  */
 #[CoversClass(VoteService::class)]
 class SelfLeaderboardTest extends TestCase {
 
-    private const NOW = 1_800_000_000; // gerade: NOW und NOW+1 liegen im selben 2-s-Eimer
+    private const NOW = 1_800_000_000; // even: NOW and NOW+1 fall into the same 2 s bucket
 
     private VoteService $service;
     private VoteMapper&MockObject $votes;
@@ -51,11 +51,11 @@ class SelfLeaderboardTest extends TestCase {
     private array $rows = [];
     /** @var Player[] */
     private array $players = [];
-    /** @var list<list<int>> Argumente der findByPolls-Aufrufe */
+    /** @var list<list<int>> arguments of the findByPolls calls */
     private array $queries = [];
-    /** @var array<string, mixed> Inhalt des gedoubelten lokalen Caches */
+    /** @var array<string, mixed> contents of the local cache test double */
     private array $store = [];
-    /** @var list<array{string, int}> set()-Aufrufe (Schlüssel, TTL) */
+    /** @var list<array{string, int}> set() calls (key, TTL) */
     private array $sets = [];
 
     protected function setUp(): void {
@@ -66,7 +66,7 @@ class SelfLeaderboardTest extends TestCase {
             $this->queries[] = $ids;
             return $this->deckVotes;
         });
-        // Der moderierte Weg (je Frage eine Abfrage) wird nie genommen.
+        // The moderated path (one query per question) is never taken.
         $this->votes->expects($this->never())->method('findByPoll');
 
         $progress = $this->createMock(ProgressMapper::class);
@@ -105,7 +105,7 @@ class SelfLeaderboardTest extends TestCase {
         }
     }
 
-    // ── Nur endgültige Stimmen ─────────────────────────────────────────────
+    // ── Only final votes ───────────────────────────────────────────────────
 
     public function testStimmeImKorrekturfensterZaehltNochNicht(): void {
         $this->rows = [$this->row(11, 'tok-anna')];
@@ -139,7 +139,7 @@ class SelfLeaderboardTest extends TestCase {
     }
 
     public function testGeschlossenesFensterZaehltSofort(): void {
-        // „Schließen" = Endstand steht sofort, ohne fw abzuwarten.
+        // "Close" = final standings are in immediately, without waiting for fw.
         $this->rows = [$this->row(11, 'tok-anna')];
         $this->deckVotes = [$this->vote(11, 'tok-anna', 900, true, 5, createdAt: self::NOW)];
         $room = $this->room();
@@ -173,7 +173,7 @@ class SelfLeaderboardTest extends TestCase {
         ], $this->service->selfLeaderboard($this->room(), 'tok-ben'), 'keine Tokens, eigene Zeile markiert');
     }
 
-    // ── Gleichstand ────────────────────────────────────────────────────────
+    // ── Ties ───────────────────────────────────────────────────────────────
 
     public function testOhneTimerGleichePunkteGleicherRang(): void {
         $this->bothRight(annaTime: 5, benTime: 5000);
@@ -196,7 +196,7 @@ class SelfLeaderboardTest extends TestCase {
         ));
     }
 
-    // ── Abfragen, Abschneiden, Cache ───────────────────────────────────────
+    // ── Queries, cut-off, cache ────────────────────────────────────────────
 
     public function testEineAbfrageFuersEingefroreneDeck(): void {
         $this->service->selfLeaderboard($this->room(), null);
@@ -218,7 +218,7 @@ class SelfLeaderboardTest extends TestCase {
 
         $this->assertCount(1, $this->queries);
         $this->assertSame([['lb:5:' . (self::NOW - 100) . ':0:0:0:' . intdiv(self::NOW, 2), 3]], $this->sets);
-        // Im Cache liegen die Rohzeilen, das me-Flag kommt je Betrachter danach.
+        // The cache holds the raw rows; the me flag is added per viewer afterwards.
         $this->assertTrue($first[0]['me']);
         $this->assertTrue($second[1]['me']);
         $this->assertArrayNotHasKey('token', $second[0]);
@@ -242,8 +242,8 @@ class SelfLeaderboardTest extends TestCase {
     }
 
     public function testAblaufendeFristGreiftSofort(): void {
-        // Ohne DB-Änderung: in der Sekunde closes_at ist das Fenster zu. Der
-        // effektive Schluss steht im Schlüssel, der Endstand wartet keinen Eimer ab.
+        // Without a DB change: in the second of closes_at the window is closed. The
+        // effective close is part of the key, the final standings don't wait for a bucket.
         $room = $this->room();
         $room->setClosesAt(self::NOW + 1);
         $this->service->selfLeaderboard($room, null, 0, true);
@@ -263,7 +263,7 @@ class SelfLeaderboardTest extends TestCase {
     }
 
     public function testOhneLokalenCacheWirdJedesMalGerechnet(): void {
-        // NullCache (kein APCu): get liefert immer null.
+        // NullCache (no APCu): get always returns null.
         $null = $this->createMock(ICache::class);
         $null->method('get')->willReturn(null);
         $factory = $this->createMock(ICacheFactory::class);
@@ -277,7 +277,7 @@ class SelfLeaderboardTest extends TestCase {
     }
 
     public function testImEntwurfKeineStimmen(): void {
-        // Vor dem Öffnen gibt es keine Reihenfolge (findByPolls([]) fragt nicht).
+        // Before opening there is no order (findByPolls([]) does not query).
         $room = $this->room();
         $room->setOpenedAt(0);
         $room->setDeckOrder(null);
@@ -289,7 +289,7 @@ class SelfLeaderboardTest extends TestCase {
     }
 
     public function testLeaderboardForVerzweigtImEigenenTempo(): void {
-        // Die ausgelassene Frage spielt keine Rolle — es gibt keine laufende für alle.
+        // The skipped question plays no role — there is no running question for everyone.
         $this->rows = [$this->row(11, 'tok-anna', leftAt: self::NOW)];
         $this->deckVotes = [$this->vote(11, 'tok-anna', 900, true, 5, createdAt: self::NOW - 20)];
 
@@ -299,7 +299,7 @@ class SelfLeaderboardTest extends TestCase {
         $this->assertSame([[11, 12, 13]], $this->queries);
     }
 
-    // ── Helfer ─────────────────────────────────────────────────────────────
+    // ── Helpers ────────────────────────────────────────────────────────────
 
     private function score(string $nickname): int {
         return $this->scoreIn($this->room(), $nickname);
@@ -310,7 +310,7 @@ class SelfLeaderboardTest extends TestCase {
         return array_column($rows, 'score', 'nickname')[$nickname];
     }
 
-    /** Anna und Ben beide richtig mit gleicher Punktzahl, verschiedene Zeiten. */
+    /** Anna and Ben both correct with the same score, different times. */
     private function bothRight(int $annaTime, int $benTime): void {
         $this->rows = [$this->row(11, 'tok-anna', leftAt: self::NOW), $this->row(11, 'tok-ben', leftAt: self::NOW)];
         $this->deckVotes = [

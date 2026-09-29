@@ -49,23 +49,23 @@ use OCP\AppFramework\Db\Entity;
  */
 class Room extends Entity implements \JsonSerializable {
     protected $code = '';
-    protected $title = '';      // frei wählbarer Raumname, '' = keiner (nur Code)
+    protected $title = '';      // free-form room name, '' = none (code only)
     protected $ownerUid = '';
     protected $activePollId = 0;
     protected $mode = 'poll';   // 'poll' | 'quiz'
-    protected $practice = false; // Probelauf: Stimmen zählen nicht in die Rangliste
-    protected $revealAtEnd = false; // Quiz: Auflösung erst am Ende statt je Frage
-    // Quiz im eigenen Tempo (s. Migration 20260927120000); Zeitstempel 0 = noch nicht passiert
-    protected $pace = 'live';   // 'live' (moderiert) | 'self' (eigenes Tempo)
-    protected $openedAt = 0;    // Fenster zuerst geöffnet (0 = Entwurf)
-    protected $closesAt = 0;    // Frist (0 = offen bis manuell geschlossen)
-    protected $closedAt = 0;    // manuell geschlossen
-    protected $releasedAt = 0;  // Lösungen freigegeben
-    protected $timed = true;    // Zeitlimits + Tempopunkte im Fenster
+    protected $practice = false; // practice run: votes do not count towards the leaderboard
+    protected $revealAtEnd = false; // quiz: reveal only at the end instead of after each question
+    // self-paced quiz (see migration 20260927120000); timestamp 0 = has not happened yet
+    protected $pace = 'live';   // 'live' (moderated) | 'self' (self-paced)
+    protected $openedAt = 0;    // window first opened (0 = draft)
+    protected $closesAt = 0;    // deadline (0 = open until closed manually)
+    protected $closedAt = 0;    // closed manually
+    protected $releasedAt = 0;  // solutions released
+    protected $timed = true;    // time limits + speed points in the window
     protected $feedback = 'each'; // 'each' | 'end'
-    protected $deckOrder = null;  // eingefrorene Reihenfolge, JSON [12,15,13]; null im Entwurf
-    protected $joinsLocked = false; // „Beitritt sperren"
-    protected $touchedAt = 0;   // letzter Besuch des Besitzers (Aufbewahrung)
+    protected $deckOrder = null;  // frozen order, JSON [12,15,13]; null in draft
+    protected $joinsLocked = false; // "Lock joining"
+    protected $touchedAt = 0;   // the owner's last visit (retention)
     protected $createdAt = 0;
 
     public function __construct() {
@@ -82,14 +82,14 @@ class Room extends Entity implements \JsonSerializable {
         $this->addType('createdAt', 'integer');
     }
 
-    /** Titel nie als NULL nach außen (Spalte ist nullable, s. Migration). */
+    /** Never expose the title as NULL (the column is nullable, see the migration). */
     public function titleOrEmpty(): string {
         return (string)($this->getTitle() ?? '');
     }
 
     /**
-     * Nur fürs Moderator-JSON (Raum anlegen/anzeigen); Teilnehmende und Beamer
-     * bekommen eigene, schmale Sichten. deckOrder/touchedAt bleiben draußen.
+     * Only for the moderator JSON (create/show a room); participants and the projector
+     * get their own narrow views. deckOrder/touchedAt stay out.
      */
     public function jsonSerialize(): array {
         return [

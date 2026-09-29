@@ -6,11 +6,11 @@
 declare(strict_types=1);
 
 /**
- * Prüfstand-Daten für die Design-Screenshots.
+ * Test-bench data for the design screenshots.
  *
- * Läuft IM Nextcloud-Container (braucht lib/base.php) und legt zwei Räume mit
- * je einer Frage pro Typ an, füllt sie über den echten Demo-Weg mit Stimmen und
- * schaltet auf Zuruf den Zustand um. `destroy` räumt alles wieder weg.
+ * Runs INSIDE the Nextcloud container (needs lib/base.php) and creates two rooms
+ * with one question per type each, fills them with votes via the real demo path
+ * and switches their state on request. `destroy` removes everything again.
  *
  *   php probe.php create <uid>
  *   php probe.php state  <code> <pollId> open|locked
@@ -18,7 +18,7 @@ declare(strict_types=1);
  *   php probe.php end    <code>
  *   php probe.php destroy <uid>
  *
- * Quiz im eigenen Tempo (Stufe 4):
+ * Self-paced quiz (stage 4):
  *   php probe.php pace <code> live|self
  *   php probe.php open <code> [closesIn] [timed 0|1] [feedback each|end]
  *   php probe.php close|release <code>
@@ -28,6 +28,10 @@ declare(strict_types=1);
  *   php probe.php remove <code> <name>
  *   php probe.php reset <code>
  *   php probe.php pace-create <uid>
+ *
+ * Section references (§…) point to the design notes of the redesign and of the
+ * self-paced quiz, which are not in the public repository (see "References in
+ * code comments" in the README).
  */
 
 define('OC_CONSOLE', 1);
@@ -51,9 +55,9 @@ $pollMapper = \OCP\Server::get(PollMapper::class);
 $cmd = $argv[1] ?? '';
 
 /**
- * Ein Bild ohne Fremddatei: GD malt einen kleinen Balken-Chart. Der weiße Grund
- * ist Absicht — genau er leuchtet im Dunkelmodus, wenn die Trägerfläche fehlt
- * (§7.8). Die Form entscheidet den Prüffall: quer, hochkant oder Panorama.
+ * An image without an external file: GD paints a small bar chart. The white
+ * background is deliberate — it is exactly what glares in dark mode when the
+ * backing surface is missing (§7.8). The shape picks the test case: landscape, portrait or panorama.
  */
 function makeImage(int $w = 900, int $h = 600): string {
 	$img = imagecreatetruecolor($w, $h);
@@ -72,7 +76,7 @@ function makeImage(int $w = 900, int $h = 600): string {
 	return (string)ob_get_clean();
 }
 
-/** Bild an eine Frage hängen (GD -> Upload-Weg der App). */
+/** Attach an image to a question (GD -> the app's upload path). */
 function attachImage(PollImageService $images, PollMapper $pollMapper, int $pollId, int $w, int $h): void {
 	$tmp = tempnam(sys_get_temp_dir(), 'shot');
 	file_put_contents($tmp, makeImage($w, $h));
@@ -82,7 +86,7 @@ function attachImage(PollImageService $images, PollMapper $pollMapper, int $poll
 	@unlink($tmp);
 }
 
-/** Frage anhängen und ID + Typ zurückgeben. */
+/** Append a question and return its ID + type. */
 function add(DeckService $deck, $room, array $data, string $label): array {
 	$poll = $deck->addPoll($room, $data);
 	return ['id' => $poll->getId(), 'type' => $data['type'], 'label' => $label];
@@ -91,7 +95,7 @@ function add(DeckService $deck, $room, array $data, string $label): array {
 if ($cmd === 'create') {
 	$uid = $argv[2] ?? 'pulse-shots';
 
-	// Umfrage-Raum: alle Typen ohne Lösung.
+	// Poll room: every type without a solution.
 	$pollRoom = $rooms->createRoom($uid, 'poll', 'Design check · poll');
 	$pollPolls = [
 		add($deck, $pollRoom, [
@@ -150,10 +154,10 @@ if ($cmd === 'create') {
 		], 'match'),
 	];
 
-	// Ein Bild an die erste Frage — die Bildfrage aus §7.1 (quer, 3:2).
+	// An image on the first question — the image question from §7.1 (landscape, 3:2).
 	attachImage($images, $pollMapper, $pollPolls[0]['id'], 900, 600);
 
-	// Quiz-Raum: alle Quiz-Typen mit Lösung.
+	// Quiz room: every quiz type with a solution.
 	$quizRoom = $rooms->createRoom($uid, 'quiz', 'Design check · quiz');
 	$quizPolls = [
 		add($deck, $quizRoom, [
@@ -208,9 +212,9 @@ if ($cmd === 'create') {
 		], 'match'),
 	];
 
-	// Grenzfall-Raum (§2.6, Prüffälle aus §11): Zeilendeckel bei zwei Optionen,
-	// Schrumpf-Schleife bei acht, zweizeiliges Label — und ein Prüfwort mit
-	// g, p, q, ü, ß, das abgeschnittene Unterlängen sofort sichtbar macht.
+	// Edge-case room (§2.6, test cases from §11): row cap with two options,
+	// shrink loop with eight, a two-line label — and a test phrase with
+	// g, p, q, ü, ß that makes clipped descenders visible at once.
 	$edgeRoom = $rooms->createRoom($uid, 'poll', 'Design check · edges');
 	$edgePolls = [
 		add($deck, $edgeRoom, [
@@ -225,8 +229,8 @@ if ($cmd === 'create') {
 		], 'opts-8'),
 		add($deck, $edgeRoom, [
 			'type' => 'choice',
-			// Bewusst deutsch: die Unterlängen g, p, q, ü, ß gibt es im
-			// englischen Prüfsatz nicht, und genau sie werden abgeschnitten.
+			// German on purpose: the English test sentence lacks the descenders
+			// g, p, q, ü, ß, and exactly those are what gets clipped.
 			'question' => 'Prüfung: gequälte Unterlängen bei Übergaben groß genug für die Rückgängig-Frage?',
 			'options' => [
 				'Rückgängig gemachte Änderungen später gequält prüfen und übergeben',
@@ -236,8 +240,8 @@ if ($cmd === 'create') {
 		], 'long-label'),
 	];
 
-	// Fragetyp-Grenzfälle (§7.10/§11): Konstellationen, die im Bestand nicht
-	// vorkommen und ohne die die Abnahme von Etappe 3 nicht zu belegen ist.
+	// Question-type edge cases (§7.10/§11): constellations that do not occur in
+	// the existing data and without which the sign-off of stage 3 cannot be backed up.
 	$typeRoom = $rooms->createRoom($uid, 'poll', 'Design check · types');
 	$typePolls = [
 		add($deck, $typeRoom, [
@@ -250,8 +254,8 @@ if ($cmd === 'create') {
 			'scaleMode' => 'single', 'scaleMax' => 7,
 			'minLabel' => 'Not at all', 'maxLabel' => 'Fully ready',
 		], 'scale-one'),
-		// Zwei Aspekte lässt der Editor nicht zu (mindestens drei, §13 verbietet
-		// das zu ändern) — geprüft wird deshalb der kleinstmögliche Radar.
+		// The editor does not allow two aspects (at least three, and §13 forbids
+		// changing that) — so the smallest possible radar is what gets tested.
 		add($deck, $typeRoom, [
 			'type' => 'scale', 'question' => 'Rate the prototype', 'scaleMode' => 'spectrum', 'scaleMax' => 7,
 			'aspects' => [
@@ -295,9 +299,9 @@ if ($cmd === 'create') {
 			'type' => 'choice', 'question' => 'Should we ship on Friday?',
 			'options' => ['Yes', 'No', 'Only the backend'],
 		], 'no-votes'),
-		// Zuordnung mit acht Paaren: der Bestand hat nur vier, und erst ab etwa
-		// sechs Zeilen entscheidet sich, ob Beamer und Moderationsansicht das
-		// tragen. Beschriftungen bewusst unterschiedlich lang.
+		// Matching with eight pairs: the existing data has only four, and only from
+		// about six rows on does it show whether the projector and the moderator view
+		// can carry it. Labels are deliberately of different lengths.
 		add($deck, $typeRoom, [
 			'type' => 'match',
 			'question' => 'Which tool belongs to which job?',
@@ -316,11 +320,11 @@ if ($cmd === 'create') {
 	attachImage($images, $pollMapper, $typePolls[6]['id'], 620, 900);
 	attachImage($images, $pollMapper, $typePolls[7]['id'], 1600, 420);
 
-	// Acht Optionen MIT Bild: der Prüffall aus §11 für die Falz-Regel.
+	// Eight options WITH an image: the test case from §11 for the fold rule.
 	attachImage($images, $pollMapper, $edgePolls[1]['id'], 900, 600);
 
-	// Dieselbe Zuordnung als Quiz: hier kommt die Lösungsfarbe dazu, und die
-	// Moderationsansicht zeigt das private Panel neben der Leinwand.
+	// The same matching as a quiz: here the solution colour comes in, and the
+	// moderator view shows the private panel next to the canvas.
 	$matchRoom = $rooms->createRoom($uid, 'quiz', 'Design check · match');
 	$matchPolls = [
 		add($deck, $matchRoom, [
@@ -351,12 +355,12 @@ if ($cmd === 'create') {
 		], 'match-4'),
 	];
 
-	// Raum ohne eine einzige Frage (§9.8): die Präsentationsansicht muss ihn
-	// tragen — „Noch keine Frage" plus „Frage anlegen" als Hauptaktion.
+	// A room without a single question (§9.8): the presentation view has to carry
+	// it — "No question yet" plus "Add a question" as the main action.
 	$emptyRoom = $rooms->createRoom($uid, 'quiz', 'Design check · empty');
 
-	// Endstand-Grenzfälle: neun Teilnehmende (Plätze 4–8 plus „+N weitere") und
-	// zwei (rechte Spalte entfällt, Podium zentriert).
+	// Final-standings edge cases: nine participants (places 4–8 plus "+N more") and
+	// two (the right column disappears, podium centred).
 	$finals = [];
 	foreach (['final-9' => 9, 'final-2' => 2] as $label => $count) {
 		$room = $rooms->createRoom($uid, 'quiz', 'Design check · ' . $label);
@@ -397,10 +401,10 @@ if ($cmd === 'state') {
 }
 
 /*
- * Präsenz vortäuschen: N Heartbeats mit erfundenen Tokens. Die Eingangs-Anzeige
- * setzt die eingegangenen Antworten dazu ins Verhältnis („12 von 24"), und ohne
- * echte Handys stünde dort sonst immer „0". Das Fenster ist kurz (15 s) — der
- * Screenshot muss also direkt danach fallen.
+ * Fake presence: N heartbeats with made-up tokens. The incoming-answers display
+ * puts the answers received in relation to that ("12 of 24"), and without
+ * real phones it would always read "0" there. The window is short (15 s) — so
+ * the screenshot has to be taken right afterwards.
  */
 if ($cmd === 'present') {
     $room = $roomMapper->findByCode((string)$argv[2]);
@@ -413,9 +417,9 @@ if ($cmd === 'present') {
 }
 
 /*
- * Countdown auf einen bestimmten Reststand stellen: der Startzeitpunkt wandert
- * so weit zurück, dass genau <seconds> übrig bleiben. Anders ist die
- * Dringlichkeitsstufe (unter 10 s) nicht reproduzierbar zu fotografieren.
+ * Set the countdown to a given remaining time: the start time moves back
+ * far enough that exactly <seconds> are left. There is no other way to
+ * photograph the urgency stage (below 10 s) reproducibly.
  */
 if ($cmd === 'countdown') {
     $poll = $pollMapper->find((int)$argv[3]);
@@ -427,10 +431,10 @@ if ($cmd === 'countdown') {
 }
 
 /*
- * Deterministische Stimmen für die Konstellationen aus §7.10. Zufall taugt
- * dafür nicht: „Ø ≈ Median" oder „alle Stimmen auf einem Wert" sind genau die
- * Fälle, die eine Zufallsverteilung nie trifft, und die Heatmap-Schwelle muss
- * bei 44 und bei 46 Antworten fotografierbar sein, nicht „ungefähr".
+ * Deterministic votes for the constellations from §7.10. Randomness is no good
+ * here: "mean ≈ median" or "all votes on one value" are exactly the cases
+ * a random distribution never hits, and the heatmap threshold has to be
+ * photographable at 44 and at 46 answers, not "roughly".
  *
  *   php probe.php fixture <code> <pollId> scale-same|scale-one|compass|rank-polar|words [n]
  */
@@ -442,13 +446,13 @@ if ($cmd === 'fixture') {
     $voteMapper = \OCP\Server::get(\OCA\Pulse\Db\VoteMapper::class);
     $now = time();
     $i = 0;
-    // Fortlaufend ab dem Bestand: ein zweiter Aufruf ergänzt Stimmen, statt an
-    // der Token-Eindeutigkeit zu scheitern (44 Antworten, dann 46).
+    // Continues from the existing votes: a second call adds votes instead of
+    // failing on token uniqueness (44 answers, then 46).
     $base = $voteMapper->countByPoll($poll->getId());
     $put = function (mixed $value) use ($voteMapper, $poll, $now, $base, &$i): void {
         $vote = new \OCA\Pulse\Db\Vote();
         $vote->setPollId($poll->getId());
-        // "demo:"-Präfix -> dieselbe Aufräumung wie synthetische Stimmen.
+        // "demo:" prefix -> the same clean-up as synthetic votes.
         $vote->setVoterToken('demo:fix-' . $poll->getId() . '-' . ($base + $i));
         $vote->setPayload(json_encode(['value' => $value]));
         $vote->setCreatedAt($now + $i);
@@ -457,8 +461,8 @@ if ($cmd === 'fixture') {
     };
 
     if ($kind === 'scale-same') {
-        // Symmetrisch um 4: Ø 4,0 und Median 4 fallen zusammen — die beiden
-        // Kennwerte stehen übereinander und dürfen sich trotzdem nicht decken.
+        // Symmetric around 4: mean 4.0 and median 4 coincide — the two figures
+        // sit on top of each other and must still not overlap.
         foreach ([1 => 1, 2 => 2, 3 => 5, 4 => 9, 5 => 5, 6 => 2, 7 => 0] as $value => $count) {
             for ($k = 0; $k < $count; $k++) {
                 $put($value);
@@ -469,8 +473,8 @@ if ($cmd === 'fixture') {
             $put(4);
         }
     } elseif ($kind === 'compass') {
-        // Eigener Zufallsgenerator (LCG) statt rand(): derselbe Aufruf ergibt
-        // dieselbe Punktwolke, sonst wäre der Vergleich 44 gegen 46 wertlos.
+        // Own random generator (LCG) instead of rand(): the same call yields
+        // the same point cloud, otherwise comparing 44 against 46 would be worthless.
         $count = $arg > 0 ? $arg : 44;
         $seed = 4711;
         $next = function () use (&$seed): float {
@@ -483,8 +487,8 @@ if ($cmd === 'fixture') {
             $put(['x' => (int)round(($gx - 0.42) * 9), 'y' => (int)round(($gy - 0.46) * 9)]);
         }
     } elseif ($kind === 'rank-polar') {
-        // Ein Element mit vielen ersten UND vielen letzten Plätzen: genau der
-        // Fall, den der Durchschnitt allein unsichtbar macht (§7.5).
+        // One item with many first AND many last places: exactly the case
+        // that the average alone makes invisible (§7.5).
         $ids = array_column($poll->getOptionsArray(), 'id');
         [$a, $b, $c, $d] = $ids;
         $orders = [
@@ -500,10 +504,10 @@ if ($cmd === 'fixture') {
             }
         }
     } elseif ($kind === 'words') {
-        // Feste Verteilung statt Zufall: die Wortwolke der Store-Seite soll bei
-        // jedem Lauf gleich aussehen. Ein Zufallslauf trifft weder die Staffelung
-        // der Schriftgrößen noch eine ansehnliche Zahl verschiedener Wörter.
-        // Dieselben Begriffe wie DemoService::demoWords().
+        // A fixed distribution instead of randomness: the word cloud on the store page
+        // should look the same on every run. A random run hits neither the gradation
+        // of font sizes nor a decent number of different words.
+        // The same terms as DemoService::demoWords().
         $counts = [
             'Faster' => 6, 'Cleaner' => 5, 'Cluttered' => 4, 'Familiar' => 4,
             'Snappy' => 3, 'Confusing' => 3, 'Polished' => 3, 'Dense' => 3,
@@ -537,43 +541,43 @@ if ($cmd === 'end') {
 }
 
 /**
- * Die Antwort einer Person auf eine Quiz-Frage: entweder die Lösung oder eine
- * beliebige andere Option. Beide Typen im Store-Quiz legen ihre Optionen mit
- * IDs ab und tragen die Lösung als ID in correctOption.
+ * One person's answer to a quiz question: either the solution or any
+ * other option. Both types in the store quiz keep their options with
+ * IDs and carry the solution as an ID in correctOption.
  */
 function storeAnswer($poll, bool $correct, int $seed): string {
 	$ids = array_map('strval', array_column($poll->getOptionsArray(), 'id'));
 	$right = (string)$poll->getCorrectOption();
 	if ($correct) { return $right; }
 	$wrong = array_values(array_filter($ids, static fn ($id) => $id !== $right));
-	// Die falschen Stimmen verteilen sich, sonst zeigt das Panel zwei Balken
-	// und drei Nullen — auf einem Werbebild sieht das nach Attrappe aus.
+	// The wrong votes are spread out, otherwise the panel shows two bars
+	// and three zeros — on a promotional image that looks like a mock-up.
 	return $wrong === [] ? $right : $wrong[$seed % count($wrong)];
 }
 
 /*
- * Vorlage für die Screenshots der Store-Seite. Anders als `create` geht es
- * hier nicht um Prüffälle, sondern um Bilder, die jemand ohne Vorwissen liest:
- * wenige Räume, sprechende Fragen, runde Zahlen.
+ * Template for the store-page screenshots. Unlike `create`, this is not
+ * about test cases but about images that someone reads without prior knowledge:
+ * few rooms, self-explanatory questions, round numbers.
  *
- * Die Rangliste wird bewusst NICHT über den Demo-Weg gefüllt. Der vergibt je
- * Stimme ein neues Token und registriert damit je Frage neue Spielende — auf
- * dem Podest steht dann zweimal derselbe Name mit „shared" daneben, und bei
- * mehr Stimmen als Namen hängt eine „2" hinten dran. Hier antworten stattdessen
- * zwölf Personen mit festem Token auf jede Frage.
+ * The leaderboard is deliberately NOT filled via the demo path. That path
+ * issues a new token per vote and so registers new players per question — the
+ * podium then shows the same name twice with "shared" next to it, and with
+ * more votes than names a "2" is appended. Instead, twelve people with a
+ * fixed token answer every question here.
  */
 if ($cmd === 'store') {
 	$uid = $argv[2] ?? 'pulse-shots';
 
-	// Umfrage-Raum: die drei Typen, die man auf einen Blick versteht.
+	// Poll room: the three types you understand at a glance.
 	$pollRoom = $rooms->createRoom($uid, 'poll', 'Team workshop');
 	$pollPolls = [
 		add($deck, $pollRoom, [
 			'type' => 'words',
 			'question' => 'One word: how does the new dashboard feel?',
-			// Wirklich ein Wort: die Frage sagt es, also soll die App es auch
-			// durchsetzen. Nebenbei ist damit jede Stimme genau eine Nennung,
-			// und die Zahlen unter der Wolke gehen auf.
+			// Really one word: the question says so, so the app should enforce it
+			// too. As a side effect every vote is exactly one mention, and the
+			// numbers under the cloud add up.
 			'maxWords' => 1,
 		], 'words'),
 		add($deck, $pollRoom, [
@@ -591,7 +595,7 @@ if ($cmd === 'store') {
 		], 'scale'),
 	];
 
-	// Quiz-Raum: nur Typen mit eindeutiger Lösung, damit die Rangliste stimmt.
+	// Quiz room: only types with an unambiguous solution, so the leaderboard is right.
 	$quizRoom = $rooms->createRoom($uid, 'quiz', 'Quiz night');
 	$quizPolls = [
 		add($deck, $quizRoom, [
@@ -630,14 +634,14 @@ if ($cmd === 'store') {
 	];
 
 	/*
-	 * Zwölf Spielende, jede Person mit festem Token über alle fünf Fragen.
+	 * Twelve players, each person with a fixed token across all five questions.
 	 *
-	 * Wer welche Frage trifft, steht als Muster da (1 = richtig) statt als
-	 * Formel: nur so hat jede einzelne Frage eine Verteilung, die man sich
-	 * ansehen mag — „alle richtig" wäre auf dem Bild ein einziger Balken auf
-	 * 100 %. Die Zeilen sind nach Treffern sortiert und die Antwortzeit steigt
-	 * mit dem Index, also sind Punktzahl und Reihenfolge eindeutig und das
-	 * Podest zeigt drei verschiedene Namen ohne geteilte Ränge.
+	 * Who gets which question right is written out as a pattern (1 = correct)
+	 * instead of a formula: only that way does every single question have a
+	 * distribution worth looking at — "all correct" would be a single bar at
+	 * 100 % in the picture. The rows are sorted by hits and the answer time grows
+	 * with the index, so score and order are unambiguous and the podium shows
+	 * three different names without shared places.
 	 */
 	$voteMapper = \OCP\Server::get(\OCA\Pulse\Db\VoteMapper::class);
 	$playerMapper = \OCP\Server::get(\OCA\Pulse\Db\PlayerMapper::class);
@@ -670,16 +674,16 @@ if ($cmd === 'store') {
 	exit(0);
 }
 /*
- * ── Quiz im eigenen Tempo (Stufe 4, §6.1) ─────────────────────────────────
+ * ── Self-paced quiz (stage 4, §6.1) ──────────────────────────────────────
  *
- * Alles über die echten Services (PaceService, VoteService, Mapper), damit die
- * Aufnahmen nur Zustände zeigen, die die Engine wirklich erzeugt. Roh sind nur
- * `window` (Zeitstempel direkt, abgelaufene Frist ohne Warten) und das
- * Zurückdatieren von Start- und Stimmzeiten in `race`.
+ * Everything goes through the real services (PaceService, VoteService, mappers),
+ * so the captures only show states the engine really produces. The only raw
+ * parts are `window` (timestamps written directly, an expired deadline without
+ * waiting) and backdating the start and vote times in `race`.
  */
 $pace = \OCP\Server::get(\OCA\Pulse\Service\PaceService::class);
 
-/** Raum per Code oder Abbruch mit Meldung (kein Stacktrace im Prüfstand-Log). */
+/** Room by code, or abort with a message (no stack trace in the test-bench log). */
 function paceRoom(RoomMapper $roomMapper, string $code) {
 	try {
 		return $roomMapper->findByCode($code);
@@ -689,12 +693,12 @@ function paceRoom(RoomMapper $roomMapper, string $code) {
 	}
 }
 
-/** Fensterzustand nach einer Aktion, eine Zeile JSON. */
+/** Window state after an action, one line of JSON. */
 function paceWindow($room, PollMapper $pollMapper): string {
 	return json_encode(\OCA\Pulse\Service\PaceService::windowView($room, time(), count($pollMapper->findByRoom($room->getId()))));
 }
 
-/** Service-Aufruf; Fachfehler (400/409 im Controller) als Meldung, Exit 1. */
+/** Service call; domain errors (400/409 in the controller) as a message, exit 1. */
 function paceRun(callable $fn) {
 	try {
 		return $fn();
@@ -713,9 +717,9 @@ if ($cmd === 'pace') {
 
 /*
  *   php probe.php open <code> [closesIn] [timed 0|1] [feedback each|end]
- * closesIn = Sekunden ab jetzt, 0 = ohne Frist (sonst ≥ 60, sagt der Server).
- * Fehlt timed/feedback, gilt die Vorgabe des Servers (ohne Frist Rennen, mit
- * Frist Hausaufgabe).
+ * closesIn = seconds from now, 0 = no deadline (otherwise ≥ 60, says the server).
+ * If timed/feedback is missing, the server's default applies (no deadline: race,
+ * with a deadline: homework).
  */
 if ($cmd === 'open') {
 	$room = paceRoom($roomMapper, (string)($argv[2] ?? ''));
@@ -743,8 +747,8 @@ if ($cmd === 'lock') {
 
 /*
  *   php probe.php window <code> closesAt=<ts|now±s> closedAt=… releasedAt=… openedAt=…
- * Schreibt die Zeitstempel roh (nur für Prüffälle): z. B. closesAt=now-1 lässt
- * eine Frist sofort ablaufen, ohne dass jemand wartet.
+ * Writes the timestamps raw (for test cases only): e.g. closesAt=now-1 makes
+ * a deadline expire immediately, without anyone waiting.
  */
 if ($cmd === 'window') {
 	$room = paceRoom($roomMapper, (string)($argv[2] ?? ''));
@@ -783,9 +787,9 @@ if ($cmd === 'remove') {
 
 /*
  *   php probe.php leave <code> <name>
- * Schließt die offene Frage der Person, ohne die nächste zu starten — wie ein
- * /next, das zwischen Schließen und Starten abbrach (nur für Prüffälle). Das
- * Handy zeigt dann „Your quiz continues.", und /next {after} heilt es.
+ * Closes the person's open question without starting the next one — like a
+ * /next that broke off between closing and starting (for test cases only). The
+ * phone then shows "Your quiz continues.", and /next {after} heals it.
  */
 if ($cmd === 'leave') {
 	$room = paceRoom($roomMapper, (string)($argv[2] ?? ''));
@@ -806,8 +810,8 @@ if ($cmd === 'leave') {
 	exit(0);
 }
 
-// Zurücksetzen wie „Reset quiz" (unter der Raumsperre, aber ohne die
-// „erst schließen"-Sperre des Controllers — der Prüfstand darf das auch offen).
+// Reset like "Reset quiz" (under the room lock, but without the controller's
+// "close first" guard — the test bench may do this while the quiz is open).
 if ($cmd === 'reset') {
 	$room = paceRoom($roomMapper, (string)($argv[2] ?? ''));
 	$pace->locked($room, function ($r) use ($rooms): void {
@@ -819,8 +823,8 @@ if ($cmd === 'reset') {
 
 /*
  *   php probe.php online <code> finished|started|all
- * Präsenz der Personen selbst (gilt 15 s): sie stehen dann in /progress als
- * „online". `finished` = nur, wer fertig ist — die Statuszeile „alle durch".
+ * Presence of the people themselves (valid for 15 s): they then show up in /progress as
+ * "online". `finished` = only those who are done — the "Everyone still here is through" status line.
  */
 if ($cmd === 'online') {
 	$room = paceRoom($roomMapper, (string)($argv[2] ?? ''));
@@ -844,7 +848,7 @@ if ($cmd === 'online') {
 	exit(0);
 }
 
-/** Deterministischer Zufall (derselbe LCG wie `fixture compass`). */
+/** Deterministic randomness (the same LCG as `fixture compass`). */
 function paceRandom(int $seed): callable {
 	$state = $seed & 0x7fffffff;
 	return function () use (&$state): float {
@@ -854,9 +858,9 @@ function paceRandom(int $seed): callable {
 }
 
 /**
- * Rohwert einer Antwort, wie ihn ein Handy an /vote schickt: die Lösung oder
- * eine gezielt falsche. Freitext falsch = eine von drei Gruppen, die weder
- * angenommen noch abgelehnt sind -> „wird geprüft" (pending).
+ * The raw value of an answer as a phone sends it to /vote: the solution or a
+ * deliberately wrong one. A wrong free text = one of three groups that are
+ * neither accepted nor rejected -> "Being checked" (pending).
  */
 function paceAnswer($poll, bool $correct, callable $rnd): mixed {
 	$key = $poll->getAnswerKeyArray();
@@ -876,7 +880,7 @@ function paceAnswer($poll, bool $correct, callable $rnd): mixed {
 				return $want;
 			}
 			$wrong = array_values(array_diff($ids, $want));
-			// eine richtige weglassen und eine falsche dazu — nie leer
+			// drop one correct option and add a wrong one — never empty
 			return array_values(array_merge(array_slice($want, 1), $wrong === [] ? [] : [$wrong[0]])) ?: [$ids[0]];
 		case 'number':
 			$target = (float)($key['target'] ?? 0);
@@ -907,19 +911,19 @@ function paceAnswer($poll, bool $correct, callable $rnd): mixed {
 /*
  *   php probe.php race <code> <N> [seed]
  *
- * N Personen treten bei (VoteService::quizJoin — der Service kennt das
- * Beitrittslimit von 120 je IP nicht, ein HTTP-Seed liefe hinein). Ist das
- * Fenster offen, laufen sie los: ~15 % bleiben ungestartet, der Rest geht per
- * PaceService::next bis zu seiner Zielfrage, ~30 % bis zum Ende (die Hälfte
- * davon tippt noch „Fertig"). Vor jeder Antwort wird die offene Zeile um eine
- * Zeit innerhalb des Limits zurückdatiert, dann antwortet VoteService (Punkte
- * nach der echten Formel). Zwei Personen überspringen Frage 1 (mit Timer erst
- * nach Zeitablauf — sonst wäre /next wegen der Vorschau-Sperre ein No-op).
- * Zuletzt gehen alle Stimmen dieses Aufrufs 60 s zurück: sie sind damit
- * endgültig, und die Zahlen stehen sofort fest.
+ * N people join (VoteService::quizJoin — the service does not know the
+ * join limit of 120 per IP, an HTTP seed would run into it). If the
+ * window is open, they get going: ~15 % stay unstarted, the rest go via
+ * PaceService::next up to their target question, ~30 % to the end (half of
+ * them also tap "I’m done"). Before every answer the open row is backdated by
+ * a time within the limit, then VoteService answers (points by the real
+ * formula). Two people skip question 1 (with a timer only after the time is
+ * up — otherwise /next would be a no-op because of the preview lock).
+ * Finally all votes of this call go back by 60 s: that makes them
+ * final, and the numbers are settled at once.
  *
- * Ausgabe: die erwarteten Zahlen (je Person und je Frage) als JSON — zum
- * Gegenlesen gegen /progress und /state?spectate=1.
+ * Output: the expected numbers (per person and per question) as JSON — for
+ * cross-checking against /progress and /state?spectate=1.
  */
 function paceRace(string $code, int $count, int $seed): array {
 	$roomMapper = \OCP\Server::get(RoomMapper::class);
@@ -939,7 +943,7 @@ function paceRace(string $code, int $count, int $seed): array {
 		exit(1);
 	}
 
-	// Feste Namensliste; freie Namen der Reihe nach (auch bei einem zweiten Aufruf).
+	// Fixed list of names; free names in order (also on a second call).
 	$names = ['Anna', 'Ben', 'Cem', 'Dora', 'Emil', 'Fatou', 'Gino', 'Hanna', 'Ilyas', 'Jana',
 		'Karl', 'Lea', 'Mehmet', 'Nora', 'Oskar', 'Paula', 'Quinn', 'Rosa', 'Sami', 'Tilda',
 		'Uwe', 'Vera', 'Wim', 'Yara', 'Zoe', 'Aiko', 'Bruno', 'Clara', 'Deniz', 'Elif'];
@@ -973,7 +977,7 @@ function paceRace(string $code, int $count, int $seed): array {
 	$openRow = function (string $token) use ($progressMapper, $room) {
 		return \OCA\Pulse\Service\PaceService::openOf($progressMapper->findByRoomAndToken($room->getId(), $token));
 	};
-	// Zeile zurückdatieren (roh): so läuft die Uhr der Person schon eine Weile.
+	// Backdate the row (raw): that way the person's clock has already been running for a while.
 	$backdate = function ($row, int $seconds) use ($progressMapper): void {
 		$row->setStartedAt(time() - $seconds);
 		$progressMapper->update($row);
@@ -993,7 +997,7 @@ function paceRace(string $code, int $count, int $seed): array {
 			}
 			$toEnd = $rnd() < 0.30;
 			$target = ($toEnd || $n === 1) ? $n : 1 + (int)floor($rnd() * ($n - 1));
-			$done = $toEnd && $rnd() < 0.5; // „Fertig" getippt
+			$done = $toEnd && $rnd() < 0.5; // tapped "I’m done"
 			$skipFirst = $skippers < 2 && $target >= 2 && $idx % 3 === 1;
 			if ($skipFirst) {
 				$skippers++;
@@ -1012,7 +1016,7 @@ function paceRace(string $code, int $count, int $seed): array {
 				$perQ[$k - 1]['reached']++;
 				$e['k'] = $k;
 				$last = $k === $target;
-				// Auf der Zielfrage (nicht der letzten) antwortet nur jede zweite Person.
+				// On the target question (unless it is the last one) only every second person answers.
 				$answer = !($k === 1 && $skipFirst) && (!$last || $k === $n || $rnd() < 0.5);
 				if (!$answer) {
 					if ($k === 1 && $skipFirst) {
@@ -1026,7 +1030,7 @@ function paceRace(string $code, int $count, int $seed): array {
 					$backdate($row, $elapsed);
 					$correct = $rnd() < 0.65;
 					$votes->recordVote($room, $token, paceAnswer($poll, $correct, $rnd), false, $pid);
-					// Tatsächlich gerechnete Zeit (eine Sekundengrenze kann dazwischen liegen).
+					// The time actually counted (a second boundary may lie in between).
 					$stored = json_decode($voteMapper->findByPollAndToken($pid, $token)->getPayload(), true);
 					$isRight = !empty($stored['correct']);
 					$pending = !empty($stored['pending']);
@@ -1042,7 +1046,7 @@ function paceRace(string $code, int $count, int $seed): array {
 						$perQ[$k - 1]['correct']++;
 						$lim = (int)($stored['limit'] ?? 0);
 						$el = (int)($stored['elapsed'] ?? 0);
-						// Formel wie QuizService::points, hier unabhängig nachgerechnet.
+						// Formula as in QuizService::points, recomputed independently here.
 						$e['score'] += $lim <= 0 ? 1000 : (int)round(1000 * (1 - 0.5 * max(0.0, min(1.0, $el / $lim))));
 					}
 				}
@@ -1051,11 +1055,11 @@ function paceRace(string $code, int $count, int $seed): array {
 				}
 			}
 			$e['finished'] = $target === $n && ($done || $answeredLast);
-			// Offene Zeile? (Nur zur Ansicht — der Beamer zählt, wer fertig ist, nur unter „Finished“.)
+			// Open row? (For display only — the projector counts who is done only under "Finished".)
 			$e['open'] = !($target === $n && $done);
 			$expect[] = $e;
 		}
-		// Alle Stimmen dieses Aufrufs 60 s zurück -> endgültig (fw ist 3 bzw. 6 s).
+		// All votes of this call back by 60 s -> final (fw is 3 or 6 s).
 		foreach (array_chunk(array_column($people, 'token'), 100) as $chunk) {
 			$qb = $db->getQueryBuilder();
 			$qb->update('pulse_votes')
@@ -1092,7 +1096,7 @@ if ($cmd === 'race') {
 	exit(0);
 }
 
-/** Die sechs Quiz-Typen des Tempo-Prüfstands (Timer je Frage $limit s). */
+/** The six quiz types of the pace test bench (timer $limit s per question). */
 function paceDeck(DeckService $deck, $room, int $limit): array {
 	return [
 		add($deck, $room, ['type' => 'choice', 'question' => 'Which port does HTTPS use by default?',
@@ -1112,7 +1116,7 @@ function paceDeck(DeckService $deck, $room, int $limit): array {
 	];
 }
 
-/** $count Auswahlfragen (Rennen mit vielen Fragen: mid/wide/big). */
+/** $count choice questions (races with many questions: mid/wide/big). */
 function paceChoices(DeckService $deck, $room, int $count, int $limit): array {
 	$pool = [
 		['Which port does HTTPS use by default?', ['80', '443', '8080', '22'], 1],
@@ -1130,11 +1134,11 @@ function paceChoices(DeckService $deck, $room, int $count, int $limit): array {
 }
 
 /*
- *   php probe.php pace-create <uid>   -> JSON (run.sh schreibt es nach pace.json)
+ *   php probe.php pace-create <uid>   -> JSON (run.sh writes it to pace.json)
  *
- * Die Räume des Tempo-Prüfstands (§6.1). `destroy` räumt sie mit weg. Die
- * Reihenfolge der Strecken (pace-mod -> pace-run -> pace-phone -> pace-screen)
- * steht in der Spezifikation; `click` ist nur für Klickstrecken da.
+ * The rooms of the pace test bench (§6.1). `destroy` removes them too. The
+ * order of the runs (pace-mod -> pace-run -> pace-phone -> pace-screen)
+ * is given in the spec (not in the public repository); `click` exists only for click-through runs.
  */
 if ($cmd === 'pace-create') {
 	$uid = $argv[2] ?? 'pulse-shots';

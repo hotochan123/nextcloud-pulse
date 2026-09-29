@@ -17,11 +17,11 @@ use PHPUnit\Framework\TestCase;
 use ReflectionProperty;
 
 /**
- * Wortwolke: „Kaffee" und „KAFFEE" einer Person sind EIN Wort.
+ * Word cloud: "Kaffee" and "KAFFEE" from one person are ONE word.
  *
- * Zwei Stellen müssen dieselbe Normalform benutzen (TallyService::normalizeWord):
- * die Stimmprüfung (VoteService::normalizeValue), die Doppelte gar nicht erst
- * speichert, und die Auszählung, die Altstimmen von vor der Prüfung heilt.
+ * Two places must use the same normal form (TallyService::normalizeWord):
+ * vote validation (VoteService::normalizeValue), which does not even store
+ * duplicates, and the tally, which heals old votes from before the validation.
  */
 #[CoversClass(VoteService::class)]
 #[CoversClass(TallyService::class)]
@@ -33,12 +33,12 @@ class WordCloudDedupeTest extends TestCase {
         $l10n = $this->createMock(IL10N::class);
         $l10n->method('t')->willReturnArgument(0);
 
-        // normalizeValue greift für Wörter auf keinen Mapper zu — nur l10n.
+        // normalizeValue touches no mapper for words — only l10n.
         $this->service = (new \ReflectionClass(VoteService::class))->newInstanceWithoutConstructor();
         (new ReflectionProperty(VoteService::class, 'l10n'))->setValue($this->service, $l10n);
     }
 
-    // ── normalizeWord: die EINE Quelle ─────────────────────────────────────
+    // ── normalizeWord: the ONE source ──────────────────────────────────────
 
     public function testNormalizeWordTrimmtUndSchreibtKlein(): void {
         $this->assertSame('kaffee', TallyService::normalizeWord('  KAFFEE '));
@@ -48,7 +48,7 @@ class WordCloudDedupeTest extends TestCase {
         $this->assertSame('äpfel über', TallyService::normalizeWord('ÄPFEL ÜBER'));
     }
 
-    // ── Stimmprüfung ───────────────────────────────────────────────────────
+    // ── Vote validation ────────────────────────────────────────────────────
 
     public function testGrossKleinVariantenWerdenEinWortErsteSchreibweiseBleibt(): void {
         $words = $this->service->normalizeValue($this->poll(3), ['Kaffee', 'KAFFEE', ' kaffee ']);
@@ -63,16 +63,16 @@ class WordCloudDedupeTest extends TestCase {
     }
 
     public function testObergrenzeGreiftErstNachDemEntdoppeln(): void {
-        // Vier Eingaben, aber nur drei verschiedene Wörter — bei maxWords 2
-        // dürfen die Doppelten keinen Platz belegen.
+        // Four inputs, but only three distinct words — with maxWords 2
+        // the duplicates must not take up a slot.
         $words = $this->service->normalizeValue($this->poll(2), ['Kaffee', 'KAFFEE', 'Tee', 'Wasser']);
 
         $this->assertSame(['Kaffee', 'Tee'], $words);
     }
 
     public function testZahlwortBleibtEinString(): void {
-        // Als Array-Schlüssel wird „42" zur Ganzzahl — gespeichert werden muss
-        // trotzdem der Text, sonst zählt die Auszählung (nur Strings) es nicht.
+        // As an array key "42" becomes an integer — but what has to be stored
+        // is still the text, otherwise the tally (strings only) does not count it.
         $words = $this->service->normalizeValue($this->poll(3), ['42', ' 42', 7]);
 
         $this->assertSame(['42', '7'], $words);
@@ -89,8 +89,8 @@ class WordCloudDedupeTest extends TestCase {
     }
 
     public function testKuerzungVorDemVergleich(): void {
-        // Zwei lange Eingaben, die sich erst hinter Zeichen 40 unterscheiden,
-        // landen gekürzt als dasselbe Wort in der Wolke — also ein Eintrag.
+        // Two long inputs that only differ after character 40 end up truncated
+        // as the same word in the cloud — so one entry.
         $a = str_repeat('x', 40) . 'A';
         $b = str_repeat('X', 40) . 'B';
         $words = $this->service->normalizeValue($this->poll(3), [$a, $b]);
@@ -98,11 +98,11 @@ class WordCloudDedupeTest extends TestCase {
         $this->assertSame([str_repeat('x', 40)], $words);
     }
 
-    // ── Auszählung: Altstimmen heilen ──────────────────────────────────────
+    // ── Tally: healing old votes ───────────────────────────────────────────
 
     public function testAltstimmeMitDoppeltenZaehltJeWortNurEinmal(): void {
-        // Vor der Prüfung gespeichert: eine Person mit drei Schreibweisen von
-        // Kaffee und zweimal Tee, dazu eine zweite Person mit Kaffee.
+        // Stored before the validation existed: one person with three spellings of
+        // Kaffee and Tee twice, plus a second person with Kaffee.
         $tally = (new TallyService())->tally($this->poll(5), [
             $this->vote(['Kaffee', 'KAFFEE', ' kaffee', 'Tee', 'TEE']),
             $this->vote(['kaffee']),
@@ -121,7 +121,7 @@ class WordCloudDedupeTest extends TestCase {
         $this->assertSame([['word' => '42', 'count' => 2]], $tally['results']);
     }
 
-    // ── Wortschlüssel: Variantenwähler, Leerraum ───────────────────────────
+    // ── Word key: variation selectors, whitespace ──────────────────────────
 
     public function testVariantenwaehlerMachtKeinNeuesWort(): void {
         $words = $this->service->normalizeValue($this->poll(3), ["\u{2764}\u{FE0F}", "\u{2764}", "\u{2764}\u{FE0E}"]);
@@ -149,7 +149,7 @@ class WordCloudDedupeTest extends TestCase {
     }
 
     public function testWortschluesselLaesstPersischUndEmojiVerbinderStehen(): void {
-        // ZWNJ/ZWJ ändern das Aussehen — anders als bei Namen bleiben sie im Schlüssel.
+        // ZWNJ/ZWJ change the appearance — unlike with names, they stay in the key.
         $this->assertNotSame(TallyService::wordKey("\u{0645}\u{06CC}\u{200C}\u{062E}"), TallyService::wordKey("\u{0645}\u{06CC}\u{062E}"));
         $this->assertNotSame(TallyService::wordKey("\u{1F469}\u{200D}\u{1F4BB}"), TallyService::wordKey("\u{1F469}\u{1F4BB}"));
     }

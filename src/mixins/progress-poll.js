@@ -3,33 +3,34 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 /*
- * /progress-Schleife des Moderators im eigenen Tempo — geteilt von der
- * Statuszeile im Deck (PaceDeckStatus) und der Laufansicht (PaceRun).
+ * The moderator's self-paced /progress loop — shared by the status line in
+ * the deck (PaceDeckStatus) and the run view (PaceRun).
  *
- * Baut auf pollingMixin auf und ersetzt dessen pollTick: höchstens EINE
- * Anfrage unterwegs. Vorher startete ein refresh() während einer laufenden
- * Anfrage eine zweite Kette, und pollClear fing nur einen der beiden Timer.
- * Jetzt merkt sich ein Tick während einer Anfrage nur den Wunsch
- * (wantRefresh); die laufende Kette holt sofort nach, sobald sie zurück ist.
- * refresh() zählt zusätzlich reqSeq hoch: die Antwort, die gerade unterwegs
- * ist, kann älter sein als die Aktion davor und wird verworfen.
+ * Builds on pollingMixin and replaces its pollTick: at most ONE request in
+ * flight. Before, a refresh() during a running request started a second
+ * chain, and pollClear only caught one of the two timers.
+ * Now a tick during a request only records the wish (wantRefresh); the
+ * running chain catches up immediately as soon as it is back.
+ * refresh() also bumps reqSeq: the response that is currently in flight
+ * may be older than the action before it and is discarded.
  *
- * Die Komponente liefert:
+ * The component provides:
  *   · progressUrl(): string
- *   · progressParams(): object   optional, z. B. { scores: 1 }
- *   · pollDelay(): number|null    wie beim pollingMixin (null = Tab versteckt)
- *   · onProgress(data)            optional, nach jeder 200er-Antwort
- *   · onGone()                    404/403: Raum weg oder nicht mehr meiner
- *   · onNotPaced()                409: der Raum läuft nicht mehr im eigenen Tempo
- * Beide Fehlerfälle beenden die Schleife dauerhaft (pollStopped).
+ *   · progressParams(): object   optional, e.g. { scores: 1 }
+ *   · pollDelay(): number|null    as with pollingMixin (null = tab hidden)
+ *   · onProgress(data)            optional, after every 200 response
+ *   · onGone()                    404/403: room gone or no longer mine
+ *   · onNotPaced()                409: the room is no longer running self-paced
+ * Both error cases end the loop for good (pollStopped).
  */
 import axios from '@nextcloud/axios'
 import pollingMixin from './polling.js'
 
 /**
- * Zählstand aus einer /progress-Antwort — dieselbe Form, die
- * Moderator.fetchCounts liefert und lossText liest (Spezifikation §0.9).
- * @param {object|null} p /progress-Payload
+ * Counts from a /progress response — the same shape that
+ * Moderator.fetchCounts delivers and lossText reads (spec §0.9, not in the
+ * public repository).
+ * @param {object|null} p /progress payload
  * @return {object|null} {joined, present, started, finished, answers, pending, state}
  */
 export function progressCounts(p) {
@@ -55,8 +56,8 @@ export default {
 			version: '',
 			online: true,
 			serverSkew: 0,
-			inflight: false,  // eine Anfrage unterwegs
-			reqSeq: 0,        // Antworten mit älterer Nummer sind überholt
+			inflight: false,  // one request in flight
+			reqSeq: 0,        // responses with an older number are stale
 			wantRefresh: false,
 		}
 	},
@@ -70,7 +71,7 @@ export default {
 		document.removeEventListener('visibilitychange', this.onPollVisibility)
 	},
 	methods: {
-		// Vorgaben — die Komponente überschreibt, was sie braucht.
+		// Defaults — the component overrides what it needs.
 		progressParams() {
 			return {}
 		},
@@ -80,7 +81,7 @@ export default {
 
 		pollTick() {
 			if (this.inflight) {
-				// Die laufende Kette übernimmt — nie zwei Anfragen zugleich.
+				// The running chain takes over — never two requests at once.
 				this.wantRefresh = true
 				return
 			}
@@ -102,7 +103,7 @@ export default {
 				const params = { ...this.progressParams() }
 				if (this.version) params.v = this.version
 				const res = await axios.get(this.progressUrl(), { params, timeout: 15000 })
-				if (seq !== this.reqSeq) return // überholt: refresh() kam danach
+				if (seq !== this.reqSeq) return // stale: refresh() came afterwards
 				this.online = true
 				if (res.status === 204) {
 					this.idleStreak++
@@ -129,7 +130,7 @@ export default {
 				this.inflight = false
 			}
 		},
-		// Nach jeder eigenen Aktion: ohne Version abrufen, Überholtes verwerfen.
+		// After each of our own actions: fetch without a version, discard stale responses.
 		refresh() {
 			this.version = ''
 			this.reqSeq++

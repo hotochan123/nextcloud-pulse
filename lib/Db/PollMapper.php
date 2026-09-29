@@ -21,8 +21,8 @@ class PollMapper extends QBMapper {
     }
 
     /**
-     * QBMapper bietet kein generisches find($id) (nur der alte, deprecated
-     * Mapper tat das) — daher hier explizit.
+     * QBMapper offers no generic find($id) (only the old, deprecated
+     * Mapper did) — hence spelled out here.
      *
      * @throws DoesNotExistException
      */
@@ -35,11 +35,11 @@ class PollMapper extends QBMapper {
     }
 
     /**
-     * Wie find(), aber sperrend gelesen (SELECT … FOR UPDATE): bewertet der
-     * Moderator gerade (VoteService::gradeTextAnswer hält die Zeile bis zum
-     * Commit), wartet die Abfrage und sieht danach dessen Antwortschlüssel.
-     * Ohne Transaktion gilt die Sperre nur für diese eine Abfrage. SQLite: ohne
-     * FOR UPDATE (wie RoomMapper::lockForUpdate).
+     * Like find(), but read with a lock (SELECT … FOR UPDATE): if the moderator
+     * is grading right now (VoteService::gradeTextAnswer holds the row until the
+     * commit), the query waits and then sees their answer key.
+     * Without a transaction the lock only applies to this one query. SQLite: without
+     * FOR UPDATE (like RoomMapper::lockForUpdate).
      *
      * @throws DoesNotExistException
      */
@@ -55,7 +55,7 @@ class PollMapper extends QBMapper {
     }
 
     /**
-     * Deck eines Raums in Reihenfolge (Position, dann ID als Tiebreaker).
+     * A room's deck in order (position, then ID as tiebreaker).
      *
      * @return Poll[]
      */
@@ -88,7 +88,7 @@ class PollMapper extends QBMapper {
         $qb->executeStatement();
     }
 
-    /** Nächste freie Position im Deck (max+1, lückensicher gegen Löschungen). */
+    /** Next free position in the deck (max+1, safe against gaps from deletions). */
     public function nextPosition(int $roomId): int {
         $qb = $this->db->getQueryBuilder();
         $qb->select($qb->func()->max('position'))
@@ -105,9 +105,9 @@ class PollMapper extends QBMapper {
     }
 
     /**
-     * Das Quiz-Ende zurücknehmen: jede andere 'ended'-Frage des Raums wird
-     * wieder zur aufgelösten ('locked'). Läuft eine Frage neu an, ist der
-     * frühere Endstand vorbei.
+     * Undo the quiz end: every other 'ended' question of the room becomes
+     * a revealed one ('locked') again. Once a question starts anew, the
+     * earlier final standings are over.
      */
     public function unmarkEnded(int $roomId, int $exceptPollId): void {
         $qb = $this->db->getQueryBuilder();

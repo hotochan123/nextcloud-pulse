@@ -14,10 +14,10 @@ use OCP\Migration\IOutput;
 use OCP\Migration\SimpleMigrationStep;
 
 /**
- * Quiz-Modus: Räume bekommen einen Modus ('poll' | 'quiz'), Quizfragen eine
- * richtige Antwort, ein Zeitlimit und einen Startzeitpunkt (für Countdown +
- * Tempo-Wertung). Neue Tabelle pulse_players hält je Voter-Token einen
- * Nickname pro Raum — weiterhin ohne Nextcloud-Konto.
+ * Quiz mode: rooms get a mode ('poll' | 'quiz'), quiz questions get a
+ * correct answer, a time limit and a start time (for the countdown +
+ * speed scoring). The new table pulse_players holds one nickname per
+ * voter token and room — still without a Nextcloud account.
  */
 class Version000000Date20260716160000 extends SimpleMigrationStep {
 
@@ -25,31 +25,31 @@ class Version000000Date20260716160000 extends SimpleMigrationStep {
         /** @var ISchemaWrapper $schema */
         $schema = $schemaClosure();
 
-        // ── Räume: Modus ────────────────────────────────────────────────────
+        // ── Rooms: mode ─────────────────────────────────────────────────────
         $rooms = $schema->getTable('pulse_rooms');
         if (!$rooms->hasColumn('mode')) {
             $rooms->addColumn('mode', Types::STRING, ['notnull' => true, 'length' => 16, 'default' => 'poll']);
         }
 
-        // ── Umfragen: Quiz-Felder ───────────────────────────────────────────
+        // ── Polls: quiz fields ──────────────────────────────────────────────
         $polls = $schema->getTable('pulse_polls');
         if (!$polls->hasColumn('correct_option')) {
-            // Options-ID der richtigen Antwort (null/leer außerhalb des Quiz-Modus).
-            // Nullable, weil NC einen NOT-NULL-Text mit Leerstring-Default ablehnt (Oracle: '' = NULL).
+            // Option ID of the correct answer (null/empty outside quiz mode).
+            // Nullable, because NC rejects a NOT NULL text column with an empty-string default (Oracle: '' = NULL).
             $polls->addColumn('correct_option', Types::STRING, ['notnull' => false, 'length' => 16, 'default' => '']);
         }
         if (!$polls->hasColumn('time_limit')) {
-            // Sekunden; 0 = kein Limit.
+            // Seconds; 0 = no limit.
             $polls->addColumn('time_limit', Types::INTEGER, ['notnull' => true, 'default' => 0]);
         }
         if (!$polls->hasColumn('started_at')) {
-            // Unix-Zeit, wann die Frage aktiv geschaltet wurde (Basis für Countdown/Tempo).
+            // Unix time when the question was made active (basis for countdown/speed).
             $polls->addColumn('started_at', Types::BIGINT, ['notnull' => true, 'default' => 0]);
         }
 
-        // ── Spieler (Quiz) ──────────────────────────────────────────────────
-        // Ein Nickname je (Raum, Voter-Token). Der Token bleibt anonym; er
-        // identifiziert keine Nextcloud-Person, nur denselben Browser wieder.
+        // ── Players (quiz) ──────────────────────────────────────────────────
+        // One nickname per (room, voter token). The token stays anonymous; it
+        // identifies no Nextcloud user, it only recognises the same browser again.
         if (!$schema->hasTable('pulse_players')) {
             $table = $schema->createTable('pulse_players');
             $table->addColumn('id', Types::BIGINT, ['autoincrement' => true, 'notnull' => true]);

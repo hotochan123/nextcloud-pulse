@@ -22,8 +22,8 @@ class PresenceMapper extends QBMapper {
     }
 
     /**
-     * Heartbeat: last_seen dieses Tokens auf jetzt setzen (Upsert auf
-     * room_id+voter_token). Wird bei jedem Teilnehmer-Poll aufgerufen.
+     * Heartbeat: set this token's last_seen to now (upsert on
+     * room_id+voter_token). Called on every participant poll.
      */
     public function touch(int $roomId, string $voterToken, int $now): void {
         try {
@@ -32,7 +32,7 @@ class PresenceMapper extends QBMapper {
             $this->update($row);
             return;
         } catch (DoesNotExistException) {
-            // noch keine Zeile -> unten anlegen
+            // no row yet -> create one below
         }
 
         $row = new Presence();
@@ -42,8 +42,8 @@ class PresenceMapper extends QBMapper {
         try {
             $this->insert($row);
         } catch (Exception $e) {
-            // Race: ein paralleler Poll desselben Tokens hat die Zeile zwischen
-            // find und insert angelegt (UNIQUE). Dann einfach aktualisieren.
+            // Race: a parallel poll of the same token created the row between
+            // find and insert (UNIQUE). Then simply update it.
             if ($e->getReason() === Exception::REASON_UNIQUE_CONSTRAINT_VIOLATION) {
                 $existing = $this->findByRoomAndToken($roomId, $voterToken);
                 $existing->setLastSeen($now);
@@ -55,7 +55,7 @@ class PresenceMapper extends QBMapper {
     }
 
     /**
-     * @throws DoesNotExistException dieses Token war in diesem Raum noch nie aktiv
+     * @throws DoesNotExistException this token has never been active in this room
      */
     public function findByRoomAndToken(int $roomId, string $voterToken): Presence {
         $qb = $this->db->getQueryBuilder();
@@ -67,7 +67,7 @@ class PresenceMapper extends QBMapper {
     }
 
     /**
-     * Anzahl seit $since (Unix-Zeit) aktiver Teilnehmer eines Raums.
+     * Number of a room's participants active since $since (Unix time).
      */
     public function countActive(int $roomId, int $since): int {
         $qb = $this->db->getQueryBuilder();
@@ -82,8 +82,8 @@ class PresenceMapper extends QBMapper {
     }
 
     /**
-     * Letzte Aktivität irgendeines Teilnehmers im Raum (MAX(last_seen)),
-     * 0 ohne Zeilen — für die Aufbewahrungsregel des Aufräum-Jobs.
+     * Last activity of any participant in the room (MAX(last_seen)),
+     * 0 without rows — for the retention rule of the clean-up job.
      */
     public function lastSeen(int $roomId): int {
         $qb = $this->db->getQueryBuilder();
@@ -97,7 +97,7 @@ class PresenceMapper extends QBMapper {
     }
 
     /**
-     * @return Presence[] alle Zeilen eines Raums („zuletzt gesehen" im Fortschritt)
+     * @return Presence[] all rows of a room ("Last active" in the progress view)
      */
     public function findByRoom(int $roomId): array {
         $qb = $this->db->getQueryBuilder();
@@ -114,7 +114,7 @@ class PresenceMapper extends QBMapper {
         $qb->executeStatement();
     }
 
-    /** Eine Person aus dem Raum entfernen (PaceService::removePlayer). */
+    /** Remove a person from the room (PaceService::removePlayer). */
     public function deleteByRoomAndToken(int $roomId, string $voterToken): void {
         $qb = $this->db->getQueryBuilder();
         $qb->delete($this->getTableName())

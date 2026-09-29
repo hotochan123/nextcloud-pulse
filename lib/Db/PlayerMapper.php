@@ -22,8 +22,8 @@ class PlayerMapper extends QBMapper {
     }
 
     /**
-     * Beitritt/Umbenennen: Nickname dieses Tokens setzen (Upsert auf
-     * room_id+voter_token). Race-sicher wie PresenceMapper::touch().
+     * Join/rename: set this token's nickname (upsert on
+     * room_id+voter_token). Race-safe like PresenceMapper::touch().
      */
     public function register(int $roomId, string $voterToken, string $nickname, int $now): Player {
         try {
@@ -31,7 +31,7 @@ class PlayerMapper extends QBMapper {
             $row->setNickname($nickname);
             return $this->update($row);
         } catch (DoesNotExistException) {
-            // noch keine Zeile -> unten anlegen
+            // no row yet -> create one below
         }
 
         $row = new Player();
@@ -42,7 +42,7 @@ class PlayerMapper extends QBMapper {
         try {
             return $this->insert($row);
         } catch (Exception $e) {
-            // Race: paralleler Beitritt desselben Tokens legte die Zeile an (UNIQUE).
+            // Race: a parallel join of the same token created the row (UNIQUE).
             if ($e->getReason() === Exception::REASON_UNIQUE_CONSTRAINT_VIOLATION) {
                 $existing = $this->findByRoomAndToken($roomId, $voterToken);
                 $existing->setNickname($nickname);
@@ -53,7 +53,7 @@ class PlayerMapper extends QBMapper {
     }
 
     /**
-     * @throws DoesNotExistException dieses Token ist dem Raum noch nicht beigetreten
+     * @throws DoesNotExistException this token has not joined the room yet
      */
     public function findByRoomAndToken(int $roomId, string $voterToken): Player {
         $qb = $this->db->getQueryBuilder();
@@ -65,11 +65,11 @@ class PlayerMapper extends QBMapper {
     }
 
     /**
-     * Gibt es dieses Token (noch) im Raum? Sperrend gelesen (SELECT … FOR
-     * UPDATE): löscht removePlayer die Zeile gerade, wartet die Abfrage auf
-     * dessen Commit und findet sie danach nicht mehr (PaceService::assertStillJoined).
-     * Ohne Transaktion gilt die Sperre nur für diese eine Abfrage. SQLite kennt
-     * kein FOR UPDATE — dort ein normales SELECT (wie RoomMapper::lockForUpdate).
+     * Does this token (still) exist in the room? Read with a lock (SELECT … FOR
+     * UPDATE): if removePlayer is deleting the row right now, the query waits for
+     * its commit and then no longer finds it (PaceService::assertStillJoined).
+     * Without a transaction the lock only applies to this one query. SQLite has
+     * no FOR UPDATE — a plain SELECT there (like RoomMapper::lockForUpdate).
      */
     public function existsForUpdate(int $roomId, string $voterToken): bool {
         $qb = $this->db->getQueryBuilder();
@@ -87,7 +87,7 @@ class PlayerMapper extends QBMapper {
     }
 
     /**
-     * @return Player[] alle Spieler eines Raums
+     * @return Player[] all players of a room
      */
     public function findByRoom(int $roomId): array {
         $qb = $this->db->getQueryBuilder();
@@ -115,7 +115,7 @@ class PlayerMapper extends QBMapper {
         $qb->executeStatement();
     }
 
-    /** Nur Demo-/Test-Spieler eines Raums löschen (Token-Präfix „demo:"). */
+    /** Delete only the demo/test players of a room (token prefix "demo:"). */
     public function deleteDemoByRoom(int $roomId): void {
         $qb = $this->db->getQueryBuilder();
         $qb->delete($this->getTableName())

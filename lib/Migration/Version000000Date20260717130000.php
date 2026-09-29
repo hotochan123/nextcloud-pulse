@@ -14,10 +14,10 @@ use OCP\Migration\IOutput;
 use OCP\Migration\SimpleMigrationStep;
 
 /**
- * Auflösungs-Zeitpunkt im Quiz: Standard löst jede Frage einzeln auf (richtige
- * Antwort + Rangliste direkt danach). Mit `reveal_at_end=true` fließen die Fragen
- * ohne Zwischen-Auflösung durch; erst am Quiz-Ende gibt es den Stand. Nur ein
- * Ablauf-/Anzeige-Flag — kein Einfluss auf Stimmen/Wertung.
+ * Reveal timing in the quiz: by default each question is revealed on its own
+ * (correct answer + leaderboard right afterwards). With `reveal_at_end=true` the
+ * questions flow through without intermediate reveals; the standings only come
+ * at the end of the quiz. Only a flow/display flag — no effect on votes/scoring.
  */
 class Version000000Date20260717130000 extends SimpleMigrationStep {
 

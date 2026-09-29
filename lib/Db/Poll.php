@@ -39,23 +39,23 @@ use OCP\AppFramework\Db\Entity;
  */
 class Poll extends Entity implements \JsonSerializable {
     protected $roomId = 0;
-    // Umfrage: 'choice' | 'words' | 'scale' · Quiz: 'choice' | 'truefalse' | 'multi' | 'number' | 'text'
+    // Poll: 'choice' | 'words' | 'scale' · Quiz: 'choice' | 'truefalse' | 'multi' | 'number' | 'text'
     protected $type = '';
     protected $question = '';
     protected $options = '[]';  // JSON: [{"id":"AB12","label":"…"}]
     protected $maxWords = 3;
     protected $status = 'active'; // 'active' | 'locked' | 'ended'
-    protected $position = 0;      // Reihenfolge im Deck (0-basiert)
-    protected $correctOption = ''; // Quiz choice/truefalse: Options-ID der richtigen Antwort
-    // Quiz, typ-abhängige Lösung als JSON (serverseitig, nie an Teilnehmer vor Auflösen):
+    protected $position = 0;      // order in the deck (0-based)
+    protected $correctOption = ''; // quiz choice/truefalse: option ID of the correct answer
+    // Quiz, type-specific solution as JSON (server-side, never sent to participants before the reveal):
     //  multi   -> {"correct":["id1","id2"]}
     //  number  -> {"target":1969,"tolerance":2}
-    //  text    -> {"accepted":["paris"],"rejected":["berlin"]}  (wächst durch Moderator-Bewertung)
+    //  text    -> {"accepted":["paris"],"rejected":["berlin"]}  (grows through moderator grading)
     protected $answerKey = null;
-    // Dateiname des Fragebildes im AppData-Bereich ('' = keins), s. PollImageService
+    // File name of the question image in the AppData area ('' = none), see PollImageService
     protected $image = '';
-    protected $timeLimit = 0;      // Quiz: Sekunden (0 = kein Limit)
-    protected $startedAt = 0;      // Quiz: wann aktiv geschaltet (Unix-Zeit)
+    protected $timeLimit = 0;      // quiz: seconds (0 = no limit)
+    protected $startedAt = 0;      // quiz: when it was made active (Unix time)
     protected $createdAt = 0;
 
     public function __construct() {
@@ -67,7 +67,7 @@ class Poll extends Entity implements \JsonSerializable {
         $this->addType('createdAt', 'integer');
     }
 
-    /** Bild-Dateiname nie als NULL nach außen (Spalte ist nullable). */
+    /** Never expose the image file name as NULL (the column is nullable). */
     public function imageOrEmpty(): string {
         return (string)($this->getImage() ?? '');
     }
@@ -78,17 +78,17 @@ class Poll extends Entity implements \JsonSerializable {
         return is_array($decoded) ? $decoded : [];
     }
 
-    /** Typ-abhängige Lösung als Array (multi/number/text); {} wenn leer/ungesetzt. */
+    /** Type-specific solution as an array (multi/number/text); {} when empty/unset. */
     public function getAnswerKeyArray(): array {
         $decoded = json_decode((string)$this->getAnswerKey(), true);
         return is_array($decoded) ? $decoded : [];
     }
 
     /**
-     * Zuordnung (nur für type 'match'); liegt wie die Skala im options-JSON:
-     * links die Items (feste Reihenfolge), rechts die Ziele (der Client mischt
-     * sie). Die Lösung steht NICHT hier, sondern im answerKey — sonst läge sie
-     * schon vor dem Auflösen auf jedem Handy.
+     * Matching (only for type 'match'); like the scale it lives in the options JSON:
+     * the items on the left (fixed order), the targets on the right (the client shuffles
+     * them). The solution is NOT stored here but in answerKey — otherwise it would
+     * already be on every phone before the reveal.
      *
      * @return array{items:list<array{id:string,label:string}>, targets:list<array{id:string,label:string}>}
      */
@@ -108,8 +108,8 @@ class Poll extends Entity implements \JsonSerializable {
         return ['items' => $clean($d['items'] ?? []), 'targets' => $clean($d['targets'] ?? [])];
     }
 
-    /** Skalen-Config (nur für type 'scale'); liegt ebenfalls im options-JSON.
-     *  mode 'single' (1..X, Histogramm) oder 'spectrum' (0..X je Aspekt, Radar). */
+    /** Scale config (only for type 'scale'); also lives in the options JSON.
+     *  mode 'single' (1..X, histogram) or 'spectrum' (0..X per aspect, radar). */
     public function getScaleConfig(): array {
         $d = json_decode($this->getOptions(), true);
         if (!is_array($d)) {
@@ -167,9 +167,9 @@ class Poll extends Entity implements \JsonSerializable {
     }
 
     /**
-     * Achtung: correctOption ist NICHT enthalten — die richtige Antwort darf
-     * Teilnehmern nicht vor dem Auflösen zufließen. Moderator-Sichten hängen
-     * sie über DeckService::ownerPoll() explizit an.
+     * Note: correctOption is NOT included — the correct answer must not reach
+     * participants before the reveal. Moderator views attach it explicitly
+     * via DeckService::ownerPoll().
      */
     public function jsonSerialize(): array {
         $isScale = $this->getType() === 'scale';
@@ -179,13 +179,13 @@ class Poll extends Entity implements \JsonSerializable {
             'roomId' => $this->getRoomId(),
             'type' => $this->getType(),
             'question' => $this->getQuestion(),
-            // Skala und Zuordnung belegen das options-JSON anders als eine
-            // Optionsliste — sie kommen über ihr eigenes Feld heraus.
+            // Scale and matching use the options JSON differently from an
+            // option list — they come out through their own field.
             'options' => ($isScale || $isMatch) ? [] : $this->getOptionsArray(),
             'scale' => $isScale ? $this->getScaleConfig() : null,
             'match' => $isMatch ? $this->getMatchConfig() : null,
             'maxWords' => $this->getMaxWords(),
-            // Nur der Dateiname (= Cache-Buster); die URL baut der Client.
+            // Only the file name (= cache buster); the client builds the URL.
             'image' => $this->imageOrEmpty(),
             'status' => $this->getStatus(),
             'position' => $this->getPosition(),

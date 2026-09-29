@@ -18,8 +18,8 @@ use OCP\IRequest;
 use OCP\IURLGenerator;
 
 /**
- * Gibt das Office-Manifest des PowerPoint-Add-ins heraus, gefüllt mit den
- * Adressen dieser Instanz (siehe AddinManifest).
+ * Serves the Office manifest of the PowerPoint add-in, filled in with the
+ * addresses of this instance (see AddinManifest).
  */
 class AddinController extends Controller {
     public function __construct(
@@ -32,20 +32,20 @@ class AddinController extends Controller {
     }
 
     /**
-     * Kein Adminrecht nötig: das Manifest enthält nichts, was nicht ohnehin in
-     * der Adresszeile steht. Wer eine Präsentation halten darf, soll das
-     * Add-in einrichten können, ohne dafür Administration zu brauchen.
+     * No admin rights needed: the manifest contains nothing that is not in
+     * the address bar anyway. Anyone allowed to give a presentation should be
+     * able to set up the add-in without needing administration rights for it.
      *
-     * NoCSRFRequired, weil die Datei direkt über einen Link geladen wird —
-     * dabei schickt der Browser keinen Requesttoken.
+     * NoCSRFRequired because the file is loaded directly through a link —
+     * the browser sends no request token in that case.
      */
     #[NoAdminRequired]
     #[NoCSRFRequired]
     public function manifest(): DataDownloadResponse {
-        // getAbsoluteURL/linkToRouteAbsolute nehmen den Host der laufenden
-        // Anfrage (bzw. overwrite.cli.url). Das Manifest trägt damit genau die
-        // Adresse, unter der die Person gerade angemeldet ist — erreicht der
-        // Vortrags-Laptop diese Adresse, erreicht sie auch das Add-in.
+        // getAbsoluteURL/linkToRouteAbsolute use the host of the current
+        // request (or overwrite.cli.url). So the manifest carries exactly the
+        // address the person is currently logged in under — if the presenting
+        // laptop reaches that address, it also reaches the add-in.
         $origin = $this->manifest->origin($this->urlGenerator->getAbsoluteURL('/'));
         $embed = $this->urlGenerator->linkToRouteAbsolute('pulse.public.embed');
         $version = $this->appManager->getAppVersion(Application::APP_ID);

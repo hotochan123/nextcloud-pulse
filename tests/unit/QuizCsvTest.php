@@ -21,22 +21,22 @@ use PHPUnit\Framework\TestCase;
 use ReflectionProperty;
 
 /**
- * CSV des moderierten Raums (StateService::exportCsv) mit Quizfragen.
+ * CSV of the moderated room (StateService::exportCsv) with quiz questions.
  *
- * Der Freitext zählt unter `answers`, nicht `results` — der allgemeine Zweig
- * lief darauf in einen TypeError (500 für jedes Quiz mit Freitextfrage). Eine
- * Schätzung trägt ihre Zahl in `value`, die Antwortspalte blieb leer. Freier
- * Text aus dem Publikum (Freitext, Wörter) wird wie im eigenen Tempo keine
- * Formel (CsvFormat::cell).
+ * Free text counts under `answers`, not `results` — the general branch
+ * ran into a TypeError on it (500 for every quiz with a free-text question). A
+ * number guess carries its number in `value`, the answer column stayed empty. Free
+ * text from the audience (free text, words) never becomes a formula, just as in
+ * self-paced mode (CsvFormat::cell).
  */
 #[CoversClass(StateService::class)]
 #[CoversClass(CsvFormat::class)]
 class QuizCsvTest extends TestCase {
 
     private StateService $service;
-    /** @var Poll[] Deck in Reihenfolge */
+    /** @var Poll[] deck in order */
     private array $deck = [];
-    /** @var array<int, Vote[]> Stimmen je Frage */
+    /** @var array<int, Vote[]> votes per question */
     private array $votes = [];
 
     protected function setUp(): void {
@@ -98,7 +98,7 @@ class QuizCsvTest extends TestCase {
     }
 
     public function testQuizMitFreitextZwischenAnderenFragen(): void {
-        // Der gemeldete Fall: ein Deck mit Freitext brach den ganzen Export ab.
+        // The reported case: a deck with free text aborted the whole export.
         $this->poll(1, 'truefalse', null, ['T'], [['id' => 'T', 'label' => 'True'], ['id' => 'F', 'label' => 'False']]);
         $this->poll(2, 'text', ['accepted' => ['Jupiter'], 'rejected' => []], ['Jupiter']);
         $this->poll(3, 'number', ['target' => 1969, 'tolerance' => 1], [1969]);
@@ -110,7 +110,7 @@ class QuizCsvTest extends TestCase {
     }
 
     public function testAnfuehrungszeichenNachRfc4180(): void {
-        // Ohne Backslash-Escape: \" bleibt Text, das Zeichen danach wird verdoppelt.
+        // No backslash escape: \" stays text; the character after the backslash is doubled.
         $this->poll(1, 'text', ['accepted' => [], 'rejected' => []], ['a\\"b']);
 
         $raw = $this->raw();
@@ -119,11 +119,11 @@ class QuizCsvTest extends TestCase {
         $this->assertSame('a\\"b', $this->csv()[1][3]);
     }
 
-    // ── Helfer ─────────────────────────────────────────────────────────────
+    // ── Helpers ────────────────────────────────────────────────────────────
 
     /**
-     * @param ?array $key Antwortschlüssel (Freitext: accepted/rejected, Schätzung: target/tolerance)
-     * @param list<mixed> $values gespeicherte Stimmwerte
+     * @param ?array $key answer key (free text: accepted/rejected, number guess: target/tolerance)
+     * @param list<mixed> $values stored vote values
      */
     private function poll(int $id, string $type, ?array $key, array $values, array $options = []): void {
         $poll = new Poll();

@@ -16,14 +16,14 @@ use OCP\IConfig;
 use PHPUnit\Framework\Attributes\CoversClass;
 
 /**
- * Versionen im eigenen Tempo (PaceStateService::version).
+ * Versions in self-paced mode (PaceStateService::version).
  *
- * Die Version ist ein Schlüssel-Hash über den fertig gebauten Zustand ohne
- * serverNow. Sie muss springen, wenn die Zeit allein etwas ändert — Frist
- * abgelaufen, Stimme endgültig, Zeitlimit um — obwohl in der Datenbank nichts
- * passiert. Und sie darf NICHT springen, solange nur die Sekunden vergehen,
- * sonst gäbe es nie ein 204. Im Fortschritt des Moderators zählt `online`,
- * nicht „zuletzt gesehen" (das wechselt mit jedem Heartbeat).
+ * The version is a key hash over the fully built state without
+ * serverNow. It must change when time alone changes something — deadline
+ * passed, vote final, time limit up — even though nothing happens in the
+ * database. And it must NOT change while only the seconds tick by,
+ * otherwise there would never be a 204. In the moderator's progress `online`
+ * counts, not "last seen" (that changes with every heartbeat).
  */
 #[CoversClass(PaceStateService::class)]
 #[CoversClass(StateService::class)]
@@ -117,10 +117,10 @@ class SelfVersionTest extends PaceStateTestCase {
     public function testBeamerImSelbenEimerEinBau(): void {
         $this->row(11, 'tok-anna', self::NOW - 5);
         $first = $this->beamer();
-        $built = $this->calls['progress.findByRoom']; // Beamer-Aggregat + Rangliste
+        $built = $this->calls['progress.findByRoom']; // projector aggregate + leaderboard
 
         $this->now = self::NOW + 1;
-        $this->row(12, 'tok-ben', self::NOW); // Änderung im selben Eimer erscheint erst im nächsten
+        $this->row(12, 'tok-ben', self::NOW); // a change in the same bucket only shows up in the next one
         $second = $this->beamer();
 
         $this->assertSame($built, $this->calls['progress.findByRoom'], 'kein zweiter Bau');
@@ -173,7 +173,7 @@ class SelfVersionTest extends PaceStateTestCase {
         $live = new Room();
         $live->setMode('quiz');
 
-        // Lobby: das Token spielt moderiert keine Rolle.
+        // Lobby: in moderated mode the token plays no role.
         $this->assertSame($state->stateVersion($live), $state->stateVersion($live, false, 'tok-anna'));
     }
 

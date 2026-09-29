@@ -14,8 +14,8 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Raumcodes: Alphabet ohne I/O/0/1 (Vorlesen/Abtippen), Kollisionen werden
- * neu gewürfelt statt durchgereicht.
+ * Room codes: alphabet without I/O/0/1 (reading aloud/typing), collisions are
+ * re-rolled instead of passed through.
  */
 #[CoversClass(CodeGenerator::class)]
 class CodeGeneratorTest extends TestCase {
@@ -44,7 +44,7 @@ class CodeGeneratorTest extends TestCase {
         $random = $this->createMock(ISecureRandom::class);
         $random->method('generate')->willReturnOnConsecutiveCalls('AAAAAA', 'BBBBBB');
         $mapper = $this->createMock(RoomMapper::class);
-        // Erster Wurf kollidiert, zweiter ist frei.
+        // First roll collides, second is free.
         $mapper->method('codeExists')->willReturnMap([['AAAAAA', true], ['BBBBBB', false]]);
 
         $this->assertSame('BBBBBB', (new CodeGenerator($random, $mapper))->uniqueRoomCode());
@@ -68,7 +68,7 @@ class CodeGeneratorTest extends TestCase {
     }
 
     public function testVoterTokenIstDreissigzweiStellig(): void {
-        // 32 Zeichen ist hart: alle drei Token-Spalten sind varchar(32).
+        // 32 characters is a hard limit: all three token columns are varchar(32).
         $random = $this->createMock(ISecureRandom::class);
         $random->expects($this->once())
             ->method('generate')
@@ -80,8 +80,8 @@ class CodeGeneratorTest extends TestCase {
     }
 
     public function testVoterTokenFormWirdErkannt(): void {
-        // Nur was voterToken() vergibt, gilt als Cookie: alles andere scheiterte
-        // an der varchar(32)-Spalte oder am UTF-8 der Datenbank.
+        // Only what voterToken() hands out counts as a cookie: anything else would fail
+        // on the varchar(32) column or on the database's UTF-8.
         $this->assertTrue(CodeGenerator::isVoterToken(str_repeat('a', 32)));
         $this->assertTrue(CodeGenerator::isVoterToken(str_pad('AZaz09', 32, 'x')));
 

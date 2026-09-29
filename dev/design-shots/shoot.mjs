@@ -3,14 +3,21 @@
  * SPDX-FileCopyrightText: 2026 hotochan123
  * SPDX-License-Identifier: AGPL-3.0-or-later
  *
- * Schießt Screenshots von allen Pulse-Ansichten.
+ * Takes screenshots of every Pulse view.
  *
- * Steuert den auf dem Server installierten Firefox über geckodriver (WebDriver
- * über HTTP, ohne npm-Abhängigkeit). Den Zustand der Räume setzt nicht der
- * Browser, sondern probe.php serverseitig — deshalb lassen sich auch Ansichten
- * aufnehmen, die man sonst nur durch Klicken erreicht.
+ * Drives the Firefox installed on the server through geckodriver (WebDriver
+ * over HTTP, no npm dependency). The state of the rooms is not set by the
+ * browser but server-side by probe.php, so views that are otherwise only
+ * reachable by clicking can be captured as well.
  *
- *   node shoot.mjs <probe.json> [ausgabeordner]
+ *   node shoot.mjs <probe.json> [output-dir]
+ *
+ * Section references (§…), acceptance criteria ("acceptance #7") and review
+ * IDs (R3, D10, …) point to the design notes of the redesign and of the
+ * self-paced quiz, which are not in the public repository (see "References in
+ * code comments" in the README).
+ * Only references that name a file (docs/APPSTORE.md §3) point into this
+ * repository.
  */
 
 import { execFileSync, spawn } from 'node:child_process'
@@ -21,11 +28,11 @@ import { fileURLToPath } from 'node:url'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 /**
- * Gegen welche Instanz gefahren wird. PULSE_HOST schlägt alles; sonst darf in
- * dev/design-shots/.host ein Name stehen (die Datei ist nicht im Repo — ein
- * interner Hostname gehört nicht in ein öffentliches Repository). Bewusst ohne
- * Voreinstellung: eine fremde Adresse als Rückfall schickte den Login des
- * Wegwerf-Nutzers an eine Instanz, auf der er gar nicht existiert.
+ * Which instance to run against. PULSE_HOST beats everything; otherwise
+ * dev/design-shots/.host may hold a name (the file is not in the repo: an
+ * internal hostname does not belong in a public repository). Deliberately no
+ * default: a foreign address as a fallback would send the throwaway user's
+ * login to an instance where that user does not even exist.
  */
 function hostFromFile() {
 	const f = join(HERE, '.host')
@@ -46,25 +53,25 @@ const BASE = `http://127.0.0.1:${PORT}`
 const DESKTOP = [1920, 1080]
 const PHONE = [390, 844]
 const LAPTOP = [1440, 900]
-// Store-Seite: 16:9 in der Breite, die apps.nextcloud.com anzeigt. Aufgenommen
-// wird mit doppelter Pixeldichte, das Bild ist also 2400 px breit und bleibt
-// auf hochauflösenden Schirmen scharf.
+// Store page: 16:9 at the width apps.nextcloud.com displays. Captured
+// at double pixel density, so the image is 2400 px wide and stays
+// sharp on high-resolution screens.
 const STORE = [1200, 675]
 const STORE_MOD = [1280, 720]
 
 const probeData = JSON.parse(readFileSync(process.argv[2], 'utf8'))
-// Räume im eigenen Tempo (probe.php pace-create) — nur für die pace-Strecken.
+// Self-paced rooms (probe.php pace-create), only for the pace passes.
 const PACE_FILE = join(dirname(process.argv[2]), 'pace.json')
 const paceData = existsSync(PACE_FILE) ? JSON.parse(readFileSync(PACE_FILE, 'utf8')) : null
 const OUT = process.argv[3] || join(HERE, 'out')
 mkdirSync(OUT, { recursive: true })
 
 const index = []
-// Bühnen, die über ihren Kasten hinauslaufen — der Kiosk clippt sie stumm.
+// Stages that run past their box; the kiosk clips them silently.
 const overflow = []
 let shotNo = 0
 
-/** Serverseitigen Zustand setzen (probe.php im Container). */
+/** Set server-side state (probe.php in the container). */
 function probe(...args) {
 	return execFileSync('docker', [
 		'exec', '-u', 'www-data', CONTAINER, 'php',
@@ -89,7 +96,7 @@ async function call(method, path, body) {
 	return json.value
 }
 
-/** Eine Browser-Sitzung; `dark` schaltet das System-Theme um. */
+/** One browser session; `dark` switches the system theme. */
 async function newSession(dark, extraPrefs = {}) {
 	const value = await call('POST', '/session', {
 		capabilities: {
@@ -123,21 +130,21 @@ async function newSession(dark, extraPrefs = {}) {
 		},
 		click: async (sel) => call('POST', `/session/${id}/element/${await s.find(sel)}/click`, {}),
 		type: async (sel, text) => call('POST', `/session/${id}/element/${await s.find(sel)}/value`, { text }),
-		// Ein Cookie holen, wegnehmen, zurücklegen — ein zweites Handy in derselben Sitzung.
+		// Fetch a cookie, remove it, put it back: a second phone in the same session.
 		cookie: (name) => call('GET', `/session/${id}/cookie/${name}`),
 		dropCookie: (name) => call('DELETE', `/session/${id}/cookie/${name}`),
 		addCookie: (cookie) => call('POST', `/session/${id}/cookie`, { cookie }),
-		// Zeiger in die Ecke: sonst bleibt der Hover des zuletzt geklickten Knopfs im Bild.
-		// Zwei Schritte: die Aktionsquelle merkt sich ihre Lage, ein zweites (1,1) wäre kein Zug.
+		// Pointer into the corner: otherwise the hover of the last clicked button stays in the picture.
+		// Two steps: the input source remembers its position, so a second (1,1) would not be a move.
 		mouseAway: () => call('POST', `/session/${id}/actions`, { actions: [{ type: 'pointer', id: 'shots-mouse', parameters: { pointerType: 'mouse' },
 			actions: [{ type: 'pointerMove', duration: 0, x: 4, y: 4, origin: 'viewport' }, { type: 'pointerMove', duration: 0, x: 1, y: 1, origin: 'viewport' }] }] }),
-		// In ein iframe wechseln (Element-ID) bzw. zurück ins Hauptdokument (null).
+		// Switch into an iframe (element ID) or back to the main document (null).
 		frame: (el) => call('POST', `/session/${id}/frame`, { id: el === null ? null : { 'element-6066-11e4-a52e-4f735466cecf': el } }),
 	}
 	return s
 }
 
-/** Auf ein Element warten — Polling ist hier ehrlicher als ein fester Timer. */
+/** Wait for an element; polling is more honest here than a fixed timer. */
 async function waitFor(s, sel, timeout = 15000) {
 	const until = Date.now() + timeout
 	while (Date.now() < until) {
@@ -148,12 +155,12 @@ async function waitFor(s, sel, timeout = 15000) {
 }
 
 /**
- * Eine Aufnahme: Fenstergröße setzen, Seite laden, auf den Anker warten,
- * optionale Klicks ausführen, kurz nachziehen lassen, auslösen.
+ * One capture: set the window size, load the page, wait for the anchor,
+ * run optional clicks, let things settle briefly, take the shot.
  */
 async function shot(s, { name, url, open, size, waitSel, actions = [], settle = 1200, note = '', measure = '' }) {
 	await s.size(size)
-	// open: eigener Weg zur Seite (z. B. über ein Menü); url steht dann nur im Index.
+	// open: a custom route to the page (e.g. through a menu); url then only appears in the index.
 	if (open) { await open() } else if (url) { await s.go(HOST + url) }
 	if (waitSel) { await waitFor(s, waitSel) }
 	for (const act of actions) {
@@ -161,8 +168,8 @@ async function shot(s, { name, url, open, size, waitSel, actions = [], settle = 
 		if (act.js) { await s.script(act.js) }
 		if (act.type) { await s.type(act.type[0], act.type[1]) }
 		if (act.wait) { await waitFor(s, act.wait) }
-		// Warten, bis ein Ausdruck wahr ist (z. B. im iframe) — ohne Abbruch:
-		// was dann fehlt, steht in der Messzeile.
+		// Wait until an expression is true (e.g. in the iframe), without aborting:
+		// whatever is missing then shows up in the measurement line.
 		if (act.until) {
 			const end = Date.now() + (act.timeout || 10000)
 			while (Date.now() < end && !(await s.script('return !!(' + act.until + ')'))) { await sleep(250) }
@@ -172,10 +179,10 @@ async function shot(s, { name, url, open, size, waitSel, actions = [], settle = 
 	await sleep(settle)
 	const file = `${String(++shotNo).padStart(2, '0')}-${name}.png`
 	writeFileSync(join(OUT, file), Buffer.from(await s.png(), 'base64'))
-	// Der Beamer ist ein geclippter Kiosk: was über die Bühne hinausragt, wird
-	// stillschweigend abgeschnitten und ist auf dem Bild nur zu erkennen, wenn
-	// man weiß, wonach man sucht. Deshalb misst der Prüfstand es selbst
-	// (Abnahmekriterium §5.13) und schreibt das Ergebnis in den Index.
+	// The projector is a clipped kiosk: whatever sticks out past the stage is
+	// cut off silently and only visible in the picture if you know what to
+	// look for. That is why the test rig measures it itself
+	// (acceptance criterion §5.13) and writes the result into the index.
 	const fit = await s.script(`
 		const el = document.querySelector('.scr-stage')
 		if (!el) { return null }
@@ -187,9 +194,9 @@ async function shot(s, { name, url, open, size, waitSel, actions = [], settle = 
 		flag = fit.over > 1 ? ` **läuft über: ${fit.over} px**` : ` (Bühne ${fit.used} %, ${fit.fs})`
 		if (fit.over > 1) { overflow.push(`${file}: ${fit.over} px`) }
 	}
-	// Schalter tragen festen Text plus Häkchen (R3), Rotes steht zuletzt (R4),
-	// und Escape gibt den Fokus zurück (Abnahme #7/#8/#10) — alles drei ist auf
-	// dem Bild bestenfalls zu ahnen.
+	// Toggles carry fixed text plus a check mark (R3), red items come last (R4),
+	// and Escape returns the focus (acceptance #7/#8/#10); all three can at best
+	// be guessed from the picture.
 	const menu = await s.script(`
 		const trig = document.querySelector('.deck-head .pulse-menu > .pulse-btn')
 		if (!trig) { return null }
@@ -221,9 +228,9 @@ async function shot(s, { name, url, open, size, waitSel, actions = [], settle = 
 		flag += ` (${plain.n} gefüllter Knopf${plain.n ? ': „' + plain.labels.join('“, „') + '“' : ''})`
 		if (plain.n > 1) { overflow.push(`${file}: ${plain.n} gefüllte Knöpfe`) }
 	}
-	// Raumkarte, Deck-Kopf und Deck-Zeile sind Knopf-Reihen, die umbrechen, wenn
-	// es eng wird. Wie viele Knöpfe dort stehen und über wie viele Zeilen sie
-	// laufen, ist auf dem Bild zu zählen — hier steht es als Zahl.
+	// Room card, deck header and deck row are button rows that wrap when space
+	// gets tight. How many buttons sit there and across how many lines they run
+	// could be counted in the picture; here it is given as a number.
 	const cluster = await s.script(`
 		const rows = (el, sel) => {
 			if (!el) { return null }
@@ -247,9 +254,9 @@ async function shot(s, { name, url, open, size, waitSel, actions = [], settle = 
 		flag += ' (' + [part('Deck-Kopf:', cluster.head), part('Raumkarte:', cluster.card),
 			part('Deck-Zeile:', cluster.item)].filter(Boolean).join(', ') + ')'
 	}
-	// Handy: die Falz-Regel aus §8.1 — was scrollt, steht hier, statt auf dem
-	// Bild gesucht zu werden. Scrollen ist erlaubt (ab 7 Optionen), aber es
-	// soll sichtbar sein, WANN es passiert.
+	// Phone: the fold rule from §8.1. What scrolls is stated here instead of having
+	// to be spotted in the picture. Scrolling is allowed (from 7 options on), but it
+	// should be visible WHEN it happens.
 	const fold = await s.script(`
 		const sc = document.querySelector('.h-scroll'), sub = document.querySelector('.h-submit')
 		if (!sc) { return null }
@@ -261,9 +268,9 @@ async function shot(s, { name, url, open, size, waitSel, actions = [], settle = 
 		flag += fold.over > 1 ? ` (Antwortbereich scrollt ${fold.over} px, ${fold.cards} Karten)` : ' (nichts scrollt)'
 		if (!fold.submitVisible) { overflow.push(`${file}: Absende-Leiste unter der Falz`) }
 	}
-	// Moderator: „genau EIN gefüllter Knopf" (§9.9 #1) und „das private Panel ist
-	// im Vollbild nicht sichtbar" (#6) sind auf dem Bild nur zu ahnen. Gezählt
-	// wird deshalb hier — gefüllt heißt: eigener Hintergrund, nicht durchsichtig.
+	// Moderator: "exactly ONE filled button" (§9.9 #1) and "the private panel is
+	// not visible in fullscreen" (#6) can only be guessed from the picture. So they
+	// are counted here; filled means: its own background, not transparent.
 	const mod = await s.script(`
 		const live = document.querySelector('.mod-live')
 		if (!live) { return null }
@@ -291,9 +298,9 @@ async function shot(s, { name, url, open, size, waitSel, actions = [], settle = 
 		if (mod.filled.length !== 1) { overflow.push(`${file}: ${mod.filled.length} gefüllte Knöpfe (${mod.filled.join(' · ')})`) }
 		if (!mod.barVisible) { overflow.push(`${file}: Steuerleiste unter der Falz`) }
 	}
-	// Laufansicht im eigenen Tempo (§6.2): wie die Präsentation genau EIN
-	// gefüllter Knopf (Dialoge ausgenommen), die Leiste über der Falz, nie ein
-	// Lösungsschlüssel (.tg-accepted) und nie waagerechtes Scrollen der Seite.
+	// Self-paced run view (§6.2): like the presentation, exactly ONE
+	// filled button (dialogs excluded), the bar above the fold, never an
+	// answer key (.tg-accepted) and never horizontal scrolling of the page.
 	const run = await s.script(`
 		const run = document.querySelector('.pace-run')
 		if (!run) { return null }
@@ -324,8 +331,8 @@ async function shot(s, { name, url, open, size, waitSel, actions = [], settle = 
 		if (run.accepted) { overflow.push(`${file}: Lösungsschlüssel (.tg-accepted) in der Laufansicht`) }
 		if (run.pageX > 0) { overflow.push(`${file}: Seite scrollt waagerecht (${run.pageX} px)`) }
 	}
-	// Startbildschirm: die erste Raumkarte muss vollständig über der Falz stehen
-	// (§9.9 #7), und die inaktive Seite des Umschalters muss lesbar sein (#8).
+	// Start screen: the first room card must sit entirely above the fold
+	// (§9.9 #7), and the inactive side of the segmented switch must be readable (#8).
 	const startFold = await s.script(`
 		const card = document.querySelector('.myroom')
 		const seg = document.querySelector('.pseg-item:not(.is-active)')
@@ -373,7 +380,7 @@ async function shot(s, { name, url, open, size, waitSel, actions = [], settle = 
 	process.stdout.write(`  ${file}${fit && fit.over > 1 ? `  ← Bühne läuft ${fit.over} px über` : ''}\n`)
 }
 
-/* -------------------------------------------------------------- Aufnahmeplan */
+/* -------------------------------------------------------------- Capture plan */
 
 const poll = probeData.poll
 const quiz = probeData.quiz
@@ -385,7 +392,7 @@ async function publicPass(s, dark) {
 		name: `${tag}join`, url: '/apps/pulse/join', size: PHONE,
 		waitSel: '.pulse-part', note: 'Beitritt (Handy)',
 	})
-	// Lobby: kein Cursor -> Beamer zeigt Code und QR.
+	// Lobby: no cursor -> the projector shows the code and QR.
 	probe('state', poll.code, '0', 'open')
 	await shot(s, {
 		name: `${tag}screen-lobby`, url: `/apps/pulse/screen/${poll.code}`, size: DESKTOP,
@@ -395,8 +402,8 @@ async function publicPass(s, dark) {
 	for (const room of [poll, quiz]) {
 		const mode = room === poll ? 'poll' : 'quiz'
 		if (mode === 'quiz') {
-			// Handy braucht im Quiz erst einen Namen; die Sitzung behält den
-			// Voter-Cookie, das reicht für alle folgenden Aufnahmen.
+			// In a quiz the phone first needs a name; the session keeps the
+			// voter cookie, which is enough for all following captures.
 			probe('state', room.code, String(room.polls[0].id), 'open')
 			await shot(s, {
 				name: `${tag}phone-quiz-nickname`, url: `/apps/pulse/s/${room.code}`, size: PHONE,
@@ -412,7 +419,7 @@ async function publicPass(s, dark) {
 		for (const p of room.polls) {
 			probe('state', room.code, String(p.id), 'open')
 			probe('seed', room.code, '24')
-			// Präsenz vortäuschen: sonst zeigt die Eingangs-Anzeige „0 von 0".
+			// Fake presence: otherwise the intake display shows "0 of 0".
 			probe('present', room.code, '24')
 			await shot(s, {
 				name: `${tag}screen-${mode}-${p.label}-open`, url: `/apps/pulse/screen/${room.code}`, size: DESKTOP,
@@ -438,7 +445,7 @@ async function publicPass(s, dark) {
 		}
 	}
 
-	// Quiz beenden -> Endstand-Bühne + Handy-Abschluss.
+	// End the quiz -> final standings stage + phone wrap-up.
 	probe('end', quiz.code)
 	await shot(s, {
 		name: `${tag}screen-quiz-final`, url: `/apps/pulse/screen/${quiz.code}`, size: DESKTOP,
@@ -454,16 +461,16 @@ async function publicPass(s, dark) {
 }
 
 /*
- * Grenzfälle der Bühnen-Grammatik (§2.6, Prüffälle aus §11). Sie kommen im
- * Bestand nicht vor, entscheiden aber über die Abnahme: Zeilendeckel bei zwei
- * Optionen, Schrumpf-Schleife bei acht, zweizeiliges Label mit Unterlängen und
- * die beiden Endstände (neun bzw. zwei Teilnehmende).
+ * Edge cases of the stage grammar (§2.6, test cases from §11). They do not
+ * occur in the existing data but decide the acceptance: the row cap with two
+ * options, the shrink loop with eight, a two-line label with descenders and
+ * the two final standings (nine and two participants).
  */
 async function edgePass(s) {
 	const edge = probeData.edge
-	// Offene Bühne: die Zustände, an denen die Eingangs-Anzeige hängt (§6.6).
-	// Die Präsenz kommt aus vorgetäuschten Heartbeats — ohne sie stünde dort
-	// „0", weil kein echtes Handy im Raum ist.
+	// Open stage: the states the intake display depends on (§6.6).
+	// Presence comes from faked heartbeats; without them it would show
+	// "0", because there is no real phone in the room.
 	if (edge) {
 		const first = edge.polls[0]
 		probe('state', edge.code, String(first.id), 'open')
@@ -485,7 +492,7 @@ async function edgePass(s) {
 		})
 	}
 
-	// Zeilenmodell an seinen Rändern: zwei Optionen, acht, langes Label.
+	// The row model at its limits: two options, eight, a long label.
 	if (edge) {
 		for (const p of edge.polls) {
 			probe('state', edge.code, String(p.id), 'open')
@@ -503,7 +510,7 @@ async function edgePass(s) {
 			})
 		}
 	}
-	// Countdown in der Dringlichkeitsstufe: eine Quizfrage mit 9 Sekunden Rest.
+	// Countdown at the urgency level: a quiz question with 9 seconds left.
 	const quizFirst = quiz.polls[0]
 	probe('state', quiz.code, String(quizFirst.id), 'open')
 	probe('present', quiz.code, '24')
@@ -527,11 +534,11 @@ async function edgePass(s) {
 }
 
 /*
- * Fragetypen aufgelöst (§7.10). Die Konstellationen hier entscheiden die
- * Abnahme von Etappe 3 und lassen sich mit Zufallsstimmen nicht herstellen:
- * Ø ≈ Median, alle Stimmen auf einem Wert, die Heatmap-Schwelle bei 44 gegen
- * 46 Antworten, ein polarisiertes Element in der Reihenfolge, hochkantes und
- * Panorama-Bild.
+ * Question types revealed (§7.10). The constellations here decide the
+ * acceptance of stage 3 and cannot be produced with random votes:
+ * Ø ≈ median, all votes on one value, the heatmap threshold at 44 versus
+ * 46 answers, a polarised item in a ranking, a portrait and a
+ * panorama image.
  */
 async function typePass(s) {
 	const types = probeData.types
@@ -564,7 +571,7 @@ async function typePass(s) {
 		await stage(label, `Beamer Spektrum mit ${label === 'spectrum-3' ? '3 Aspekten (kleinster Radar)' : '8 Aspekten (zweizeilige Speichennamen)'}`)
 	}
 
-	// Heatmap-Schwelle: erst 44 Antworten (Punkte), dann zwei dazu (Heatmap).
+	// Heatmap threshold: first 44 answers (dots), then two more (heatmap).
 	const compass = byLabel['compass-threshold']
 	probe('state', types.code, String(compass.id), 'open')
 	probe('fixture', types.code, String(compass.id), 'compass', '44')
@@ -573,7 +580,7 @@ async function typePass(s) {
 	probe('fixture', types.code, String(compass.id), 'compass', '2')
 	await stage('compass-46', 'Beamer Kompass mit 46 Antworten (Heatmap)', { url: null })
 
-	// Bildfrage: offen (Bild + schmaler Eingang) und aufgelöst, hochkant und Panorama.
+	// Image question: open (image + narrow intake) and revealed, portrait and panorama.
 	for (const label of ['image-portrait', 'image-panorama']) {
 		const p = byLabel[label]
 		probe('state', types.code, String(p.id), 'open')
@@ -584,7 +591,7 @@ async function typePass(s) {
 		await stage(`${label}-locked`, `Beamer Bildfrage ${label}, aufgelöst`)
 	}
 
-	// Aufgelöst, aber niemand hat geantwortet (§7.9).
+	// Revealed, but nobody answered (§7.9).
 	const empty = byLabel['no-votes']
 	probe('state', types.code, String(empty.id), 'open')
 	probe('state', types.code, String(empty.id), 'locked')
@@ -592,16 +599,16 @@ async function typePass(s) {
 }
 
 /*
- * Handy (§8.10). Der öffentliche Durchgang fotografiert jede Frage einmal; hier
- * stehen die Zustände, die es nur nach einer Handlung gibt — gesendet, offenes
- * und abgelaufenes Korrekturfenster — und die Geräte-Grenzfälle aus §8.9.
+ * Phone (§8.10). The public pass photographs every question once; here are
+ * the states that only exist after an action (sent, an open and an
+ * expired correction window) and the device edge cases from §8.9.
  */
 async function phonePass(s) {
 	const edge = probeData.edge
 	const NARROW = [320, 640]
 	const LANDSCAPE = [844, 390]
 
-	// Umfrage: auswählen (zweistufig), absenden, Zustand „gesendet" (§8.5).
+	// Poll: select (two-step), submit, the "Answer sent" state (§8.5).
 	const first = poll.polls[0]
 	probe('state', poll.code, String(first.id), 'open')
 	probe('seed', poll.code, '17')
@@ -622,8 +629,8 @@ async function phonePass(s) {
 		waitSel: '.mine-box', note: 'Handy Umfrage aufgelöst: eigene Antwort über der Verteilung',
 	})
 
-	// Geräte-Grenzfälle (§8.9): an einer Frage, die dieses Gerät noch nicht
-	// beantwortet hat — sonst stünde dort der Zustand „gesendet".
+	// Device edge cases (§8.9): on a question this device has not answered
+	// yet; otherwise it would show the "Answer sent" state.
 	if (edge) {
 		const two = edge.polls[0]
 		probe('state', edge.code, String(two.id), 'open')
@@ -637,7 +644,7 @@ async function phonePass(s) {
 		})
 	}
 
-	// Acht Optionen mit Bild: der Antwortbereich scrollt, die Leiste nie (§8.9).
+	// Eight options with images: the answer area scrolls, the bar never does (§8.9).
 	if (edge) {
 		const many = edge.polls.find((p) => p.label === 'opts-8')
 		probe('state', edge.code, String(many.id), 'open')
@@ -653,7 +660,7 @@ async function phonePass(s) {
 		})
 	}
 
-	// Quiz: Tipp sendet sofort, „Ändern" steht drei Sekunden (§8.0).
+	// Quiz: a tap sends immediately, "Change" stays for three seconds (§8.0).
 	const quizFirst = quiz.polls[0]
 	probe('state', quiz.code, String(quizFirst.id), 'open')
 	await shot(s, {
@@ -684,23 +691,23 @@ async function phonePass(s) {
 }
 
 /*
- * Moderator und Einbettung (§9.9). Neu gegenüber dem Bestand sind die vier
- * Ablaufzustände hintereinander (die Hauptaktion muss mitwandern), der
- * Vollbildmodus (das private Panel darf dort nicht im Dokument stehen), das
- * leere Deck und der Raum, in dem niemand verbunden ist.
+ * Moderator and embedding (§9.9). New compared with the existing captures are
+ * the four flow states in a row (the main action has to move along), the
+ * fullscreen mode (the private panel must not be in the document there), the
+ * empty deck and the room nobody is connected to.
  */
 async function login(s) {
 	const pass = readFileSync(join(HERE, '.shots-pass'), 'utf8').trim()
-	// Das Anmeldeformular baut Nextcloud im Browser zusammen; die IDs stehen
-	// nicht im ausgelieferten HTML. Über die name-Attribute ist es stabil.
+	// Nextcloud assembles the login form in the browser; the IDs are not in
+	// the delivered HTML. Going by the name attributes is stable.
 	const userSel = 'input[name="user"], #user'
 	const passSel = 'input[name="password"], #password'
 	await s.size(LAPTOP)
-	// Nextcloud 34 verlangt Firefox >= 145 und schickt ältere Browser nach
-	// /unsupported — der Server hier hat 128 ESR. Der Merker, den der Knopf
-	// „Continue with this unsupported browser" setzt, wird gleich mitgesetzt;
-	// sonst landet der Login in einer Schleife. Betrifft nur diesen Prüfstand,
-	// nicht die App.
+	// Nextcloud 34 requires Firefox >= 145 and sends older browsers to
+	// /unsupported; the server here has 128 ESR. The flag that the button
+	// "Continue with this unsupported browser" sets is set right away as well;
+	// otherwise the login ends up in a loop. This only affects this test rig,
+	// not the app.
 	await s.go(`${HOST}/login`)
 	await s.script("window.localStorage.setItem('nextcloud_vol_Y29yZQ==_unsupported-browser-ignore', 'true')")
 	await s.go(`${HOST}/login`)
@@ -715,8 +722,8 @@ async function login(s) {
 async function moderatorPass(s) {
 	await login(s)
 
-	// Startbildschirm: zweispaltig (Laptop) und einspaltig (§9.5). Beide Male
-	// wird gemessen, wo die erste Raumkarte endet.
+	// Start screen: two columns (laptop) and one column (§9.5). Both times
+	// the bottom edge of the first room card is measured.
 	await shot(s, {
 		name: 'mod-start', url: '/apps/pulse/', size: LAPTOP,
 		waitSel: '.pulse-mod', note: 'Moderator: Startbildschirm (zweispaltig ab 1200 px)',
@@ -726,7 +733,7 @@ async function moderatorPass(s) {
 		waitSel: '.pulse-mod', note: 'Moderator: Startbildschirm einspaltig (1024 px)',
 	})
 
-	// Die vier Ablaufzustände (§9.1) nacheinander am selben Quiz.
+	// The four flow states (§9.1) one after another on the same quiz.
 	const first = quiz.polls[0]
 	const last = quiz.polls[quiz.polls.length - 1]
 	probe('present', quiz.code, '24')
@@ -753,14 +760,14 @@ async function moderatorPass(s) {
 	})
 	await shot(s, {
 		name: 'mod-flow-4-standings', size: LAPTOP,
-		// Das Podest läuft gestaffelt ein (Sieger bei 4,3 s) — vorher ist die
-		// Fläche leer, wie bei den Endstand-Bildern am Beamer.
+		// The podium comes in staggered (winner at 4.3 s); before that the area
+		// is empty, as in the final standings images on the projector.
 		actions: [{ click: '.mod-primary' }, { wait: '.mod-standings' }, { sleep: 5500 }],
 		note: 'Moderator 4/4: Endstand sichtbar -> „Quiz beenden" (erst hier rot)',
 	})
 
-	// Vollbild: der projizierte Modus. Das private Panel darf dort nicht im
-	// Dokument stehen — das misst shot() mit („kein privates Panel").
+	// Fullscreen: the projected mode. The private panel must not be in the
+	// document there; shot() measures that as well (`kein privates Panel`).
 	probe('state', quiz.code, String(first.id), 'open')
 	probe('present', quiz.code, '24')
 	await shot(s, {
@@ -769,12 +776,12 @@ async function moderatorPass(s) {
 		actions: [{ click: '.pulse-menu > .pulse-btn' }, { sleep: 300 }, { js: 'document.querySelector(\'.pulse-menu-item[data-key="fs"]\').click()' }, { sleep: 1500 }],
 		note: 'Moderator: Vollbild — nur die Leinwand, kein privates Panel',
 	})
-	// Vollbild wieder verlassen, sonst hängt die Sitzung darin fest.
+	// Leave fullscreen again, otherwise the session stays stuck in it.
 	await s.script('if (document.fullscreenElement) { document.exitFullscreen() }')
 	await sleep(800)
 
-	// Beitritt offen, weil niemand verbunden ist (§9.4). Kein 'present'-Aufruf:
-	// genau das ist der Zustand.
+	// Joining is open because nobody is connected (§9.4). No 'present' call:
+	// that is exactly the state.
 	const pollFirst = poll.polls[0]
 	probe('state', poll.code, String(pollFirst.id), 'open')
 	await shot(s, {
@@ -782,7 +789,7 @@ async function moderatorPass(s) {
 		waitSel: '.mod-bar', settle: 3000, note: 'Moderator: niemand verbunden -> Beitritts-Panel offen',
 	})
 
-	// Deck ohne Fragen (§9.8).
+	// Deck without questions (§9.8).
 	const empty = probeData.empty
 	if (empty) {
 		await shot(s, {
@@ -791,7 +798,7 @@ async function moderatorPass(s) {
 		})
 	}
 
-	// Deck-Editor (bleibt unverändert, §9.6) — als Beleg, dass er es tut.
+	// Deck editor (stays unchanged, §9.6), as proof that it still works.
 	await shot(s, {
 		name: 'mod-deck', url: `/apps/pulse/room/${poll.code}`, size: LAPTOP,
 		waitSel: '.pulse-mod', settle: 1500,
@@ -801,9 +808,10 @@ async function moderatorPass(s) {
 }
 
 /*
- * Einbett-Shell (§9.7). Sie steckt in fremden Folien: englische Quelltexte über
- * l10n, .pulse-btn statt eines eigenen Knopfes, Wortmarke — und ein Farbschema,
- * das der Einbettung folgt, nicht dem Server. Der Fehlerfall gehört ans Feld.
+ * Embed shell (§9.7). It sits inside other people's slides: English source
+ * texts via l10n, .pulse-btn instead of a custom button, the wordmark, and a
+ * colour scheme that follows the embedding, not the server. The error case
+ * belongs at the field.
  */
 async function embedPass(s, dark) {
 	const tag = dark ? 'dark-' : ''
@@ -812,20 +820,20 @@ async function embedPass(s, dark) {
 		waitSel: '.pulse-embed-cell', note: `Einbett-Shell: Code-Eingabe (${dark ? 'dunkel' : 'hell'})`,
 	})
 	if (dark) { return }
-	// Unbekannter Code: Meldung am Feld, kein Dialog. ZZZZZZ ist formal gültig.
+	// Unknown code: message at the field, no dialog. ZZZZZZ is formally valid.
 	const cells = Array.from({ length: 6 }, (_, i) => ({ type: [`.pulse-embed-cell:nth-child(${i + 1})`, 'Z'] }))
 	await shot(s, {
 		name: 'embed-unknown-code', size: [1280, 720],
 		actions: [...cells, { click: '.pulse-embed-go' }, { sleep: 1500 }],
 		note: 'Einbett-Shell: unbekannter Code -> Meldung am Feld',
 	})
-	// Gültiger Code: die Leinwand füllt den Rahmen.
+	// Valid code: the canvas fills the frame.
 	await shot(s, {
 		name: 'embed-live', url: `/apps/pulse/embed?code=${poll.code}`, size: [1280, 720],
 		waitSel: '.pulse-embed-frame', settle: 4000, note: 'Einbett-Shell: Leinwand im Rahmen',
 	})
-	// Eigenes Tempo (§5.2 Schritt 4.5): dieselbe Shell mit einem laufenden
-	// Rennen — die Leinwand im Rahmen zeigt die Balken, nicht die Lobby.
+	// Self-paced (§5.2 step 4.5): the same shell with a running
+	// race; the canvas in the frame shows the bars, not the lobby.
 	if (paceData) {
 		await shot(s, {
 			name: 'embed-pace', url: `/apps/pulse/embed?code=${paceData.race.code}`, size: [1280, 720],
@@ -838,7 +846,7 @@ async function embedPass(s, dark) {
 	}
 }
 
-// Einbett-Shell mit einem Rennen: steht es im Rahmen, und passt die Bühne?
+// Embed shell with a race: is it in the frame, and does the stage fit?
 const EMBED_PACE = `
 	const f = document.querySelector('.pulse-embed-frame')
 	const d = f && f.contentDocument
@@ -851,7 +859,7 @@ const EMBED_PACE = `
 		+ (st ? ', Bühne ' + (over > 1 ? 'LÄUFT ÜBER ' + over + ' px' : 'passt') + ' (' + getComputedStyle(st).fontSize + ')' : '')
 `
 
-/* -------------------------------------------------------------------- Ablauf */
+/* ----------------------------------------------------------------------- Run */
 
 const driver = spawn(join(HERE, '..', '..', 'tools', 'geckodriver'), ['--port', String(PORT), '--log', 'error'], {
 	stdio: ['ignore', 'ignore', 'inherit'],
@@ -859,54 +867,54 @@ const driver = spawn(join(HERE, '..', '..', 'tools', 'geckodriver'), ['--port', 
 process.on('exit', () => driver.kill())
 
 /*
- * Bilder für die Store-Seite (docs/APPSTORE.md §3). Andere Aufgabe als der
- * Rest dieses Prüfstands: nicht Grenzfälle belegen, sondern in fünf Bildern
- * zeigen, was die App tut. Deshalb eigene Räume (probe.php store), englische
- * Oberfläche und der öffentliche Hostname — der steht im Beitritts-Link und
- * im QR-Code, und der interne gehört nicht auf eine Store-Seite.
+ * Images for the store page (docs/APPSTORE.md §3). A different job than the
+ * rest of this test rig: not documenting edge cases, but showing in six
+ * images what the app does. Hence its own rooms (probe.php store), the English
+ * interface and the public hostname: it appears in the join link and in the
+ * QR code, and the internal one does not belong on a store page.
  */
 async function storePass(s) {
 	const p = probeData.poll
 	const q = probeData.quiz
 	const byLabel = (room, label) => room.polls.find((x) => x.label === label)
 
-	// Das Fenster ist außen höher als der Inhalt; wie viel, hängt vom Browser ab.
-	// Einmal messen und aufschlagen — sonst kommt aus 1200×675 ein Bild im
-	// Verhältnis 2:1 statt 16:9, und der Beamer sieht flacher aus als er ist.
+	// The window is taller on the outside than its content; by how much depends on the browser.
+	// Measure once and add it on; otherwise 1200×675 yields an image with a
+	// 2:1 ratio instead of 16:9, and the projector looks flatter than it is.
 	await s.size(STORE)
 	const chrome = STORE[1] - Number(await s.script('return window.innerHeight'))
 	const box = ([w, h]) => [w, h + chrome]
 
-	// 1. Was das Publikum sieht, bevor es losgeht: Code und QR groß auf der Wand.
+	// 1. What the audience sees before it starts: code and QR, large on the wall.
 	probe('state', p.code, '0', 'open')
 	await shot(s, {
 		name: 'lobby', url: `/apps/pulse/screen/${p.code}`, size: box(STORE),
 		waitSel: '.scr-lobby', note: 'Store: Lobby — Beitritt per Code und QR',
 	})
 
-	// 2. Laufende Frage. Die Wortwolke sagt ohne Worte, was hier passiert.
+	// 2. A running question. The word cloud says without words what is happening here.
 	const words = byLabel(p, 'words')
 	probe('state', p.code, String(words.id), 'open')
-	// Feste Wortverteilung statt Zufall — sonst sieht das Bild bei jedem Lauf
-	// anders aus und die Größenstaffelung ist Glückssache.
+	// A fixed word distribution instead of a random one; otherwise the image looks
+	// different on every run and the size grading is a matter of luck.
 	probe('fixture', p.code, String(words.id), 'words')
-	// Mehr Anwesende als Antworten: die Eingangs-Anzeige steht dann auf „24 von
-	// 30" statt auf „vollständig" — eine laufende Frage sieht so aus.
+	// More people present than answers: the intake display then shows "24 of
+	// 30" instead of "complete"; that is what a running question looks like.
 	probe('present', p.code, '50')
 	await shot(s, {
 		name: 'live-words', url: `/apps/pulse/screen/${p.code}`, size: box(STORE),
 		waitSel: '.scr-stage', note: 'Store: Wortwolke, Antworten laufen ein',
 	})
 
-	// 3./4. Dieselbe Frage von beiden Seiten: Handy beim Abstimmen, Wand beim
-	// Auflösen. Erst das Handy — danach ist die Frage zu.
+	// 3./4. The same question from both sides: the phone while voting, the wall
+	// when revealing. The phone first; after that the question is closed.
 	const choice = byLabel(p, 'choice')
 	probe('state', p.code, String(choice.id), 'open')
 	await shot(s, {
 		name: 'phone-vote', url: `/apps/pulse/s/${p.code}`, size: box(PHONE),
 		waitSel: '.choices .choice',
-		// Eine Option ist angetippt: erst dann ist der Absende-Knopf aktiv. Ohne
-		// Auswahl zeigt das Bild einen ausgegrauten Knopf und wirkt kaputt.
+		// One option is tapped: only then is the submit button active. Without a
+		// selection the image shows a greyed-out button and looks broken.
 		actions: [{ click: '.choices .choice:nth-of-type(3)' }, { sleep: 600 }],
 		note: 'Store: Abstimmen auf dem eigenen Handy',
 	})
@@ -918,8 +926,8 @@ async function storePass(s) {
 		waitSel: '.scr-stage', note: 'Store: aufgelöstes Ergebnis auf der Wand',
 	})
 
-	// 5. Der Blick der vortragenden Person: Leinwand-Vorschau links, die
-	// Verteilung nur für sie rechts, eine Hauptaktion unten.
+	// 5. The presenter's view: canvas preview on the left, the distribution
+	// only for them on the right, one main action at the bottom.
 	await login(s)
 	const first = q.polls[0]
 	probe('state', q.code, String(first.id), 'open')
@@ -929,7 +937,7 @@ async function storePass(s) {
 		waitSel: '.mod-bar', settle: 2500, note: 'Store: Moderationsansicht im Quiz',
 	})
 
-	// 6. Quiz-Ende: Podest und Rangliste.
+	// 6. End of the quiz: podium and leaderboard.
 	probe('end', q.code)
 	await shot(s, {
 		name: 'standings', url: `/apps/pulse/screen/${q.code}`, size: box(STORE),
@@ -942,16 +950,16 @@ async function waitForDriver() {
 		try {
 			const status = await call('GET', '/status')
 			if (status.ready !== false) { return }
-		} catch { /* noch nicht da */ }
+		} catch { /* not up yet */ }
 		await sleep(250)
 	}
 	throw new Error('geckodriver kam nicht hoch')
 }
 
 /*
- * Übersichten: Startbildschirm („Meine Räume") und Deck-Liste, hell und dunkel,
- * breit und schmal. Um diese beiden Flächen geht der nächste Design-Durchgang —
- * die Knopf-Reihen sind dort gewachsen, ohne je geordnet worden zu sein.
+ * Overviews: start screen ("My rooms") and deck list, light and dark,
+ * wide and narrow. The next design pass is about these two surfaces: the
+ * button rows there have grown without ever having been put in order.
  */
 async function overviewPass(s, dark) {
 	const tag = dark ? '-dark' : ''
@@ -965,16 +973,16 @@ async function overviewPass(s, dark) {
 		})
 	}
 
-	// Ein Raum ohne laufende Frage öffnet schon im Deck (loadRoom) — dann gibt
-	// es gar kein Überlaufmenü, über das man dorthin wechseln könnte.
+	// A room without a running question already opens in the deck (loadRoom); then
+	// there is no overflow menu at all through which one could switch there.
 	const openDeck = [
 		{ js: 'if (!document.querySelector(".deck-list")) { document.querySelector(".pulse-menu > .pulse-btn").click() }' }, { sleep: 300 },
 		{ js: 'const d = document.querySelector(\'.pulse-menu-item[data-key="deck"]\'); if (d) { d.click() }' },
 		{ wait: '.deck-list' }, { sleep: 800 },
 	]
 
-	// Deck beider Betriebsarten: das Quiz trägt zwei Schalter mehr im Menü
-	// (Auflösen am Ende, Übungslauf).
+	// Deck in both operating modes: the quiz has two more toggles in the menu
+	// (reveal at the end, practice run).
 	for (const [label, room] of [['umfrage', poll], ['quiz', quiz]]) {
 		for (const [w, h] of [DESKTOP, LAPTOP, [1024, 800]]) {
 			await shot(s, {
@@ -986,7 +994,7 @@ async function overviewPass(s, dark) {
 		}
 	}
 
-	// Das offene Menü: fester Text plus Häkchen (R3), Rotes zuletzt (R4).
+	// The open menu: fixed text plus check mark (R3), red items last (R4).
 	await shot(s, {
 		name: `ov-deck-menu-quiz${tag}`, url: `/apps/pulse/room/${quiz.code}`, size: LAPTOP,
 		waitSel: '.pulse-mod', settle: 1200,
@@ -994,7 +1002,7 @@ async function overviewPass(s, dark) {
 		note: `Übersicht: Deck-Menü offen${dark ? ', dunkel' : ''}`,
 	})
 
-	// Escape schließt und gibt den Fokus an den Auslöser zurück (Abnahme #10).
+	// Escape closes and returns the focus to the trigger (acceptance #10).
 	await shot(s, {
 		name: `ov-deck-menu-keyboard${tag}`, url: `/apps/pulse/room/${quiz.code}`, size: LAPTOP,
 		waitSel: '.pulse-mod', settle: 1200,
@@ -1005,8 +1013,8 @@ async function overviewPass(s, dark) {
 		note: `Übersicht: Menü mit Escape geschlossen, Fokus zurück am Auslöser${dark ? ', dunkel' : ''}`,
 	})
 
-	// Composer offen: der Kopf bleibt stehen, darunter kommt die zweite
-	// Knopfschicht dazu.
+	// Composer open: the header stays in place, and the second button
+	// layer is added below it.
 	await shot(s, {
 		name: `ov-composer${tag}`, url: `/apps/pulse/room/${quiz.code}`, size: LAPTOP,
 		waitSel: '.pulse-mod', settle: 1500,
@@ -1017,16 +1025,17 @@ async function overviewPass(s, dark) {
 }
 
 /*
- * Zuordnung mit acht Paaren. Der Bestand hatte nur vier; ab sechs Zeilen
- * entscheidet sich, ob Beamer und Moderationsansicht das tragen. Gemessen wird
- * die Bühnenhöhe (der Kiosk clippt stumm) und die Vorschau im Moderator.
+ * Matching with eight pairs. The existing data only had four; from six rows on
+ * it shows whether the projector and the moderator view can carry it. Measured
+ * are the stage height (the kiosk clips silently) and the preview in the
+ * moderator view.
  */
 async function matchPass(s, dark) {
 	const types = probeData.types
 	const match = probeData.match
 	const tag = dark ? 'dark-' : ''
 
-	// Umfrage-Modus: keine Lösung, Führung ist nur die Mehrheit.
+	// Poll mode: no solution, the lead is simply the majority.
 	if (types) {
 		const p = types.polls.find((q) => q.label === 'match-8')
 		if (p) {
@@ -1046,7 +1055,7 @@ async function matchPass(s, dark) {
 	}
 	if (!match) { return }
 
-	// Quiz-Modus: dieselben acht Paare mit Lösungsfarbe, dazu vier zum Vergleich.
+	// Quiz mode: the same eight pairs with the solution colour, plus four for comparison.
 	for (const [label, note] of [['match-8', '8 Paare'], ['match-4', '4 Paare (Vergleich)']]) {
 		const p = match.polls.find((q) => q.label === label)
 		probe('state', match.code, String(p.id), 'open')
@@ -1063,8 +1072,8 @@ async function matchPass(s, dark) {
 		})
 	}
 
-	// Handy: acht Zeilen plus acht Ziele auf 390 px — der Ort, an dem die
-	// Zuordnung als Erstes eng wird.
+	// Phone: eight rows plus eight targets at 390 px, the place where
+	// matching gets tight first.
 	const phone8 = match.polls.find((q) => q.label === 'match-8')
 	probe('state', match.code, String(phone8.id), 'open')
 	await shot(s, {
@@ -1080,8 +1089,8 @@ async function matchPass(s, dark) {
 		settle: 2500, note: 'Handy Zuordnung 8 Paare, aufgelöst',
 	})
 
-	// Moderationsansicht: Leinwand-Vorschau plus privates Panel, beide mit
-	// derselben Frage — Laptop und Beamer-Breite.
+	// Moderator view: canvas preview plus private panel, both with the
+	// same question, at laptop and projector width.
 	await login(s)
 	const eight = match.polls.find((q) => q.label === 'match-8')
 	for (const [size, tagSize] of [[LAPTOP, '1440'], [DESKTOP, '1920']]) {
@@ -1100,9 +1109,9 @@ async function matchPass(s, dark) {
 	}
 }
 
-/* ------------------------------------------------- Eigenes Tempo: Moderator */
+/* ---------------------------------------------------- Self-paced: moderator */
 
-/** Warten, bis der Text eines Elements passt; gibt die Wartezeit in ms zurück. */
+/** Wait until an element's text matches; returns the waiting time in ms. */
 async function waitForText(s, sel, re, timeout = 15000) {
 	const start = Date.now()
 	while (Date.now() - start < timeout) {
@@ -1113,7 +1122,7 @@ async function waitForText(s, sel, re, timeout = 15000) {
 	throw new Error(`Text blieb aus: ${sel} ~ ${re}`)
 }
 
-// Deck im eigenen Tempo: Kopf, Sperre, Statuszeile, Zeilen.
+// Self-paced deck: header, lock, status line, rows.
 const PACE_DECK = `
 	const q = (sel) => document.querySelector(sel)
 	const txt = (el) => (el ? el.textContent.trim().replace(/\\s+/g, ' ') : '')
@@ -1135,7 +1144,7 @@ const PACE_DECK = `
 	parts.push('Zeile 1 „' + txt(q('.deck-item .deck-type')) + '"')
 	return parts.join(', ')
 `
-// Offenes Deck-Menü: Schalter mit Häkchen, deaktivierte Einträge mit Grund, Rotes.
+// Open deck menu: toggles with check marks, disabled entries with a reason, red items.
 const PACE_MENU = `
 	const list = document.querySelector('.deck-head .pulse-menu-list')
 	if (!list) { return null }
@@ -1146,7 +1155,7 @@ const PACE_MENU = `
 			+ (b.classList.contains('is-danger') ? ' [rot]' : '')
 	}).join(', ')
 `
-// Öffnen-Dialog: gewählte Segmente, Relativzeile/Fehler, Hinweise, Fokus, Passform.
+// Open-quiz dialog: selected segments, relative line/error, hints, focus, fit.
 const PACE_DIALOG = `
 	const d = document.querySelector('.pod')
 	if (!d) { return null }
@@ -1177,7 +1186,7 @@ const PACE_DIALOG = `
 	if (input) { parts.push('Feld ' + getComputedStyle(input).fontSize) }
 	return parts.join(', ')
 `
-// Raumliste: Zustands-Chips im eigenen Tempo, nach Klasse und Text gezählt.
+// Room list: self-paced state chips, counted by class and text.
 const PACE_ROOMS = `
 	const chips = Array.from(document.querySelectorAll('.myroom-pace'))
 	if (!chips.length) { return null }
@@ -1191,8 +1200,8 @@ const PACE_ROOMS = `
 `
 
 /*
- * Ein geöffneter Raum startet seit Schritt 4.3a in der Laufansicht; ins Deck
- * geht es wie von Hand über deren Menü („Overview").
+ * Since step 4.3a an opened room starts in the run view; the deck is reached
+ * as by hand, through its menu ("Overview").
  */
 async function toDeck(s, url) {
 	await s.go(HOST + url)
@@ -1206,28 +1215,28 @@ async function toDeck(s, url) {
 }
 
 /*
- * Eigenes Tempo, Moderator-Deck (Spezifikation §5.2 Schritt 4.2): Schalter im
- * Deck-Menü, Zustands- und Status-Chips, Öffnen-Dialog, gesperrtes Deck, eine
- * Frist, die abläuft, während das Deck offen ist, und die Raumliste. Seit der
- * Freischaltung (4.6) ohne ?pace=1 — der Schalter steht in jedem Quiz-Deck.
+ * Self-paced, moderator deck (specification §5.2 step 4.2): the toggle in the
+ * deck menu, state and status chips, the open-quiz dialog, the locked deck, a
+ * deadline that expires while the deck is open, and the room list. Since the
+ * rollout (4.6) without ?pace=1: the toggle is in every quiz deck.
  *
- * Was der Pass an Räumen verstellt (Probelauf zurück in den Entwurf, Fristen,
- * Schluss, Freigabe), dreht er am Ende zurück: pace-run, pace-phone und
- * pace-screen brauchen die Räume im Ausgangszustand. Vor dem Zurücksetzen
- * eines Raums steht die Sitzung auf about:blank (Brute-Force, §6.4).
+ * Whatever the pass changes in the rooms (practice run back to draft,
+ * deadlines, closing, release) it turns back at the end: pace-run, pace-phone
+ * and pace-screen need the rooms in their initial state. Before a room is
+ * reset the session is parked on about:blank (brute force, §6.4).
  */
 async function paceModPass(s) {
 	const P = paceData
 	const deck = (code) => `/apps/pulse/room/${code}`
 	const openMenu = { js: 'document.querySelector(".deck-head .pulse-menu > .pulse-btn").click()' }
 	const escape = { js: 'document.activeElement.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))' }
-	// Wie per Tastatur: Fokus auf den Auslöser, dann auslösen — nur so ist
-	// „Fokus zurück nach Escape" messbar (ein Skript-Klick fokussiert nicht).
+	// As with the keyboard: focus on the trigger, then trigger it; only this way
+	// is "focus back after Escape" measurable (a script click does not focus).
 	const primary = { js: 'const b = Array.from(document.querySelectorAll(".deck-head > .pulse-btn:not(.deck-back)")).pop(); b.focus(); b.click()' }
 	const restore = []
 	await login(s)
 	try {
-		// Entwurf: Statuszeile mit Anwesenden (Präsenz gilt 15 s — frisch setzen).
+		// Draft: status line with the people present (presence is valid for 15 s, so set it fresh).
 		probe('present', P.draft.code, '4')
 		await shot(s, {
 			name: 'pace-deck-draft', url: deck(P.draft.code), size: LAPTOP,
@@ -1241,7 +1250,7 @@ async function paceModPass(s) {
 		await s.script(escape.js)
 		await sleep(300)
 
-		// Öffnen-Dialog: Rennen (Vorgabe), Hausaufgabe mit Vorwahl, Fehler.
+		// Open-quiz dialog: race (default), homework with a preset, error.
 		await shot(s, {
 			name: 'pace-dialog-race', size: LAPTOP, actions: [primary, { wait: '.pod' }, { sleep: 500 }], measure: PACE_DIALOG,
 			note: 'Öffnen-Dialog: Rennen (Vorgabe „When I close it")',
@@ -1257,7 +1266,7 @@ async function paceModPass(s) {
 			actions: [{ js: 'document.querySelectorAll(".pod .pseg")[2].querySelectorAll(".pseg-item")[0].click()' }, { sleep: 400 }],
 			measure: PACE_DIALOG, note: 'Öffnen-Dialog: Frist + „After each question" -> Warnung',
 		})
-		// Zu früh (30 s): Inline-Fehler statt Relativzeile; Absenden bleibt lokal.
+		// Too early (30 s): inline error instead of the relative line; submitting stays local.
 		const early = 'const d = new Date(Date.now() + 30000); const p = (v) => String(v).padStart(2, "0");'
 			+ ' const el = document.querySelector(".pace-input");'
 			+ ' el.value = d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) + "T" + p(d.getHours()) + ":" + p(d.getMinutes());'
@@ -1267,14 +1276,14 @@ async function paceModPass(s) {
 			actions: [{ js: early }, { js: 'document.querySelector(".pod-submit").click()' }, { sleep: 500 }],
 			measure: PACE_DIALOG, note: 'Öffnen-Dialog: Frist zu früh -> Inline-Fehler, nichts gesendet',
 		})
-		// Escape schließt, der Fokus geht zurück an „Open quiz …"; der Raum bleibt Entwurf.
+		// Escape closes, the focus returns to "Open quiz …"; the room stays a draft.
 		await s.script(escape.js)
 		await sleep(400)
 		const back = await s.script('const a = document.activeElement; return { dialog: !!document.querySelector(".pod"), focus: a ? (a.textContent.trim() || a.getAttribute("aria-label") || a.tagName) : "" }')
 		const draftState = JSON.parse(probe('window', P.draft.code).replace(/^ok /, '')).state
 		index.push(`| (Messung) | | ${deck('<CODE>')} | Dialog mit Escape zu: ${back.dialog ? 'NOCH OFFEN' : 'geschlossen'}, Fokus „${back.focus}", Raum ${draftState} |`)
 
-		// Probelauf im Entwurf: Hinweis + „End practice run", Knopf „Open practice run".
+		// Practice run in draft: hint + "End practice run", button "Open practice run".
 		await s.go('about:blank')
 		probe('reset', P.practice.code)
 		restore.push(() => probe('open', P.practice.code, '0'))
@@ -1287,7 +1296,7 @@ async function paceModPass(s) {
 		probe('open', P.practice.code, '0')
 		restore.pop()
 
-		// Gesperrt, offen (Rennen ohne Frist): Hinweis „erst schließen".
+		// Locked, open (race without a deadline): hint "Close the quiz, then …".
 		await shot(s, {
 			name: 'pace-deck-open', url: deck(P.race.code), open: () => toDeck(s, deck(P.race.code)), size: LAPTOP,
 			waitSel: '.deck-lock-note', settle: 1500, measure: PACE_DECK,
@@ -1299,15 +1308,15 @@ async function paceModPass(s) {
 		})
 		await s.script(escape.js)
 
-		// Hausaufgabe (offen mit Frist, ohne Timer): Chip „Open until …", keine „· 30s".
+		// Homework (open with a deadline, no timer): chip "Open until …", no "· 30s".
 		await shot(s, {
 			name: 'pace-deck-homework', url: deck(P.homework.code), open: () => toDeck(s, deck(P.homework.code)), size: LAPTOP,
 			waitSel: '.deck-lock-note', settle: 1500, measure: PACE_DECK,
 			note: 'Deck offen (Hausaufgabe): Zustand „Open until …", Zeilen ohne Zeitlimit',
 		})
 
-		// Frist, während das Deck offen ist (mid): per Probe gesetzt -> Chip folgt
-		// über den Abruf (≤ 10 s); läuft sie ab -> Chip und Menü sofort.
+		// Deadline while the deck is open (mid): set via probe -> the chip follows
+		// through polling (≤ 10 s); once it expires -> chip and menu immediately.
 		await toDeck(s, deck(P.mid.code))
 		await waitFor(s, '.pace-ds .pulse-chip')
 		await waitForText(s, '.deck-state', /Open now/)
@@ -1326,8 +1335,8 @@ async function paceModPass(s) {
 			note: 'Deck-Menü geschlossen: „Release or reset first."',
 		})
 		await s.script(escape.js)
-		// Wieder offen (Frist entfernt) und dann per Probe abgelaufen — beides
-		// kommt nur über den Abruf an.
+		// Open again (deadline removed) and then expired via probe; both only
+		// arrive through polling.
 		probe('window', P.mid.code, 'closesAt=0')
 		const tOpen = await waitForText(s, '.deck-state', /Open now/, 20000)
 		probe('window', P.mid.code, 'closesAt=now-1')
@@ -1338,7 +1347,7 @@ async function paceModPass(s) {
 		probe('window', P.mid.code, 'closesAt=0')
 		restore.pop()
 
-		// Raumliste mit allen vier Zuständen: mid kurz geschlossen, wide kurz freigegeben.
+		// Room list with all four states: mid briefly closed, wide briefly released.
 		restore.push(() => probe('window', P.mid.code, 'closedAt=0'))
 		probe('window', P.mid.code, 'closedAt=now')
 		restore.push(() => probe('window', P.wide.code, 'closedAt=0', 'releasedAt=0'))
@@ -1355,7 +1364,7 @@ async function paceModPass(s) {
 	}
 }
 
-/** Dunkel: Deck im Entwurf, Hausaufgaben-Dialog (Datumsfeld!) und gesperrtes Deck. */
+/** Dark: deck in draft, homework dialog (date field!) and locked deck. */
 async function paceModDark(s) {
 	const P = paceData
 	const deck = (code) => `/apps/pulse/room/${code}`
@@ -1374,13 +1383,13 @@ async function paceModDark(s) {
 	})
 }
 
-/* ------------------------------------------ Eigenes Tempo: Laufansicht */
+/* ------------------------------------------------ Self-paced: run view */
 
-// Beamer-Vorschau der Laufansicht (§1.7): ein iframe mit der echten
-// Beamer-Seite. Bereit ist sie erst, wenn dort die Seite steht und — solange
-// der Raum offen ist und jemand gestartet hat — das Rennen, nicht die Lobby
-// des ersten Renderns (Screen.vue raceView). Ohne Abbruch: was dann fehlt,
-// steht in der Messzeile.
+// Projector preview of the run view (§1.7): an iframe with the real
+// projector page. It is only ready once the page is up there and, as long
+// as the room is open and someone has started, shows the race rather than the
+// lobby of the first render (Screen.vue raceView). Without aborting: whatever
+// is missing then shows up in the measurement line.
 const PREVIEW_READY = `(() => {
 	const f = document.querySelector('.spv-frame')
 	const d = f && f.contentDocument
@@ -1389,14 +1398,14 @@ const PREVIEW_READY = `(() => {
 	const vm = run && run.__vue__
 	return !(vm && vm.$options.name === 'PaceRun' && vm.state === 'open' && vm.startedCount > 0) || !!d.querySelector('.scr.is-race .pace-race')
 })()`
-// Was zeigt die Vorschau? Offen mit mindestens einem Start muss es das Rennen
-// sein; sonst „KEIN RENNEN". Dazu die Bühne IM Rahmen: läuft sie dort über,
-// schneidet der kleine Kasten genauso ab wie der Saal. Gewertet wird das nur,
-// wenn der Kasten (teilweise) im Bild ist: außer Sicht drosselt Firefox
-// requestAnimationFrame im iframe (gemessen 1,5 statt 60 Bilder/s), und das
-// Einpassen der Beamer-Seite (Screen.vue fitPass) läuft über rAF — unten in
-// der Seitenspalte ist es nach 1,5 s noch nicht fertig, im Bild nach 0,3 s.
-// Ein Ausdruck, der die Laufansicht (.pace-run) nimmt und einen Satz liefert.
+// What does the preview show? Open with at least one start, it has to be the race;
+// otherwise `KEIN RENNEN`. Plus the stage INSIDE the frame: if it overflows there,
+// the small box cuts it off just like the screen in the hall. This only counts
+// when the box is (partly) in view: out of sight Firefox throttles
+// requestAnimationFrame in the iframe (measured 1.5 instead of 60 frames/s), and
+// fitting the projector page (Screen.vue fitPass) runs on rAF; down in
+// the side column it is not done after 1.5 s, in view after 0.3 s.
+// An expression that takes the run view (.pace-run) and returns a sentence.
 const PREVIEW_SAYS = `((run) => {
 	const pv = run && run.querySelector('.spv-in')
 	if (!pv) { return '' }
@@ -1424,7 +1433,7 @@ const PREVIEW_SAYS = `((run) => {
 		+ (shows === 'Rennen' ? ' (' + (d.querySelector('.pace-race-join') ? 'Beitrittsblock' : d.querySelector('.pace-race-board') ? 'Spitze' : 'ohne Seitenspalte') + ')' : '')
 		+ stage
 })`
-// Marken der Vorschau-Messung, die als Auffälligkeit zählen (letzte Indexzeile).
+// Marks of the preview measurement that count as an anomaly (last index line).
 const PREVIEW_MARKS = ['KEIN RENNEN', 'LÄUFT ÜBER', 'NICHT geladen', 'UNLESBAR', 'NICHT IM BILD', 'KEINE VORSCHAU', 'WAAGERECHT']
 function previewMarks() {
 	const line = index[index.length - 1]
@@ -1433,8 +1442,8 @@ function previewMarks() {
 	}
 }
 
-// Laufansicht: Kopf-Chips, Fakten, Statuszeile, Zähler, Tabelle, Seitenspalte
-// (Bewertung, Beamer-Vorschau), Zeilenmenüs.
+// Run view: header chips, facts, status line, counter, table, side column
+// (grading, projector preview), row menus.
 const PACE_RUN = `
 	const run = document.querySelector('.pace-run')
 	if (!run) { return null }
@@ -1469,9 +1478,9 @@ const PACE_RUN = `
 	if (run.querySelector('.pace-offline')) { parts.push('OFFLINE-Hinweis') }
 	return parts.join(', ')
 `
-// Eigene Aufnahme der Beamer-Vorschau (§5.2 Schritt 4.5): der Kasten ganz im
-// Bild (die Seitenspalte ist dafür gescrollt), darin das Rennen, die Bühne
-// passt, und die Seite im Rahmen ist wirklich 1280×720 ohne waagerechtes Scrollen.
+// Separate capture of the projector preview (§5.2 step 4.5): the box fully in
+// view (the side column is scrolled for that), the race inside it, the stage
+// fits, and the page in the frame really is 1280×720 without horizontal scrolling.
 const PACE_PREVIEW = `
 	const run = document.querySelector('.pace-run')
 	const pv = run && run.querySelector('.spv-in')
@@ -1490,7 +1499,7 @@ const PACE_PREVIEW = `
 		+ (de ? ', Beamer-Seite ' + de.clientWidth + '×' + de.clientHeight + ', ' + (wx > 0 ? 'WAAGERECHT ' + wx + ' px' : 'waagerecht 0 px') : '')
 		+ (d ? ', ' + d.querySelectorAll('.pace-race-row').length + ' Balkenzeilen' + (d.querySelector('.pace-race.is-dense') ? ' (eng)' : '') : '')
 `
-// Offenes Menü der Laufansicht: Schalter mit Häkchen, Rotes zuletzt.
+// Open menu of the run view: toggles with check marks, red items last.
 const PACE_RUN_MENU = `
 	const list = document.querySelector('.pace-top .pulse-menu-list')
 	if (!list) { return null }
@@ -1501,7 +1510,7 @@ const PACE_RUN_MENU = `
 		+ (b.disabled ? ' (aus)' : '') + (b.classList.contains('is-danger') ? ' [rot]' : '')).join(', ')
 		+ (items.some((b) => b.classList.contains('is-danger')) && !(last && last.classList.contains('is-danger')) ? ' — ROT NICHT ZULETZT' : '')
 `
-// Bestätigung (PulseConfirm): Titel, Knöpfe, welcher gefüllt ist, und ob der Freitext-Satz dransteht.
+// Confirmation (PulseConfirm): title, buttons, which one is filled, and whether the free-text sentence is included.
 const PACE_CONFIRM = `
 	const d = document.querySelector('.pconfirm')
 	if (!d) { return null }
@@ -1512,14 +1521,14 @@ const PACE_CONFIRM = `
 		+ (b.classList.contains('is-danger') ? ' [rot]' : b.classList.contains('is-primary') ? ' [gefüllt]' : '')).join(' · ')
 		+ (i >= 0 ? ' — Satz „' + text.slice(i) + '"' : ' — ohne Freitext-Satz')
 `
-// Fokus nach einem Dialog der Laufansicht: zurück am Menü-Auslöser (§1.5).
+// Focus after a run view dialog: back on the menu trigger (§1.5).
 const FOCUS_TRIGGER = `
 	const trig = document.querySelector('.pace-top .pulse-menu > .pulse-btn')
 	const a = document.activeElement
 	return { dialog: !!document.querySelector('.pod'), onTrigger: !!trig && a === trig,
 		focus: a ? (a.getAttribute('aria-label') || a.textContent.trim().replace(/\\s+/g, ' ').slice(0, 40) || a.tagName.toLowerCase()) : '' }
 `
-// Hauptaktion „Check %n answers": Fokus auf der Überschrift der Bewertung, Kasten sichtbar.
+// Main action "Check %n answers": focus on the grading heading, box visible.
 const FOCUS_GRADING = `
 	const h = document.getElementById('pace-grade-head')
 	if (!h) { return 'keine Bewertung' }
@@ -1527,7 +1536,7 @@ const FOCUS_GRADING = `
 	return 'Fokus ' + (document.activeElement === h ? 'auf „' + h.textContent.trim() + '"' : 'NICHT auf der Bewertung')
 		+ ', Überschrift ' + (r.top >= 0 && r.bottom <= window.innerHeight ? 'im Bild' : 'AUSSERHALB DES BILDS')
 `
-// Zusammenfassung aus der Laufansicht: Zurück-Knopf, Export-Beschriftung, Hinweis.
+// Summary from the run view: back button, export label, hint.
 const SUMMARY_VIEW = `
 	const v = document.querySelector('.summary-view')
 	if (!v) { return null }
@@ -1535,8 +1544,8 @@ const SUMMARY_VIEW = `
 	return 'Zusammenfassung: Zurück „' + txt(v.querySelector('.summary-back')) + '", Export „' + txt(v.querySelector('.export-btn')) + '"'
 		+ (v.querySelector('.summary-warn') ? ', Hinweis „' + txt(v.querySelector('.summary-warn')) + '"' : ', kein Hinweis')
 `
-// /progress-Anfragen seit dem Einhängen mitschneiden (Resource Timing). Die
-// Gegenlese-Abrufe des Prüfstands (harness=1) zählen nicht mit.
+// Record /progress requests from the moment this is installed (Resource Timing).
+// The test rig's own cross-check fetches (harness=1) do not count.
 const PROGRESS_WATCH = `
 	window.__prog = []
 	new PerformanceObserver((list) => {
@@ -1546,7 +1555,7 @@ const PROGRESS_WATCH = `
 	}).observe({ type: 'resource' })
 	return true
 `
-// Überlappende Laufzeiten zählen: nie zwei /progress zugleich unterwegs.
+// Count overlapping durations: never two /progress requests in flight at once.
 const PROGRESS_OVERLAP = `
 	const xs = (window.__prog || []).slice().sort((a, b) => a[0] - b[0])
 	let overlap = 0
@@ -1557,8 +1566,8 @@ const PROGRESS_OVERLAP = `
 	}
 	return { n: xs.length, overlap }
 `
-// /pace-Aufrufe seit dem Einhängen zählen (Resource Timing). Mehrfach
-// eingehängt zählt es trotzdem nur einmal: ein Beobachter je Seite.
+// Count /pace calls from the moment this is installed (Resource Timing). Installed
+// several times, it still counts only once: one observer per page.
 const PACE_WATCH = `
 	window.__pace = 0
 	if (!window.__paceObs) {
@@ -1572,7 +1581,7 @@ const PACE_WATCH = `
 	return true
 `
 
-/** Raumzeile aus GET /rooms (wie „Meine Räume") — der Server hat das letzte Wort. */
+/** Room row from GET /rooms (like "My rooms"); the server has the last word. */
 async function roomRow(s, code) {
 	return s.async(`
 		const done = arguments[arguments.length - 1]
@@ -1582,7 +1591,7 @@ async function roomRow(s, code) {
 	`, [code])
 }
 
-/** GET auf eine Pulse-Route aus der angemeldeten Seite (Gegenlesen, harness=1). */
+/** GET on a Pulse route from the signed-in page (cross-check, harness=1). */
 async function pageGet(s, path) {
 	return s.async(`
 		const done = arguments[arguments.length - 1]
@@ -1591,7 +1600,7 @@ async function pageGet(s, path) {
 	`, [path])
 }
 
-/** Lösungsschlüssel der Freitextfrage (Raum-JSON des Besitzers). */
+/** Answer key of the free-text question (the owner's room JSON). */
 async function textKey(s, code) {
 	const room = await pageGet(s, `/apps/pulse/api/1.0/rooms/${code}`)
 	const p = ((room && room.polls) || []).find((x) => x.type === 'text')
@@ -1599,14 +1608,14 @@ async function textKey(s, code) {
 	return { accepted: key.accepted || [], rejected: key.rejected || [] }
 }
 
-/** Stand aus /progress: Namen und offene Freitexte (Summe der Gruppen). */
+/** State from /progress: names and pending free texts (sum of the groups). */
 async function progressOf(s, code) {
 	const p = await pageGet(s, `/apps/pulse/api/1.0/rooms/${code}/progress`)
 	const players = (p && p.players) || []
 	return { names: players.map((x) => x.nickname), pending: ((p && p.pendingAnswers) || []).reduce((a, x) => a + x.count, 0) }
 }
 
-/** Auf eine Datei im Download-Ordner warten (fertig = ohne .part). */
+/** Wait for a file in the download folder (done = without .part). */
 async function waitFile(dir, re, timeout = 12000) {
 	const until = Date.now() + timeout
 	while (Date.now() < until) {
@@ -1620,7 +1629,7 @@ async function waitFile(dir, re, timeout = 12000) {
 	return null
 }
 
-/** Downloads ohne Rückfrage in einen Ordner (CSV-Knöpfe der Laufansicht). */
+/** Downloads into a folder without asking (CSV buttons of the run view). */
 function downloadPrefs(dir) {
 	return {
 		'browser.download.folderList': 2,
@@ -1634,25 +1643,25 @@ function downloadPrefs(dir) {
 }
 
 /*
- * Eigenes Tempo, Laufansicht (Spezifikation §5.2 Schritte 4.3a + 4.3b):
- * Rennen offen, Hausaufgabe mit verborgenen Punkten, „alle durch",
- * geschlossen (offene Freitexte -> „Check %n answers"), freigegeben,
- * Probelauf geschlossen — je 1440×900 und 1024×768. Hell dazu die Menüs, der
- * Verlängern-Dialog, der Wieder-öffnen-Dialog nach Fristablauf und die
- * Zusammenfassung mit „Back to progress". Zustände, die die Räume im
- * Ausgangszustand nicht haben, setzt die Probe kurz (`window`) und dreht sie
- * danach zurück: pace-phone und pace-screen brauchen sie wie angelegt.
- * Nichts hier ändert den Raum über die Oberfläche — geklickt wird nur auf
- * `click` (paceRunClicks). Keine Probe hier löscht oder setzt zurück,
- * about:blank ist deshalb nicht nötig (§6.4); die Beamer-Vorschau pollt nur.
+ * Self-paced, run view (specification §5.2 steps 4.3a + 4.3b):
+ * race open, homework with hidden points, "everyone through",
+ * closed (pending free texts -> "Check %n answers"), released,
+ * practice run closed, each at 1440×900 and 1024×768. In light mode also the
+ * menus, the extend dialog, the reopen dialog after the deadline has passed
+ * and the summary with "Back to progress". States the rooms do not have in
+ * their initial state are set briefly by the probe (`window`) and turned back
+ * afterwards: pace-phone and pace-screen need them as created.
+ * Nothing here changes the room through the UI; clicks only happen on
+ * `click` (paceRunClicks). No probe here deletes or resets, so
+ * about:blank is not needed (§6.4); the projector preview only polls.
  */
 async function paceRunPass(s, dark) {
 	const P = paceData
 	const tag = dark ? 'dark-' : ''
 	const run = (code) => `/apps/pulse/room/${code}`
 	const ready = '.pace-run .pace-table, .pace-run .pace-empty'
-	// Die Vorschau ist ein iframe: erst wenn dort die Beamer-Seite steht (offen mit
-	// Startern: das Rennen), ist das Bild ehrlich.
+	// The preview is an iframe: only once the projector page is up there (open
+	// with starters: the race) is the picture honest.
 	const framed = { until: PREVIEW_READY, timeout: 10000 }
 	const both = async (name, code, note, extra = {}) => {
 		for (const [size, suffix] of [[LAPTOP, ''], [[1024, 768], '-1024']]) {
@@ -1677,9 +1686,9 @@ async function paceRunPass(s, dark) {
 				measure: PACE_RUN_MENU, note: 'Laufansicht: Menü offen (Rennen offen, ohne Frist)',
 			})
 			await s.script(escape)
-			// Die Vorschau selbst (§5.2 Schritt 4.5: „zeigt jetzt das Rennen"). Bei
-			// 1440×900 steht sie unter der Bewertungskarte — die Seitenspalte wird
-			// bis zum Kasten gescrollt, sonst zeigt das Bild nur die Überschrift.
+			// The preview itself (§5.2 step 4.5: "now shows the race"). At
+			// 1440×900 it sits below the grading card; the side column is scrolled
+			// down to the box, otherwise the picture only shows the heading.
 			await shot(s, {
 				name: 'pace-run-race-preview', url: run(P.race.code), size: LAPTOP, waitSel: ready, settle: 1500,
 				actions: [framed, { js: 'document.querySelector(".spv-in").scrollIntoView({ block: "center", behavior: "instant" })' }, { sleep: 400 }],
@@ -1693,8 +1702,8 @@ async function paceRunPass(s, dark) {
 				name: 'pace-run-homework-menu', size: LAPTOP, actions: [menu, menuOpen, { sleep: 300 }],
 				measure: PACE_RUN_MENU, note: 'Laufansicht: Menü offen (Hausaufgabe offen mit Frist: „Change the end …", „Release results", beide CSV)',
 			})
-			// „Release results" aus dem offenen Fenster schließt zugleich: eigene
-			// Bestätigung mit der Zahl der Gestoppten. Nur ansehen, dann abbrechen.
+			// "Release results" from the open window also closes it: its own
+			// confirmation with the number of people stopped. Only look, then cancel.
 			await shot(s, {
 				name: 'pace-run-homework-release-confirm', size: LAPTOP, actions: [item('release'), { wait: '.pconfirm' }, { sleep: 300 }],
 				measure: PACE_CONFIRM, note: 'Laufansicht: „Release results" aus dem offenen Fenster (Hausaufgabe) -> „Close and release now?" (danach abgebrochen)',
@@ -1705,7 +1714,7 @@ async function paceRunPass(s, dark) {
 			const hwState = hwRow && hwRow.window ? hwRow.window.state : '?'
 			index.push(`| (Messung) | | ${run('<CODE>')} | Freigabe-Bestätigung abgebrochen: ${await s.script('return document.querySelector(".pconfirm") ? "NOCH OFFEN" : "zu"')}, Raum bleibt ${hwState} |`)
 			if (hwState !== 'open') { overflow.push(`Abgebrochene Freigabe: Hausaufgabe steht auf ${hwState}`) }
-			// „Change the end …": Frist vorbelegt, Knopf „Save"; Escape -> Fokus am Menü-Auslöser.
+			// "Change the end …": deadline prefilled, button "Save"; Escape -> focus on the menu trigger.
 			await shot(s, {
 				name: 'pace-run-extend-dialog', size: LAPTOP, actions: [menu, menuOpen, item('extend'), { wait: '.pod' }, { sleep: 500 }],
 				measure: PACE_DIALOG, note: 'Laufansicht: „Change the end …" (offen, Frist vorbelegt)',
@@ -1716,7 +1725,7 @@ async function paceRunPass(s, dark) {
 			index.push(`| (Messung) | | ${run('<CODE>')} | Verlängern-Dialog mit Escape zu: ${f1.dialog ? 'NOCH OFFEN' : 'geschlossen'}, Fokus ${f1.onTrigger ? 'am Menü-Auslöser' : 'NICHT am Menü-Auslöser („' + f1.focus + '")'} |`)
 			if (f1.dialog || !f1.onTrigger) { overflow.push('Verlängern-Dialog: Fokus nach Escape nicht am Menü-Auslöser') }
 
-			// Zusammenfassung aus der Laufansicht (offen: Warnung), zurück mit „Back to progress".
+			// Summary from the run view (open: warning), back via "Back to progress".
 			await shot(s, {
 				name: 'pace-run-summary', size: LAPTOP, actions: [menu, menuOpen, item('summary'), { wait: '.summary-view .summary-back' }, { sleep: 800 }],
 				measure: SUMMARY_VIEW, note: 'Zusammenfassung aus der Laufansicht (Hausaufgabe offen): Warnung, „Results per question (CSV)", „Back to progress"',
@@ -1725,8 +1734,8 @@ async function paceRunPass(s, dark) {
 			await s.script('document.querySelector(".summary-view .summary-back").click()')
 			await waitFor(s, ready)
 			index.push(`| (Messung) | | ${run('<CODE>')} | Zusammenfassung -> „Back to progress": Laufansicht nach ${((Date.now() - t0) / 1000).toFixed(1)} s wieder da |`)
-			// „Close quiz“ mit Frist: EIN /pace-Aufruf (close {release:false}), kein
-			// Raum-Abruf mehr davor; die Frist bleibt, nichts freigegeben.
+			// "Close quiz" with a deadline: ONE /pace call (close {release:false}), no
+			// room fetch before it any more; the deadline stays, nothing is released.
 			const hw0 = JSON.parse(probe('window', P.homework.code).replace(/^ok /, ''))
 			restore.push(() => probe('window', P.homework.code, 'closedAt=0'))
 			await s.script(PACE_WATCH)
@@ -1742,8 +1751,8 @@ async function paceRunPass(s, dark) {
 			restore.pop()
 		}
 
-		// „Alle durch": nur die Fertigen sind gerade da (Präsenz gilt 15 s — je Bild frisch).
-		// Ein Rennraum, in dem jemand fertig ist und jemand noch arbeitet.
+		// "Everyone through": only those who have finished are present right now (presence is valid for 15 s, so fresh per image).
+		// A race room where someone has finished and someone is still working.
 		const thr = ['race', 'mid', 'wide'].find((k) => P[k] && P[k].race && P[k].race.finished > 0 && P[k].race.started > P[k].race.finished) || 'race'
 		await both('through', P[thr].code, 'Laufansicht: alle Anwesenden durch -> Statuszeile „Everyone still here is through"', {
 			open: async () => {
@@ -1753,8 +1762,8 @@ async function paceRunPass(s, dark) {
 			},
 		})
 
-		// Geschlossen (Hausaufgabe, Punkte weiter verborgen): offene Freitexte
-		// gehen vor der Freigabe -> „Check %n answers".
+		// Closed (homework, points still hidden): pending free texts come
+		// before the release -> "Check %n answers".
 		restore.push(() => probe('window', P.homework.code, 'closedAt=0'))
 		probe('window', P.homework.code, 'closedAt=now')
 		await both('closed', P.homework.code, 'Laufansicht: Hausaufgabe geschlossen -> Hauptaktion „Check %n answers" (offene Freitexte)')
@@ -1773,7 +1782,7 @@ async function paceRunPass(s, dark) {
 		probe('window', P.homework.code, 'closedAt=0')
 		restore.pop()
 
-		// Nach Fristablauf (Hausaufgabe): „Reopen …" -> vorbelegt morgen + „Was: …".
+		// After the deadline has passed (homework): "Reopen …" -> prefilled with tomorrow + "Was: …".
 		if (!dark) {
 			const hw = JSON.parse(probe('window', P.homework.code).replace(/^ok /, ''))
 			restore.push(() => probe('window', P.homework.code, 'closesAt=' + hw.closesAt))
@@ -1792,7 +1801,7 @@ async function paceRunPass(s, dark) {
 			restore.pop()
 		}
 
-		// Altlast: gestoppt wie vor close {release} (Frist 120 s nach dem Schluss) -> „Reopen …“ belegt „When I close it“ vor.
+		// Legacy: stopped as before close {release} (deadline 120 s after closing) -> "Reopen …" prefills "When I close it".
 		if (!dark) {
 			const rc = JSON.parse(probe('window', P.race.code).replace(/^ok /, ''))
 			restore.push(() => probe('window', P.race.code, 'closedAt=0', 'closesAt=' + rc.closesAt))
@@ -1811,7 +1820,7 @@ async function paceRunPass(s, dark) {
 			restore.pop()
 		}
 
-		// Freigegeben (Rennen): offene Freitexte bleiben Hauptaktion, darüber die Warnung.
+		// Released (race): pending free texts remain the main action, with the warning above.
 		restore.push(() => probe('window', P.race.code, 'closedAt=0', 'releasedAt=0'))
 		probe('window', P.race.code, 'closedAt=now', 'releasedAt=now')
 		await both('released', P.race.code, 'Laufansicht: Rennen freigegeben — offene Freitexte: „Check %n answers" + „Standings update for everyone."')
@@ -1825,7 +1834,7 @@ async function paceRunPass(s, dark) {
 		probe('window', P.race.code, 'closedAt=0', 'releasedAt=0')
 		restore.pop()
 
-		// Probelauf geschlossen -> „End practice run".
+		// Practice run closed -> "End practice run".
 		restore.push(() => probe('window', P.practice.code, 'closedAt=0'))
 		probe('window', P.practice.code, 'closedAt=now')
 		await both('practice-closed', P.practice.code, 'Laufansicht: Probelauf geschlossen -> „End practice run"')
@@ -1839,15 +1848,15 @@ async function paceRunPass(s, dark) {
 }
 
 /*
- * Klickstrecke auf `click` (nur dort, §6.1; Schritte 4.3a + 4.3b): bewerten ->
- * umbewerten -> entfernen -> sperren -> Ende ändern (Frist, dann zurück) ->
- * schließen („Stop without releasing“ = EIN /pace-Aufruf) -> „Check %n answers“
- * -> „Reopen …“ vorbelegt „When I close it“ (ohne localStorage-Merker) ->
- * freigeben (Menü) -> beide CSV. Jeder Schritt wird gegen den Server
- * gegengelesen (GET /rooms, /rooms/{code}, /progress). Dazu der
- * Einflug-Mitschnitt: nie zwei /progress zugleich — auch bei fünf schnellen
- * Aktionen (Hausaufgabe: „Show points" fünfmal hintereinander). `dl` ist der
- * Download-Ordner der Sitzung.
+ * Click sequence on `click` (only there, §6.1; steps 4.3a + 4.3b): grade ->
+ * regrade -> remove -> lock -> change the end (deadline, then back) ->
+ * close ("Stop without releasing" = ONE /pace call) -> "Check %n answers"
+ * -> "Reopen …" prefills "When I close it" (without a localStorage flag) ->
+ * release (menu) -> both CSVs. Every step is cross-checked against the
+ * server (GET /rooms, /rooms/{code}, /progress). Plus the in-flight
+ * recording: never two /progress requests at once, even with five quick
+ * actions (homework: "Show points" five times in a row). `dl` is the
+ * session's download folder.
  */
 async function paceRunClicks(s, dl) {
 	const P = paceData
@@ -1864,7 +1873,7 @@ async function paceRunClicks(s, dl) {
 	}
 	const note = (text) => index.push(`| (Messung) | | ${run('<CODE>')} | ${text} |`)
 
-	// Fünf schnelle Aktionen: jede ruft refresh() — eine Anfrage läuft oft noch.
+	// Five quick actions: each one calls refresh(), and a request is often still running.
 	await s.size(LAPTOP)
 	await s.go(HOST + run(P.homework.code))
 	await waitFor(s, ready)
@@ -1893,10 +1902,10 @@ async function paceRunClicks(s, dl) {
 	previewMarks()
 	await s.script(escape)
 
-	// Der Seed von `click` kann mit einer einzigen offenen Freitext-Gruppe
-	// enden — nach dem Bewerten wäre nichts mehr offen. Weitere Personen
-	// (probe race, über die Services) bringen eine zweite, damit „Check %n
-	// answers" und der Freitext-Satz auf der Strecke vorkommen.
+	// The seed of `click` can end with a single pending free-text group; after
+	// grading nothing would be pending any more. Additional people
+	// (probe race, through the services) bring a second one, so that "Check %n
+	// answers" and the free-text sentence occur along the sequence.
 	await s.go(HOST + run(code))
 	await waitFor(s, ready)
 	const groupsNow = async () => ((await pageGet(s, `/apps/pulse/api/1.0/rooms/${code}/progress`)).pendingAnswers || []).length
@@ -1919,7 +1928,7 @@ async function paceRunClicks(s, dl) {
 	})
 	previewMarks()
 
-	// 1. Bewerten: die erste offene Antwort als richtig.
+	// 1. Grade: the first pending answer as correct.
 	const first = await s.script('const r = document.querySelector(".pace-grading > .pace-grade-q .tg-row"); return { sample: r.querySelector(".tg-text").textContent.trim(), count: parseInt(r.querySelector(".tg-count").textContent, 10) }')
 	const before1 = await progressOf(s, code)
 	await s.script('document.querySelector(".pace-grading > .pace-grade-q .tg-ok").click()')
@@ -1935,14 +1944,14 @@ async function paceRunClicks(s, dl) {
 	})
 	previewMarks()
 
-	// 2. Umbewerten: derselbe Eintrag jetzt falsch (gleicher Endpunkt).
+	// 2. Regrade: the same entry now wrong (same endpoint).
 	await s.script('document.querySelector(".pace-checked .tg-no").click()')
 	await waitFor(s, '.pace-checked .tg-row.is-rejected')
 	const key2 = await textKey(s, code)
 	note(`Umbewerten: „${first.sample}" jetzt falsch; Server: abgelehnt ${key2.rejected.includes(first.sample) ? 'enthält sie' : 'OHNE sie'}, akzeptiert ${key2.accepted.includes(first.sample) ? 'ENTHÄLT SIE NOCH' : 'ohne sie'}`)
 	if (!key2.rejected.includes(first.sample) || key2.accepted.includes(first.sample)) { overflow.push('Umbewerten: Server-Stand passt nicht') }
 
-	// 3. Entfernen: die letzte Zeile der Tabelle, über ihr Zeilenmenü.
+	// 3. Remove: the last row of the table, through its row menu.
 	const victim = await s.script('const rows = document.querySelectorAll(".pace-table tbody tr"); const r = rows[rows.length - 1]; r.querySelector(".pace-act .pulse-menu > .pulse-btn").click(); return { name: r.querySelector(".pace-nick").textContent.trim(), rows: rows.length, label: r.querySelector(".pace-act .pulse-menu > .pulse-btn").getAttribute("aria-label") }')
 	await waitFor(s, '.pace-act .pulse-menu-item[data-key="remove"]')
 	await s.script('document.querySelector(\'.pace-act .pulse-menu-item[data-key="remove"]\').click()')
@@ -1959,7 +1968,7 @@ async function paceRunClicks(s, dl) {
 	note(`Entfernen: „${victim.name}" -> Tabelle ${victim.rows} -> ${rows3} Zeilen; Server: ${after3.names.length} Personen, ${after3.names.includes(victim.name) ? 'NAME NOCH DA' : 'Name frei'}`)
 	if (rows3 !== victim.rows - 1 || after3.names.includes(victim.name)) { overflow.push('Entfernen: Server-Stand passt nicht') }
 
-	// 4. Sperren: Schalter im Menü (bleibt offen), Chip im Kopf.
+	// 4. Lock: toggle in the menu (the menu stays open), chip in the header.
 	await openItem('lock')
 	await waitForText(s, '.pace-top-row', /Joining locked/)
 	await s.script(escape)
@@ -1967,7 +1976,7 @@ async function paceRunClicks(s, dl) {
 	note(`Sperren: Chip „Joining locked"; Server: joinsLocked ${room4.joinsLocked}`)
 	if (room4.joinsLocked !== true) { overflow.push('Sperren: joinsLocked nicht gesetzt') }
 
-	// 5. Ende ändern: Frist „In 1 hour" speichern, dann zurück auf „When I close it".
+	// 5. Change the end: save the deadline "In 1 hour", then back to "When I close it".
 	await openItem('extend')
 	await waitFor(s, '.pod')
 	await s.script('document.querySelectorAll(".pod .pseg")[0].querySelectorAll(".pseg-item")[1].click()')
@@ -2002,7 +2011,7 @@ async function paceRunClicks(s, dl) {
 	note(`Ende ändern zurück (vorbelegt „${pre6.end}", „${pre6.rel}" -> „When I close it", „Save"): Fokus ${f6.onTrigger ? 'am Menü-Auslöser' : 'NICHT am Menü-Auslöser („' + f6.focus + '")'}; Server: state ${w6.state}, Frist ${w6.closesAt > 0 ? 'NOCH GESETZT' : '0'}`)
 	if (f6.dialog || !f6.onTrigger || w6.state !== 'open' || w6.closesAt !== 0) { overflow.push('Ende ändern (zurück): Fokus oder Server-Stand passt nicht') }
 
-	// 6. Schließen: „Close quiz" ohne Frist -> Bestätigung (mit Freitext-Satz) -> „Stop without releasing".
+	// 6. Close: "Close quiz" without a deadline -> confirmation (with the free-text sentence) -> "Stop without releasing".
 	const before = await roomRow(s, code)
 	await s.script('document.querySelector(".pace-primary").click()')
 	await waitFor(s, '.pconfirm-alt')
@@ -2030,7 +2039,7 @@ async function paceRunClicks(s, dl) {
 	note('„Check %n answers" geklickt: ' + await s.script(FOCUS_GRADING))
 	if (!/^Fokus auf/.test(await s.script(FOCUS_GRADING))) { overflow.push('„Check %n answers": Fokus nicht auf der Bewertung') }
 
-	// 6b. „Reopen …“ nach dem Stoppen: Frist 0 -> „When I close it“, ohne „Was: …“, Knopf „Reopen“; kein Merker. Escape.
+	// 6b. "Reopen …" after stopping: deadline 0 -> "When I close it", without "Was: …", button "Reopen"; no flag. Escape.
 	await openItem('reopen')
 	await waitFor(s, '.pod')
 	await sleep(300)
@@ -2040,7 +2049,7 @@ async function paceRunClicks(s, dl) {
 	note(`„Reopen …“ nach dem Stoppen: vorbelegt „${pre6b.end}“, ${pre6b.was ? 'MIT „Was: …“' : 'ohne „Was: …“'}, Knopf „${pre6b.submit}“; Merker ${pre6b.marker === null ? 'keiner' : 'GESCHRIEBEN'}`)
 	if (pre6b.end !== 'When I close it' || pre6b.was || pre6b.submit !== 'Reopen' || pre6b.marker !== null) { overflow.push('„Reopen …“ nach dem Stoppen: Vorbelegung oder Merker passt nicht') }
 
-	// 7. Freigeben über das Menü (die Hauptaktion ist die Bewertung).
+	// 7. Release through the menu (the main action is grading).
 	await openItem('release')
 	await waitFor(s, '.pconfirm')
 	await shot(s, {
@@ -2062,8 +2071,8 @@ async function paceRunClicks(s, dl) {
 	})
 	previewMarks()
 
-	// 8. CSV im Browser (§6.2): Adresse wie src/util/csv.js csvUrl() (Route +
-	// view + requesttoken in der Query) -> 200 + text/csv; ohne Token 412.
+	// 8. CSV in the browser (§6.2): the address as in src/util/csv.js csvUrl() (route +
+	// view + requesttoken in the query) -> 200 + text/csv; without the token 412.
 	const csv = await s.async(`
 		const done = arguments[arguments.length - 1]
 		const code = arguments[0]
@@ -2080,7 +2089,7 @@ async function paceRunClicks(s, dl) {
 		note(`CSV ${label} per fetch: ${r.status} ${r.type} (${r.disp}), Kopf „${r.head}"; ohne requesttoken: ${r0.status}`)
 		if (r.status !== 200 || !/^text\/csv/.test(r.type) || r0.status !== 412) { overflow.push(`CSV ${label}: ${r.status} ${r.type}, ohne Token ${r0.status}`) }
 	}
-	// Die echten Knöpfe (Menü, downloadCsv): Datei im Download-Ordner, die Seite bleibt stehen.
+	// The real buttons (menu, downloadCsv): a file in the download folder, the page stays put.
 	for (const [key, view] of [['csv-players', 'players'], ['csv-answers', 'answers']]) {
 		await openItem(key)
 		const file = await waitFile(dl, new RegExp(`-${view}\\.csv$`))
@@ -2090,7 +2099,7 @@ async function paceRunClicks(s, dl) {
 		if (!file || !stay) { overflow.push(`CSV-Knopf ${key}: ${file ? 'Datei da' : 'keine Datei'}, Seite ${stay ? 'da' : 'weg'}`) }
 	}
 
-	// Hauptfaden: längste Lücke zwischen 100-ms-Takten über 8 s (Sekundentakt + Abruf).
+	// Main thread: longest gap between 100 ms ticks over 8 s (one-second tick + polling).
 	const lag = await s.async(`
 		const done = arguments[arguments.length - 1]
 		let last = performance.now()
@@ -2103,11 +2112,11 @@ async function paceRunClicks(s, dl) {
 	await s.go('about:blank')
 }
 
-/* ------------------------------------------------ Eigenes Tempo: Handy */
+/* --------------------------------------------------- Self-paced: phone */
 
-// Vue-Instanz des Handys (Participant): zum Messen (Fensterzustand,
-// Fortschritt, Urteil) und für Eingriffe, die die Oberfläche nicht anbietet
-// (die späte Korrektur, §6.2 Schritt 1).
+// Vue instance of the phone (Participant): for measuring (window state,
+// progress, verdict) and for interventions the UI does not offer
+// (the late correction, §6.2 step 1).
 const PHONE_VM = `(() => {
 	const r = document.querySelector('.pulse-part')
 	const v = r && r.__vue__
@@ -2115,10 +2124,10 @@ const PHONE_VM = `(() => {
 	return v.$options.name === 'Participant' ? v : (v.$children || []).find((c) => c.$options.name === 'Participant') || null
 })()`
 
-// Handy im eigenen Tempo (§6.2): Ansicht, Überschrift, Hinweise, Frist,
-// Position, Korrekturleiste, Urteilsband, Knöpfe (■ gefüllt, ◦ tonal =
-// is-tertiary, □ Umriss), Absende-Zone und Frage im Bild, Fokus, Ansage, Toast,
-// waagerechtes Scrollen und das Leck — vor der Freigabe steht keine Lösung im DOM.
+// Self-paced phone (§6.2): view, heading, hints, deadline, position,
+// correction bar, verdict band, buttons (■ filled, ◦ tonal =
+// is-tertiary, □ outline), submit zone and question in view, focus, announcement, toast,
+// horizontal scrolling and the leak: before the release there is no solution in the DOM.
 const PACE_PHONE = `
 	const vm = ${PHONE_VM}
 	if (!vm || !vm.isPaced) { return null }
@@ -2191,9 +2200,9 @@ const PACE_PHONE = `
 	return parts.join(', ')
 `
 
-// Verlauf der Absende-Zone mitschreiben (Korrekturleiste → Band ohne Urteil →
-// Urteil), ohne dass ein Zwischenstand zwischen zwei WebDriver-Abfragen verloren
-// geht. Lesen: window.__paceVerdicts.
+// Record the history of the submit zone (correction bar → band without a verdict →
+// verdict) without losing an intermediate state between two WebDriver queries.
+// Read: window.__paceVerdicts.
 const VERDICT_LOG = `
 	const rec = () => {
 		const b = document.querySelector('.pace-verdict')
@@ -2210,10 +2219,10 @@ const VERDICT_LOG = `
 `
 
 /*
- * Doppeltipp (§2.5, §6.2 Schritt 1): „Next question" tippen, sofort an
- * derselben Stelle noch einmal, und ein drittes Mal, sobald die neue Frage
- * steht — jeweils auf das Element, das dort gerade liegt (elementFromPoint).
- * Ergebnis: was getroffen wurde und ob die neue Frage unbeantwortet blieb.
+ * Double tap (§2.5, §6.2 step 1): tap "Next question", immediately tap the
+ * same spot again, and a third time as soon as the new question is up; each
+ * time on whatever element lies there at that moment (elementFromPoint).
+ * Result: what was hit and whether the new question stayed unanswered.
  */
 const DOUBLE_TAP = `
 	const done = arguments[arguments.length - 1]
@@ -2245,8 +2254,8 @@ const DOUBLE_TAP = `
 	wait()
 `
 
-// Zeitablauf (§2.6, §6.2 Schritt 2): sobald Zweig 9 im DOM steht, SOFORT den
-// Knopf lesen — deaktiviert mit „One moment …", bis der Server timeUp meldet.
+// Time-up (§2.6, §6.2 step 2): as soon as branch 9 is in the DOM, read the
+// button IMMEDIATELY: disabled with "One moment …" until the server reports timeUp.
 const TIMEUP_WATCH = `
 	const done = arguments[arguments.length - 1]
 	const t0 = performance.now()
@@ -2260,15 +2269,15 @@ const TIMEUP_WATCH = `
 `
 
 /*
- * Doppeltipp am Zeitablauf (Gate 4.4b): „Next question" steht in Zweig 9 mittig —
- * genau dort liegt danach eine Antwortkarte der nächsten Frage (Wahr/Falsch: B),
- * und Auswahl/Wahr-Falsch senden im Quiz sofort. Tippen, sofort noch einmal,
- * dann auf die neue Frage direkt nach dem Wechsel und 250 ms später (übliche
- * Doppeltipp-Spanne) — jeweils wie ein Finger auf den Knopf an dieser Stelle
- * (elementFromPoint → closest('button') → click(); ein gesperrter Knopf nimmt
- * keinen Klick an). Dazu einmal der Weg ohne DOM-Sperre (vm.pickOne, wie Tastatur),
- * solange die Sperre noch steht. Danach warten, bis die Karte an der Stelle wieder
- * bedienbar ist. Soll: Frage 2 unbeantwortet, kein /vote unterwegs.
+ * Double tap at time-up (gate 4.4b): "Next question" sits centred in branch 9;
+ * exactly there an answer card of the next question lies afterwards (True/False: B),
+ * and choice/true-false send immediately in a quiz. Tap, tap again immediately,
+ * then on the new question right after the switch and 250 ms later (the usual
+ * double-tap span), each time like a finger on the button at that spot
+ * (elementFromPoint → closest('button') → click(); a locked button does not
+ * accept a click). Plus, once, the route without the DOM lock (vm.pickOne, like
+ * the keyboard) while the lock is still in place. Then wait until the card at
+ * that spot is usable again. Expected: question 2 unanswered, no /vote in flight.
  */
 const TIMEUP_DOUBLE_TAP = `
 	const done = arguments[arguments.length - 1]
@@ -2318,8 +2327,8 @@ const TIMEUP_DOUBLE_TAP = `
 	wait()
 `
 
-// Leck-Prüfung am Draht: /state des Handys vor der Freigabe — keine Lösungsfelder,
-// keine Verteilung, keine Rangliste (§2.5 „Nie die Lösung").
+// Leak check on the wire: the phone's /state before the release has no solution fields,
+// no distribution, no leaderboard (§2.5 "Never the solution").
 const STATE_LEAK = `
 	const done = arguments[arguments.length - 1]
 	fetch(location.pathname.replace(/\\/$/, '') + '/state', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
@@ -2329,7 +2338,7 @@ const STATE_LEAK = `
 		.catch((e) => done({ error: String(e) }))
 `
 
-/** Abstände der /state-Abrufe des Handys über ms Millisekunden (Takt §2.10). */
+/** Intervals between the phone's /state fetches over ms milliseconds (cadence §2.10). */
 async function stateCadence(s, ms) {
 	return s.async(`
 		const done = arguments[arguments.length - 1]
@@ -2344,13 +2353,14 @@ async function stateCadence(s, ms) {
 }
 
 /*
- * Handy in echter Größe. Firefox headless macht kein Fenster schmaler als 450
- * CSS-px (gemessen: 320 oder 390 angefordert -> innerWidth 450; devPixelsPerPx
- * ändert daran nichts) — die älteren Handy-Strecken laufen deshalb in Wahrheit
- * 450 px breit. Hier steht die Seite in einem iframe der Zielgröße: gleicher
- * Ursprung, dasselbe Cookie, Medienabfragen und svh nach 390 bzw. 320 px. Wirt
- * ist die Beitrittsseite ohne Code (sie pollt nicht). Danach laufen Skripte,
- * Klicks und Wartebedingungen IM iframe; eine Navigation (s.go) verlässt es.
+ * Phone at its real size. Headless Firefox does not make a window narrower
+ * than 450 CSS px (measured: 320 or 390 requested -> innerWidth 450;
+ * devPixelsPerPx does not change that), so the older phone passes actually
+ * run 450 px wide. Here the page sits in an iframe of the target size: same
+ * origin, the same cookie, media queries and svh at 390 or 320 px. The host
+ * page is the join page without a code (it does not poll). After that,
+ * scripts, clicks and wait conditions run INSIDE the iframe; a navigation
+ * (s.go) leaves it.
  */
 const frameWin = ([w, h]) => Object.assign([450, h + 90], { css: w + '×' + h })
 async function phoneAt(s, path, [w, h]) {
@@ -2371,26 +2381,26 @@ async function phoneAt(s, path, [w, h]) {
 }
 
 /*
- * Eigenes Tempo, Handy (Spezifikation §5.2 Schritte 4.4a + 4.4b, §6.2):
- * Namensbildschirm mit Frist und „Closes in", Start (auch 320 × 640, echte
- * Größe im iframe), der volle Durchlauf auf `e2e` (Frage → Korrekturleiste →
- * Urteil → Doppeltipp → „Change", 4 s warten, späte Korrektur → Neuladen →
- * Weiter-Karte → „Being checked" → „I’m done" → eigene Antworten → geschlossen
- * → Endstand → alle Ergebnisse), der Zeitablauf auf `timed` (deaktiviert →
- * aktiv, Doppeltipp auf die Wahr/Falsch-Frage 2), „Answer saved" und
- * Überspringen bis zum Ende auf `homework`, die Zuordnung mit acht Paaren bei
- * 320 × 640 auf `match8`, Warten und neue Runde auf `draft`, geschlossen mit
- * verlorener Eingabe auf `late`, entfernt auf `race`, vorbei auf `practice` —
- * dazu Abruftakt, Fokus und Leck-Prüfung.
- * Eine Sitzung = ein Cookie = ein Handy; wo ein zweites Handy nötig ist, nimmt
- * der Pass das Cookie kurz weg.
+ * Self-paced, phone (specification §5.2 steps 4.4a + 4.4b, §6.2):
+ * name screen with deadline and "Closes in", start (also 320 × 640, real
+ * size in the iframe), the full run on `e2e` (question → correction bar →
+ * verdict → double tap → "Change", wait 4 s, late correction → reload →
+ * continue card → "Being checked" → "I’m done" → own answers → closed
+ * → final standings → all results), time-up on `timed` (disabled →
+ * active, double tap on True/False question 2), "Answer saved" and
+ * skipping to the end on `homework`, matching with eight pairs at
+ * 320 × 640 on `match8`, waiting and a new round on `draft`, closed with
+ * lost input on `late`, removed on `race`, over on `practice`,
+ * plus polling cadence, focus and leak check.
+ * One session = one cookie = one phone; where a second phone is needed, the
+ * pass takes the cookie away briefly.
  *
- * Räume: e2e wird (hell) geschlossen — roh per `window closedAt=now`, denn
- * `close` gäbe ohne Frist sofort frei — und freigegeben; late ebenso; draft am
- * Ende zurückgesetzt (vorher about:blank, §6.4); practice kurz freigegeben und
- * per `window` wieder geöffnet (pace-screen gibt ihn selbst frei). race,
- * homework, timed und match8 bekommen nur zusätzliche Namen. Der dunkle
- * Durchgang läuft zuerst und ändert nichts außer Namen.
+ * Rooms: e2e is closed (light), raw via `window closedAt=now`, because
+ * `close` without a deadline would release immediately, and then released;
+ * late likewise; draft reset at the end (about:blank first, §6.4); practice
+ * briefly released and reopened via `window` (pace-screen releases it
+ * itself). race, homework, timed and match8 only get additional names. The
+ * dark pass runs first and changes nothing except names.
  */
 async function pacePhonePass(s, dark) {
 	const P = paceData
@@ -2398,7 +2408,7 @@ async function pacePhonePass(s, dark) {
 	const url = (code) => `/apps/pulse/s/${code}`
 	const card = (name) => `.pace-card[data-card="${name}"]`
 	const note = (text) => index.push(`| (Messung${dark ? ', dunkel' : ''}) | | ${url('<CODE>')} | ${text} |`)
-	// Eine Prüfung, die nicht stimmt, steht im Index UND bei den Auffälligkeiten.
+	// A check that fails goes into the index AND into the anomalies.
 	const check = (ok, text) => {
 		note((ok ? 'ok: ' : '**FEHLER:** ') + text)
 		if (!ok) { overflow.push(`pace-phone${dark ? ' (dunkel)' : ''}: ${text}`) }
@@ -2435,15 +2445,15 @@ async function pacePhonePass(s, dark) {
 	const focusOn = (sel) => s.script('return !!document.activeElement && document.activeElement.matches(arguments[0])', [sel])
 	const verdictSel = '.pace-verdict[data-verdict="correct"], .pace-verdict[data-verdict="wrong"]'
 	const has = (sel) => `!!document.querySelector(${JSON.stringify(sel)})`
-	// Frage k ist offen: warten, bis „Skip question" scharf ist, dann tippen.
+	// Question k is open: wait until "Skip question" is armed, then tap.
 	const skipTo = async (k) => {
 		await until(`vm.progress && vm.progress.k === ${k} && !!vm.poll && !vm.nextBusy`, 'Frage ' + k)
 		await waitFor(s, '.pace-skip:not([disabled])', 5000)
 		await s.click('.pace-skip')
 	}
 
-	// ── Namensbildschirm und Start ────────────────────────────────────────
-	// Frist in zehn Minuten: Namensbildschirm und Startkarte zeigen „Closes in".
+	// ── Name screen and start ─────────────────────────────────────────────
+	// Deadline in ten minutes: name screen and start card show "Closes in".
 	probe('window', P.late.code, 'closesAt=now+600')
 	await phone({
 		name: 'pace-phone-name-deadline', url: url(P.late.code), waitSel: '.nick-input',
@@ -2464,7 +2474,7 @@ async function pacePhonePass(s, dark) {
 		note: 'Startkarte mit Frist: eine Frage, ohne Timer, Auflösung am Ende, „Closes in"',
 	})
 
-	// Rennen (Timer, Rückmeldung je Frage): Startkarte mit Timer-Hinweis, auch schmal.
+	// Race (timer, feedback per question): start card with the timer hint, narrow as well.
 	const racer = dark ? 'Noa' : 'Mo'
 	await join(P.race.code, racer)
 	await waitFor(s, card('start'))
@@ -2479,7 +2489,7 @@ async function pacePhonePass(s, dark) {
 	if (!dark) {
 		const cad = await stateCadence(s, 11000)
 		note('Takt auf der Startkarte: ' + cad.n + ' Abrufe in 11 s, Abstände ' + (cad.gaps.join(' / ') || '—') + ' ms (Soll 5000)')
-		// Entfernt, dann neu geladen: der gemerkte Name (localStorage) trägt den Hinweis.
+		// Removed, then reloaded: the remembered name (localStorage) carries the hint.
 		const stored = await s.script('return window.localStorage.getItem("pulse-pace:" + arguments[0])', [P.race.code])
 		probe('remove', P.race.code, racer)
 		await phone({
@@ -2489,7 +2499,7 @@ async function pacePhonePass(s, dark) {
 		note('Gemerkter Name vor dem Entfernen: ' + (stored ? stored.replace(/"openedAt":\d+/, '"openedAt":…') : 'FEHLT'))
 	}
 
-	// ── Voller Durchlauf auf e2e (ohne Timer, Rückmeldung je Frage) ───────
+	// ── Full run on e2e (no timer, feedback per question) ─────────────────
 	const sam = dark ? 'Lio' : 'Sam'
 	await join(P.e2e.code, sam)
 	await waitFor(s, card('start'))
@@ -2504,7 +2514,7 @@ async function pacePhonePass(s, dark) {
 		name: 'pace-phone-q1', waitSel: '.h-app .choices',
 		note: 'Frage 1 (Auswahl, ohne Timer): „Question 1 of 3", Tipp-Hinweis, „Skip question" unter den Antworten (1,5 s gesperrt)',
 	})
-	// Hell richtig (443), dunkel falsch (80).
+	// Light: correct (443), dark: wrong (80).
 	await s.script(VERDICT_LOG)
 	const tapped = Date.now()
 	await s.click(`.choices .choice:nth-child(${dark ? 1 : 2})`)
@@ -2519,11 +2529,11 @@ async function pacePhonePass(s, dark) {
 		name: dark ? 'pace-phone-verdict-wrong' : 'pace-phone-verdict', waitSel: '.pace-verdict',
 		note: dark ? 'Urteil falsch: Band „Not this time" (is-no), „Next question" aktiv' : 'Urteil richtig: Band „Correct!" + Punkte-Chip, „Next question" aktiv',
 	})
-	// „none" fehlt nur, wenn das Urteil ankommt, bevor die lokale Korrekturleiste endet.
+	// "none" is only missing when the verdict arrives before the local correction bar ends.
 	check(/Korrekturleiste( → none)? → (correct|wrong)$/.test(log1), 'Frage 1: Urteil ' + secs(tV) + ' nach dem Tipp, Verlauf ' + log1 + ' (vor dem Urteil neutral, kein grüner Blitz)')
 
 	if (!dark) {
-		// Doppeltipp: „Next question" → sofort an derselben Stelle erneut → Frage 2 bleibt unbeantwortet.
+		// Double tap: "Next question" → immediately again at the same spot → question 2 stays unanswered.
 		const dt = await s.async(DOUBLE_TAP)
 		check(!!dt && !dt.timeout && dt.k === 2 && dt.voted === false && dt.skipDisabled === true,
 			'Doppeltipp „Next question": ' + (dt && dt.timeout ? dt.why : 'Frage ' + dt.k + ' unbeantwortet=' + !dt.voted + '; 2. Tipp auf ' + dt.h2 + ', 3. Tipp nach dem Wechsel (' + dt.ms + ' ms) auf ' + dt.h3 + '; „' + dt.skipText + '" ' + (dt.skipDisabled ? 'noch gesperrt' : 'SCHON SCHARF')))
@@ -2534,7 +2544,7 @@ async function pacePhonePass(s, dark) {
 			note: 'Frage 2 (Zahl) unbeantwortet: „Submit" in der Absende-Zone, „Skip question" (tonal) im Scrollbereich',
 		})
 
-		// Zahl absenden → „Change" → 4 s warten → tippen (§6.2 Schritt 1, Regeln a–c aus §2.1).
+		// Submit a number → "Change" → wait 4 s → tap (§6.2 step 1, rules a–c from §2.1).
 		await s.script(VERDICT_LOG)
 		await s.type('.h-app input[type="number"]', '9')
 		await s.click('.h-submit .submit-btn')
@@ -2545,9 +2555,9 @@ async function pacePhonePass(s, dark) {
 		const after4 = await vm(`({ changing: vm.changing, locked: document.querySelector('.h-app input[type="number"]').disabled, band: ${has('.pace-verdict')}, value: vm.numInput })`)
 		check(inChange && !after4.changing && after4.locked && after4.band && after4.value === '9',
 			'„Change" getippt, 4 s gewartet: Korrekturmodus von selbst beendet (Regel a, lokales Fenster um), Eingabe wieder „9" und gesperrt, Band statt „Submit" — ' + JSON.stringify(after4))
-		// Regel (c): eine Korrektur, die erst nach dem Server-Fenster ankommt (langsames
-		// Netz). Die Oberfläche bietet „Change" nach dem Fenster nicht mehr an —
-		// deshalb über die Vue-Instanz, auf demselben Weg wie der Knopf.
+		// Rule (c): a correction that only arrives after the server window (slow
+		// network). The UI no longer offers "Change" after the window, so this
+		// goes through the Vue instance, the same way as the button.
 		await s.script(`const vm = ${PHONE_VM}; vm.startChange(); vm.numInput = '8'; vm.doSubmit(); return true`)
 		await until(`${has('.pulse-toast')} && !vm.busy`, 'Toast nach der späten Korrektur', 8000)
 		const late = await vm(`({ changing: vm.changing, value: vm.numInput, toast: document.querySelector('.pulse-toast').textContent.trim() })`)
@@ -2559,7 +2569,7 @@ async function pacePhonePass(s, dark) {
 		check(!late.changing && late.value === '9' && /already answered/i.test(late.toast),
 			'Späte Korrektur: Toast „' + late.toast + '", changing=' + late.changing + ', Eingabe „' + late.value + '"; Urteil + aktives Weiter ' + secs(tAlive) + ' danach; Verlauf ' + await verdictLog())
 
-		// Neuladen nach dem Antworten auf Frage 2: Eingabe und Band wieder da, kein „Change".
+		// Reload after answering question 2: input and band are back, no "Change".
 		await phoneAt(s, url(P.e2e.code), PHONE)
 		await waitFor(s, '.pace-verdict')
 		const re = await vm(`({ value: document.querySelector('.h-app input[type="number"]').value, verdict: document.querySelector('.pace-verdict').dataset.verdict, change: ${has('.fix-bar')}, next: !document.querySelector('.pace-next').disabled })`)
@@ -2569,7 +2579,7 @@ async function pacePhonePass(s, dark) {
 		check(!!leak && !leak.error && leak.keys.length === 0 && leak.results === null && leak.leaderboard === null,
 			'Leck-Prüfung /state auf Frage 2 (vor der Freigabe): ' + JSON.stringify(leak))
 
-		// Abgebrochenes /next (offene Zeile geschlossen, nächste nicht gestartet): Weiter-Karte heilt.
+		// Aborted /next (open row closed, next one not started): the continue card heals it.
 		probe('leave', P.e2e.code, sam)
 		const tCont = await until('vm.paceCard === "continue"', 'Weiter-Karte', 12000)
 		await phone({
@@ -2583,16 +2593,16 @@ async function pacePhonePass(s, dark) {
 		const cad = await stateCadence(s, 9000)
 		note('Takt auf einer unbeantworteten Frage ohne Timer: ' + cad.n + ' Abrufe in 9 s, Abstände ' + (cad.gaps.join(' / ') || '—') + ' ms (Soll 4000)')
 	} else {
-		// Dunkel: weiter, Frage 2 überspringen (erst nach 1,5 s scharf).
+		// Dark: continue, skip question 2 (armed only after 1.5 s).
 		await s.click('.pace-next')
 		await skipTo(2)
 		await waitFor(s, '.h-app .free-vote input[type="text"]')
 	}
 
-	// Frage 3: Freitext, weder angenommen noch abgelehnt -> „Being checked".
+	// Question 3: free text, neither accepted nor rejected -> "Being checked".
 	await s.script(VERDICT_LOG)
 	await s.type('.h-app .free-vote input[type="text"]', 'X-Frame')
-	await waitFor(s, '.h-submit .submit-btn:not([disabled])', 5000) // Antwortsperre nach dem Fragewechsel
+	await waitFor(s, '.h-submit .submit-btn:not([disabled])', 5000) // answer lock after the question switch
 	await s.click('.h-submit .submit-btn')
 	const tP = await until(has('.pace-verdict[data-verdict="pending"]'), '„Being checked"', 15000)
 	const lastLabel = await s.script('return document.querySelector(".pace-next").textContent.trim()')
@@ -2612,7 +2622,7 @@ async function pacePhonePass(s, dark) {
 	})
 
 	if (!dark) {
-		// Eigene Antworten vor der Freigabe (§2.8).
+		// Own answers before the release (§2.8).
 		await s.click(card('through') + ' .review-cta')
 		await waitFor(s, '.review')
 		await phone({
@@ -2628,7 +2638,7 @@ async function pacePhonePass(s, dark) {
 		await s.click('.review-head .pulse-btn')
 		await waitFor(s, card('through'))
 
-		// Geschlossen, noch nicht freigegeben: roh, denn `close` gäbe ohne Frist sofort frei.
+		// Closed, not released yet: raw, because `close` without a deadline would release immediately.
 		probe('window', P.e2e.code, 'closedAt=now')
 		const tClosed = await until('vm.paceCard === "closed"', 'Geschlossen-Karte (e2e)', 15000)
 		await phone({
@@ -2647,7 +2657,7 @@ async function pacePhonePass(s, dark) {
 		check(fr.title === 'All results' && fr.results > 0, 'Auswertung nach der Freigabe: ' + JSON.stringify(fr))
 	}
 
-	// ── Zeitablauf auf timed (zwei Fragen à 5 s, Timer) ──────────────────
+	// ── Time-up on timed (two questions of 5 s each, timer) ──────────────
 	await join(P.timed.code, dark ? 'Wyn' : 'Vic')
 	await waitFor(s, card('start'))
 	await s.click(card('start') + ' .submit')
@@ -2663,8 +2673,8 @@ async function pacePhonePass(s, dark) {
 	if (dark) {
 		await s.click('.pace-timeup .pace-next')
 	} else {
-		// Doppeltipp am Zeitablauf: der zweite Tipp landet auf Karte B der Wahr/Falsch-Frage 2 —
-		// die Antwortsperre (paceHold, 0,6 s ab Fragewechsel) muss ihn schlucken.
+		// Double tap at time-up: the second tap lands on card B of True/False question 2;
+		// the answer lock (paceHold, 0.6 s from the question switch) has to swallow it.
 		const td = await s.async(TIMEUP_DOUBLE_TAP)
 		const onCard = (h) => /^button\.choice\b/.test(h || '')
 		check(!!td && !td.timeout && td.k === 2 && td.voted === false && !td.busy && onCard(td.h3) && onCard(td.h4) && td.held && td.armedMs !== null && td.sameLook,
@@ -2681,7 +2691,7 @@ async function pacePhonePass(s, dark) {
 	}
 
 	if (!dark) {
-		// ── Hausaufgabe (Frist, ohne Timer, Auflösung am Ende) ────────────
+		// ── Homework (deadline, no timer, reveal at the end) ──────────────
 		await join(P.homework.code, 'Hana')
 		await waitFor(s, card('start'))
 		await s.click(card('start') + ' .submit')
@@ -2730,7 +2740,7 @@ async function pacePhonePass(s, dark) {
 			'Hausaufgabe-Auswertung: ' + JSON.stringify(hr))
 		await s.click('.review-head .pulse-btn')
 
-		// ── Zuordnung mit acht Paaren bei 320 × 640 (match8) ─────────────
+		// ── Matching with eight pairs at 320 × 640 (match8) ──────────────
 		await join(P.match8.code, 'Max', [320, 640])
 		await waitFor(s, card('start'))
 		await s.click(card('start') + ' .submit')
@@ -2739,7 +2749,7 @@ async function pacePhonePass(s, dark) {
 			name: 'pace-phone-match8-320', size: [320, 640], waitSel: '.mrow-list',
 			note: 'Zuordnung mit acht Paaren bei 320 × 640, unbeantwortet: Absende-Zone über der Falz, Frage sichtbar',
 		})
-		// Alle acht zuordnen — über dieselben Methoden wie das Auswahlblatt.
+		// Assign all eight, through the same methods as the selection sheet.
 		await s.script(`const vm = ${PHONE_VM}; vm.matchItems.forEach((it, i) => { vm.openSheet(it.id); vm.chooseTarget(vm.matchTargets[i].id) }); return true`)
 		await phone({
 			name: 'pace-phone-match8-assigned-320', size: [320, 640], waitSel: '.h-submit .submit-btn:not([disabled])',
@@ -2753,7 +2763,7 @@ async function pacePhonePass(s, dark) {
 		})
 	}
 
-	// ── Warten im Entwurf mit Schwung-Zeile; hell danach zurückgesetzt -> neue Runde ──
+	// ── Waiting in draft with the momentum line; light: reset afterwards -> new round ──
 	probe('present', P.draft.code, '4')
 	await join(P.draft.code, dark ? 'Uma' : 'Tao')
 	await waitFor(s, card('wait'))
@@ -2765,14 +2775,14 @@ async function pacePhonePass(s, dark) {
 		await s.go('about:blank')
 		return
 	}
-	await s.go('about:blank') // §6.4: nie zurücksetzen, während eine Seite pollt
+	await s.go('about:blank') // §6.4: never reset while a page is polling
 	probe('reset', P.draft.code)
 	await phone({
 		name: 'pace-phone-new-round', url: url(P.draft.code), waitSel: '.nick .pace-notice',
 		note: 'Nach dem Zurücksetzen neu geladen: „A new round has started — choose your name."',
 	})
 
-	// ── Geschlossen mit Eingabe: Start, Text tippen, nicht senden, Frist vorbei ──
+	// ── Closed with input: start, type text, do not send, deadline passed ──
 	await phoneAt(s, url(P.late.code), PHONE)
 	await waitFor(s, card('start'))
 	await s.click(card('start') + ' .submit')
@@ -2786,7 +2796,7 @@ async function pacePhonePass(s, dark) {
 	})
 	note('Geschlossen-Karte ' + secs(tLost) + ' nach „probe window closesAt=now-1" (Soll ≤ 4 s + Abruf)')
 
-	// Zweites Handy ohne Namen (Cookie kurz weg): geschlossen -> kein Beitritt.
+	// Second phone without a name (cookie briefly removed): closed -> no joining.
 	const rika = await s.cookie('pulse_vt')
 	await s.dropCookie('pulse_vt')
 	await phone({
@@ -2801,14 +2811,14 @@ async function pacePhonePass(s, dark) {
 		note: 'Freigegeben mit Rangliste (paceFinal): der bestehende Endstand mit eigenem Platz',
 	})
 
-	// ── Probelauf freigegeben: keine Rangliste -> Karte „Quiz finished" ──
+	// ── Practice run released: no leaderboard -> card "Quiz finished" ──
 	await join(P.practice.code, 'Pia')
 	await waitFor(s, card('start'))
 	await s.click(card('start') + ' .submit')
-	await waitFor(s, '.h-app .choices .choice:not([disabled])') // Antwortsperre nach dem Fragewechsel
+	await waitFor(s, '.h-app .choices .choice:not([disabled])') // answer lock after the question switch
 	await s.click('.choices .choice:nth-child(2)')
 	await until('vm.myResult && vm.myResult.final', 'endgültiges Urteil im Probelauf')
-	probe('close', P.practice.code) // ohne Frist: schließt und gibt frei
+	probe('close', P.practice.code) // without a deadline: closes and releases
 	try {
 		await until('vm.paceCard === "over"', 'Karte „over"', 15000)
 		await phone({
@@ -2824,21 +2834,21 @@ async function pacePhonePass(s, dark) {
 			note: 'dasselbe ohne Namen: ohne Punkte, ohne Auswertung',
 		})
 	} finally {
-		// pace-screen gibt den Probelauf selbst frei: wieder öffnen.
+		// pace-screen releases the practice run itself: reopen it.
 		probe('window', P.practice.code, 'closedAt=0', 'releasedAt=0')
 	}
 	await s.go('about:blank')
 }
 
 /*
- * Beamer im eigenen Tempo (§3, §6.2): Zustand, Kopf, Zeilen, Raster, rechte
- * Spalte, Meta-Leiste, waagerechter Überlauf (Seite, Bühne, Kiosk), Leck
- * (Fragetext oder Optionen irgendwo im Text) und der Kontrast der Rennzeilen
- * (Schrift auf Füllung / Schrift auf Spur, ≥ 4,5:1; Balken gegen Spur nur als
- * Zahl) und der Nebentexte (Meta-Chips, Legende, Kurz-URL, Fristpille — die
- * öffentliche Seite trägt data-themes="", Pulse-Dunkelwerte greifen dort
- * nicht). Großbuchstaben = Befund, die Strecke trägt ihn in die
- * Auffälligkeiten ein.
+ * Self-paced projector (§3, §6.2): state, header, rows, grid, right
+ * column, meta bar, horizontal overflow (page, stage, kiosk), leak
+ * (question text or options anywhere in the text) and the contrast of the
+ * race rows (text on fill / text on track, ≥ 4.5:1; bar against track only as
+ * a number) and of the secondary texts (meta chips, legend, short URL,
+ * deadline pill: the public page carries data-themes="", so Pulse's dark
+ * values do not apply there). Capital letters = finding; the pass enters it
+ * into the anomalies.
  */
 const PACE_SCREEN = `
 	const root = document.querySelector('.scr')
@@ -2933,25 +2943,25 @@ const PACE_SCREEN = `
 `
 
 /*
- * Eigenes Tempo, Beamer (Spezifikation §3, §5.2 Schritt 4.5): jeder Zustand
- * bei 1280×720 (PaceRun-Vorschau, PowerPoint-Add-in) und 1920×1080 — echte
- * Innenmaße, die Fensterleiste wird aufgeschlagen —, hell und dunkel. Der
- * geckodriver kennt nur eine Sitzung zugleich: je Zustand erst eine helle,
- * dann eine dunkle — so wird jeder Raumzustand nur einmal gesetzt.
+ * Self-paced, projector (specification §3, §5.2 step 4.5): every state
+ * at 1280×720 (PaceRun preview, PowerPoint add-in) and 1920×1080 (real
+ * inner dimensions; the window chrome is added on), light and dark. The
+ * geckodriver only knows one session at a time: per state first a light
+ * one, then a dark one, so every room state is set only once.
  *
- * Räume (läuft zuletzt, §6.1): mid/wide/big und race werden per `window`
- * zurückdatiert (Beitritt in den ersten 2 min, danach die Spitze), homework
- * läuft per Frist ab, race wird roh geschlossen (`window closedAt=now` — ein
- * `close` ohne Frist gäbe sofort frei) und dann freigegeben, practice
- * freigegeben, draft geöffnet und zurückgesetzt (§6.4: jede Sitzung geht vor
- * dem Schließen auf about:blank, beim Zurücksetzen pollt also nichts mehr),
- * ohne Teilnehmende wieder geöffnet und freigegeben.
+ * Rooms (runs last, §6.1): mid/wide/big and race are backdated via `window`
+ * (joining in the first 2 min, the top list after that), homework expires
+ * through its deadline, race is closed raw (`window closedAt=now`: a
+ * `close` without a deadline would release immediately) and then released,
+ * practice released, draft opened and reset (§6.4: every session goes to
+ * about:blank before closing, so nothing is polling any more at reset
+ * time), reopened without participants and released.
  */
 async function paceScreenPass() {
 	const P = paceData
 	const url = (code) => `/apps/pulse/screen/${code}`
-	// Eine Sitzung mit echten Innenmaßen 1280×720 und 1920×1080: die
-	// Fensterleiste einmal messen und aufschlagen.
+	// A session with real inner dimensions of 1280×720 and 1920×1080: measure
+	// the window chrome once and add it on.
 	const open = async (dark) => {
 		const s = await newSession(dark)
 		await s.size(DESKTOP)
@@ -2959,7 +2969,7 @@ async function paceScreenPass() {
 		s.kiosk = [[1280, 720], DESKTOP].map(([w, h]) => Object.assign([w, h + chrome], { css: w + '×' + h }))
 		return s
 	}
-	// Vor dem Schließen weg von der Beamer-Seite (§6.4).
+	// Leave the projector page before closing (§6.4).
 	const close = async (s) => { await s.go('about:blank').catch(() => {}); await s.close() }
 	const note = (text) => index.push(`| (Messung) | | ${url('<CODE>')} | ${text} |`)
 	const check = (ok, text) => {
@@ -2968,8 +2978,8 @@ async function paceScreenPass() {
 		return ok
 	}
 	const MARKS = ['RASTER', 'SPITZE ÜBER', 'NULLZEILE', 'RANGLISTE IM', 'KONTRAST UNTER', 'WAAGERECHTER', 'KIOSK LÄUFT', 'LECK', 'SUMME']
-	// Ein Zustand: 1280×720 und 1920×1080, hell und dunkel. Präsenz vor jedem
-	// Bild neu — sie gilt 15 s, vier Bilder dauern länger.
+	// One state: 1280×720 and 1920×1080, light and dark. Presence is refreshed
+	// before every image; it is valid for 15 s, and four images take longer.
 	const all = async (name, code, what, { waitSel = '.scr-lobby, .scr.is-race .scr-stage', present = 0, settle = 2500 } = {}) => {
 		for (const dark of [false, true]) {
 			const s = await open(dark)
@@ -2991,29 +3001,29 @@ async function paceScreenPass() {
 	const race = '.scr.is-race .scr-stage'
 	const lobby = '.scr-lobby'
 
-	// ── Lobby: Entwurf und „offen, noch niemand gestartet" ──────────────
+	// ── Lobby: draft and "open, nobody started yet" ─────────────────────
 	await all('draft', P.draft.code, 'Entwurf — Lobby „Not open yet" statt „Starting shortly"', { waitSel: lobby, present: 4 })
 	probe('open', P.draft.code, String(2 * 86400))
 	await all('open-idle', P.draft.code, 'offen mit Frist, noch niemand gestartet — Lobby „Join and start at your own pace." + „Open until …"', { waitSel: lobby, present: 3 })
 
-	// ── Rennen n=6: erste 2 min Beitritt, danach die Spitze (nur Punkte > 0) ──
+	// ── Race n=6: joining for the first 2 min, then the top list (points > 0 only) ──
 	probe('window', P.race.code, 'openedAt=now-30')
 	await all('race-join', P.race.code, 'Rennen n=6 in den ersten 2 min — rechts der Beitrittsblock', { waitSel: race, present: 10 })
 	probe('window', P.race.code, 'openedAt=now-600')
 	await all('race-board', P.race.code, 'Rennen n=6 nach 2 min — rechts die Spitze (nur Punkte > 0)', { waitSel: race, present: 10 })
 
-	// ── Hausaufgabe (Auflösung am Ende): nie eine Rangliste, Beitritt bleibt ──
+	// ── Homework (reveal at the end): never a leaderboard, joining stays open ──
 	await all('homework', P.homework.code, 'Hausaufgabe (Frist, Auflösung am Ende) — Beitritt bleibt, Chip „Open until …"', { waitSel: race, present: 6 })
 
-	// ── Viele Fragen: zwei Spalten (16, 20), Gruppen (24, 300 Beigetretene) ──
+	// ── Many questions: two columns (16, 20), groups (24, 300 joined) ──
 	for (const [key, what] of [['mid', 'n=16 — zwei Spalten à 8'], ['wide', 'n=20 — zwei Spalten à 10'],
 		['big', 'n=24, 300 Beigetretene — Gruppen zu 3, „Not started"']]) {
 		probe('window', P[key].code, 'openedAt=now-600')
 		await all(key, P[key].code, what + ', rechts die Spitze', { waitSel: race, present: 12 })
 	}
 
-	// ── Frist läuft ab, während der Beamer steht: lokal geschlossen, der
-	// nächste Abruf bestätigt — ohne Neuladen. ──
+	// ── The deadline expires while the projector is up: closed locally, the
+	// next poll confirms it, without reloading. ──
 	probe('window', P.homework.code, 'closesAt=now+6')
 	let waited = -1
 	const sl = await open(false)
@@ -3022,41 +3032,41 @@ async function paceScreenPass() {
 		await sl.go(HOST + url(P.homework.code))
 		await waitFor(sl, race)
 		waited = await waitForText(sl, '.scr-head', /The quiz is closed\./, 15000)
-	} catch { /* steht im Befund */ } finally { await close(sl) }
+	} catch { /* shows up in the finding */ } finally { await close(sl) }
 	check(waited >= 0, `Frist läuft vor offenem Beamer ab → Kopf „The quiz is closed." nach ${waited >= 0 ? (waited / 1000).toFixed(1) + ' s' : '— blieb aus'}, ohne Neuladen`)
 	await all('homework-expired', P.homework.code, 'Hausaufgabe nach Fristablauf — geschlossen (Auflösung am Ende)', { waitSel: race })
 
-	// ── Geschlossen mit Rückmeldung je Frage: Zähler, KEINE Rangliste ──
+	// ── Closed with feedback per question: counter, NO leaderboard ──
 	probe('window', P.race.code, 'closedAt=now')
 	await all('closed', P.race.code, 'geschlossen, Rückmeldung je Frage — Zähler, keine Rangliste (der Server schickt sie mit)', { waitSel: race, present: 10 })
 
-	// ── Freigegeben: Podium; Probelauf ohne Rangliste ──
+	// ── Released: podium; practice run without a leaderboard ──
 	probe('release', P.race.code)
 	await all('released', P.race.code, 'freigegeben — Endstand (Podium)', { waitSel: '.scr-final', settle: 6000 })
-	probe('close', P.practice.code) // ohne Frist: schließt und gibt frei
+	probe('close', P.practice.code) // without a deadline: closes and releases
 	await all('practice-released', P.practice.code, 'Probelauf freigegeben — keine Rangliste: „Quiz finished"', { waitSel: race })
 
-	// ── Freigegeben ohne Teilnehmende: [] → „No points yet" ──
-	// Zurücksetzen = Brute-Force-Falle (§6.4): hier pollt keine Seite mehr —
-	// jede Sitzung ist nach ihrem Zustand über about:blank geschlossen.
+	// ── Released without participants: [] → "No points yet" ──
+	// Resetting = brute-force trap (§6.4): no page is polling here any more;
+	// every session was closed via about:blank after its state.
 	probe('reset', P.draft.code)
 	probe('open', P.draft.code, '0')
 	await all('open-idle-race', P.draft.code, 'offen ohne Frist, niemand beigetreten — Lobby ohne Fristzeile', { waitSel: lobby })
-	probe('close', P.draft.code) // ohne Frist: schließt und gibt frei
+	probe('close', P.draft.code) // without a deadline: closes and releases
 	await all('released-empty', P.draft.code, 'freigegeben ohne Teilnehmende — „Final standings" + „No points yet"', { waitSel: race })
 }
 
 let failed = false
 try {
 	await waitForDriver()
-	// Beim Nachbessern einer einzelnen Strecke: PULSE_SHOTS_ONLY=moderator
+	// When touching up a single pass: PULSE_SHOTS_ONLY=moderator
 	const only = process.env.PULSE_SHOTS_ONLY || ''
 	const wanted = (part) => !only || only === part || (only === 'pace' && part.startsWith('pace-'))
 
 	let s
-	// Die Store-Strecke läuft allein: eigene Räume (probe.php store), eigene
-	// Bildgröße, doppelte Pixeldichte. Mit den anderen Strecken gemischt
-	// ergäbe sie keinen Sinn.
+	// The store pass runs on its own: its own rooms (probe.php store), its own
+	// image size, double pixel density. Mixed with the other passes it
+	// would make no sense.
 	if (only === 'store') {
 		console.log('Store-Bilder:')
 		s = await newSession(false, { 'layout.css.devPixelsPerPx': '2' })
@@ -3101,7 +3111,7 @@ try {
 	console.log('dunkle Oberfläche (Auswahl):')
 	s = await newSession(true)
 	try {
-		// Nur die aussagekräftigen Bühnen — alles doppelt zu schießen bringt nichts.
+		// Only the meaningful stages; shooting everything twice gains nothing.
 		await shot(s, {
 			name: 'dark-screen-lobby', url: `/apps/pulse/screen/${poll.code}`, size: DESKTOP,
 			waitSel: '.scr', note: 'Beamer Lobby, dunkel',
@@ -3111,8 +3121,8 @@ try {
 			name: 'dark-screen-poll-choice-open', url: `/apps/pulse/screen/${poll.code}`, size: DESKTOP,
 			waitSel: '.scr-stage', note: 'Beamer Multiple Choice offen, dunkel',
 		})
-		// Aufgelöst im Dunkeln: hier stehen die Prozentwerte, um deren Kontrast
-		// es in D10 geht (Abnahme §5.11).
+		// Revealed in the dark: this is where the percentages sit whose contrast
+		// D10 is about (acceptance §5.11).
 		probe('state', poll.code, String(poll.polls[0].id), 'locked')
 		await shot(s, {
 			name: 'dark-screen-poll-choice-locked', url: `/apps/pulse/screen/${poll.code}`, size: DESKTOP,
@@ -3122,10 +3132,10 @@ try {
 			name: 'dark-phone-poll-choice', url: `/apps/pulse/s/${poll.code}`, size: PHONE,
 			waitSel: '.pulse-part', note: 'Handy Abstimmen, dunkel',
 		})
-		// Die Helligkeitsstaffel mischt gegen den Bühnengrund (§7.0) — im Dunkeln
-		// läuft sie also in die andere Richtung und muss eigens geprüft werden.
-		// Dasselbe gilt für die Nullstummel der Skala und das Bild auf seiner
-		// Trägerfläche (§7.8).
+		// The lightness scale mixes against the stage background (§7.0), so in the
+		// dark it runs the other way and has to be checked separately.
+		// The same applies to the scale's zero stubs and to the image on its
+		// backing surface (§7.8).
 		const types = probeData.types
 		if (types) {
 			const byLabel = Object.fromEntries(types.polls.map((p) => [p.label, p]))
@@ -3203,7 +3213,7 @@ try {
 			console.log('pace-run übersprungen: keine pace.json (run.sh legt sie nur für pace-Strecken an)')
 		} else {
 			console.log('Eigenes Tempo — Laufansicht:')
-			// Die CSV-Knöpfe laden herunter: in einen Wegwerf-Ordner, danach weg.
+			// The CSV buttons download into a throwaway folder that is removed afterwards.
 			const dl = mkdtempSync(join(tmpdir(), 'pulse-shots-dl-'))
 			s = await newSession(false, downloadPrefs(dl))
 			try {
@@ -3225,7 +3235,7 @@ try {
 			console.log('pace-phone übersprungen: keine pace.json (run.sh legt sie nur für pace-Strecken an)')
 		} else {
 			console.log('Eigenes Tempo — Handy:')
-			// Dunkel zuerst: der helle Durchgang schließt `late` und setzt `draft` zurück.
+			// Dark first: the light pass closes `late` and resets `draft`.
 			s = await newSession(true)
 			try {
 				await pacePhonePass(s, true)
@@ -3242,8 +3252,8 @@ try {
 			console.log('pace-screen übersprungen: keine pace.json (run.sh legt sie nur für pace-Strecken an)')
 		} else {
 			console.log('Eigenes Tempo — Beamer:')
-			// Die Strecke öffnet und schließt ihre Sitzungen selbst (hell, dann
-			// dunkel je Raumzustand).
+			// The pass opens and closes its sessions itself (light, then
+			// dark per room state).
 			await paceScreenPass()
 		}
 	}

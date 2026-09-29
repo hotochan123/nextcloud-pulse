@@ -35,17 +35,21 @@ use OCP\Security\RateLimiting\ILimiter;
 use OCP\Security\RateLimiting\IRateLimitExceededException;
 
 /**
- * Öffentliche Teilnehmer-API — kein Login, kein CSRF-Token (das Publikum hat
- * keine Nextcloud-Session). Doppelabstimmung wird über ein anonymes Cookie-Token
- * verhindert, nicht über die Identität. Dasselbe Muster wie bei Freigabe-Links.
+ * Public participant API — no login, no CSRF token (the audience has
+ * no Nextcloud session). Voting twice is prevented by an anonymous cookie token,
+ * not by identity. The same pattern as for share links.
  *
- * Quiz im eigenen Tempo (PaceService::isSelf): /state baut den Zustand vor
- * der Version (es gibt keinen billigen Fingerabdruck), /join ist je IP und
- * Raum begrenzt, und /next startet die nächste Frage der Person. Moderierte
- * Räume laufen wie bisher.
+ * Self-paced quiz (PaceService::isSelf): /state builds the state before
+ * the version (there is no cheap fingerprint), /join is limited per IP and
+ * room, and /next starts the person's next question. Moderated
+ * rooms work as before.
  *
- * Parameter und Cookie kommen roh vom Client: Input bzw. voterToken() machen
- * aus Unbrauchbarem „nicht gesendet“ (nie eine PHP-Warnung, nie 500).
+ * Parameters and cookie come raw from the client: Input and voterToken() turn
+ * anything unusable into "not sent" (never a PHP warning, never a 500).
+ *
+ * Section references (§…) point to the design notes of the redesign, which are
+ * not in the public repository (see "References in code comments" in the
+ * README).
  */
 class PublicVoteController extends Controller {
     public function __construct(
@@ -59,7 +63,7 @@ class PublicVoteController extends Controller {
         private CodeGenerator $codeGenerator,
         private ITimeFactory $timeFactory,
         private IL10N $l10n,
-        // nur im eigenen Tempo angefasst:
+        // only touched in self-paced mode:
         private PaceService $paceService,
         private ILimiter $limiter,
     ) {
@@ -67,9 +71,9 @@ class PublicVoteController extends Controller {
     }
 
     /**
-     * Live-Zustand für die Teilnehmer-Seite (adaptives Polling). Der Client
-     * schickt die zuletzt gesehene `version` mit; hat sich nichts geändert,
-     * antworten wir mit 204 (leer) statt den vollen Zustand zu berechnen.
+     * Live state for the participant page (adaptive polling). The client
+     * sends the last `version` it saw; if nothing has changed,
+     * we answer with 204 (empty) instead of computing the full state.
      */
     #[PublicPage]
     #[NoCSRFRequired]
@@ -80,17 +84,17 @@ class PublicVoteController extends Controller {
             return $this->notFound();
         }
 
-        // Beamer-/Publikumsansicht pollt mit ?spectate=1: reiner Zuschauer, zählt
-        // nicht als Teilnehmer und bekommt kein Cookie (sonst verfälscht der
-        // projizierende Rechner die „dabei"-Zahl).
+        // The projector/audience view polls with ?spectate=1: a pure spectator, does
+        // not count as a participant and gets no cookie (otherwise the
+        // projecting computer would skew the "here" count).
         $spectate = $this->request->getParam('spectate') === '1';
         $token = $this->voterToken();
         $isNewToken = $token === null;
         if ($spectate) {
-            $isNewToken = false; // kein Cookie vergeben, kein Heartbeat
+            $isNewToken = false; // no cookie issued, no heartbeat
         } else {
-            // Auch reine Zuschauer (noch keine Stimme) sollen mitzählen: fehlt das
-            // Cookie, hier eins vergeben und mitschicken.
+            // People who are only watching (no vote yet) should count too: if the
+            // cookie is missing, issue one here and send it along.
             if ($isNewToken) {
                 $token = $this->codeGenerator->voterToken();
             }
@@ -99,8 +103,8 @@ class PublicVoteController extends Controller {
 
         $clientVersion = Input::str($this->request->getParam('v'));
         if (PaceService::isSelf($room)) {
-            // Eigenes Tempo: kein billiger Fingerabdruck — Zustand bauen, die
-            // Version ist sein Hash (Frist, Endgültigkeit, Zeitablauf stehen darin).
+            // Self-paced: no cheap fingerprint — build the state; the
+            // version is its hash (deadline, finality, time-out are part of it).
             $state = $this->stateService->publicState($room, $token, $spectate);
             $version = $this->stateService->selfVersion($state);
             if (!$isNewToken && $clientVersion !== '' && $clientVersion === $version) {
@@ -109,10 +113,10 @@ class PublicVoteController extends Controller {
                 return $unchanged;
             }
         } else {
-            // Unverändert seit dem letzten Poll? -> 204, ohne Tally zu bauen.
-            // (Neues Token bekommt immer den vollen Zustand + Cookie.)
-            // Zuschauer sehen die Präsenz mit (Eingangs-Anzeige der Bühne) und
-            // brauchen sie deshalb auch im Fingerabdruck.
+            // Unchanged since the last poll? -> 204, without building the tally.
+            // (A new token always gets the full state + cookie.)
+            // Spectators also see the presence (the stage's intake display) and
+            // therefore need it in the fingerprint as well.
             $version = $this->stateService->stateVersion($room, $spectate);
             if (!$isNewToken && $clientVersion !== '' && $clientVersion === $version) {
                 $unchanged = new Response();
@@ -131,10 +135,10 @@ class PublicVoteController extends Controller {
     }
 
     /**
-     * Gesamtauswertung für Teilnehmende: alle Fragen mit Ergebnissen, eigener
-     * Antwort und (Quiz) Auflösung. Wird nur auf Knopfdruck geladen, nicht
-     * gepollt. Rein lesend — kein Cookie wird vergeben, kein Heartbeat: wer die
-     * Auswertung liest, ist nicht „gerade dabei".
+     * Overall summary for participants: all questions with results, their own
+     * answer and (quiz) the reveal. Only loaded at the press of a button, not
+     * polled. Read-only — no cookie is issued, no heartbeat: whoever reads the
+     * summary is not "here right now".
      */
     #[PublicPage]
     #[NoCSRFRequired]
@@ -148,12 +152,12 @@ class PublicVoteController extends Controller {
     }
 
     /**
-     * Bild einer Frage ausliefern. Sichtbar ist es nur, solange die Frage läuft
-     * oder schon aufgelöst ist — dieselbe Schranke wie für die Frage selbst,
-     * sonst verriete das Bild die nächste Frage im Deck. Kein Cookie, kein
-     * Heartbeat; die Antwort darf gecacht werden (der Dateiname im Pfad der
-     * Frage wechselt bei jedem neuen Bild). Im eigenen Tempo nur für Personen,
-     * die die Frage erreicht haben — das <img> schickt das Cookie mit.
+     * Serve a question's image. It is only visible while the question is running
+     * or already revealed — the same barrier as for the question itself,
+     * otherwise the image would give away the next question in the deck. No cookie, no
+     * heartbeat; the response may be cached (the file name in the question's
+     * path changes with every new image). In self-paced mode only for people
+     * who have reached the question — the <img> sends the cookie along.
      */
     #[PublicPage]
     #[NoCSRFRequired]
@@ -181,12 +185,12 @@ class PublicVoteController extends Controller {
     }
 
     /**
-     * Quiz-Beitritt: Nickname wählen. Vergibt (falls nötig) das anonyme
-     * Voter-Cookie und verankert den Namen daran.
+     * Joining a quiz: choose a nickname. Issues the anonymous voter cookie
+     * (if needed) and anchors the name to it.
      *
-     * Im eigenen Tempo je IP und Raum begrenzt (PaceService::JOIN_LIMIT in
-     * JOIN_PERIOD): dort kostet eine Wegwerf-Identität sonst nichts. Moderiert
-     * nicht — eine Konferenz hinter einer NAT-IP kann mehr Beitritte haben.
+     * In self-paced mode limited per IP and room (PaceService::JOIN_LIMIT per
+     * JOIN_PERIOD): otherwise a throwaway identity costs nothing there. Not in
+     * moderated mode — a conference behind one NAT IP can have more joins.
      */
     #[PublicPage]
     #[NoCSRFRequired]
@@ -216,7 +220,7 @@ class PublicVoteController extends Controller {
         } catch (\InvalidArgumentException $e) {
             return new JSONResponse(['message' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
         } catch (RoomGoneException) {
-            // Eigenes Tempo: gelöscht, bevor die Raumsperre griff.
+            // Self-paced: deleted before the room lock took hold.
             return $this->notFound();
         }
 
@@ -227,8 +231,8 @@ class PublicVoteController extends Controller {
     }
 
     /**
-     * Stimme abgeben. Setzt bei Bedarf ein anonymes Voter-Cookie und gibt den
-     * aktualisierten Zustand zurück.
+     * Cast a vote. Sets an anonymous voter cookie if needed and returns the
+     * updated state.
      */
     #[PublicPage]
     #[NoCSRFRequired]
@@ -242,10 +246,10 @@ class PublicVoteController extends Controller {
         $token = $this->voterToken() ?? $this->codeGenerator->voterToken();
 
         try {
-            // `keyboard` verlängert nur das Korrekturfenster (§8.0). Der Wert
-            // kommt vom Client und ist damit fälschbar — er verschafft aber
-            // keinen Vorteil: die Korrektur setzt den Zeitstempel ohnehin neu.
-            // Unbrauchbar (Liste, 1e100) = wie ein älteres Handy ohne das Feld.
+            // `keyboard` only extends the correction window (§8.0). The value
+            // comes from the client and can therefore be forged — but it gives
+            // no advantage: the correction resets the timestamp anyway.
+            // Unusable (list, 1e100) = like an older phone without the field.
             $pollId = Input::int($this->request->getParam('pollId'));
             $this->voteService->recordVote(
                 $room,
@@ -261,19 +265,19 @@ class PublicVoteController extends Controller {
         }
 
         $response = new JSONResponse($this->stateWithVersion($room, $token));
-        // Cookie (erneut) setzen: httpOnly, 1 Jahr, Lax reicht für same-site-POST.
+        // Set the cookie (again): httpOnly, 1 year, Lax is enough for a same-site POST.
         $expires = $this->timeFactory->getDateTime()->add(new \DateInterval('P1Y'));
         $response->addCookie(Application::VOTER_COOKIE, $token, $expires, 'Lax');
         return $response;
     }
 
     /**
-     * Eigenes Tempo: nächste Frage holen — die einzige Stelle, an der eine Uhr
-     * startet (PaceService::next). Body: { after } = progress.after aus dem
-     * letzten Zustand; erst senden, wenn ein laufendes /vote zurück ist.
-     * Idempotent: ein veraltetes `after` (Doppeltipp, zweiter Tab) ist ein
-     * No-op mit unverändertem Zustand. Ohne Cookie gibt es keinen Spieler und
-     * nichts zu starten — hier wird deshalb keins vergeben.
+     * Self-paced: fetch the next question — the only place where a clock
+     * starts (PaceService::next). Body: { after } = progress.after from the
+     * last state; only send it once a pending /vote has returned.
+     * Idempotent: a stale `after` (double tap, second tab) is a
+     * no-op with an unchanged state. Without a cookie there is no player and
+     * nothing to start — so none is issued here.
      */
     #[PublicPage]
     #[NoCSRFRequired]
@@ -287,7 +291,7 @@ class PublicVoteController extends Controller {
         if ($token === null) {
             return new JSONResponse(['message' => $this->l10n->t('Please choose a name first.')], Http::STATUS_BAD_REQUEST);
         }
-        // JSON liefert eine Zahl, ein Formular/Query einen String aus Ziffern.
+        // JSON delivers a number, a form/query a string of digits.
         $after = $this->request->getParam('after');
         if (is_string($after) && preg_match('/^\d+$/', $after) === 1) {
             $after = (int)$after;
@@ -306,8 +310,8 @@ class PublicVoteController extends Controller {
     }
 
     /**
-     * Voller Zustand samt aktueller Änderungs-Version (für den adaptiven
-     * Client). Im eigenen Tempo ist die Version der Hash des gebauten Zustands.
+     * Full state including the current change version (for the adaptive
+     * client). In self-paced mode the version is the hash of the built state.
      */
     private function stateWithVersion(Room $room, string $token): array {
         $state = $this->stateService->publicState($room, $token);
@@ -326,11 +330,11 @@ class PublicVoteController extends Controller {
     }
 
     /**
-     * Voter-Token aus dem Cookie — nur in der Form, die CodeGenerator::voterToken
-     * vergibt. Alles andere zählt als „kein Cookie“ (state/join/vote vergeben ein
-     * neues): `pulse_vt[x]=…` kommt bei PHP als Liste an (TypeError, 500), ein
-     * überlanges oder kaputtes Token scheiterte an der varchar(32)-Spalte bzw. am
-     * UTF-8 der Datenbank (500).
+     * Voter token from the cookie — only in the form that CodeGenerator::voterToken
+     * issues. Anything else counts as "no cookie" (state/join/vote issue a
+     * new one): `pulse_vt[x]=…` arrives in PHP as a list (TypeError, 500), an
+     * overlong or broken token failed on the varchar(32) column or on the
+     * database's UTF-8 (500).
      */
     private function voterToken(): ?string {
         $token = $this->request->getCookie(Application::VOTER_COOKIE);
@@ -338,9 +342,9 @@ class PublicVoteController extends Controller {
     }
 
     /**
-     * 404 für einen unbekannten Code — als Brute-Force-Fehlversuch markiert.
-     * Greift NUR bei falschen Codes; gültige Codes (echte Teilnehmer) werden
-     * nie gethrottelt. Nach ~10 Fehlversuchen pro IP wächst die Verzögerung.
+     * 404 for an unknown code — marked as a failed brute-force attempt.
+     * Applies ONLY to wrong codes; valid codes (real participants) are
+     * never throttled. After ~10 failed attempts per IP the delay grows.
      */
     private function notFound(): JSONResponse {
         $response = new JSONResponse(['message' => $this->l10n->t('Room not found.')], Http::STATUS_NOT_FOUND);

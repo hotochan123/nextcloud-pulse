@@ -16,46 +16,46 @@
 
 <script>
 /*
- * Gestapelte Bühnen-Zeile (Redesign §7.5/§7.6).
+ * Stacked stage row (design notes §7.5/§7.6, not in the public repository).
  *
- * Die Zeile ist immer voll und zeigt, WIE sich die Stimmen verteilen — nicht
- * ihren Durchschnitt. Beim Ranking trugen die Balkenlängen zuletzt einen
- * Unterschied von 0,3 Plätzen über den stärksten visuellen Kanal; die
- * Verteilung dahinter (polarisiert oder einig?) war unsichtbar, obwohl die
- * Daten sie hergaben.
+ * The row is always full and shows HOW the votes are distributed — not
+ * their average. For ranking, the bar lengths last carried a difference
+ * of 0.3 places through the strongest visual channel; the distribution
+ * behind it (polarised or in agreement?) was invisible, even though the
+ * data had it.
  *
- * Segmentfarben kommen fertig von außen (`fill`/`ink`): geordnete Kategorien
- * bekommen die Helligkeitsstaffel, ungeordnete die Palette A–H (§7.0).
+ * Segment colours arrive ready-made from outside (`fill`/`ink`): ordered categories
+ * get the lightness ramp, unordered ones the palette A–H (§7.0).
  */
 
-// Zeilenbreite in em bei Bühnengröße, abzüglich Kopf, Rang und Wert. Grober
-// Richtwert — er entscheidet nur, ob ein Segment beschriftet wird.
+// Row width in em at stage size, minus head, rank and value. A rough
+// guide — it only decides whether a segment gets a label.
 const STACK_EM = 22
-// Platzbedarf einer Beschriftung in em: mittlere Zeichenbreite der fetten
-// Schrift plus etwas Luft. Ein Platz („3") braucht anders viel Raum als ein
-// Zielname („Postgres") — eine feste Mindestbreite würde den einen unnötig
-// unterdrücken und den anderen abschneiden.
+// Space a label needs in em: average character width of the bold
+// font plus a little air. A place ("3") needs a different amount of room than a
+// target name ("Postgres") — a fixed minimum width would needlessly
+// suppress the one and cut off the other.
 const labelEm = (text) => 0.55 * String(text).length * 0.82 + 0.6
 
 export default {
 	name: 'StageStack',
 	props: {
-		// Platzzahl links (Ranking). Leer = keine Plakette (Zuordnung).
+		// Place number on the left (ranking). Empty = no badge (matching).
 		rank: { type: [String, Number], default: '' },
 		label: { type: String, default: '' },
-		// [{ key, text, pct, fill, ink, state }] — pct ist der Anteil in Prozent.
+		// [{ key, text, pct, fill, ink, state }] — pct is the share in percent.
 		segments: { type: Array, default: () => [] },
-		// Fertig formatierter Wert rechts („Ø 2,3").
+		// Pre-formatted value on the right ("Ø 2.3").
 		value: { type: [String, Number], default: '' },
-		// Vorlesbare Beschreibung der ganzen Zeile.
+		// Screen-reader description of the whole row.
 		ariaLabel: { type: String, default: '' },
 	},
 	computed: {
 		shown() {
 			return this.segments.filter((s) => s.pct > 0).map((s) => ({
 				key: s.key,
-				// Beschriftung nur, wenn das Segment sie trägt; sonst bleibt es leer
-				// und die Legende erklärt es (§7.5).
+				// Label only if the segment can carry it; otherwise it stays empty
+				// and the legend explains it (§7.5).
 				text: (s.pct / 100) * STACK_EM >= labelEm(s.text) ? s.text : '',
 				stateCls: s.state ? 'is-' + s.state : '',
 				style: {

@@ -27,20 +27,20 @@
 
 <script>
 /*
- * PulseSegmented — Segmented-Control für Modus-/Typwahl (Handoff §4.5).
- * v-model (Vue2: prop `value` + Event `input`).
+ * PulseSegmented — segmented control for mode/type choice (design notes §4.5, not in the public repository).
+ * v-model (Vue2: prop `value` + event `input`).
  * options: [{ value, label, icon? }].
- * disabled: die ganze Gruppe steht fest (z. B. „Rückmeldung" im Probelauf) —
- *   Knöpfe disabled, keine Pfeiltasten-Wahl, sichtbar gedämpft; die Wahl
- *   bleibt lesbar.
+ * disabled: the whole group is fixed (e.g. the feedback choice in a practice run) —
+ *   buttons disabled, no arrow-key selection, visibly dimmed; the choice
+ *   stays readable.
  *
- * §4.5-Falle: bei Umbruch KEIN Voll-Pill-Radius am Container (runde Enden
- * schieben äußere Buttons über die Box) -> moderater Radius + row-gap.
+ * §4.5 trap: when wrapping, NO full pill radius on the container (round ends
+ * push the outer buttons over the box) -> moderate radius + row-gap.
  *
- * §9.5: aktive Seite gefüllt, inaktive mit Rand und vollem Textkontrast — die
- * blasse inaktive Seite las sich vorher wie „deaktiviert", also gar nicht wie
- * eine Wahl. Rolle ist deshalb radiogroup/radio (nicht tablist): es wird
- * gewählt, nicht geblättert, und Pfeiltasten wechseln.
+ * §9.5: active side filled, inactive with a border and full text contrast — the
+ * faint inactive side used to read as "disabled", i.e. not as
+ * a choice at all. That is why the role is radiogroup/radio (not tablist): you
+ * choose, you do not page, and arrow keys switch.
  */
 import PulseIcon from './PulseIcon.vue'
 
@@ -58,14 +58,14 @@ export default {
 			if (this.disabled) return
 			if (v !== this.value) this.$emit('input', v)
 		},
-		// Radiogruppe: genau EIN Segment liegt im Tab-Fluss (§9.5). Ohne das
-		// müsste man sich durch alle Segmente tabben, um weiterzukommen.
+		// Radio group: exactly ONE segment is in the tab order (§9.5). Without that
+		// you would have to tab through every segment to get past it.
 		tabIndexFor(opt, i) {
 			const active = this.options.findIndex((o) => o.value === this.value)
 			return (active < 0 ? i === 0 : opt.value === this.value) ? 0 : -1
 		},
-		// Pfeiltasten wechseln die Wahl und nehmen den Fokus mit — so verhält
-		// sich eine Radiogruppe, und die Wahl ist ohne Maus erreichbar.
+		// Arrow keys change the choice and take the focus along — that is how
+		// a radio group behaves, and the choice can be reached without a mouse.
 		onKey(e) {
 			const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key]
 			if (this.disabled || !step || !this.options.length) return
@@ -90,7 +90,7 @@ export default {
 	row-gap: 4px;
 	padding: 4px;
 	border: 1px solid var(--pulse-border);
-	border-radius: 12px; /* moderat, NICHT --pulse-r-pill (Wrap-Falle §4.5) */
+	border-radius: 12px; /* moderate, NOT --pulse-r-pill (wrap trap §4.5) */
 	background: var(--pulse-fill);
 }
 .pseg-item {
@@ -103,9 +103,9 @@ export default {
 	gap: 6px;
 	min-height: 44px;
 	padding: 0 14px;
-	/* Die inaktive Seite trug --pulse-text-2 auf --pulse-fill (3,1:1) und las
-	   sich wie „deaktiviert" statt wie „wählbar" (§9.5). Jetzt: voller
-	   Textkontrast plus eigener Rand, damit sie als Wahl erkennbar ist. */
+	/* The inactive side had --pulse-text-2 on --pulse-fill (3.1:1) and read
+	   as "disabled" instead of "selectable" (§9.5). Now: full
+	   text contrast plus its own border, so it is recognisable as a choice. */
 	border: 1px solid var(--pulse-border-strong);
 	border-radius: 9px;
 	background: transparent;
@@ -122,11 +122,11 @@ export default {
 	box-shadow: var(--pulse-shadow-card);
 }
 .pseg-item:focus-visible { outline: 2px solid var(--pulse-primary); outline-offset: 2px; }
-/* Feste Wahl: gedämpft, aber lesbar — die aktive Seite bleibt erkennbar. */
+/* Fixed choice: dimmed, but readable — the active side stays recognisable. */
 .pseg.is-disabled { opacity: .55; }
-/* Nextcloud färbt jeden deaktivierten <button> grau ein und halbiert die
-   Deckkraft (core: button:disabled) — hier trägt die Gruppe die Dämpfung,
-   die Segmente behalten ihre Optik. */
+/* Nextcloud greys out every disabled <button> and halves its
+   opacity (core: button:disabled) — here the group carries the dimming,
+   the segments keep their look. */
 .pseg.is-disabled .pseg-item:disabled {
 	opacity: 1;
 	cursor: default;

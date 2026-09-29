@@ -2,16 +2,16 @@
 # SPDX-FileCopyrightText: 2026 hotochan123
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# Screenshots aller Pulse-Ansichten — Prüfstand für Design-Durchgänge.
+# Screenshots of all Pulse views — the test bench for design passes.
 #
-#   dev/design-shots/run.sh            # aufnehmen (Räume danach weg)
-#   dev/design-shots/run.sh keep       # Probe-Räume stehen lassen
-#   dev/design-shots/run.sh clean      # Probe-Nutzer + Passwortdatei entfernen
-#   dev/design-shots/run.sh store      # die fünf Bilder für die Store-Seite
+#   dev/design-shots/run.sh            # capture (rooms removed afterwards)
+#   dev/design-shots/run.sh keep       # leave the probe rooms in place
+#   dev/design-shots/run.sh clean      # remove the probe user + password file
+#   dev/design-shots/run.sh store      # the six images for the store page
 #
-# Legt einen Wegwerf-Nutzer an (die Probe-Räume brauchen einen Besitzer, und der
-# Moderator-Screenshot einen Login), baut zwei Räume mit je einer Frage pro Typ,
-# füllt sie über den Demo-Weg mit Stimmen und fotografiert jede Ansicht.
+# Creates a throwaway user (the probe rooms need an owner, and the
+# moderator screenshot a login), builds two rooms with one question per type each,
+# fills them with votes via the demo path and photographs every view.
 set -eu
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -34,11 +34,11 @@ if [ "$MODE" = "clean" ]; then
 	exit 0
 fi
 
-# Gegen welche Instanz? PULSE_HOST schlägt alles, sonst eine Zeile in .host
-# (Store-Strecke: .store-host, dort muss der öffentliche Name stehen). Beide
-# Dateien sind nicht im Repo. Bewusst ohne Voreinstellung: eine fremde Adresse
-# als Rückfall schickte den Login des Wegwerf-Nutzers an eine Instanz, auf der
-# er gar nicht existiert.
+# Against which instance? PULSE_HOST beats everything, otherwise one line in .host
+# (store run: .store-host, which must contain the public name). Neither
+# file is in the repository. Deliberately without a default: a foreign address
+# as a fallback would send the throwaway user's login to an instance on which
+# it does not even exist.
 if [ "$MODE" = "store" ]; then HOST_FILE="$HERE/.store-host"; else HOST_FILE="$HERE/.host"; fi
 if [ -z "${PULSE_HOST:-}" ] && [ -f "$HOST_FILE" ]; then
 	PULSE_HOST="$(tr -d '[:space:]' < "$HOST_FILE")"
@@ -56,7 +56,7 @@ export PULSE_HOST
 }
 command -v firefox >/dev/null || { echo "firefox fehlt auf dem Host" >&2; exit 1; }
 
-# Nutzer nur anlegen, wenn er fehlt — sonst bleibt das Passwort gültig.
+# Only create the user if it is missing — otherwise the password stays valid.
 if ! occ user:info "$UID_SHOTS" >/dev/null 2>&1; then
 	echo "==> Wegwerf-Nutzer $UID_SHOTS anlegen"
 	openssl rand -base64 18 > "$HERE/.shots-pass"
@@ -66,20 +66,20 @@ if ! occ user:info "$UID_SHOTS" >/dev/null 2>&1; then
 		--display-name="Pulse Shots" "$UID_SHOTS"
 fi
 
-# Ohne das legt sich der Willkommens-Dialog von Nextcloud über den ersten
-# Moderator-Screenshot.
+# Without this, Nextcloud's welcome dialog covers the first
+# moderator screenshot.
 occ user:setting "$UID_SHOTS" firstrunwizard show 99.0.0 >/dev/null
 
-# Die Oberfläche der angemeldeten Ansichten folgt der Spracheinstellung des
-# Nutzers, nicht dem Accept-Language des Browsers. Für die Store-Bilder muss sie
-# englisch sein; dem übrigen Prüfstand schadet es nicht.
+# The UI of the logged-in views follows the user's language setting,
+# not the browser's Accept-Language. For the store images it has to be
+# English; it does no harm to the rest of the test bench.
 occ user:setting "$UID_SHOTS" core lang en >/dev/null
 
 if [ "$MODE" = "store" ]; then
-	# Die Store-Bilder brauchen eigene Räume (aufgeräumte Inhalte, eine
-	# Rangliste ohne doppelte Namen) und den öffentlichen Hostnamen: er steht
-	# im Beitritts-Link und im QR-Code, und der interne gehört nicht auf eine
-	# öffentliche Store-Seite.
+	# The store images need their own rooms (tidy content, a
+	# leaderboard without duplicate names) and the public host name: it appears
+	# in the join link and in the QR code, and the internal one does not belong on a
+	# public store page.
 	[ -n "$OUT_ENV" ] || OUT="$HERE/out-store"
 	echo "==> Store-Räume bauen"
 	probe destroy "$UID_SHOTS" >/dev/null 2>&1 || true
@@ -92,10 +92,10 @@ else
 	echo "==> Probe-Räume bauen"
 	probe destroy "$UID_SHOTS" >/dev/null 2>&1 || true
 	probe create "$UID_SHOTS" > "$HERE/probe.json"
-	# Räume im eigenen Tempo (pace.json) nur für die pace-Strecken, die
-	# Einbett-Shell (ein Rennen im Rahmen) oder den vollen Lauf: allein
-	# `race 300` dauert eine Weile, und die übrigen Strecken brauchen sie
-	# nicht. Eine alte pace.json nennt sonst gelöschte Räume.
+	# Self-paced rooms (pace.json) only for the pace runs, the
+	# embed shell (a race inside the frame) or the full run: `race 300`
+	# alone takes a while, and the other runs do not need them.
+	# Otherwise an old pace.json would name deleted rooms.
 	case "${PULSE_SHOTS_ONLY:-}" in
 		''|pace*|embed) probe pace-create "$UID_SHOTS" > "$HERE/pace.json" ;;
 		*) rm -f "$HERE/pace.json" ;;

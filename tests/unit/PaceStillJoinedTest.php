@@ -27,13 +27,13 @@ use PHPUnit\Framework\TestCase;
 use ReflectionProperty;
 
 /**
- * Wettläufe mit dem Entfernen und Löschen: /vote und /next sperren den Raum
- * nicht. Committet removePlayer (oder das Löschen des Raums) zwischen ihrer
- * Spielerprüfung und dem Schreiben, bliebe eine Stimme oder Zeile ohne Spieler
- * — sie zählte in Fortschritt und Auszählung, und das Cookie erbte sie beim
- * erneuten Beitritt. assertStillJoined liest den Spieler danach sperrend nach
- * und räumt; locked() macht aus einem gelöschten Raum RoomGoneException (404)
- * statt eines 500.
+ * Races with removal and deletion: /vote and /next do not lock the room.
+ * If removePlayer (or deleting the room) commits between their player check
+ * and the write, a vote or row would be left without a player; it would count
+ * in progress and tallying, and the cookie would inherit it on rejoining.
+ * assertStillJoined afterwards re-reads the player under a lock and cleans up;
+ * locked() turns a deleted room into RoomGoneException (404) instead of
+ * a 500.
  */
 #[CoversClass(PaceService::class)]
 class PaceStillJoinedTest extends TestCase {
@@ -44,11 +44,11 @@ class PaceStillJoinedTest extends TestCase {
     private PaceService $service;
     private RoomMapper&MockObject $rooms;
     private PlayerMapper&MockObject $players;
-    /** @var list<string> Löschaufrufe */
+    /** @var list<string> Delete calls */
     private array $calls = [];
-    /** @var list<string> Transaktionsfolge */
+    /** @var list<string> Transaction sequence */
     private array $tx = [];
-    /** @var list<bool> Antworten von existsForUpdate, der Reihe nach */
+    /** @var list<bool> Answers from existsForUpdate, in order */
     private array $joined = [];
 
     protected function setUp(): void {
@@ -125,8 +125,8 @@ class PaceStillJoinedTest extends TestCase {
     }
 
     public function testInzwischenNeuBeigetretenBleibtUnberuehrt(): void {
-        // Das Cookie ist schon wieder drin: selfJoin hat geräumt, was jetzt
-        // liegt, gehört der neuen Identität. Die alte Anfrage scheitert trotzdem.
+        // The cookie is already back in: selfJoin has cleaned up, and whatever is
+        // there now belongs to the new identity. The old request still fails.
         $this->joined = [false, true];
         $this->rooms->method('lockForUpdate')->willReturnCallback(fn (): Room => $this->room());
 
@@ -136,9 +136,9 @@ class PaceStillJoinedTest extends TestCase {
     }
 
     public function testRaumGeloeschtRaeumtOhneSperreUndMeldetNichtGefunden(): void {
-        // deleteRoom hat Spieler, Stimmen und Fortschritt schon gelöscht — nur
-        // was diese Anfrage danach schrieb, räumt sie selbst (Reihenfolge vom
-        // übergebenen Raum, den es nicht mehr gibt).
+        // deleteRoom has already deleted players, votes and progress; the request
+        // only cleans up what it wrote afterwards itself (order taken from the
+        // passed-in room, which no longer exists).
         $this->joined = [false];
         $this->rooms->method('lockForUpdate')->willThrowException(new DoesNotExistException('weg'));
 
@@ -166,8 +166,8 @@ class PaceStillJoinedTest extends TestCase {
     }
 
     public function testGeloeschterRaumIstNichtGefundenStattFehler(): void {
-        // Anderer Tab oder Aufräum-Job hat den Raum gelöscht, nachdem die Anfrage
-        // ihn geladen hatte: 404 in den Controllern, kein 500.
+        // Another tab or the cleanup job deleted the room after the request
+        // had loaded it: 404 in the controllers, not a 500.
         $this->rooms->method('lockForUpdate')->willThrowException(new DoesNotExistException('weg'));
         $called = false;
 
@@ -193,7 +193,7 @@ class PaceStillJoinedTest extends TestCase {
         $this->assertSame(['votes:11,12,13:' . self::TOK, 'progress:5:' . self::TOK], $this->calls);
     }
 
-    // ── Helfer ─────────────────────────────────────────────────────────────
+    // ── Helpers ────────────────────────────────────────────────────────────
 
     private function assertRejected(): void {
         try {

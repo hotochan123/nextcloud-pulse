@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: 2026 hotochan123
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-/** Öffentliche Teilnehmer-Oberfläche (ohne Konto). */
+/** Public participant interface (no account needed). */
 \OCP\Util::addStyle('pulse', 'public');
 \OCP\Util::addScript('pulse', 'pulse-public');
 ?>

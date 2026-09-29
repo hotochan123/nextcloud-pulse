@@ -7,13 +7,13 @@ declare(strict_types=1);
 
 return [
     'routes' => [
-        // ── Moderator-SPA (Login erforderlich) ──────────────────────────────
+        // ── Moderator SPA (login required) ──────────────────────────────────
         ['name' => 'page#index', 'url' => '/', 'verb' => 'GET'],
-        // history-mode Deep-Links der Moderator-SPA auf denselben Einstieg mappen
+        // map history-mode deep links of the moderator SPA to the same entry point
         ['name' => 'page#index', 'url' => '/room/{code}', 'verb' => 'GET',
             'requirements' => ['code' => '[A-Za-z0-9]{6}'], 'postfix' => 'room'],
 
-        // ── Moderator-API (Login erforderlich) ──────────────────────────────
+        // ── Moderator API (login required) ──────────────────────────────────
         ['name' => 'roomApi#index',      'url' => '/api/1.0/rooms',                       'verb' => 'GET'],
         ['name' => 'roomApi#create',     'url' => '/api/1.0/rooms',                       'verb' => 'POST'],
         ['name' => 'roomApi#summary',    'url' => '/api/1.0/rooms/{code}/summary',        'verb' => 'GET', 'requirements' => ['code' => '[A-Za-z0-9]{6}']],
@@ -23,13 +23,13 @@ return [
         ['name' => 'roomApi#destroy',    'url' => '/api/1.0/rooms/{code}',                'verb' => 'DELETE', 'requirements' => ['code' => '[A-Za-z0-9]{6}']],
         ['name' => 'roomApi#rename',     'url' => '/api/1.0/rooms/{code}/title',          'verb' => 'POST',   'requirements' => ['code' => '[A-Za-z0-9]{6}']],
         ['name' => 'roomApi#duplicate',  'url' => '/api/1.0/rooms/{code}/duplicate',      'verb' => 'POST',   'requirements' => ['code' => '[A-Za-z0-9]{6}']],
-        // Raum leeren (Stimmen+Teilnehmer+Rangliste), Probelauf ein-/ausschalten
+        // Empty the room (votes+participants+leaderboard), switch the practice run on/off
         ['name' => 'roomApi#resetRoom',  'url' => '/api/1.0/rooms/{code}/reset',          'verb' => 'POST',   'requirements' => ['code' => '[A-Za-z0-9]{6}']],
         ['name' => 'roomApi#practice',   'url' => '/api/1.0/rooms/{code}/practice',       'verb' => 'POST',   'requirements' => ['code' => '[A-Za-z0-9]{6}']],
-        // Quiz: Auflösung-am-Ende umschalten, Quiz beenden (letzte Frage auflösen)
+        // Quiz: toggle reveal-at-the-end, end the quiz (reveal the last question)
         ['name' => 'roomApi#reveal',     'url' => '/api/1.0/rooms/{code}/reveal',         'verb' => 'POST',   'requirements' => ['code' => '[A-Za-z0-9]{6}']],
         ['name' => 'roomApi#endQuiz',    'url' => '/api/1.0/rooms/{code}/end',            'verb' => 'POST',   'requirements' => ['code' => '[A-Za-z0-9]{6}']],
-        // Deck: Frage anhängen, Cursor setzen, Frage löschen
+        // Deck: append a question, set the cursor, delete a question
         ['name' => 'roomApi#addPoll',    'url' => '/api/1.0/rooms/{code}/polls',          'verb' => 'POST',   'requirements' => ['code' => '[A-Za-z0-9]{6}']],
         ['name' => 'roomApi#reorder',    'url' => '/api/1.0/rooms/{code}/deck/order',     'verb' => 'POST',   'requirements' => ['code' => '[A-Za-z0-9]{6}']],
         ['name' => 'roomApi#setCurrent', 'url' => '/api/1.0/rooms/{code}/current',        'verb' => 'POST',   'requirements' => ['code' => '[A-Za-z0-9]{6}']],
@@ -37,49 +37,49 @@ return [
         ['name' => 'roomApi#deletePoll', 'url' => '/api/1.0/rooms/{code}/polls/{pollId}',         'verb' => 'DELETE', 'requirements' => ['code' => '[A-Za-z0-9]{6}', 'pollId' => '\d+']],
         ['name' => 'roomApi#results',    'url' => '/api/1.0/rooms/{code}/polls/{pollId}/results', 'verb' => 'GET',  'requirements' => ['code' => '[A-Za-z0-9]{6}', 'pollId' => '\d+']],
         ['name' => 'roomApi#resetPoll',  'url' => '/api/1.0/rooms/{code}/polls/{pollId}/reset',   'verb' => 'POST', 'requirements' => ['code' => '[A-Za-z0-9]{6}', 'pollId' => '\d+']],
-        // Bild zur Frage: hochladen, entfernen, (Moderator-)Vorschau
+        // Question image: upload, remove, (moderator) preview
         ['name' => 'roomApi#uploadImage','url' => '/api/1.0/rooms/{code}/polls/{pollId}/image', 'verb' => 'POST',   'requirements' => ['code' => '[A-Za-z0-9]{6}', 'pollId' => '\d+']],
         ['name' => 'roomApi#deleteImage','url' => '/api/1.0/rooms/{code}/polls/{pollId}/image', 'verb' => 'DELETE', 'requirements' => ['code' => '[A-Za-z0-9]{6}', 'pollId' => '\d+']],
         ['name' => 'roomApi#showImage',  'url' => '/api/1.0/rooms/{code}/polls/{pollId}/image', 'verb' => 'GET',    'requirements' => ['code' => '[A-Za-z0-9]{6}', 'pollId' => '\d+']],
         ['name' => 'roomApi#gradeAnswer','url' => '/api/1.0/rooms/{code}/polls/{pollId}/grade',   'verb' => 'POST', 'requirements' => ['code' => '[A-Za-z0-9]{6}', 'pollId' => '\d+']],
         ['name' => 'roomApi#lockPoll',  'url' => '/api/1.0/rooms/{code}/polls/{pollId}/lock',   'verb' => 'POST', 'requirements' => ['code' => '[A-Za-z0-9]{6}', 'pollId' => '\d+']],
         ['name' => 'roomApi#unlockPoll','url' => '/api/1.0/rooms/{code}/polls/{pollId}/unlock', 'verb' => 'POST', 'requirements' => ['code' => '[A-Za-z0-9]{6}', 'pollId' => '\d+']],
-        // Demo-/Testmodus: aktive Frage mit synthetischen Stimmen befüllen / wieder leeren
+        // Demo/test mode: fill the active question with synthetic votes / empty it again
         ['name' => 'roomApi#demoSeed',  'url' => '/api/1.0/rooms/{code}/demo', 'verb' => 'POST',   'requirements' => ['code' => '[A-Za-z0-9]{6}']],
         ['name' => 'roomApi#demoClear', 'url' => '/api/1.0/rooms/{code}/demo', 'verb' => 'DELETE', 'requirements' => ['code' => '[A-Za-z0-9]{6}']],
-        // Quiz im eigenen Tempo: Tempo umschalten, Fenster öffnen/schließen/verlängern/freigeben,
-        // Beitritt sperren, Person entfernen
+        // Self-paced quiz: switch the pace, open/close/extend/release the window,
+        // lock joining, remove a person
         ['name' => 'roomApi#pace',      'url' => '/api/1.0/rooms/{code}/pace',     'verb' => 'POST', 'requirements' => ['code' => '[A-Za-z0-9]{6}']],
-        // Fortschritt je Person/Frage (Rennen/Hausaufgabe), adaptiv gepollt mit ?v=
+        // Progress per person/question (race/homework), polled adaptively with ?v=
         ['name' => 'roomApi#progress',  'url' => '/api/1.0/rooms/{code}/progress', 'verb' => 'GET',  'requirements' => ['code' => '[A-Za-z0-9]{6}']],
 
-        // ── Beitritts-Seite (öffentlich): Code eintippen ────────────────────
+        // ── Join page (public): type in the code ────────────────────────────
         ['name' => 'public#join', 'url' => '/join', 'verb' => 'GET'],
 
-        // ── Teilnehmer-Seite (öffentlich, ohne Account) ─────────────────────
-        // Der Raumcode IST das Freigabe-Token, wie /s/{token} bei Freigabe-Links.
+        // ── Participant page (public, no account) ───────────────────────────
+        // The room code IS the share token, like /s/{token} for share links.
         ['name' => 'public#show', 'url' => '/s/{code}', 'verb' => 'GET', 'requirements' => ['code' => '[A-Za-z0-9]{6}']],
 
-        // ── Beamer-/Publikumsansicht (öffentlich): Großbild für die Projektion ──
+        // ── Projector/audience view (public): big screen for the projection ──
         ['name' => 'public#screen', 'url' => '/screen/{code}', 'verb' => 'GET', 'requirements' => ['code' => '[A-Za-z0-9]{6}']],
 
-        // ── Einbett-Shell fürs Office-/PowerPoint-Add-in (öffentlich, Content-Add-in) ──
+        // ── Embed shell for the Office/PowerPoint add-in (public, content add-in) ──
         ['name' => 'public#embed', 'url' => '/embed', 'verb' => 'GET'],
 
-        // ── Office-Manifest des Add-ins, mit den Adressen DIESER Instanz gefüllt ──
-        // Ein Office-Manifest kennt keine Variablen; deshalb erzeugt es der
-        // Server, statt es als Vorlage zum Nachbessern auszuliefern.
+        // ── Office manifest of the add-in, filled with the addresses of THIS instance ──
+        // An Office manifest knows no variables; that is why the server generates
+        // it instead of shipping it as a template to be patched by hand.
         ['name' => 'addin#manifest', 'url' => '/addin/manifest.xml', 'verb' => 'GET'],
 
-        // ── Teilnehmer-API (öffentlich; #[PublicPage]/#[NoCSRFRequired] am Controller) ──
+        // ── Participant API (public; #[PublicPage]/#[NoCSRFRequired] on the controller) ──
         ['name' => 'publicVote#state', 'url' => '/s/{code}/state', 'verb' => 'GET',  'requirements' => ['code' => '[A-Za-z0-9]{6}']],
-        // Gesamtauswertung fürs Handy (alle Fragen), nur auf Knopfdruck
+        // Overall summary for the phone (all questions), only at the push of a button
         ['name' => 'publicVote#summary', 'url' => '/s/{code}/summary', 'verb' => 'GET', 'requirements' => ['code' => '[A-Za-z0-9]{6}']],
-        // Bild einer Frage öffentlich ausliefern (nur laufende/aufgelöste Frage)
+        // Serve a question's image publicly (only the running/revealed question)
         ['name' => 'publicVote#image', 'url' => '/s/{code}/polls/{pollId}/image', 'verb' => 'GET', 'requirements' => ['code' => '[A-Za-z0-9]{6}', 'pollId' => '\d+']],
         ['name' => 'publicVote#join',  'url' => '/s/{code}/join',  'verb' => 'POST', 'requirements' => ['code' => '[A-Za-z0-9]{6}']],
         ['name' => 'publicVote#vote',  'url' => '/s/{code}/vote',  'verb' => 'POST', 'requirements' => ['code' => '[A-Za-z0-9]{6}']],
-        // Eigenes Tempo: nächste Frage holen (einzige Stelle, an der eine Uhr startet)
+        // Self-paced: fetch the next question (the only place where a clock starts)
         ['name' => 'publicVote#next',  'url' => '/s/{code}/next',  'verb' => 'POST', 'requirements' => ['code' => '[A-Za-z0-9]{6}']],
     ],
 ];

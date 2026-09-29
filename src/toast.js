@@ -2,11 +2,11 @@
  * SPDX-FileCopyrightText: 2026 hotochan123
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
-// Minimaler Toast-Ersatz für @nextcloud/dialogs.
-// Grund: dialogs zog ~3 MB faule Chunks (FilePicker, rehype-highlight) ins Bundle,
-// nur damit showError() eine Meldung zeigt. Hier komplett abhängigkeitsfrei —
-// funktioniert auf der angemeldeten Moderator- UND der öffentlichen Gast-Seite,
-// folgt dem NC-Theme über CSS-Variablen und respektiert prefers-reduced-motion.
+// Minimal toast replacement for @nextcloud/dialogs.
+// Reason: dialogs pulled ~3 MB of lazy chunks (FilePicker, rehype-highlight) into the bundle
+// just so that showError() can display a message. This one has no dependencies at all:
+// it works on the signed-in moderator page AND the public guest page,
+// follows the NC theme via CSS variables and respects prefers-reduced-motion.
 import { t } from './util/l10n.js'
 
 let container = null
@@ -45,8 +45,8 @@ function ensureContainer() {
 }
 
 /**
- * Zeigt eine kurze Fehlermeldung. Auto-Dismiss nach `timeout` ms, Klick schließt.
- * Signatur-kompatibel zur bisherigen showError-Nutzung.
+ * Shows a short error message. Auto-dismiss after `timeout` ms, a click closes it.
+ * Signature-compatible with the previous showError usage.
  */
 function showToast(message, opts = {}) {
 	const variant = opts.variant || 'error'
@@ -65,12 +65,12 @@ function showToast(message, opts = {}) {
 	return { hideToast: remove }
 }
 
-/** Kurze Fehlermeldung (rot, role=alert). Klick oder Timeout schließt. */
+/** Short error message (red, role=alert). A click or the timeout closes it. */
 export function showError(message, timeout = 5000) {
 	return showToast(message, { variant: 'error', role: 'alert', timeout })
 }
 
-/** Kurze Erfolgsmeldung (gruen, role=status). */
+/** Short success message (green, role=status). */
 export function showSuccess(message, timeout = 3000) {
 	return showToast(message, { variant: 'success', role: 'status', timeout })
 }

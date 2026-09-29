@@ -23,6 +23,13 @@ the end, a summary with CSV export and an add-in for embedding into PowerPoint.
 
 Participants need no account (a public share page, just like share links). An
 anonymous voter token in a cookie prevents double voting without identifying anyone.
+
+How it was built: Pulse is vibe-coded. Its code, tests, documentation and German
+translation were written by AI coding agents (Anthropic's Claude Code); the
+maintainer set the goals, made the product decisions and tried the app out in
+the browser. There has been no independent human code review and no security
+audit, so please evaluate it yourself before relying on it. Details in the
+[README](https://github.com/hotochan123/hotochan123-nextcloud-pulse#how-this-app-was-built-ai-disclosure).
     ]]></description>
     <description lang="de"><![CDATA[
 Pulse bringt Mentimeter-artige Live-Umfragen nach Nextcloud. Die vortragende Person
@@ -44,6 +51,14 @@ Zusammenfassung mit CSV-Export und ein Add-in zum Einbetten in PowerPoint.
 Teilnehmende brauchen keinen Account (öffentliche Freigabe-Seite, wie bei
 Freigabe-Links). Ein anonymes Voter-Token im Cookie verhindert Mehrfachabstimmung,
 ohne eine Person zu identifizieren.
+
+Zur Entstehung: Pulse ist „vibe-coded“. Code, Tests, Dokumentation und deutsche
+Übersetzung haben KI-Coding-Agenten geschrieben (Claude Code von Anthropic);
+hotochan123 hat die Ziele gesetzt, die Produktentscheidungen getroffen und die
+App im Browser ausprobiert. Es gab keine unabhängige menschliche Code-Prüfung und kein
+Sicherheitsaudit — bitte vor dem Einsatz selbst prüfen. Details in der
+[README](https://github.com/hotochan123/hotochan123-nextcloud-pulse#how-this-app-was-built-ai-disclosure)
+(englisch).
     ]]></description>
     <version>0.18.0</version>
     <licence>agpl</licence>

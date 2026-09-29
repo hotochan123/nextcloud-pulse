@@ -18,27 +18,27 @@ use OCP\SetupCheck\SetupResult;
 use Psr\Log\LoggerInterface;
 
 /**
- * Prüft, ob die Einbett-Shell (/apps/pulse/embed) in PowerPoint framebar ist.
+ * Checks whether the embed shell (/apps/pulse/embed) can be framed in PowerPoint.
  *
- * Nextcloud sendet „X-Frame-Options: SAMEORIGIN" — unter Apache aus der
- * .htaccess mit „always set", was PHP nicht überschreiben kann. Die App kann
- * den Header also nicht selbst loswerden; er muss am Webserver oder Proxy
- * fallen. Ohne diese Prüfung scheitert das still: die Beamer-Seite lädt im
- * Browser weiter, in der Folie bleibt ein weißer Kasten und nichts im Log
- * verrät warum.
+ * Nextcloud sends "X-Frame-Options: SAMEORIGIN" — under Apache from the
+ * .htaccess with "always set", which PHP cannot override. So the app cannot
+ * get rid of the header itself; it has to be dropped at the web server or
+ * proxy. Without this check the failure is silent: the projector page keeps
+ * loading in the browser, the slide shows a white box and nothing in the log
+ * says why.
  *
- * Geprüft wird jede Adresse, unter der der Server sich selbst erreicht
- * (overwrite.cli.url, Basis-URL, trusted_domains). Das ist Absicht: die Regel
- * hängt am Vhost bzw. am Router des Proxys, sie kann für den internen Namen
- * greifen und für den öffentlichen fehlen. Genau dann funktioniert das Add-in
- * im Haus und unterwegs nicht.
+ * Every address under which the server reaches itself is checked
+ * (overwrite.cli.url, base URL, trusted_domains). That is intentional: the rule
+ * hangs on the vhost or the proxy's router; it can apply to the internal name
+ * and be missing for the public one. That is exactly when the add-in works
+ * in-house but not on the road.
  *
- * Zwei Grenzen, die in der Meldung stehen müssen: erreicht der Server eine
- * Adresse nicht (Split-Horizon-DNS, kein Hairpin-NAT), taucht sie hier gar
- * nicht auf. Und eine Adresse, die am Proxy vorbei direkt auf den Webserver
- * geht — typisch localhost —, trägt den Header immer, auch wenn die Regel für
- * den echten Namen sitzt. Deshalb nennt das Ergebnis die geprüften Adressen
- * beim Namen, statt ein pauschales „geht/geht nicht" zu behaupten.
+ * Two limits that the message has to state: if the server cannot reach an
+ * address (split-horizon DNS, no hairpin NAT), it does not show up here at
+ * all. And an address that goes past the proxy straight to the web server
+ * — typically localhost — always carries the header, even if the rule for
+ * the real name is in place. That is why the result names the checked
+ * addresses instead of claiming a blanket "works/doesn't work".
  */
 class EmbedFraming implements ISetupCheck {
     use CheckServerResponseTrait;
@@ -72,8 +72,8 @@ class EmbedFraming implements ISetupCheck {
             if ($header === null) {
                 continue;
             }
-            // Nach Host zusammenfassen: getTestUrls probiert je Domain http und
-            // https, und die Antwort ist fast immer dieselbe.
+            // Group by host: getTestUrls tries http and https for every
+            // domain, and the answer is almost always the same.
             $host = parse_url($url, PHP_URL_HOST) ?: $url;
             if ($header === '') {
                 $open[$host] = true;
@@ -82,8 +82,8 @@ class EmbedFraming implements ISetupCheck {
             }
         }
 
-        // Antwortet ein Host mal so und mal so, zählt die blockierte Antwort:
-        // ein Weg, der nicht funktioniert, bleibt ein Weg, der nicht funktioniert.
+        // If a host answers one way one time and the other way another time, the
+        // blocked answer counts: a path that does not work stays a path that does not work.
         $blockedHosts = array_keys($blocked);
         $openHosts = array_values(array_diff(array_keys($open), $blockedHosts));
 
@@ -102,11 +102,11 @@ class EmbedFraming implements ISetupCheck {
             );
         }
 
-        // Ab hier immer nur ein Hinweis, nie eine Warnung. Den Header kann die
-        // App nicht selbst abstellen, die meisten Instanzen wollen das Add-in
-        // gar nicht — und eine Adresse, die am Reverse-Proxy vorbeigeht
-        // (localhost), trägt ihn zwangsläufig, obwohl alles richtig steht. Eine
-        // Warnung wäre in genau den Setups falsch, für die diese Prüfung da ist.
+        // From here on always just a notice, never a warning. The app cannot
+        // switch the header off by itself, most instances don't want the add-in
+        // at all — and an address that goes past the reverse proxy
+        // (localhost) inevitably carries it, even though everything is set up
+        // correctly. A warning would be wrong in exactly the setups this check is for.
         if (!$openHosts) {
             return SetupResult::info(
                 $this->l10n->t('Nextcloud sends "X-Frame-Options: SAMEORIGIN" for the Pulse embed page, so a PowerPoint slide shows an empty box instead of the poll. Checked: %s. This only affects the PowerPoint add-in — remove that header in the web server or proxy, and only for the paths /apps/pulse/embed and /apps/pulse/screen/. The projector view in a second window works either way.', [implode(', ', $blockedHosts)]),
@@ -124,46 +124,46 @@ class EmbedFraming implements ISetupCheck {
     }
 
     /**
-     * Pfad der Einbett-Shell, mit Web-Root. Bewusst festverdrahtet statt über
-     * linkToRoute — zwei Gründe, beide gemessen:
+     * Path of the embed shell, including the web root. Deliberately hard-wired
+     * instead of going through linkToRoute — two reasons, both measured:
      *
-     * 1. Ohne geladene App-Routen gibt linkToRoute einen **leeren String**
-     *    zurück, ohne Ausnahme. getTestUrls baut daraus Adressen auf `/`, und
-     *    die Prüfung misst dann die Startseite: die trägt SAMEORIGIN völlig zu
-     *    Recht, also meldet die Prüfung „blockiert" für jede Instanz, immer.
-     * 2. Sind die Routen geladen, hängt das Ergebnis am Zusammenhang: ohne
-     *    `htaccess.IgnoreFrontController` und ohne die Umgebungsvariable
-     *    `front_controller_active` (die setzt die .htaccess nur bei
-     *    Web-Anfragen) kommt `/index.php/apps/pulse/embed` heraus. Dieselbe
-     *    Prüfung hätte in der Verwaltungsoberfläche und in `occ setupchecks`
-     *    verschiedene Pfade gemessen.
+     * 1. Without loaded app routes, linkToRoute returns an **empty string**,
+     *    without an exception. getTestUrls builds addresses on `/` from it, and
+     *    the check then measures the start page: that one carries SAMEORIGIN quite
+     *    rightly, so the check reports "blocked" for every instance, always.
+     * 2. If the routes are loaded, the result depends on the context: without
+     *    `htaccess.IgnoreFrontController` and without the environment variable
+     *    `front_controller_active` (the .htaccess only sets it for web
+     *    requests) the result is `/index.php/apps/pulse/embed`. The same
+     *    check would have measured different paths in the admin UI and in
+     *    `occ setupchecks`.
      *
-     * Geprüft wird deshalb die Form, die auch im erzeugten Office-Manifest
-     * steht. Die Webserver-Regeln in office-addin/README.md decken beide Formen
-     * ab, damit auch Instanzen ohne Rewrite funktionieren.
+     * So the check uses the form that is also in the generated Office
+     * manifest. The web server rules in office-addin/README.md cover both
+     * forms, so that instances without rewriting work too.
      */
     private function embedPath(): string {
         return rtrim($this->urlGenerator->getWebroot(), '/') . '/apps/' . Application::APP_ID . '/embed';
     }
 
     /**
-     * Wert des X-Frame-Options-Headers: leerer String = kein Header (gut),
-     * null = Adresse nicht erreichbar (keine Aussage möglich).
+     * Value of the X-Frame-Options header: empty string = no header (good),
+     * null = address not reachable (no statement possible).
      */
     private function frameOptionsOf(string $url): ?string {
         try {
             $response = $this->clientService->newClient()->get($url, [
                 'connect_timeout' => 10,
-                // Auch eine GESAMT-Grenze, nicht nur fürs Verbinden: die
-                // Prüfung läuft synchron, während jemand „Verwaltung →
-                // Übersicht" öffnet, und einmal je Adresse aus
-                // trusted_domains. Ohne diese Zeile darf eine erreichbare, aber
-                // hängende Adresse die Seite beliebig lange aufhalten (Guzzle
-                // hat hier keine Vorgabe).
+                // Also an OVERALL limit, not just for connecting: the
+                // check runs synchronously while someone opens "Administration
+                // settings → Overview", and once per address from
+                // trusted_domains. Without this line a reachable but
+                // hanging address could hold up the page for any length of time (Guzzle
+                // has no default here).
                 'timeout' => 10,
                 'http_errors' => false,
-                // Selbstsignierte Zertifikate sind hier egal: geprüft wird ein
-                // Header, nicht die Vertrauenskette.
+                // Self-signed certificates don't matter here: the check is about a
+                // header, not the chain of trust.
                 'verify' => false,
                 'nextcloud' => ['allow_local_address' => true],
             ]);

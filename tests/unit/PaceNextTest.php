@@ -31,15 +31,15 @@ use PHPUnit\Framework\TestCase;
 use ReflectionProperty;
 
 /**
- * /next im eigenen Tempo — die einzige Stelle, an der eine Uhr startet.
+ * /next in self-paced mode — the only place where a clock starts.
  *
- * Geprüft wird das Protokoll gegen Doppeltipps, parallele Tabs und Abbrüche:
- * ein veraltetes `after` tut nichts, das Compare-and-set entscheidet den
- * Wettlauf, und ohne offene Zeile heilt `after` = zuletzt verlassene Frage.
- * Dazu die Vorschau-Sperre: mit Timer darf eine unbeantwortete Frage erst nach
- * Zeitablauf verlassen werden — sonst blättert ein Wegwerf-Spieler gratis durch
- * das ganze Deck. Und: wird die Person entfernt, während /next unterwegs ist,
- * bleibt keine Zeile ohne Spieler zurück (PaceService::assertStillJoined).
+ * The tests cover the protocol against double taps, parallel tabs and aborts:
+ * a stale `after` does nothing, the compare-and-set decides the
+ * race, and without an open row, `after` = the question left last heals the state.
+ * Plus the preview lock: with a timer, an unanswered question may only be left
+ * once the time is up — otherwise a throwaway player leafs through the whole
+ * deck for free. And: if the person is removed while /next is in flight,
+ * no row without a player is left behind (PaceService::assertStillJoined).
  */
 #[CoversClass(PaceService::class)]
 class PaceNextTest extends TestCase {
@@ -54,14 +54,14 @@ class PaceNextTest extends TestCase {
     private PlayerMapper&MockObject $players;
     private RoomMapper&MockObject $rooms;
 
-    /** @var Progress[] Zeilen der Person, wie findByRoomAndToken sie liefert */
+    /** @var Progress[] the person's rows, as findByRoomAndToken returns them */
     private array $rows = [];
-    /** @var Poll[] aktuelles Deck */
+    /** @var Poll[] current deck */
     private array $deck = [];
-    /** @var array<int, true> Fragen, die die Person beantwortet hat */
+    /** @var array<int, true> questions the person has answered */
     private array $answered = [];
     private bool $hasPlayer = true;
-    /** Findet die sperrende Nachprüfung nach start() den Spieler noch? */
+    /** Does the locking re-check after start() still find the player? */
     private bool $stillJoined = true;
 
     protected function setUp(): void {
@@ -85,7 +85,7 @@ class PaceNextTest extends TestCase {
         $polls = $this->createMock(PollMapper::class);
         $polls->method('findByRoom')->willReturnCallback(fn (): array => $this->deck);
 
-        // /next sperrt den Raum nicht — alles läuft je Token über CAS und Unique-Index.
+        // /next does not lock the room — everything runs per token via CAS and the unique index.
         $db = $this->createMock(IDBConnection::class);
         $db->expects($this->never())->method('beginTransaction');
 
@@ -112,7 +112,7 @@ class PaceNextTest extends TestCase {
         }
     }
 
-    // ── Protokoll ──────────────────────────────────────────────────────────
+    // ── Protocol ───────────────────────────────────────────────────────────
 
     public function testErstesNextStartetFrageEins(): void {
         $this->progress->expects($this->never())->method('closeIfOpen');
@@ -151,7 +151,7 @@ class PaceNextTest extends TestCase {
     }
 
     public function testVerlorenesCompareAndSetStartetNichts(): void {
-        // Ein anderer Tab hat die Zeile gerade geschlossen und startet selbst.
+        // Another tab has just closed the row and starts on its own.
         $this->rows = [$this->row(1, 11, 0, self::NOW - 5)];
         $this->answered[11] = true;
         $this->progress->expects($this->once())->method('closeIfOpen')->willReturn(false);
@@ -161,7 +161,7 @@ class PaceNextTest extends TestCase {
     }
 
     public function testSelbstheilungOhneOffeneZeileStartetDenNachfolger(): void {
-        // Abbruch zwischen Schließen (Q1) und Starten (Q2).
+        // Abort between closing (Q1) and starting (Q2).
         $this->rows = [$this->row(1, 11, 0, self::NOW - 30, self::NOW - 10)];
         $this->progress->expects($this->never())->method('closeIfOpen');
         $this->progress->expects($this->once())->method('start')
@@ -178,9 +178,9 @@ class PaceNextTest extends TestCase {
         $this->progress->expects($this->never())->method('closeIfOpen');
         $this->progress->expects($this->never())->method('start');
 
-        $this->service->next($this->room(), self::TOK, 11); // nicht die zuletzt verlassene
-        $this->service->next($this->room(), self::TOK, 0);  // „von vorn" gibt es nicht
-        $this->service->next($this->room(), self::TOK, 13); // Zukunft
+        $this->service->next($this->room(), self::TOK, 11); // not the one left last
+        $this->service->next($this->room(), self::TOK, 0);  // there is no "start over"
+        $this->service->next($this->room(), self::TOK, 13); // future
     }
 
     public function testVeraltetesAfterBeiOffenerZeileTutNichts(): void {
@@ -210,13 +210,13 @@ class PaceNextTest extends TestCase {
     }
 
     public function testUniqueVerstossBeimStartenWirdGeschluckt(): void {
-        // Paralleler Tab hat Q1 schon gestartet: start() meldet false, kein Fehler.
+        // A parallel tab has already started Q1: start() reports false, no error.
         $this->progress->expects($this->once())->method('start')->willReturn(false);
 
         $this->service->next($this->room(), self::TOK, 0);
     }
 
-    // ── Abweisungen ────────────────────────────────────────────────────────
+    // ── Rejections ─────────────────────────────────────────────────────────
 
     public static function geschlosseneFenster(): array {
         return [
@@ -265,10 +265,10 @@ class PaceNextTest extends TestCase {
         $this->service->next($room, self::TOK, 0);
     }
 
-    // ── Vorschau-Sperre ────────────────────────────────────────────────────
+    // ── Preview lock ───────────────────────────────────────────────────────
 
     public function testMitTimerUnbeantwortetBisZumZeitablaufGesperrt(): void {
-        // Grenze wie /vote: bei elapsed = limit läuft die Zeit noch.
+        // Boundary as in /vote: at elapsed = limit the time is still running.
         $this->rows = [$this->row(1, 11, 0, self::NOW - self::LIMIT)];
         $this->progress->expects($this->never())->method('closeIfOpen');
         $this->progress->expects($this->never())->method('start');
@@ -304,7 +304,7 @@ class PaceNextTest extends TestCase {
     }
 
     public function testGeloeschteOffeneFrageWirdOhneSperreVerlassen(): void {
-        // Abwehr: die Frage der offenen Zeile gibt es nicht mehr — niemand bleibt hängen.
+        // Defence: the open row's question no longer exists — nobody gets stuck.
         $this->deck = [$this->poll(12), $this->poll(13)];
         $this->rows = [$this->row(1, 11, 0, self::NOW)];
         $this->progress->expects($this->once())->method('closeIfOpen')->with(1, self::NOW)->willReturn(true);
@@ -313,10 +313,10 @@ class PaceNextTest extends TestCase {
         $this->service->next($this->room(), self::TOK, 11);
     }
 
-    // ── Entfernt, während /next unterwegs war ──────────────────────────────
+    // ── Removed while /next was in flight ──────────────────────────────────
 
     public function testGestarteteZeileWirdGegenDasEntfernenGeprueft(): void {
-        // Sperrend nachgelesen, aber ohne Raumsperre (der Normalfall bleibt je Token).
+        // Re-read with a lock, but without a room lock (the normal case stays per token).
         $this->progress->method('start')->willReturn(true);
         $this->players->expects($this->once())->method('existsForUpdate')->with(5, self::TOK);
         $this->progress->expects($this->never())->method('deleteByRoomAndToken');
@@ -332,9 +332,9 @@ class PaceNextTest extends TestCase {
     }
 
     public function testEntferntWaehrendDesStartsWirdDieZeileWiederGeloescht(): void {
-        // removePlayer committete zwischen Spielerprüfung und start(): sonst
-        // bliebe eine Zeile ohne Spieler, und das Cookie begänne nach dem
-        // erneuten Beitritt mitten im Deck mit alter Uhr.
+        // removePlayer committed between the player check and start(): otherwise
+        // a row without a player would remain, and after joining again the cookie
+        // would start in the middle of the deck with an old clock.
         $this->stillJoined = false;
         $this->progress->method('start')->willReturn(true);
         $this->allowLock();
@@ -346,9 +346,9 @@ class PaceNextTest extends TestCase {
         $this->service->next($this->room(), self::TOK, 0);
     }
 
-    // ── Helfer ─────────────────────────────────────────────────────────────
+    // ── Helpers ────────────────────────────────────────────────────────────
 
-    /** Nur fürs Aufräumen nach dem Entfernen: Transaktion und Raumsperre zulassen. */
+    /** Only for the cleanup after removal: allow the transaction and the room lock. */
     private function allowLock(): void {
         (new ReflectionProperty(PaceService::class, 'db'))->setValue($this->service, $this->createMock(IDBConnection::class));
         $this->rooms->method('lockForUpdate')->willReturnCallback(fn (): Room => $this->room());

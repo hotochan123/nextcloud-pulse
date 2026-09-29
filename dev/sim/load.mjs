@@ -1,33 +1,37 @@
 // SPDX-FileCopyrightText: 2026 hotochan123
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //
-// Lastlauf fürs Quiz im eigenen Tempo (Spezifikation Stufe 4, §6.3): misst die
-// Abruftakte der Oberfläche an echter Last statt an statischen Seeds.
+// Load run for the self-paced quiz (specification stage 4, §6.3): measures the
+// UI's polling intervals under real load instead of static seeds.
 //
-// 100 Handys mit eigenem pulse_vt-Cookie treten einem frisch geöffneten
-// Rennraum bei (10 Auswahlfragen, 20 s Timer, Rückmeldung je Frage), folgen
-// dem Takt des Handys (phoneDelay aus src/util/pace.js — dieselbe Logik wie
-// Participant.vue), antworten nach 2–15 s und tippen „Weiter" erst mit dem
-// Urteil. Parallel pollt ein Moderator /progress im Takt der Laufansicht
-// (progressDelay) und ein Beamer /state?spectate=1 alle 2 s. Nach der
-// Lastphase schließt der Moderator (ohne Frist = Freigabe) und gibt frei;
-// danach 30 s Endstand-Polling. Erst wenn ALLE Clients stehen, wird der Raum
-// gelöscht — sonst zählte jede 404 auf die Brute-Force-Drossel (§6.4).
+// 100 phones, each with its own pulse_vt cookie, join a freshly opened
+// race room (10 choice questions, 20 s timer, feedback after each question), follow
+// the phone's rhythm (phoneDelay from src/util/pace.js — the same logic as
+// Participant.vue), answer after 2–15 s and only tap "Next question" once the
+// verdict is in. In parallel a moderator polls /progress at the run view's rhythm
+// (progressDelay) and a projector polls /state?spectate=1 every 2 s. After the
+// load phase the moderator closes (no deadline = release) and releases;
+// then 30 s of final-standings polling. The room is only deleted once ALL clients
+// have stopped — otherwise every 404 would count towards the brute-force throttle (§6.4).
 //
-// Ausgabe (Markdown, für index.md des Prüfstands): p50/p95 je Endpunkt,
-// Anteil der Statuscodes, Anfragen je Sekunde. Orientierung: p95 /state
-// < 300 ms; darüber ist es ein Engine-Folgepunkt, kein Grund, die Oberfläche
-// anzuhalten.
+// Output (Markdown, for the test bench's index.md): p50/p95 per endpoint,
+// share of status codes, requests per second. Guideline: p95 /state
+// < 300 ms; above that it is an engine follow-up item, not a reason to halt
+// the UI.
 //
-// Wie das Sim direkt an den Container (Host: localhost, node:http) und mit
-// demselben Wegwerf-Nutzer:
+// Section references (§…) point to the specification of the self-paced quiz,
+// which is not in the public repository (see "References in code comments" in
+// the README).
+//
+// Like the sim, straight to the container (Host: localhost, node:http) and with
+// the same throwaway user:
 //   PULSE_SIM_URL=http://<container-ip> PULSE_SIM_PASS="$(cat dev/design-shots/.shots-pass)" \
 //     node dev/sim/load.mjs
-// Auf der Live-Instanz nur in einer ruhigen Zeit und nur einmal.
+// On the live instance only at a quiet time and only once.
 //
-// Stellschrauben: LOAD_PHONES (Vorgabe 100, höchstens 110 — /join erlaubt 120
-// Versuche je IP und Raum in 10 min), LOAD_SECS (Lastphase, Vorgabe 90),
-// LOAD_TAIL_SECS (Endstand, Vorgabe 30).
+// Knobs: LOAD_PHONES (default 100, at most 110 — /join allows 120
+// attempts per IP and room in 10 min), LOAD_SECS (load phase, default 90),
+// LOAD_TAIL_SECS (final standings, default 30).
 import http from 'node:http'
 import { performance } from 'node:perf_hooks'
 import { phoneDelay, progressDelay, windowState } from '../../src/util/pace.js'
@@ -48,11 +52,11 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 const rand = (lo, hi) => lo + Math.random() * (hi - lo)
 const nowSec = () => Math.floor(Date.now() / 1000)
 
-// Ein Agent mit Keep-Alive, wie ein Browser hinter dem Proxy; genug Sockets,
-// dass kein Handy auf ein anderes wartet.
+// One agent with keep-alive, like a browser behind the proxy; enough sockets
+// that no phone waits for another.
 const agent = new http.Agent({ keepAlive: true, maxSockets: 256 })
 
-// ── Messung ────────────────────────────────────────────────────────────────
+// ── Measurement ────────────────────────────────────────────────────────────
 const samples = [] // {key, status, ms, t, phase}
 let phase = 'setup' // setup | load | tail
 const t0 = performance.now()
@@ -60,8 +64,8 @@ function record(key, status, ms) {
 	samples.push({ key, status, ms, t: performance.now() - t0, phase })
 }
 
-// node:http statt fetch: fetch (undici) überschreibt den Host-Header, und die
-// Container-IP ist keine trusted_domain. Zeitlimit 10 s wie die Oberfläche.
+// node:http instead of fetch: fetch (undici) overwrites the Host header, and the
+// container IP is not a trusted_domain. Timeout 10 s like the UI.
 function request(url, opts = {}) {
 	return new Promise((resolve) => {
 		const u = new URL(url)
@@ -112,10 +116,10 @@ async function modOk(method, path, body, key = '') {
 	return r.data
 }
 
-// ── Anhalten ───────────────────────────────────────────────────────────────
-// Zwei Stufen: `acting` aus = niemand antwortet oder tippt mehr (nach dem
-// Schließen), `running` aus = alle Schleifen enden. Schlafen bricht beim
-// Anhalten sofort ab.
+// ── Stopping ───────────────────────────────────────────────────────────────
+// Two levels: `acting` off = nobody answers or taps any more (after
+// closing), `running` off = all loops end. Sleeping is cut short
+// immediately when stopping.
 const stop = { acting: false, running: false }
 let wake = null
 let woken = new Promise((resolve) => { wake = resolve })
@@ -126,7 +130,7 @@ function haltAll() {
 }
 const nap = (ms) => Promise.race([sleep(Math.max(0, ms)), woken])
 
-// ── Handy ──────────────────────────────────────────────────────────────────
+// ── Phone ──────────────────────────────────────────────────────────────────
 class Phone {
 	constructor(i, code) {
 		this.name = 'Last ' + String(i + 1).padStart(3, '0')
@@ -135,11 +139,11 @@ class Phone {
 		this.state = null
 		this.version = ''
 		this.skew = 0
-		this.pollId = 0      // Frage, für die answerAt gilt
-		this.answerAt = 0    // wann „getippt" wird (Date.now)
-		this.nextAt = 0      // wann „Weiter" getippt wird (nach dem Urteil)
-		this.pollDue = 0     // nächster /state-Abruf
-		this.nextFor = 0     // Frage, für die schon ein /next nach Zeitablauf lief
+		this.pollId = 0      // question that answerAt applies to
+		this.answerAt = 0    // when the answer is "tapped" (Date.now)
+		this.nextAt = 0      // when "Next question" is tapped (after the verdict)
+		this.pollDue = 0     // next /state poll
+		this.nextFor = 0     // question for which a /next after time-out already ran
 		this.votes = 0
 		this.nexts = 0
 		this.error = ''
@@ -164,13 +168,13 @@ class Phone {
 		if (d.serverNow) this.skew = d.serverNow - nowSec()
 		const p = d.poll
 		if (p && p.id !== this.pollId) {
-			// Neue Frage: ein Mensch liest und tippt nach 2–15 s.
+			// New question: a human reads and taps after 2–15 s.
 			this.pollId = p.id
 			this.answerAt = Date.now() + rand(2000, 15000)
 			this.nextAt = 0
 		}
 		if (p && d.hasVoted && d.myResult && d.myResult.final && !this.nextAt) {
-			// Urteil da: „Next question" nach einer kurzen Reaktionszeit.
+			// Verdict is in: "Next question" after a short reaction time.
 			this.nextAt = Date.now() + rand(400, 1500)
 		}
 	}
@@ -207,8 +211,8 @@ class Phone {
 		const r = await this.req('vote', 'POST', '/vote', { value, keyboard: false, pollId: p.id })
 		this.votes++
 		if (r.status === 200) this.apply(r.data)
-		else this.answerAt = Number.MAX_SAFE_INTEGER // abgelehnt (Zeit um): nicht noch einmal
-		// Wie die Oberfläche: der Abruf-Timer läuft im alten Takt weiter.
+		else this.answerAt = Number.MAX_SAFE_INTEGER // rejected (time up): not again
+		// Like the UI: the poll timer keeps running at the old rhythm.
 	}
 
 	async next() {
@@ -221,13 +225,13 @@ class Phone {
 	}
 
 	async run() {
-		// Eine Klasse tritt nicht in derselben Millisekunde bei: über 10 s verteilt.
+		// A class does not join in the same millisecond: spread over 10 s.
 		await nap(rand(0, 10000))
 		if (stop.running) return
 		const j = await this.req('join', 'POST', '/join', { nickname: this.name })
 		if (j.status !== 200) { this.error = 'join ' + j.status; return }
 		this.apply(j.data)
-		await nap(rand(1000, 3000)) // Startkarte lesen, „Start quiz"
+		await nap(rand(1000, 3000)) // read the start card, "Start quiz"
 		if (stop.running) return
 		await this.next()
 		this.pollDue = Date.now() + (this.delay() || 4000)
@@ -244,7 +248,7 @@ class Phone {
 				await this.next()
 				continue
 			}
-			// Mit Timer und ohne Antwort: „Next question" erst nach dem Server-Zeitablauf.
+			// With a timer and no answer: "Next question" only after the server's time-out.
 			if (!stop.acting && p && !st.hasVoted && pr && pr.timeUp && this.nextFor !== p.id) {
 				await this.next()
 				continue
@@ -261,7 +265,7 @@ class Phone {
 	}
 }
 
-// ── Moderator und Beamer ───────────────────────────────────────────────────
+// ── Moderator and projector ────────────────────────────────────────────────
 async function moderatorLoop(code) {
 	let version = ''
 	let idle = 0
@@ -298,7 +302,7 @@ async function beamerLoop(code) {
 	return last
 }
 
-// ── Auswertung ─────────────────────────────────────────────────────────────
+// ── Evaluation ─────────────────────────────────────────────────────────────
 function pct(sorted, p) {
 	if (!sorted.length) return NaN
 	return sorted[Math.min(sorted.length - 1, Math.max(0, Math.ceil((p / 100) * sorted.length) - 1))]
@@ -313,12 +317,12 @@ function row(key, list, seconds) {
 	return `| ${key} | ${list.length} | ${f(pct(ms, 50))} | ${f(pct(ms, 95))} | ${f(ms[ms.length - 1])} | ${share || '—'} | ${seconds > 0 ? (list.length / seconds).toFixed(1) : '—'} |`
 }
 
-// ── Ablauf ─────────────────────────────────────────────────────────────────
+// ── Sequence ───────────────────────────────────────────────────────────────
 let code = ''
 let loops = []
 async function cleanup() {
 	haltAll()
-	// Erst alle Schleifen (samt laufender Anfragen) enden lassen, dann löschen.
+	// First let all loops (including pending requests) finish, then delete.
 	await Promise.race([Promise.allSettled(loops), sleep(15000)])
 	if (code && process.env.KEEP !== '1') {
 		const r = await mod('DELETE', '/' + code)
@@ -357,7 +361,7 @@ try {
 	loops = [modP, beamP, ...phoneP]
 
 	await sleep(LOAD_SECS * 1000)
-	// Schließen: ohne Frist gibt das zugleich frei; „release" danach ist ein No-op.
+	// Close: without a deadline this releases at the same time; "release" afterwards is a no-op.
 	stop.acting = true
 	phase = 'tail'
 	const tTail = performance.now()
@@ -371,7 +375,7 @@ try {
 	const [lastProgress, lastBeamer] = await Promise.all([modP, beamP])
 	await Promise.allSettled(phoneP)
 
-	// ── Bericht ──
+	// ── Report ──
 	const loadSecs = (tTail - tLoad) / 1000
 	const allSecs = (tEnd - tLoad) / 1000
 	const of = (key, ph) => samples.filter((x) => x.key === key && (!ph || x.phase === ph))
@@ -419,5 +423,5 @@ try {
 } finally {
 	await cleanup()
 }
-// Offene Schlaf-Timer (bis 10 s) sollen das Ende nicht aufhalten.
+// Pending sleep timers (up to 10 s) should not hold up the exit.
 process.exit(exitCode)

@@ -14,10 +14,10 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Bild-Routen landen in einem <img src> — dabei schickt der Browser keinen
- * Requesttoken. Fehlt NoCSRFRequired, antwortet Nextcloud mit 412 und das Bild
- * bleibt leer, ohne dass im Log etwas Auffälliges steht. Genau so ist es im
- * Moderator passiert (26.07., gefunden im Screenshot-Prüfstand).
+ * Image routes end up in an <img src> — and the browser sends no request
+ * token with it. If NoCSRFRequired is missing, Nextcloud answers with 412 and
+ * the image stays empty, without anything conspicuous in the log. That is exactly
+ * what happened in the moderator (26.07., found with the screenshot test bench).
  */
 class ImageRouteTest extends TestCase {
 	public static function imageRoutes(): array {

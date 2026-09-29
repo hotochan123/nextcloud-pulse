@@ -23,14 +23,14 @@ use PHPUnit\Framework\TestCase;
 use ReflectionProperty;
 
 /**
- * Die Dienste hinter den Controllern mit feindlichen Werten: verschachtelte
- * Listen und Objekte, true, 1e300, INF, „1e999“, zwanzig Ziffern, kaputtes
- * UTF-8 und NUL — in jedem Feld jeder Fragevorlage (DeckService), in jedem
- * Stimmwert jedes Fragetyps (VoteService::normalizeValue) und im Bild-Upload.
+ * The services behind the controllers fed with hostile values: nested
+ * lists and objects, true, 1e300, INF, "1e999", twenty digits, broken
+ * UTF-8 and NUL — in every field of every question template (DeckService), in every
+ * vote value of every question type (VoteService::normalizeValue) and in the image upload.
  *
- * Erlaubt ist genau zweierlei: ein Ergebnis, das sich speichern lässt, oder
- * InvalidArgumentException mit Meldung (400). Keine PHP-Warnung (phpunit.xml:
- * failOnWarning), kein TypeError, kein Wert, an dem json_encode scheitert.
+ * Exactly two outcomes are allowed: a result that can be stored, or an
+ * InvalidArgumentException with a message (400). No PHP warning (phpunit.xml:
+ * failOnWarning), no TypeError, no value that makes json_encode fail.
  */
 #[CoversClass(DeckService::class)]
 #[CoversClass(VoteService::class)]
@@ -99,9 +99,9 @@ class HostileInputTest extends TestCase {
         (new ReflectionProperty(VoteService::class, 'l10n'))->setValue($this->votes, $l10n);
     }
 
-    // ── DeckService: jede Vorlage, jedes Feld ──────────────────────────────
+    // ── DeckService: every template, every field ───────────────────────────
 
-    /** Gültige Fragen je Modus — jedes Feld wird darin einmal unbrauchbar. */
+    /** Valid questions per mode — each field in them is made unusable once. */
     public static function vorlagen(): array {
         $options = ['A', 'B'];
         $pairs = [['left' => 'a', 'right' => '1'], ['left' => 'b', 'right' => '2']];
@@ -127,14 +127,14 @@ class HostileInputTest extends TestCase {
     #[DataProvider('vorlagen')]
     public function testJedesFeldUnbrauchbar(string $mode, array $valid): void {
         $type = $valid['type'];
-        // Die Vorlage selbst muss gelten, sonst beweist die Schleife nichts.
+        // The template itself must be valid, otherwise the loop proves nothing.
         $this->assertInstanceOf(Poll::class, $this->deck->addPoll($this->room($mode), $valid));
 
         foreach (self::HOSTILE as $i => $h) {
             foreach (array_keys($valid) as $key) {
                 $this->attempt($mode, "$mode/$type/$key#$i", [$key => $h] + $valid);
             }
-            // Verschachtelt: der Wert steckt eine Ebene tiefer.
+            // Nested: the value sits one level deeper.
             $nested = [
                 'options' => [[$h, 'A', 'B'], [['label' => $h], 'A', 'B']],
                 'pairs' => [[['left' => $h, 'right' => 'x'], ['left' => 'b', 'right' => 'y']]],
@@ -205,7 +205,7 @@ class HostileInputTest extends TestCase {
     }
 
     public function testReihenfolgeAlsObjektZaehltInSeinerReihenfolge(): void {
-        // JSON-Objekt statt Liste: die Schlüssel wären Text (setPosition(int, int)).
+        // JSON object instead of a list: the keys would be text (setPosition(int, int)).
         $this->deck->reorder($this->room('poll'), ['a' => 12, 'b' => 11]);
 
         $this->assertSame([[12, 0], [11, 1]], $this->positions);
@@ -221,7 +221,7 @@ class HostileInputTest extends TestCase {
         $this->assertSame([], $this->positions, 'nichts geschrieben');
     }
 
-    // ── VoteService: jeder Fragetyp, jeder Stimmwert ───────────────────────
+    // ── VoteService: every question type, every vote value ─────────────────
 
     public function testAuswahl(): void {
         $this->probe($this->choicePoll('choice'), static fn (): array => []);
@@ -299,7 +299,7 @@ class HostileInputTest extends TestCase {
         $this->votes->normalizeValue($this->compassPoll(), ['x' => 1e100, 'y' => 0]);
     }
 
-    // ── Bild-Upload ────────────────────────────────────────────────────────
+    // ── Image upload ───────────────────────────────────────────────────────
 
     public function testBildfeldAlsListeIstKeinBild(): void {
         $l10n = $this->createMock(IL10N::class);
@@ -307,14 +307,14 @@ class HostileInputTest extends TestCase {
         $images = (new \ReflectionClass(PollImageService::class))->newInstanceWithoutConstructor();
         (new ReflectionProperty(PollImageService::class, 'l10n'))->setValue($images, $l10n);
 
-        // `image[]=…`: PHP legt jedes Feld des Uploads als Liste an.
+        // `image[]=…`: PHP turns every field of the upload into a list.
         $this->expectExceptionMessage('No image received.');
         $images->store(new Poll(), ['name' => ['a'], 'tmp_name' => ['x'], 'error' => [0], 'size' => [1]]);
     }
 
-    // ── Helfer ─────────────────────────────────────────────────────────────
+    // ── Helpers ────────────────────────────────────────────────────────────
 
-    /** Eine Frage anlegen: ein Poll oder eine 400 mit Meldung — nichts sonst. */
+    /** Create a question: a Poll or a 400 with a message — nothing else. */
     private function attempt(string $mode, string $label, array $data): void {
         try {
             $poll = $this->deck->addPoll($this->room($mode), $data);
@@ -325,14 +325,14 @@ class HostileInputTest extends TestCase {
             $this->fail("$label: " . get_class($e) . ' ' . $e->getMessage());
         }
         $this->assertInstanceOf(Poll::class, $poll, $label);
-        // json_encode gibt false zurück, wenn etwas nicht speicherbar ist (INF, kaputtes UTF-8).
+        // json_encode returns false when something cannot be stored (INF, broken UTF-8).
         $this->assertIsString($poll->getOptions(), "$label: options");
         $this->assertTrue($poll->getAnswerKey() === null || is_string($poll->getAnswerKey()), "$label: answerKey");
     }
 
     /**
-     * Jeden feindlichen Wert als Stimme schicken, dazu die verschachtelten
-     * Varianten aus $nested($h): ein speicherbarer Wert oder eine 400.
+     * Send every hostile value as a vote, plus the nested
+     * variants from $nested($h): a storable value or a 400.
      *
      * @param callable(mixed): list<mixed> $nested
      */
@@ -373,7 +373,7 @@ class HostileInputTest extends TestCase {
         return $this->poll($type, [['id' => 'OA', 'label' => 'A'], ['id' => 'OB', 'label' => 'B']]);
     }
 
-    /** Skalen-Config so, wie DeckService::buildScale sie schreibt. */
+    /** Scale config exactly as DeckService::buildScale writes it. */
     private function singlePoll(): Poll {
         return $this->poll('scale', ['mode' => 'single', 'min' => 1, 'max' => 5, 'minLabel' => '', 'maxLabel' => '']);
     }

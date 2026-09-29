@@ -22,14 +22,14 @@ use PHPUnit\Framework\TestCase;
 use ReflectionProperty;
 
 /**
- * Freitext nachbewerten (VoteService::gradeTextAnswer) im eigenen Tempo.
+ * Grading free text afterwards (VoteService::gradeTextAnswer) in self-paced mode.
  *
- * Die Tempo-Punkte rechnen mit dem Limit, das beim Antworten galt (`limit` im
- * Payload — 0 ohne Timer, dann flach 1000), nicht mit dem der Frage. Bewertet
- * heißt: nicht mehr „wird geprüft", `pending` fällt weg. Moderierte Payloads
- * kennen weder `limit` noch `pending` und kommen bytegleich zum bisherigen
- * Ergebnis heraus. Im eigenen Tempo wird bewertet, während Leute antworten:
- * dort läuft das Bewerten als eine Transaktion unter der Raumsperre.
+ * The speed points use the limit that applied when answering (`limit` in the
+ * payload: 0 without a timer, then a flat 1000), not the question's. Graded
+ * means: no longer "Being checked", `pending` is dropped. Moderated payloads
+ * know neither `limit` nor `pending` and come out byte-identical to the previous
+ * result. In self-paced mode grading happens while people are answering:
+ * there grading runs as one transaction under the room lock.
  */
 #[CoversClass(VoteService::class)]
 class SelfGradeTest extends TestCase {
@@ -38,7 +38,7 @@ class SelfGradeTest extends TestCase {
     private Poll $poll;
     /** @var Vote[] */
     private array $votes = [];
-    /** @var array<int, string> Payload je Stimmen-ID nach dem Bewerten */
+    /** @var array<int, string> Payload per vote ID after grading */
     private array $saved = [];
 
     protected function setUp(): void {
@@ -78,7 +78,7 @@ class SelfGradeTest extends TestCase {
     }
 
     public function testOhneTimerGibtEsFlachePunkte(): void {
-        // Frage hat 20 s, gespeichert ist aber limit 0 (Raum ohne Timer).
+        // The question has 20 s, but limit 0 is stored (room without a timer).
         $this->votes = [$this->vote(1, ['value' => 'Saturn', 'points' => 0, 'correct' => false, 'elapsed' => 10, 'norm' => 'saturn', 'pending' => true, 'limit' => 0, 'fw' => 3])];
 
         $this->service->gradeTextAnswer($this->room(), 13, 'Saturn', true);
@@ -110,7 +110,7 @@ class SelfGradeTest extends TestCase {
     }
 
     public function testKorrekturflagUndFensterBleiben(): void {
-        // Bewerten ist keine Korrektur der Person: fixed/fw bleiben, created_at auch.
+        // Grading is not a correction by the person: fixed/fw stay, and so does created_at.
         $vote = $this->vote(1, ['value' => 'Saturn', 'points' => 0, 'correct' => false, 'elapsed' => 10, 'norm' => 'saturn', 'pending' => true, 'limit' => 20, 'fw' => 6, 'fixed' => true]);
         $vote->setCreatedAt(1234);
         $this->votes = [$vote];
@@ -135,8 +135,8 @@ class SelfGradeTest extends TestCase {
     }
 
     public function testModeriertePayloadBleibtBytegleich(): void {
-        // So rechnete gradeTextAnswer vor dem eigenen Tempo: Punkte aus dem
-        // Limit der Frage, sonst nichts angefasst.
+        // This is how gradeTextAnswer computed before self-paced mode: points from the
+        // question's limit, nothing else touched.
         $old = ['value' => 'Saturn', 'points' => 0, 'correct' => false, 'elapsed' => 5, 'norm' => 'saturn'];
         $fixedOld = ['value' => 'saturn ', 'points' => 0, 'correct' => false, 'elapsed' => 9, 'norm' => 'saturn', 'fixed' => true];
         $this->votes = [$this->vote(1, $old), $this->vote(2, $fixedOld)];

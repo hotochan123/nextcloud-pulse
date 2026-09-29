@@ -2,15 +2,19 @@
 // SPDX-FileCopyrightText: 2026 hotochan123
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //
-// Unit-Test für src/util/pace.js (Quiz im eigenen Tempo): reine Entscheidungen
-// und Zeitrechnung, ohne Browser und ohne Nextcloud.
+// Unit test for src/util/pace.js (self-paced quiz): pure decisions
+// and time arithmetic, without a browser and without Nextcloud.
 //
-//   TZ=Europe/Berlin node dev/unit/pace.test.mjs      # Exit 0 = alles grün
+//   TZ=Europe/Berlin node dev/unit/pace.test.mjs      # exit 0 = all green
 //
-// Die Zeitumstellungs-Fälle brauchen Europe/Berlin — ohne die Variable bricht
-// der Test mit einem Hinweis ab, statt an falscher Stelle rot zu werden. Node
-// meldet beim Import einmal MODULE_TYPELESS_PACKAGE_JSON (pace.js ist ESM ohne
-// "type": "module"); das ist nur eine Warnung.
+// The DST cases need Europe/Berlin — without the variable the test aborts
+// with a hint instead of turning red in the wrong place. On import Node
+// reports MODULE_TYPELESS_PACKAGE_JSON once (pace.js is ESM without
+// "type": "module"); that is only a warning.
+//
+// Section references (§…) point to the specification of the self-paced quiz,
+// which is not in the public repository (see "References in code comments" in
+// the README).
 import assert from 'node:assert/strict'
 import {
 	PACE_UI, DEADLINE_MIN, DEADLINE_MAX, CLOSING_SOON, STOP_LEAD,
@@ -36,11 +40,11 @@ if (tz !== 'Europe/Berlin') {
 	process.exit(2)
 }
 
-// Ortszeit -> Unix-Sekunden (für die Erwartungen, unabhängig von fromLocalInput).
+// Local time -> Unix seconds (for the expectations, independent of fromLocalInput).
 const local = (y, mo, d, h = 0, mi = 0, s = 0) => Math.floor(new Date(y, mo - 1, d, h, mi, s).getTime() / 1000)
 const utc = (y, mo, d, h = 0, mi = 0) => Date.UTC(y, mo - 1, d, h, mi) / 1000
 
-// ── Konstanten, Erkennung, Fenster ───────────────────────────────────────
+// ── Constants, detection, window ─────────────────────────────────────────
 
 test('Konstanten wie der Server; PACE_UI freigeschaltet', () => {
 	assert.equal(PACE_UI, true)
@@ -52,22 +56,22 @@ test('Konstanten wie der Server; PACE_UI freigeschaltet', () => {
 test('stopDeadline (Altlast): Frist des früheren „Stoppen ohne Freigabe“ am Abstand erkannt, echte Fristen nicht', () => {
 	const T = 1790000000
 	assert.equal(STOP_LEAD, 120)
-	// am Abstand zwischen Schließen und Frist (STOP_LEAD − 20 … STOP_LEAD + 5)
+	// by the gap between closing and deadline (STOP_LEAD − 20 … STOP_LEAD + 5)
 	assert.equal(stopDeadline({ state: 'closed', closesAt: T + 120, closedAt: T }), true)
 	assert.equal(stopDeadline({ state: 'closed', closesAt: T + 119, closedAt: T + 4 }), true)
 	assert.equal(stopDeadline({ state: 'closed', closesAt: T + 124, closedAt: T - 1 }), true)
-	assert.equal(stopDeadline({ state: 'closed', closesAt: T + 100, closedAt: T }), true) // untere Grenze
-	assert.equal(stopDeadline({ state: 'closed', closesAt: T + 125, closedAt: T }), true) // obere Grenze
-	// echte Fristen
-	assert.equal(stopDeadline({ state: 'closed', closesAt: T, closedAt: T }), false) // von selbst abgelaufen
-	assert.equal(stopDeadline({ state: 'closed', closesAt: T + 3600, closedAt: T }), false) // früher geschlossen
+	assert.equal(stopDeadline({ state: 'closed', closesAt: T + 100, closedAt: T }), true) // lower bound
+	assert.equal(stopDeadline({ state: 'closed', closesAt: T + 125, closedAt: T }), true) // upper bound
+	// real deadlines
+	assert.equal(stopDeadline({ state: 'closed', closesAt: T, closedAt: T }), false) // expired on its own
+	assert.equal(stopDeadline({ state: 'closed', closesAt: T + 3600, closedAt: T }), false) // closed early
 	assert.equal(stopDeadline({ state: 'closed', closesAt: T + 60, closedAt: T }), false)
-	assert.equal(stopDeadline({ state: 'closed', closesAt: T + 99, closedAt: T }), false) // knapp unter der Grenze
-	assert.equal(stopDeadline({ state: 'closed', closesAt: T + 126, closedAt: T }), false) // knapp über der Grenze
-	assert.equal(stopDeadline({ state: 'open', closesAt: T + 120, closedAt: 0 }), false) // offen
-	assert.equal(stopDeadline({ state: 'closed', closesAt: 0, closedAt: T }), false) // gestoppt mit close {release: false}
+	assert.equal(stopDeadline({ state: 'closed', closesAt: T + 99, closedAt: T }), false) // just below the bound
+	assert.equal(stopDeadline({ state: 'closed', closesAt: T + 126, closedAt: T }), false) // just above the bound
+	assert.equal(stopDeadline({ state: 'open', closesAt: T + 120, closedAt: 0 }), false) // open
+	assert.equal(stopDeadline({ state: 'closed', closesAt: 0, closedAt: T }), false) // stopped with close {release: false}
 	assert.equal(stopDeadline(null), false)
-	// ein zweites Argument (Merker eines alten Aufrufers) zählt nicht mehr
+	// a second argument (a flag from an old caller) no longer counts
 	assert.equal(stopDeadline({ state: 'closed', closesAt: T + 3600, closedAt: T }, T + 3600), false)
 })
 
@@ -94,7 +98,7 @@ test('windowState: Zustand durchgereicht, lokal abgelaufene Frist = closed', () 
 	assert.equal(windowState({ state: 'released', closesAt: 1000 }, 5000), 'released')
 })
 
-// ── datetime-local ↔ Unix-Sekunden, Zeitumstellung ──────────────────────
+// ── datetime-local ↔ Unix seconds, DST changes ──────────────────────────
 
 test('toLocalInput/fromLocalInput: Hin und zurück in Ortszeit', () => {
 	const ts = local(2026, 10, 3, 18, 0)
@@ -109,7 +113,7 @@ test('fromLocalInput: Frühjahrslücke 29.03. 02:30 rückt auf 03:30 Sommerzeit'
 	const ts = fromLocalInput('2026-03-29T02:30')
 	assert.equal(ts, utc(2026, 3, 29, 1, 30))
 	assert.equal(toLocalInput(ts), '2026-03-29T03:30')
-	// Ränder der Lücke
+	// edges of the gap
 	assert.equal(fromLocalInput('2026-03-29T01:59'), utc(2026, 3, 29, 0, 59))
 	assert.equal(fromLocalInput('2026-03-29T03:00'), utc(2026, 3, 29, 1, 0))
 })
@@ -132,7 +136,7 @@ test('fromLocalInput: Ungültiges -> NaN', () => {
 	assert.equal(toLocalInput(NaN), '')
 })
 
-// ── Vorbelegungen der Frist ──────────────────────────────────────────────
+// ── Deadline presets ─────────────────────────────────────────────────────
 
 test('defaultDeadline: Kalendertage später, auf die volle Stunde aufgerundet', () => {
 	const now = local(2026, 9, 27, 17, 43, 12)
@@ -147,7 +151,7 @@ test('defaultDeadline: Kalendertage später, auf die volle Stunde aufgerundet', 
 		const d = new Date(defaultDeadline(now, days) * 1000)
 		assert.equal(d.getMinutes() + d.getSeconds() + d.getMilliseconds(), 0)
 	}
-	// über die Zeitumstellung: gleiche Uhrzeit (Kalendertag), nicht 24 h
+	// across the DST change: same clock time (calendar day), not 24 h
 	assert.equal(defaultDeadline(local(2026, 10, 24, 10, 15), 1), local(2026, 10, 25, 11, 0))
 	assert.equal(defaultDeadline(local(2026, 10, 24, 10, 15), 1) - local(2026, 10, 24, 10, 15), 25 * 3600 + 45 * 60)
 })
@@ -172,9 +176,9 @@ test('deadlinePresets: morgen 08:00 auch kurz vor Mitternacht', () => {
 	const p = deadlinePresets(local(2026, 9, 27, 23, 59, 30))
 	assert.equal(p[2].ts, local(2026, 9, 28, 8, 0))
 	assert.equal(toLocalInput(p[2].ts), '2026-09-28T08:00')
-	// Monats- und Jahreswechsel
+	// month and year change
 	assert.equal(deadlinePresets(local(2026, 12, 31, 23, 50))[2].ts, local(2027, 1, 1, 8, 0))
-	// Nacht der Zeitumstellung
+	// night of the DST change
 	assert.equal(toLocalInput(deadlinePresets(local(2026, 10, 24, 22, 0))[2].ts), '2026-10-25T08:00')
 })
 
@@ -191,7 +195,7 @@ test('splitDuration: Tage/Stunden/Minuten, Minuten aufgerundet', () => {
 	assert.deepEqual(splitDuration(undefined), { d: 0, h: 0, m: 0 })
 })
 
-// ── Beamer-Rennen (§3.3) ─────────────────────────────────────────────────
+// ── Projector race (§3.3) ────────────────────────────────────────────────
 
 const race = (n, joined, started, finished, fill = (i) => i + 1) =>
 	({ n, joined, started, finished, onQuestion: Array.from({ length: n }, (_, i) => fill(i)) })
@@ -293,16 +297,16 @@ test('raceRows: Not started nur offen und nie negativ; kurze onQuestion zählt 0
 
 test('raceRows: teilt der Server jede Person einmal zu, ergeben die Zeilen joined', () => {
 	const sum = (r) => r.rows.reduce((a, x) => a + x.value, 0)
-	// 6 beigetreten, 5 gestartet: zwei auf Frage 1, eine auf Frage 3, zwei fertig
+	// 6 joined, 5 started: two on question 1, one on question 3, two finished
 	const small = { n: 3, joined: 6, started: 5, finished: 2, onQuestion: [2, 0, 1] }
 	assert.equal(sum(raceRows(small)), 6)
 	assert.equal(sum(raceRows(small, false)), 5, 'ohne „Not started“: die Gestarteten')
-	// Gruppen (n > 20) verlieren und verdoppeln nichts
+	// groups (n > 20) lose nothing and double nothing
 	const on = Array.from({ length: 24 }, (_, i) => i % 3)
 	assert.equal(sum(raceRows({ n: 24, joined: 40, started: 30, finished: 6, onQuestion: on })), 40)
 })
 
-// ── Handy-Automat (§2.2) ─────────────────────────────────────────────────
+// ── Phone state machine (§2.2) ───────────────────────────────────────────
 
 const card = (over) => paceCard({ isPaced: true, poll: null, nickname: 'Anna', state: 'open',
 	progress: { started: true, finished: false }, paceFinal: false, ...over })
@@ -334,7 +338,7 @@ test('paceCard mit Namen: wait / start / through / continue / closed / over', ()
 	assert.equal(card({ state: '' }), '')
 })
 
-// ── Weiter / Überspringen (§2.5) ─────────────────────────────────────────
+// ── Next / Skip (§2.5) ───────────────────────────────────────────────────
 
 const next = (over) => canNext({ isPaced: true, online: true, busy: false, nextBusy: false,
 	progress: { timeUp: false }, poll: { id: 5, timeLimit: 20 }, voted: false, myResult: null, ...over })
@@ -364,34 +368,34 @@ test('canNext: unbeantwortet ohne Timer sofort, mit Timer erst nach Server-timeU
 	assert.equal(next({ poll: { id: 5, timeLimit: 0 }, online: false }), false)
 })
 
-// ── Abfragetakt Handy (§2.10) ─────────────────────────────────────────────
+// ── Phone polling rate (§2.10) ────────────────────────────────────────────
 
 const delay = (over) => phoneDelay({ isPaced: true, state: 'open', poll: { id: 5, timeLimit: 20 },
 	voted: false, myResult: null, progress: { timeUp: false }, remaining: 12, ...over })
 
 test('phoneDelay: jede Zeile der Tabelle', () => {
-	// 1: Timer, unbeantwortet, Rest ≤ 1 s oder abgelaufen, Server noch nicht timeUp
+	// 1: timer, unanswered, ≤ 1 s left or expired, server not yet timeUp
 	assert.equal(delay({ remaining: 1 }), 700)
 	assert.equal(delay({ remaining: 0 }), 700)
-	// … sobald der Server timeUp meldet, normaler Takt
+	// … as soon as the server reports timeUp, normal rate
 	assert.equal(delay({ remaining: 0, progress: { timeUp: true } }), 4000)
-	// 2: beantwortet, noch nicht endgültig
+	// 2: answered, not final yet
 	assert.equal(delay({ voted: true, myResult: { final: false } }), 1000)
 	assert.equal(delay({ voted: true, myResult: null }), 1000)
-	// 3: unbeantwortet (sonst)
+	// 3: unanswered (otherwise)
 	assert.equal(delay({ remaining: 12 }), 4000)
 	assert.equal(delay({ remaining: 2 }), 4000)
 	assert.equal(delay({ poll: { id: 5, timeLimit: 0 }, remaining: null }), 4000, 'ohne Timer nie 700')
 	assert.equal(delay({ poll: { id: 5, timeLimit: 0 }, remaining: 0 }), 4000)
-	// 4: beantwortet, endgültig
+	// 4: answered, final
 	assert.equal(delay({ voted: true, myResult: { final: true } }), 4000)
 	assert.equal(delay({ voted: true, myResult: { final: true }, remaining: 0 }), 4000)
-	// 5: Karten start/continue/through/wait (+ Namensbildschirm)
+	// 5: cards start/continue/through/wait (+ name screen)
 	for (const st of ['draft', 'open']) assert.equal(delay({ state: st, poll: null }), 5000)
-	// 6: geschlossen / freigegeben
+	// 6: closed / released
 	assert.equal(delay({ state: 'closed', poll: null }), 10000)
 	assert.equal(delay({ state: 'released', poll: null }), 10000)
-	// außerhalb des eigenen Tempos entscheidet der Aufrufer
+	// outside self-paced mode the caller decides
 	assert.equal(delay({ isPaced: false }), null)
 	assert.equal(phoneDelay(null), null)
 })

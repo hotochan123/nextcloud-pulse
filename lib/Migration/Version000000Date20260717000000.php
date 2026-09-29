@@ -14,8 +14,8 @@ use OCP\Migration\IOutput;
 use OCP\Migration\SimpleMigrationStep;
 
 /**
- * Registriert den täglichen Aufräum-Job für verwaiste Räume. Kein Schema —
- * nur ein Eintrag in der Job-Liste (idempotent, add() prüft auf Duplikate).
+ * Registers the daily cleanup job for abandoned rooms. No schema change —
+ * just one entry in the job list (idempotent, add() checks for duplicates).
  */
 class Version000000Date20260717000000 extends SimpleMigrationStep {
 

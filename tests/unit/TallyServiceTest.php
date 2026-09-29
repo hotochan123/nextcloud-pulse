@@ -14,7 +14,11 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Auszählung aller Fragetypen. Bekommt Poll + Vote[] herein, keine DB.
+ * Tallying for all question types. Takes Poll + Vote[], no DB.
+ *
+ * Section references (§…) point to the design notes of the redesign, which are
+ * not in the public repository (see "References in code comments" in the
+ * README).
  */
 #[CoversClass(TallyService::class)]
 class TallyServiceTest extends TestCase {
@@ -25,7 +29,7 @@ class TallyServiceTest extends TestCase {
         $this->service = new TallyService();
     }
 
-    // ── normalizeText: EINE Quelle für Bewertung und Gruppierung ────────────
+    // ── normalizeText: ONE source for grading and grouping ──────────────────
 
     public function testNormalizeTextZiehtWhitespaceZusammenUndSchreibtKlein(): void {
         $this->assertSame('hallo welt', TallyService::normalizeText("  Hallo \n\t WELT  "));
@@ -54,8 +58,8 @@ class TallyServiceTest extends TestCase {
     }
 
     public function testChoiceIgnoriertUnbekannteOptionsIdsZaehltSieAberInTotal(): void {
-        // total = abgegebene Stimmen, nicht Summe der Balken (Altstimmen nach
-        // dem Bearbeiten einer Frage zeigen ins Leere).
+        // total = votes cast, not the sum of the bars (old votes point into
+        // nothing after a question has been edited).
         $poll = $this->poll('choice', [['id' => 'AA', 'label' => 'Ja']]);
         $tally = $this->service->tally($poll, [$this->vote('AA'), $this->vote('WEG')]);
 
@@ -82,8 +86,8 @@ class TallyServiceTest extends TestCase {
 
         $this->assertSame('words', $tally['type']);
         $this->assertSame(2, $tally['total'], 'total zählt Personen, nicht Wörter');
-        // Die zweite Person schrieb „kaffee“ und „KAFFEE“ — das ist EIN Wort,
-        // sie zählt dafür einmal, nicht zweimal.
+        // The second person wrote "kaffee" and "KAFFEE" — that is ONE word,
+        // so they count once for it, not twice.
         $this->assertSame([['word' => 'kaffee', 'count' => 2], ['word' => 'tee', 'count' => 1]], $tally['results']);
     }
 
@@ -156,8 +160,8 @@ class TallyServiceTest extends TestCase {
         ]);
         $tally = $this->service->tally($poll, [
             $this->vote(['a1' => 3]),
-            $this->vote(['a1' => 99]),   // ausserhalb
-            $this->vote([]),             // Aspekt fehlt
+            $this->vote(['a1' => 99]),   // out of range
+            $this->vote([]),             // aspect missing
         ]);
 
         $this->assertSame(1, $tally['results'][0]['n']);
@@ -224,7 +228,7 @@ class TallyServiceTest extends TestCase {
 
         $this->assertSame('rank', $tally['type']);
         $this->assertSame(3, $tally['total']);
-        // Qualität 1,1,2 -> 1.33 · Preis 2,3,1 -> 2.0 · Tempo 3,2,3 -> 2.67
+        // 'Qualität' 1,1,2 -> 1.33 · 'Preis' 2,3,1 -> 2.0 · 'Tempo' 3,2,3 -> 2.67
         $this->assertSame(['Qualität', 'Preis', 'Tempo'], array_column($tally['results'], 'label'));
         $this->assertSame([1.33, 2.0, 2.67], array_column($tally['results'], 'average'));
     }
@@ -233,8 +237,8 @@ class TallyServiceTest extends TestCase {
         $poll = $this->poll('rank', [
             ['id' => 'AA', 'label' => 'A'], ['id' => 'BB', 'label' => 'B'], ['id' => 'CC', 'label' => 'C'],
         ]);
-        // A polarisiert: zweimal ganz oben, zweimal ganz unten. Der Durchschnitt
-        // (2.0) verschweigt das — die Verteilung zeigt es (§7.5).
+        // A polarizes: twice at the very top, twice at the very bottom. The average
+        // (2.0) hides that — the distribution shows it (§7.5).
         $tally = $this->service->tally($poll, [
             $this->vote(['AA', 'BB', 'CC']),
             $this->vote(['AA', 'BB', 'CC']),
@@ -246,7 +250,7 @@ class TallyServiceTest extends TestCase {
         $this->assertSame([2, 0, 2], $rows['A'], 'zweimal Platz 1, zweimal Platz 3');
         $this->assertSame([0, 4, 0], $rows['B'], 'immer in der Mitte');
         $this->assertSame([2, 0, 2], $rows['C']);
-        // Die Summe je Zeile ist die Zahl der Stimmen für dieses Element.
+        // The sum per row is the number of votes for this item.
         foreach ($tally['results'] as $row) {
             $this->assertSame($row['n'], array_sum($row['places']));
         }
@@ -265,9 +269,9 @@ class TallyServiceTest extends TestCase {
         $poll = $this->poll('rank', [
             ['id' => 'AA', 'label' => 'A'], ['id' => 'BB', 'label' => 'B'], ['id' => 'CC', 'label' => 'C'],
         ]);
-        // Alle drei landen im Schnitt auf 2.0: A und C je zweimal ganz oben und
-        // zweimal ganz unten, B immer in der Mitte. Wer öfter Platz 1 hatte,
-        // steht vorn; A vor C entscheidet dann die Editor-Position.
+        // All three average out at 2.0: A and C each twice at the very top and
+        // twice at the very bottom, B always in the middle. Whoever was ranked first more
+        // often comes first; A before C is then decided by the editor position.
         $tally = $this->service->tally($poll, [
             $this->vote(['AA', 'BB', 'CC']),
             $this->vote(['CC', 'BB', 'AA']),
@@ -290,8 +294,8 @@ class TallyServiceTest extends TestCase {
     }
 
     public function testReihenfolgeStelltUnbewerteteAntwortenHintenAn(): void {
-        // Antwort C kam erst nach den Stimmen dazu (theoretisch) — ohne Platzierung
-        // darf sie nicht mit average 0 an die Spitze rutschen.
+        // Answer C was added only after the votes (theoretically) — without a placement
+        // it must not slide to the top with average 0.
         $poll = $this->poll('rank', [
             ['id' => 'AA', 'label' => 'A'], ['id' => 'BB', 'label' => 'B'], ['id' => 'CC', 'label' => 'C'],
         ]);
@@ -305,7 +309,7 @@ class TallyServiceTest extends TestCase {
         $poll = $this->poll('rank', [['id' => 'AA', 'label' => 'A'], ['id' => 'BB', 'label' => 'B']]);
         $tally = $this->service->tally($poll, [$this->vote(['AA', 'WEG', 'BB'])]);
 
-        // Die fremde ID belegt trotzdem Platz 2 — B rutscht dadurch auf Platz 3.
+        // The unknown ID still takes place 2 — which pushes B down to place 3.
         $this->assertSame(1.0, $tally['results'][0]['average']);
         $this->assertSame(3.0, $tally['results'][1]['average']);
     }
@@ -369,10 +373,10 @@ class TallyServiceTest extends TestCase {
         $this->assertSame(2, $tally['total'], 'total bleibt die Zahl der Stimmen');
     }
 
-    // ── Helfer ─────────────────────────────────────────────────────────────
+    // ── Helpers ────────────────────────────────────────────────────────────
 
-    /** @param array $options Options-Liste (choice/multi) oder Skalen-Config (scale) */
-    // ── Zuordnung ──────────────────────────────────────────────────────────
+    /** @param array $options option list (choice/multi) or scale config (scale) */
+    // ── Matching ───────────────────────────────────────────────────────────
 
     public function testZuordnungZaehltJeZeileUeberDieZiele(): void {
         $poll = $this->matchPoll();
@@ -400,7 +404,7 @@ class TallyServiceTest extends TestCase {
     }
 
     public function testZuordnungOhneKonsensLaesstTopLeer(): void {
-        // Gleichstand ist keine Einigung — sonst gewönne die Editor-Reihenfolge.
+        // A tie is not an agreement — otherwise the editor order would win.
         $poll = $this->matchPoll();
         $tally = $this->service->tally($poll, [
             $this->vote(['I1' => 'T1']),
@@ -428,7 +432,7 @@ class TallyServiceTest extends TestCase {
         $this->assertSame(['', ''], array_column($tally['results'], 'top'));
     }
 
-    /** Zwei Items, zwei Ziele — Ziel-Reihenfolge ist die des Editors. */
+    /** Two items, two targets — the target order is the editor's. */
     private function matchPoll(): Poll {
         $poll = new Poll();
         $poll->setType('match');

@@ -14,24 +14,24 @@
 
 <script>
 /*
- * Wer ist schon da? — Statuszeile unter der Beitritts-Spalte im Deck, nur im
- * eigenen Tempo (Spezifikation §1.4).
+ * Who is here already? — Status line under the join column in the deck, only
+ * in self-paced mode (self-paced spec §1.4, not in the public repository).
  *
- * Im Entwurf treten die Leute schon bei, bevor die Lehrkraft öffnet; ohne
- * diese Zeile sähe sie das erst in der Laufansicht. Zugleich hält die Zeile
- * das Deck aktuell: eine abgelaufene Frist oder ein zweiter Tab, der öffnet
- * oder schließt, kommt über `window` binnen ≤ 10 s im Deck an.
+ * In draft, people already join before the teacher opens; without
+ * this line she would only see that in the run view. At the same time the line
+ * keeps the deck current: an expired deadline or a second tab that opens
+ * or closes arrives in the deck via `window` within ≤ 10 s.
  *
- * Eigene /progress-Schleife (progress-poll, höchstens eine Anfrage unterwegs):
- * Entwurf 5 s, sonst 10 s; versteckter Tab = Pause, sichtbar = sofort.
+ * Its own /progress loop (progress-poll, at most one request in flight):
+ * draft 5 s, otherwise 10 s; hidden tab = pause, visible = immediately.
  *
- * Meldet nach oben:
- *   counts   Zählstand (progressCounts) für Bestätigungstexte
- *   skew     Serverzeit − Laptopzeit in Sekunden
- *   window   das Fenster, wenn sich state oder closesAt gegenüber `win`
- *            (Prop, der Schnappschuss aus dem Raum-JSON) geändert haben
- *   gone     404/403 — Raum gelöscht oder nicht mehr meiner
- *   not-paced 409 — der Raum läuft nicht mehr im eigenen Tempo
+ * Emits upwards:
+ *   counts   tally (progressCounts) for confirmation texts
+ *   skew     server time − laptop time in seconds
+ *   window   the window, when state or closesAt changed compared with `win`
+ *            (prop, the snapshot from the room JSON)
+ *   gone     404/403 — room deleted or no longer mine
+ *   not-paced 409 — the room no longer runs self-paced
  */
 import { generateUrl } from '@nextcloud/router'
 import { t } from '../util/l10n.js'
@@ -45,7 +45,7 @@ export default {
 	mixins: [progressPoll],
 	props: {
 		code: { type: String, required: true },
-		// Raum-JSON-Fenster (Schnappschuss) — Vergleichsbasis für `window`.
+		// Room JSON window (snapshot) — comparison basis for `window`.
 		win: { type: Object, default: null },
 	},
 	computed: {
@@ -62,7 +62,7 @@ export default {
 			return generateUrl('/apps/pulse/api/1.0/rooms/' + this.code + '/progress')
 		},
 		pollDelay() {
-			if (document.hidden) return null // pausieren -> onPollVisibility weckt auf
+			if (document.hidden) return null // pause -> onPollVisibility wakes it up
 			const win = (this.progress && this.progress.window) || this.win
 			return windowState(win) === 'draft' ? 5000 : 10000
 		},

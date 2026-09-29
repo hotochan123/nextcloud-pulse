@@ -27,13 +27,13 @@ use PHPUnit\Framework\TestCase;
 use ReflectionProperty;
 
 /**
- * Zurücksetzen, Kopieren, Löschen und Demo-Räumen kennen das eigene Tempo:
- * Fortschritt, Fenster, eingefrorene Reihenfolge und Beitrittssperre gehen mit.
+ * Reset, copy, delete and demo cleanup know about self-paced mode:
+ * progress, window, frozen order and join lock go along with them.
  *
- * Genauso wichtig ist die Gegenrichtung: ein moderierter Raum bekommt keine
- * zusätzliche Schreiboperation auf die Raumzeile — Reset schreibt sie nur beim
- * laufenden Cursor (und dann nur active_poll_id), die Kopie nur bei
- * „Auflösung am Ende", genau wie vorher.
+ * The opposite direction is just as important: a moderated room gets no
+ * additional write to the room row — reset writes it only when the
+ * cursor is running (and then only active_poll_id), the copy only with
+ * "Reveal at the end", exactly as before.
  */
 #[CoversClass(RoomService::class)]
 #[CoversClass(DemoService::class)]
@@ -98,7 +98,7 @@ class RoomPaceLifecycleTest extends TestCase {
         $room->resetUpdatedFields();
 
         $this->rooms->expects($this->once())->method('update')->willReturnCallback(function (Room $r): Room {
-            // Dasselbe UPDATE wie vor dem eigenen Tempo: nur active_poll_id.
+            // The same UPDATE as before self-paced mode: only active_poll_id.
             $this->assertSame(['activePollId' => true], $r->getUpdatedFields());
             return $r;
         });
@@ -132,7 +132,7 @@ class RoomPaceLifecycleTest extends TestCase {
         $this->assertSame(0, $room->getReleasedAt());
         $this->assertNull($room->getDeckOrder());
         $this->assertFalse($room->getJoinsLocked());
-        // Format des Durchgangs und Aufbewahrung bleiben.
+        // The run's format and retention stay.
         $this->assertSame('self', $room->getPace());
         $this->assertFalse($room->getTimed());
         $this->assertSame('end', $room->getFeedback());
@@ -203,7 +203,7 @@ class RoomPaceLifecycleTest extends TestCase {
         $this->assertSame('self', $copy->getPace());
         $this->assertFalse($copy->getTimed());
         $this->assertSame('end', $copy->getFeedback());
-        // Die Kopie ist ein frischer Entwurf.
+        // The copy is a fresh draft.
         $this->assertSame(0, $copy->getOpenedAt());
         $this->assertSame(0, $copy->getClosesAt());
         $this->assertSame(0, $copy->getClosedAt());
@@ -224,10 +224,10 @@ class RoomPaceLifecycleTest extends TestCase {
     }
 
     public function testLoeschenInDerReihenfolgeGegenWettlaeufe(): void {
-        // Raumzeile zuerst (ein self-Beitritt unter der Raumsperre wird erst
-        // fertig und dann mitgelöscht, ein späterer bekommt 404), Spieler vor
-        // Stimmen und Fortschritt (/vote und /next prüfen danach sperrend nach,
-        // s. PaceService::assertStillJoined), Bilddateien zuletzt.
+        // Room row first (a self-paced join under the room lock finishes first
+        // and is then deleted along with it, a later one gets 404), players before
+        // votes and progress (/vote and /next re-check with a lock afterwards,
+        // see PaceService::assertStillJoined), image files last.
         $calls = [];
         $log = function (string $what) use (&$calls): \Closure {
             return function (...$args) use ($what, &$calls) {
@@ -289,7 +289,7 @@ class RoomPaceLifecycleTest extends TestCase {
         $this->assertSame(['removed' => 3], $demo->clearDemoVotes($this->room()));
     }
 
-    // ── Helfer ─────────────────────────────────────────────────────────────
+    // ── Helpers ────────────────────────────────────────────────────────────
 
     private function room(): Room {
         $room = new Room();

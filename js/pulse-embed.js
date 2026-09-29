@@ -1,49 +1,49 @@
 /**
- * Pulse — Einbett-Shell fürs Office-/PowerPoint-Add-in.
+ * Pulse — embed shell for the Office/PowerPoint add-in.
  *
- * Handgeschriebenes Asset (KEIN webpack-Bundle) — wird von NC per
- * \OCP\Util::addScript mit CSP-Nonce eingebunden. Weil die NC-CSP
- * 'strict-dynamic' nutzt, dürfen von diesem (genonceten) Script dynamisch
- * nachgeladene Scripts laufen — so holen wir office.js aus Microsofts CDN.
+ * Hand-written asset (NOT a webpack bundle) — NC loads it via
+ * \OCP\Util::addScript with a CSP nonce. Because the NC CSP uses
+ * 'strict-dynamic', scripts loaded dynamically by this (nonced) script
+ * may run — that is how we fetch office.js from Microsoft's CDN.
  *
- * Zwei Betriebsarten:
- *   - Im Office-Webview: Raumcode wird in Office.context.document.settings
- *     gespeichert (bleibt in der .pptx erhalten).
- *   - Im normalen Browser (zum Testen): Fallback auf ?code=… bzw. localStorage,
- *     nach kurzem Timeout, falls kein Office-Host antwortet.
+ * Two modes:
+ *   - In the Office webview: the room code is stored in Office.context.document.settings
+ *     (it stays in the .pptx).
+ *   - In a normal browser (for testing): falls back to ?code=… or localStorage
+ *     after a short timeout if no Office host answers.
  */
 (function () {
     'use strict';
 
     /**
-     * Übersetzung über denselben Weg wie das Bundle: die Quelltexte stehen
-     * englisch im Code, OC.L10N liefert die Sprache der Oberfläche. Fehlt der
-     * Kern-Helfer, bleibt der englische Quelltext stehen — nie eine leere
-     * Zeichenkette.
+     * Translation takes the same path as the bundle: the source strings are
+     * English in the code, OC.L10N supplies the interface language. If the
+     * core helper is missing, the English source string stays — never an empty
+     * string.
      */
     function tr(text, vars) {
         try {
             if (typeof window.t === 'function') { return window.t('pulse', text, vars); }
             if (window.OC && window.OC.L10N && window.OC.L10N.translate) { return window.OC.L10N.translate('pulse', text, vars); }
-        } catch (e) { /* Quelltext als Rückfall */ }
+        } catch (e) { /* source string as fallback */ }
         return text;
     }
 
     var ORIGIN = window.location.origin; // https://nextcloud.example.com
     var root = document.getElementById('pulse-embed-root');
-    var settingsApi = null; // Office.context.document.settings, sobald verfügbar
+    var settingsApi = null; // Office.context.document.settings, once available
 
     function screenUrl(code) {
         return ORIGIN + '/apps/pulse/screen/' + encodeURIComponent(code);
     }
 
     function persist(code) {
-        try { window.localStorage.setItem('pulseCode', code); } catch (e) { /* egal */ }
+        try { window.localStorage.setItem('pulseCode', code); } catch (e) { /* ignore */ }
         if (settingsApi) {
             try {
                 settingsApi.set('pulseCode', code);
                 settingsApi.saveAsync(function () {});
-            } catch (e) { /* egal */ }
+            } catch (e) { /* ignore */ }
         }
     }
 
@@ -68,8 +68,8 @@
         frame.setAttribute('allowfullscreen', '');
         frame.setAttribute('title', tr('Pulse live view'));
 
-        // Dünne, per Hover eingeblendete Leiste zum Code-Wechsel — stört die
-        // Projektion nicht, ist aber beim Einrichten erreichbar.
+        // Thin bar, shown on hover, for changing the code — it does not get in
+        // the way of the projection but is reachable while setting up.
         var bar = document.createElement('div');
         bar.className = 'pulse-embed-bar';
         var label = document.createElement('span');
@@ -88,16 +88,17 @@
     }
 
     /**
-     * Raum prüfen, bevor die Leinwand kommt: der öffentliche Zustand antwortet
-     * mit 404, wenn es den Code nicht gibt. Ohne die Prüfung stünde in der
-     * Folie ein iframe mit „Diesen Raum gibt es nicht" — die Meldung gehört
-     * ans Feld, wo der Fehler entstanden ist (§9.7).
+     * Check the room before the canvas appears: the public state answers
+     * with 404 if the code does not exist. Without this check the slide
+     * would show an iframe saying "This room does not exist." — the message
+     * belongs at the field where the mistake was made (design notes §9.7, not
+     * in the public repository).
      */
     function roomExists(code) {
         return fetch(ORIGIN + '/apps/pulse/s/' + encodeURIComponent(code) + '/state?spectate=1', {
             headers: { Accept: 'application/json' },
         }).then(function (r) { return r.ok }).catch(function () {
-            return null; // kein Netz: kein Urteil, wir lassen es durch
+            return null; // no network: no verdict, we let it through
         })
     }
 
@@ -108,8 +109,8 @@
         var wrap = document.createElement('div');
         wrap.className = 'pulse-embed-setup';
 
-        // Wortmarke: die Shell steckt in fremden Folien und muss sagen, was sie
-        // ist — vorher stand dort ein nacktes Eingabefeld.
+        // Wordmark: the shell sits in other people's slides and has to say what it
+        // is — before, there was just a bare input field.
         var mark = document.createElement('p');
         mark.className = 'pulse-embed-mark';
         mark.innerHTML = '<span class="pulse-embed-dot"></span>Pulse';
@@ -123,8 +124,8 @@
         label.id = 'pulse-embed-label';
         label.textContent = tr('Room code');
 
-        // Sechs Stellen statt eines Feldes: der Code IST sechsstellig, und
-        // Einfügen aus der Zwischenablage verteilt sich auf die Stellen.
+        // Six cells instead of one field: the code IS six characters long, and
+        // pasting from the clipboard spreads across the cells.
         var cells = document.createElement('div');
         cells.className = 'pulse-embed-cells';
         cells.setAttribute('role', 'group');
@@ -152,8 +153,8 @@
             boxes[0].focus();
             boxes[0].select();
         }
-        // Zeichen ab Position i verteilen — dieselbe Routine für Tippen und
-        // Einfügen, sonst driften die beiden Wege auseinander.
+        // Spread characters starting at position i — the same routine for typing and
+        // pasting, otherwise the two paths drift apart.
         function spread(from, text) {
             var chars = String(text).toUpperCase().replace(/[^A-Z0-9]/g, '').split('');
             var at = from;
@@ -235,8 +236,8 @@
         if (code) { renderIframe(code); } else { renderForm(''); }
     }
 
-    // start() genau einmal aufrufen — egal ob office.js zuerst antwortet oder
-    // der Timeout-Fallback greift.
+    // Call start() exactly once — whether office.js answers first or
+    // the timeout fallback kicks in.
     var started = false;
     function bootOnce() {
         if (started) { return; }
@@ -244,8 +245,8 @@
         start();
     }
 
-    // office.js dynamisch nachladen (strict-dynamic: von diesem genonceten
-    // Script injiziert => erlaubt).
+    // Load office.js dynamically (strict-dynamic: injected by this nonced
+    // script => allowed).
     var s = document.createElement('script');
     s.src = 'https://appsjs.microsoft.com/lib/1/hosted/office.js';
     s.onload = function () {
@@ -254,16 +255,16 @@
                 try {
                     var doc = window.Office.context && window.Office.context.document;
                     if (doc && doc.settings) { settingsApi = doc.settings; }
-                } catch (e) { /* kein Dokument-Kontext */ }
+                } catch (e) { /* no document context */ }
                 bootOnce();
             });
         } else {
             bootOnce();
         }
     };
-    s.onerror = function () { bootOnce(); }; // offline / CDN geblockt => Browser-Fallback
+    s.onerror = function () { bootOnce(); }; // offline / CDN blocked => browser fallback
     document.head.appendChild(s);
 
-    // Sicherheitsnetz: im normalen Browser feuert Office.onReady evtl. nie.
+    // Safety net: in a normal browser Office.onReady may never fire.
     window.setTimeout(bootOnce, 2500);
 })();

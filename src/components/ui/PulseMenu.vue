@@ -44,25 +44,25 @@
 
 <script>
 /*
- * PulseMenu — das Überlaufmenü (Handoff „Übersichten" §3.1, Regel R2).
+ * PulseMenu — the overflow menu (overview design notes §3.1, rule R2; not in the public repository).
  *
- * Die Präsentationsansicht hatte es seit Etappe 5 als Einzelstück in
- * Moderator.vue; mit dem Deck-Kopf, der Deck-Zeile und der Raumkarte wären es
- * vier Abschriften geworden.
+ * The presentation view had it as a one-off in Moderator.vue since stage 5;
+ * with the deck header, the deck row and the room card it would have become
+ * four copies.
  *
  * items: [{ key, label, icon, act, danger?, checked?, disabled?, hint? }]
- *   checked gesetzt (auch false) -> der Eintrag ist ein SCHALTER: fester Text,
- *   Häkchen trägt den Zustand (R3). Sonst wandert das Label mit dem Zustand,
- *   und niemand weiß, ob dort steht, was ist, oder was passiert.
- *   danger -> ans Ende, mit Trennlinie davor (R4).
- *   hint -> zweite Zeile unter dem Label: WARUM ein Eintrag gerade aus ist
- *   („Close the quiz first."). Gedämpft werden dann nur Icon und Label, der
- *   Grund bleibt voll lesbar — sonst wäre die Erklärung genauso blass wie
- *   das, was sie erklärt.
+ *   checked set (even false) -> the entry is a TOGGLE: fixed text,
+ *   the tick carries the state (R3). Otherwise the label changes with the state,
+ *   and nobody knows whether it says what is, or what will happen.
+ *   danger -> to the end, with a separator before it (R4).
+ *   hint -> second line below the label: WHY an entry is currently off
+ *   ("Close the quiz first."). Only the icon and label are dimmed then, the
+ *   reason stays fully readable — otherwise the explanation would be just as faint as
+ *   what it explains.
  *
- * Tastatur: Pfeile wandern, Home/End springen, Escape schließt und gibt den
- * Fokus an den Auslöser zurück — ohne das landet man nach dem Schließen am
- * Anfang der Seite.
+ * Keyboard: arrows move, Home/End jump, Escape closes and returns the
+ * focus to the trigger — without that you end up at the top of the page
+ * after closing.
  */
 import PulseIcon from './PulseIcon.vue'
 
@@ -72,14 +72,14 @@ export default {
 	props: {
 		items: { type: Array, required: true },
 		label: { type: String, default: '' },
-		// Kopfzeilen mit kleiner Knopfgröße (Präsentationsansicht, Deck-Zeile).
+		// Header rows with the small button size (presentation view, deck row).
 		small: { type: Boolean, default: false },
 	},
 	data() {
 		return { open: false }
 	},
 	computed: {
-		// Trennlinie genau einmal, vor dem ersten roten Eintrag (R4).
+		// Separator exactly once, before the first red entry (R4).
 		firstDanger() {
 			return this.items.findIndex((it) => it.danger)
 		},
@@ -93,8 +93,8 @@ export default {
 		},
 		show() {
 			this.open = true
-			// Capture-Phase: der Klick, der ein anderes Menü öffnet, schließt
-			// dieses hier zuverlässig, bevor dort etwas passiert.
+			// Capture phase: the click that opens another menu reliably closes
+			// this one before anything happens there.
 			document.addEventListener('click', this.onDocClick, true)
 			this.$nextTick(() => this.focusAt(0))
 		},
@@ -104,8 +104,8 @@ export default {
 			document.removeEventListener('click', this.onDocClick, true)
 			if (refocus && this.$refs.trigger) this.$refs.trigger.focus()
 		},
-		// Von außen aufrufbar: nach dem Verschieben einer Deck-Zeile wandert der
-		// Fokus an das Menü der verschobenen Frage mit.
+		// Callable from outside: after a deck row is moved, the focus moves along
+		// to the menu of the moved question.
 		focusTrigger() {
 			if (this.$refs.trigger) this.$refs.trigger.focus()
 		},
@@ -114,8 +114,8 @@ export default {
 		},
 		run(item) {
 			if (item.disabled) return
-			// Schalter halten das Menü offen: man stellt selten genau eine
-			// Einstellung und will das Ergebnis sofort sehen.
+			// Toggles keep the menu open: you rarely set exactly one
+			// setting and want to see the result right away.
 			const stay = item.checked !== undefined
 			if (!stay) this.close()
 			item.act()
@@ -135,12 +135,12 @@ export default {
 		onKey(e) {
 			if (e.key === 'Escape') {
 				if (!this.open) return
-				e.stopPropagation() // sonst schließt Moderator.vue zusätzlich das Beitritts-Panel
+				e.stopPropagation() // otherwise Moderator.vue would also close the join panel
 				this.close(true)
 				return
 			}
 			if (!this.open) {
-				if (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') { /* Klick erledigt das */ }
+				if (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') { /* the click handles it */ }
 				return
 			}
 			const els = this.entryEls()
@@ -190,11 +190,11 @@ export default {
 .pulse-menu-item:disabled { color: var(--pulse-text-2); opacity: .5; cursor: default; }
 .pulse-menu-item.is-danger { color: var(--pulse-error); }
 .pulse-menu-item:focus-visible { outline: 2px solid var(--pulse-primary); outline-offset: -2px; }
-/* Das Häkchen belegt seinen Platz auch ungesetzt — sonst rutscht die
-   Beschriftung beim Umschalten, und der Schalter wirkt wie ein Sprung. */
+/* The tick takes up its space even when unset — otherwise the
+   label shifts on toggling, and the toggle feels like a jump. */
 .pulse-menu-tick { width: 1.05em; height: 1.05em; flex: 0 0 auto; }
 .pulse-menu-txt { flex: 1; min-width: 0; }
-/* Eintrag mit Begründung: zweizeilig, gedämpft nur Icon/Häkchen + Label. */
+/* Entry with a reason: two lines, only icon/tick + label dimmed. */
 .pulse-menu-item.has-hint { padding-block: 6px; }
 .pulse-menu-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .pulse-menu-hint { font-size: var(--t-sm); font-weight: 400; color: var(--pulse-text-2); line-height: 1.35; }

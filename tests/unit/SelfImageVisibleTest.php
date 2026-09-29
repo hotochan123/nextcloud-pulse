@@ -14,11 +14,11 @@ use OCA\Pulse\Service\StateService;
 use PHPUnit\Framework\Attributes\CoversClass;
 
 /**
- * Bildfreigabe im eigenen Tempo (StateService::imageVisible -> PaceStateService).
+ * Image visibility in self-paced mode (StateService::imageVisible -> PaceStateService).
  *
- * Ein Fragebild verrät die Frage. Es gibt keinen Cursor, also zählt nur, ob
- * DIESE Person die Frage erreicht hat — in jedem Fensterzustand, auch nach
- * der Freigabe. Moderiert bleibt die Regel „läuft gerade oder aufgelöst".
+ * A question image gives the question away. There is no cursor, so all that counts
+ * is whether THIS person has reached the question — in every window state, even after
+ * the release. In moderated mode the rule stays "currently running or revealed".
  */
 #[CoversClass(PaceStateService::class)]
 #[CoversClass(StateService::class)]
@@ -51,7 +51,7 @@ class SelfImageVisibleTest extends PaceStateTestCase {
     }
 
     public function testModeriertUnveraendert(): void {
-        // Ohne Cookie wie bisher: laufende Frage ja, nächste nein, aufgelöste ja.
+        // Without a cookie as before: running question yes, next no, revealed yes.
         $paceState = $this->createMock(PaceStateService::class);
         $paceState->expects($this->never())->method($this->anything());
         $state = self::build(StateService::class, ['paceState' => $paceState]);

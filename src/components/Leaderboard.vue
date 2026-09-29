@@ -6,10 +6,10 @@
 	<div class="pulse-lb" :class="{ 'is-animating': animate, 'is-split': split, 'is-solo': split && !listRows.length }">
 		<p v-if="!rows.length" class="lb-empty">{{ t('pulse', 'No points yet.') }}</p>
 
-		<!-- Endstand am Beamer (§4.3): zwei Spalten. Das nutzt das Breitformat,
-		     halbiert den Höhenbedarf und bringt die Plätze 4–8 zurück, die vorher
-		     am overflow:hidden abgeschnitten wurden (B1). Der Rang steht genau
-		     einmal je Person — im Podest bzw. in der Plakette. -->
+		<!-- Final standings on the projector (§4.3): two columns. This uses the wide format,
+		     halves the height needed and brings back places 4–8, which used to be
+		     cut off by overflow:hidden (B1). The rank appears exactly
+		     once per person — on the podium or in the badge. -->
 		<template v-if="split && rows.length">
 			<div class="podium-stage">
 				<ol class="podium">
@@ -35,9 +35,9 @@
 			</div>
 		</template>
 
-		<!-- Podium (Top 3) — echte Podeste mit Metall-Akzent, gestaffelter Einlauf,
-		     „Du" als Self-Ring + Pille (Verfeinerung §2). Reihenfolge optisch 2–1–3,
-		     Animation läuft nach Rang (Bronze zuerst, Sieger zuletzt). -->
+		<!-- Podium (top 3) — real podiums with a metal accent, staggered entrance,
+		     "You" as a self ring + pill (design notes §2, not in the public repository). Visual order 2–1–3,
+		     the animation runs by rank (bronze first, winner last). -->
 		<div v-if="!split && podium && podiumCols.length" class="podium-stage">
 			<div class="podium-glow" aria-hidden="true" />
 			<ol class="podium">
@@ -56,7 +56,7 @@
 			</ol>
 		</div>
 
-		<!-- Liste (ab Rang, der nicht im Podium ist – oder komplett, wenn kein Podium) -->
+		<!-- List (from the first rank not on the podium – or complete if there is no podium) -->
 		<ol v-if="!split" class="lb-list">
 			<li v-for="(r, i) in listRows" :key="r.nickname + i" class="lb-row" :class="{ 'is-me': r.me }">
 				<span class="lb-rank">{{ r.rank }}</span>
@@ -69,6 +69,11 @@
 </template>
 
 <script>
+/*
+ * Section references (§…) and review IDs (B1) point to the design notes of the
+ * redesign and of the self-paced quiz, which are not in the public repository
+ * (see "References in code comments" in the README).
+ */
 import StageRow from './StageRow.vue'
 
 export default {
@@ -77,38 +82,38 @@ export default {
 	props: {
 		rows: { type: Array, default: () => [] },
 		podium: { type: Boolean, default: false },
-		// Wie viele Zeilen die Liste zeigt (Top-N); die eigene Zeile wird bei Bedarf angehängt.
+		// How many rows the list shows (top N); one's own row is appended if needed.
 		limit: { type: Number, default: 10 },
-		// Endstand am Beamer: Podium links, Plätze 4–8 rechts (§4.3).
+		// Final standings on the projector: podium on the left, places 4–8 on the right (§4.3).
 		split: { type: Boolean, default: false },
-		// Nur die Spitze zeigen, die eigene Zeile NICHT anhängen — am Quiz-Ende
-		// steht sie darunter im Auszug „Um dich herum" (§8.7).
+		// Only show the top, do NOT append one's own row — at the end of the quiz
+		// it appears below in the "Around you" excerpt (§8.7).
 		topOnly: { type: Boolean, default: false },
 	},
 	data() {
 		return {
-			// Einmal-Schalter: die Einlauf-Animation soll beim Erscheinen EINMAL
-			// laufen, nicht bei jedem Polling-Update (sonst zappelt das Podest).
-			// Die CSS-Animationen haben fill-mode `both` -> Endzustand bleibt.
+			// One-shot switch: the entrance animation should run ONCE when it appears,
+			// not on every polling update (otherwise the podium fidgets).
+			// The CSS animations have fill-mode `both` -> the end state stays.
 			animate: false,
 		}
 	},
 	computed: {
-		// Geteilte Ränge (ex aequo): Rang -> Anzahl. > 1 -> "geteilt"-Kennzeichnung.
+		// Shared ranks (ex aequo): rank -> count. > 1 -> "shared" marker.
 		sharedRanks() {
 			const count = {}
 			for (const r of this.rows) count[r.rank] = (count[r.rank] || 0) + 1
 			return count
 		},
-		// Podium: Personen mit Rang ≤ 3, höchstens 3 Säulen. Platzierung nach Sortier-
-		// Index (0 = bester -> Mitte, 1 -> links, 2 -> rechts), NICHT nach Rang — sonst
-		// kollidieren zwei geteilte Rang-2 auf derselben Position (Bug 21-49-53). Bei
-		// 1-2-2 flankieren so zwei Silber das Gold; Bronze entfällt automatisch, weil
-		// kein Rang 3 existiert. "shared" markiert geteilte Ränge.
+		// Podium: people with rank ≤ 3, at most 3 columns. Placement by sort
+		// index (0 = best -> centre, 1 -> left, 2 -> right), NOT by rank — otherwise
+		// two shared rank-2 entries collide on the same position (bug 21-49-53). With
+		// 1-2-2 two silvers thus flank the gold; bronze drops out automatically because
+		// there is no rank 3. "shared" marks shared ranks.
 		podiumCols() {
 			if (!this.podium) return []
 			const cols = this.rows.filter((r) => r.rank <= 3).slice(0, 3)
-			// Sieger dominant: 3 Säulen -> Mitte; 2 -> links; 1 -> zentriert (flex).
+			// Winner dominant: 3 columns -> centre; 2 -> left; 1 -> centred (flex).
 			const orderMap = { 1: [1], 2: [1, 2], 3: [2, 1, 3] }
 			const orderFor = orderMap[cols.length] || cols.map((_, k) => k + 1)
 			return cols.map((r, i) => ({
@@ -118,30 +123,30 @@ export default {
 			}))
 		},
 		listRows() {
-			// Beim Podium die Podium-Personen überspringen, sonst alle – auf limit kürzen,
-			// aber die eigene Zeile immer sichtbar halten. shared für "geteilt"-Chip.
+			// With a podium skip the podium people, otherwise all – cut to limit,
+			// but always keep one's own row visible. shared for the "shared" chip.
 			const start = this.podium ? this.podiumCols.length : 0
 			const rest = this.rows.slice(start)
 			const capped = rest.slice(0, this.limit)
-			// Am Beamer gibt es kein Ich: die angehängte eigene Zeile wäre die
-			// Zeile dessen, der zufällig den Browser bedient (§7.4).
+			// On the projector there is no "me": the appended own row would be the
+			// row of whoever happens to operate the browser (§7.4).
 			const me = (this.split || this.topOnly) ? null : rest.find((r) => r.me)
 			if (me && !capped.includes(me)) capped.push(me)
 			return capped.map((r) => ({ ...r, shared: (this.sharedRanks[r.rank] || 0) > 1 }))
 		},
-		// Wie viele Personen jenseits der gezeigten Zeilen noch dahinterstehen —
-		// „+N weitere" am Endstand (§4.3).
+		// How many people are still behind the rows shown —
+		// "+N more" in the final standings (§4.3).
 		restCount() {
 			const shown = (this.podium ? this.podiumCols.length : 0) + this.listRows.length
 			return Math.max(0, this.rows.length - shown)
 		},
 	},
 	mounted() {
-		// Nach dem ersten Paint einschalten -> die Keyframes greifen genau einmal.
+		// Switch on after the first paint -> the keyframes apply exactly once.
 		this.$nextTick(() => requestAnimationFrame(() => { this.animate = true }))
 	},
 	methods: {
-		// Metall-Klasse: Gold/Silber/Bronze für Medaille und Podest.
+		// Metal class: gold/silver/bronze for medal and podium.
 		metalCls(rank) {
 			return rank === 1 ? 'is-gold' : rank === 2 ? 'is-silver' : 'is-bronze'
 		},
@@ -150,29 +155,29 @@ export default {
 </script>
 
 <style scoped>
-/* em -> skaliert über Container-font-size (Moderator klein, Beamer groß). */
+/* em -> scales via the container font-size (moderator small, projector large). */
 .pulse-lb { width: 100%; font-size: inherit; }
 .lb-empty { color: var(--pulse-text-2); text-align: center; }
 
-/* ── Endstand am Beamer (§4.3) ─────────────────────────────────────────────
-   Zwei Spalten: Podium links, Plätze 4–8 rechts im Zeilenmodell aus §2.4 —
-   kein eigenes Bauteil. Höhenrechnung: linke Spalte ≈ 9,5 em, rechte
-   5 × 2,4 em + 4 × 0,5 em = 14 em; maßgeblich ist 14 em. */
+/* ── Final standings on the projector (§4.3) ──────────────────────────────
+   Two columns: podium on the left, places 4–8 on the right in the row model from §2.4 —
+   no component of its own. Height calculation: left column ≈ 9.5 em, right
+   5 × 2.4 em + 4 × 0.5 em = 14 em; 14 em is what counts. */
 .is-split { display: grid; grid-template-columns: 1fr 1fr; gap: 2em; align-items: center; height: 100%; min-height: 0; }
 .is-split.is-solo { grid-template-columns: 1fr; }
-/* Ohne min-height/min-width 0 wächst eine Rasterspalte auf ihre Mindestbreite
-   (drei Podeste nebeneinander) und drückt die andere Spalte aus dem Bild. */
+/* Without min-height/min-width 0 a grid column grows to its minimum width
+   (three podiums side by side) and pushes the other column out of view. */
 .is-split > * { min-width: 0; }
 .is-split .podium-stage { margin: 0; }
 .is-split .podium { gap: 1em; min-width: 0; }
 .is-split .podium-col { flex: 1 1 0; max-width: 8em; min-width: 0; }
-/* Namen umbrechen statt kürzen: „Peregrine falcon" mit Auslassungspunkten ist
-   aus 10 m unbrauchbar, zweizeilig aber lesbar. */
+/* Wrap names instead of truncating: "Peregrine falcon" with an ellipsis is
+   useless from 10 m, but readable on two lines. */
 .is-split .podium-name { flex-wrap: wrap; justify-content: center; text-align: center; }
 .is-split .podium-name-txt { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; line-height: 1.15; }
-/* Das Podest trug die Rangzahl als eigene Schriftgröße (1,6 em) — und weil
-   seine Höhe in em ausgedrückt ist, war es dadurch 1,6-fach zu hoch. Die Größe
-   sitzt jetzt an der Zahl, die Höhe rechnet gegen die Bühne. */
+/* The podium carried the rank number as its own font size (1.6 em) — and because
+   its height is expressed in em, that made it 1.6 times too tall. The size
+   now sits on the number, the height is calculated against the stage. */
 .is-split .riser { width: 5.5em; margin-inline: auto; font-size: 1em; }
 .is-split .riser-rank { font-size: 1.6em; }
 .is-split .podium-name { font-weight: 700; }
@@ -183,9 +188,9 @@ export default {
 .lb-col { min-width: 0; }
 .lb-rest { margin: 0.5em 0 0; font-size: 0.5em; color: var(--pulse-meta); }
 
-/* ── Podest (Verfeinerung §2) ─────────────────────────────────────────────── */
+/* ── Podium (design notes §2, not in the public repository) ───────────────── */
 .podium-stage { position: relative; margin: 0 0 1.8em; }
-/* Dezenter Gold-Schein hinter Platz 1 (kein Konfetti). */
+/* Subtle gold glow behind place 1 (no confetti). */
 .podium-glow {
 	position: absolute; left: 50%; top: 4%; width: 62%; height: 78%;
 	transform: translateX(-50%); pointer-events: none; opacity: 0;
@@ -197,7 +202,7 @@ export default {
 .podium { list-style: none; display: flex; align-items: flex-end; justify-content: center; gap: 0.9em; margin: 0; padding: 0; }
 .podium-col { display: flex; flex-direction: column; align-items: center; flex: 0 1 8em; min-width: 0; }
 .win-card { display: flex; flex-direction: column; align-items: center; gap: 0.3em; padding: 0.35em 0.5em; border-radius: var(--pulse-r-card); max-width: 100%; min-width: 0; }
-/* „Du" auf dem Podest: Self-Ring um die Sieger-Karte. */
+/* "You" on the podium: self ring around the winner card. */
 .win-card.you-ring { outline: 3px solid var(--pulse-self); outline-offset: 3px; }
 
 .medal {
@@ -224,8 +229,8 @@ export default {
 .riser.is-bronze { height: 2.4em; background: linear-gradient(180deg, var(--pulse-bronze), color-mix(in oklab, var(--pulse-bronze) 74%, #000)); }
 .riser-rank { opacity: 0.85; }
 
-/* Gestaffelter Einlauf: Bronze (c3) zuerst, Sieger (c1) zuletzt. Delays gelten
-   pro RANG (Klasse), unabhängig von der optischen Reihenfolge via `order`. */
+/* Staggered entrance: bronze (c3) first, winner (c1) last. Delays apply
+   per RANK (class), independent of the visual order via `order`. */
 .is-animating .podium-col { animation: pulse-rise 620ms cubic-bezier(.2, .7, .2, 1) both; }
 .is-animating .podium-col.c3 { animation-delay: 500ms; }
 .is-animating .podium-col.c2 { animation-delay: 2300ms; }
@@ -246,7 +251,7 @@ export default {
 	border: 2px solid transparent;
 	border-radius: var(--pulse-r-el);
 }
-/* Eigene Zeile in der „Du"-Farbe (§6: „Du" ist überall dieselbe Farbe). */
+/* One's own row in the "You" colour (§6: "You" is the same colour everywhere). */
 .lb-row.is-me { border-color: var(--pulse-self); background: var(--pulse-self-soft); }
 .lb-rank { font-weight: 800; color: var(--pulse-text-2); min-width: 1.5em; font-variant-numeric: tabular-nums; text-align: right; }
 .lb-name { flex: 1; min-width: 0; display: inline-flex; align-items: center; gap: 0.5em; font-weight: 600; }
@@ -254,11 +259,11 @@ export default {
 .lb-correct { color: var(--pulse-text-2); font-size: 0.85em; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .lb-score { font-weight: 800; font-variant-numeric: tabular-nums; min-width: 3em; text-align: right; color: var(--pulse-primary); }
 
-/* „Du"-Pille in der Self-Farbe — überschreibt die globale (primär-blaue) .pulse-du. */
+/* "You" pill in the self colour — overrides the global (primary blue) .pulse-du. */
 .lb-du { background: var(--pulse-self-soft); color: var(--pulse-self); }
 
-/* „geteilt"-Chip bei Punktgleichstand (ex aequo) — neutral, trägt die Aussage
-   zusätzlich zur gleichen Medaillenzahl/Höhe (Farbe nie einziger Träger). */
+/* "shared" chip on a points tie (ex aequo) — neutral, carries the message
+   in addition to the same medal number/height (colour is never the only carrier). */
 .lb-tie { flex: 0 0 auto; font-size: 0.7em; font-weight: 700; padding: 0.1em 0.5em; border-radius: var(--pulse-r-pill); background: var(--pulse-fill); color: var(--pulse-text); white-space: nowrap; }
 
 @media (prefers-reduced-motion: reduce) {

@@ -38,15 +38,15 @@ use OCP\IRequest;
 use OCP\IUserSession;
 
 /**
- * Moderator-API. Login-pflichtig; CSRF-Schutz bleibt an (die SPA sendet den
- * Nextcloud-Requesttoken automatisch mit). #[NoAdminRequired], damit nicht nur
- * Admins Räume anlegen können.
+ * Moderator API. Login required; CSRF protection stays on (the SPA sends the
+ * Nextcloud request token along automatically). #[NoAdminRequired] so that not
+ * only admins can create rooms.
  *
- * Quiz im eigenen Tempo (PaceService::isSelf): jede schreibende Aktion läuft
- * unter der Raumsperre (PaceService::locked), ihr Wächter prüft die frisch
- * gesperrte Zeile — nicht den Raum, den withRoom vorher gelesen hat. So gibt
- * es kein Prüfen-dann-Handeln zwischen zwei Tabs oder Add-in und Browser.
- * Moderierte Räume laufen unverändert ohne Transaktion.
+ * Self-paced quiz (PaceService::isSelf): every writing action runs
+ * under the room lock (PaceService::locked); its guard checks the freshly
+ * locked row — not the room that withRoom read earlier. That way there is
+ * no check-then-act between two tabs or between add-in and browser.
+ * Moderated rooms still run without a transaction, as before.
  */
 class RoomApiController extends Controller {
     public function __construct(
@@ -59,10 +59,10 @@ class RoomApiController extends Controller {
         private DemoService $demoService,
         private PollImageService $imageService,
         private IL10N $l10n,
-        // nur im eigenen Tempo angefasst:
+        // only touched in self-paced mode:
         private PaceService $paceService,
         private PaceStateService $paceState,
-        private RoomMapper $roomMapper,          // touch (Besuch des Besitzers)
+        private RoomMapper $roomMapper,          // touch (owner's visit)
         private ITimeFactory $timeFactory,
     ) {
         parent::__construct(Application::APP_ID, $request);
@@ -73,7 +73,7 @@ class RoomApiController extends Controller {
         return new JSONResponse($this->roomService->listRooms($this->uid()));
     }
 
-    /** Gesamt-Zusammenfassung: alle Fragen mit Auszählung. */
+    /** Overall summary: all questions with their tally. */
     #[NoAdminRequired]
     public function summary(string $code): JSONResponse {
         return $this->withRoom($code, function ($room) {
@@ -82,10 +82,10 @@ class RoomApiController extends Controller {
     }
 
     /**
-     * Ergebnisse als CSV-Download (kein withRoom: liefert DataDownloadResponse).
-     * Im eigenen Tempo zusätzlich `?view=players` (eine Zeile je Person) und
-     * `?view=answers` (eine Zeile je Stimme, mit Zeiten); moderiert gibt es
-     * keine Zeiten je Person, dort wird der Parameter ignoriert.
+     * Results as a CSV download (no withRoom: returns a DataDownloadResponse).
+     * In self-paced mode additionally `?view=players` (one row per person) and
+     * `?view=answers` (one row per vote, with times); moderated rooms have
+     * no per-person times, so the parameter is ignored there.
      */
     #[NoAdminRequired]
     public function exportCsv(string $code): Response {
@@ -98,8 +98,8 @@ class RoomApiController extends Controller {
         }
         $view = Input::str($this->request->getParam('view'));
         if (PaceService::isSelf($room) && ($view === 'players' || $view === 'answers')) {
-            // Je Wort ein literales t() — sonst meldet build/l10n-check.js die
-            // Übersetzung als verwaist.
+            // One literal t() per word — otherwise build/l10n-check.js reports the
+            // translation as orphaned.
             $label = match ($view) {
                 'players' => $this->l10n->t('players'),
                 'answers' => $this->l10n->t('answers'),
@@ -125,7 +125,7 @@ class RoomApiController extends Controller {
         return new JSONResponse($room, Http::STATUS_CREATED);
     }
 
-    /** Raum als Vorlage kopieren: Fragen ja, Stimmen und Teilnehmende nein. */
+    /** Copy a room as a template: questions yes, votes and participants no. */
     #[NoAdminRequired]
     public function duplicate(string $code): JSONResponse {
         return $this->withRoom($code, function ($room) {
@@ -134,7 +134,7 @@ class RoomApiController extends Controller {
         });
     }
 
-    /** Raum umbenennen; leerer Titel entfernt ihn wieder. */
+    /** Rename a room; an empty title removes it again. */
     #[NoAdminRequired]
     public function rename(string $code): JSONResponse {
         return $this->withRoom($code, function ($room) {
@@ -143,7 +143,7 @@ class RoomApiController extends Controller {
         });
     }
 
-    /** Quiz-Rangliste (Moderator; ohne „me"-Markierung). */
+    /** Quiz leaderboard (moderator; without the "me" marker). */
     #[NoAdminRequired]
     public function leaderboard(string $code): JSONResponse {
         return $this->withRoom($code, function ($room) {
@@ -167,7 +167,7 @@ class RoomApiController extends Controller {
         });
     }
 
-    /** Ganzen Raum leeren: Stimmen + Teilnehmer + Rangliste weg, Fragen bleiben. */
+    /** Empty the whole room: votes + participants + leaderboard gone, questions stay. */
     #[NoAdminRequired]
     public function resetRoom(string $code): JSONResponse {
         return $this->withRoom($code, function ($room) {
@@ -179,7 +179,7 @@ class RoomApiController extends Controller {
         });
     }
 
-    /** Probelauf ein-/ausschalten. Body: { on: bool }. Leert den Raum beim Umschalten. */
+    /** Switch the practice run on/off. Body: { on: bool }. Empties the room when switching. */
     #[NoAdminRequired]
     public function practice(string $code): JSONResponse {
         return $this->withRoom($code, function ($room) {
@@ -192,7 +192,7 @@ class RoomApiController extends Controller {
         });
     }
 
-    /** Auflösung erst am Ende (statt je Frage) ein-/ausschalten. Body: { on: bool }. */
+    /** Switch reveal only at the end (instead of per question) on/off. Body: { on: bool }. */
     #[NoAdminRequired]
     public function reveal(string $code): JSONResponse {
         return $this->withRoom($code, function ($room) {
@@ -202,7 +202,7 @@ class RoomApiController extends Controller {
         });
     }
 
-    /** Quiz beenden: aktuelle Frage als beendet markieren -> gibt den Endstand frei. */
+    /** End the quiz: mark the current question as ended -> releases the final standings. */
     #[NoAdminRequired]
     public function endQuiz(string $code): JSONResponse {
         return $this->withRoom($code, function ($room) {
@@ -212,21 +212,21 @@ class RoomApiController extends Controller {
     }
 
     /**
-     * Quiz im eigenen Tempo steuern. Body: { action, … } mit
+     * Control a self-paced quiz. Body: { action, … } with
      * `set` {pace} · `open` {closesAt, timed, feedback} · `close` {release} ·
      * `extend` {closesAt} · `release` · `lockJoins` · `unlockJoins` ·
-     * `removePlayer` {playerId}. Fehlende Einstellungen beim Öffnen nehmen die
-     * Vorgabe (ohne Frist ein Rennen, mit Frist eine Hausaufgabe). `close` ohne
-     * `release` gibt wie bisher genau dann frei, wenn keine Frist gilt (alte
-     * Tabs, API-Clients); `release: false` schließt ohne Freigabe („Stoppen ohne
-     * Freigabe“, ein Aufruf), `release: true` gibt mit dem Schließen immer frei.
-     * Jede Aktion läuft unter der Raumsperre (PaceService). Antwort: der Raum
-     * wie bei GET /rooms/{code}, samt `window`.
+     * `removePlayer` {playerId}. Settings missing when opening take the
+     * default (a race without a deadline, homework with one). `close` without
+     * `release` releases, as before, exactly when there is no deadline (old
+     * tabs, API clients); `release: false` closes without releasing ("Stop
+     * without releasing", a single call), `release: true` always releases on closing.
+     * Every action runs under the room lock (PaceService). Response: the room
+     * as for GET /rooms/{code}, including `window`.
      *
-     * Jeder Parameter wird erst im Zweig seiner Aktion gelesen — was eine andere
-     * Aktion mitschickt, stört nicht. Unbrauchbares (Liste, Objekt, 1e999) ist
-     * 400, bevor die Raumsperre greift; Text, den der Dienst ohnehin prüft
-     * (`pace`, `feedback`), kommt als '' an und scheitert dort („Unknown …“).
+     * Each parameter is read only in the branch of its action — whatever another
+     * action sends along does no harm. Unusable input (list, object, 1e999) is a
+     * 400 before the room lock is taken; text that the service checks anyway
+     * (`pace`, `feedback`) arrives as '' and fails there ("Unknown …").
      */
     #[NoAdminRequired]
     public function pace(string $code): JSONResponse {
@@ -239,7 +239,7 @@ class RoomApiController extends Controller {
                         $room,
                         $this->closesAt(),
                         $this->optFlag('timed'),
-                        // fehlt = Vorgabe; eine Liste wird '' -> „Unknown feedback setting.“
+                        // missing = default; a list becomes '' -> "Unknown feedback setting."
                         $this->request->getParam('feedback') === null ? null : Input::str($this->request->getParam('feedback')),
                     ),
                     'close' => $this->paceService->closeWindow($room, $this->optFlag('release')),
@@ -259,10 +259,10 @@ class RoomApiController extends Controller {
     }
 
     /**
-     * Fortschritt im eigenen Tempo: je Person und je Frage (Rennen wie
-     * Hausaufgabe), adaptiv gepollt mit `?v=` wie results(). `?scores=1` zeigt
-     * Punkte auch bei „Rückmeldung am Ende" — ausdrücklicher Schalter, denn der
-     * Laptop hängt oft am Beamer. Kein withRoom: liefert auch 204.
+     * Self-paced progress: per person and per question (race as well as
+     * homework), polled adaptively with `?v=` like results(). `?scores=1` shows
+     * points even with feedback "At the end" — an explicit switch, because the
+     * laptop is often connected to the projector. No withRoom: can also return 204.
      */
     #[NoAdminRequired]
     public function progress(string $code): Response {
@@ -279,8 +279,8 @@ class RoomApiController extends Controller {
         $this->touch($room);
         $scores = Input::flag($this->request->getParam('scores')) ?? false;
         $data = $this->paceState->progress($room, $scores);
-        // Version aus dem fertigen Payload — ohne serverNow und „zuletzt
-        // gesehen" (jeder Handy-Heartbeat änderte sie sonst, s. PaceStateService::version).
+        // Version from the finished payload — without serverNow and "last
+        // seen" (otherwise every phone heartbeat would change it, see PaceStateService::version).
         $version = $this->paceState->version($data);
         $clientVersion = Input::str($this->request->getParam('v'));
         if ($clientVersion !== '' && $clientVersion === $version) {
@@ -360,7 +360,7 @@ class RoomApiController extends Controller {
         });
     }
 
-    /** Deck umsortieren. Body: { order: [pollId, pollId, …] }. */
+    /** Reorder the deck. Body: { order: [pollId, pollId, …] }. */
     #[NoAdminRequired]
     public function reorder(string $code): JSONResponse {
         return $this->withRoom($code, function ($room) {
@@ -377,12 +377,12 @@ class RoomApiController extends Controller {
         });
     }
 
-    /** Cursor setzen (Deck-Navigation). pollId=0 oder fehlt => Präsentation ruht. */
+    /** Set the cursor (deck navigation). pollId=0 or missing => presentation is idle. */
     #[NoAdminRequired]
     public function setCurrent(string $code): JSONResponse {
         return $this->withRoom($code, function ($room) {
-            // 0 oder fehlt = Präsentation ruht; Unbrauchbares (Liste, Text, 1e100)
-            // darf das nicht still bedeuten.
+            // 0 or missing = presentation is idle; unusable input (list, text, 1e100)
+            // must not silently mean that.
             $raw = $this->request->getParam('pollId');
             $pollId = $raw === null ? 0 : Input::int($raw);
             if ($pollId === null) {
@@ -423,7 +423,7 @@ class RoomApiController extends Controller {
         } catch (\InvalidArgumentException $e) {
             return new JSONResponse(['message' => $e->getMessage()], Http::STATUS_NOT_FOUND);
         }
-        // Unverändert seit dem letzten Poll? -> 204, ohne Tally/Rangliste zu bauen.
+        // Unchanged since the last poll? -> 204, without building tally/leaderboard.
         $clientVersion = Input::str($this->request->getParam('v'));
         if ($clientVersion !== '' && $clientVersion === $version) {
             $unchanged = new Response();
@@ -447,11 +447,11 @@ class RoomApiController extends Controller {
         });
     }
 
-    /** Freitext bewerten. Body: { answer: string, correct: bool }. */
+    /** Grade a free-text answer. Body: { answer: string, correct: bool }. */
     #[NoAdminRequired]
     public function gradeAnswer(string $code, int $pollId): JSONResponse {
         return $this->withRoom($code, function ($room) use ($pollId) {
-            // Mit NUL, genau wie die Stimme gespeichert ist (Input::rawStr).
+            // With NUL, exactly as the vote is stored (Input::rawStr).
             $answer = Input::rawStr($this->request->getParam('answer'));
             $correct = Input::flag($this->request->getParam('correct')) ?? false;
             try {
@@ -464,15 +464,15 @@ class RoomApiController extends Controller {
     }
 
     /**
-     * Bild zur Frage hochladen (multipart, Feldname `image`). Ersetzt ein
-     * vorhandenes. Das Bild wird serverseitig neu kodiert — siehe
+     * Upload an image for the question (multipart, field name `image`). Replaces an
+     * existing one. The image is re-encoded on the server — see
      * PollImageService.
      */
     #[NoAdminRequired]
     public function uploadImage(string $code, int $pollId): JSONResponse {
         return $this->withRoom($code, function ($room) use ($pollId) {
             try {
-                // null = kein Bild mitgeschickt (Antwort unten)
+                // null = no image sent along (response below)
                 $poll = $this->deckChange($room, function (Room $r) use ($pollId): ?Poll {
                     $poll = $this->deckService->requirePollInRoom($r, $pollId);
                     $upload = $this->request->getUploadedFile('image');
@@ -488,7 +488,7 @@ class RoomApiController extends Controller {
         });
     }
 
-    /** Bild der Frage entfernen. */
+    /** Remove the question's image. */
     #[NoAdminRequired]
     public function deleteImage(string $code, int $pollId): JSONResponse {
         return $this->withRoom($code, function ($room) use ($pollId) {
@@ -504,15 +504,15 @@ class RoomApiController extends Controller {
     }
 
     /**
-     * Bild ausliefern — Moderator-Sicht (Deck-Editor, Vorschau): ohne die
-     * Sichtbarkeitsschranke der öffentlichen Route, denn wem der Raum gehört,
-     * der kennt seine Fragen ohnehin.
+     * Serve the image — moderator view (deck editor, preview): without the
+     * visibility barrier of the public route, because whoever owns the room
+     * knows its questions anyway.
      *
-     * NoCSRFRequired ist hier Pflicht, kein Bequemlichkeits-Schalter: die URL
-     * steht in einem <img src>, und der Browser hängt an so eine Anfrage keinen
-     * Requesttoken -> Nextcloud antwortete mit 412 „CSRF check failed", das Bild
-     * blieb im Moderator leer. Ungefährlich, weil die Route nur liest und den
-     * Besitzer prüft.
+     * NoCSRFRequired is mandatory here, not a convenience switch: the URL
+     * sits in an <img src>, and the browser attaches no request token to such a
+     * request -> Nextcloud answered with 412 "CSRF check failed", and the image
+     * stayed empty in the moderator. Harmless, because the route only reads and
+     * checks the owner.
      */
     #[NoAdminRequired]
     #[NoCSRFRequired]
@@ -557,8 +557,8 @@ class RoomApiController extends Controller {
     }
 
     /**
-     * Demo-/Test-Stimmen für die aktive Frage erzeugen (Vorschau der Darstellung
-     * gegen viele Teilnehmende). Body: { count }.
+     * Generate demo/test votes for the active question (preview of the rendering
+     * with many participants). Body: { count }.
      */
     #[NoAdminRequired]
     public function demoSeed(string $code): JSONResponse {
@@ -572,7 +572,7 @@ class RoomApiController extends Controller {
         });
     }
 
-    /** Alle Demo-/Test-Stimmen des Raums wieder entfernen. */
+    /** Remove all demo/test votes of the room again. */
     #[NoAdminRequired]
     public function demoClear(string $code): JSONResponse {
         return $this->withRoom($code, function ($room) {
@@ -580,16 +580,16 @@ class RoomApiController extends Controller {
         });
     }
 
-    // ── Helfer ────────────────────────────────────────────────────────────────
+    // ── Helpers ───────────────────────────────────────────────────────────────
 
     private function uid(): string {
         return $this->userSession->getUser()?->getUID() ?? '';
     }
 
     /**
-     * Frist aus der Anfrage (`open`, `extend`): fehlt = keine (0). Unbrauchbar
-     * (Liste, Text, 1e999) ist 400 statt still „ohne Frist“ — beim Verlängern
-     * hieße das „offen, bis jemand schließt“.
+     * Deadline from the request (`open`, `extend`): missing = none (0). Unusable
+     * (list, text, 1e999) is a 400 instead of silently "no deadline" — when extending
+     * that would mean "open until someone closes it".
      *
      * @throws \InvalidArgumentException
      */
@@ -603,9 +603,9 @@ class RoomApiController extends Controller {
     }
 
     /**
-     * Optionaler Schalter in /pace: fehlt = null (die Vorgabe des Dienstes).
-     * Wahrheitswerte wie filter_var (true/false, 1/0, „on“/„off“, „yes“/„no“,
-     * '' = false). Alles andere ist 400 — nie still die Vorgabe.
+     * Optional switch in /pace: missing = null (the service's default).
+     * Boolean values like filter_var (true/false, 1/0, "on"/"off", "yes"/"no",
+     * '' = false). Anything else is a 400 — never silently the default.
      *
      * @throws \InvalidArgumentException 'Invalid request.'
      */
@@ -618,11 +618,11 @@ class RoomApiController extends Controller {
     }
 
     /**
-     * Raum laden, Eigentümerschaft prüfen, Fehler einheitlich auf HTTP abbilden.
-     * Passt eine Aktion nicht zum Zustand des Raums (eigenes Tempo, s.
-     * PaceService), wird daraus 409. Verschwindet der Raum, bevor die
-     * Raumsperre greift (anderer Tab, Aufräum-Job), wird daraus 404 wie beim
-     * Laden.
+     * Load the room, check ownership, map errors uniformly to HTTP.
+     * If an action does not fit the room's state (self-paced, see
+     * PaceService), it becomes a 409. If the room disappears before the
+     * room lock is taken (another tab, cleanup job), it becomes a 404 as when
+     * loading.
      */
     private function withRoom(string $code, callable $fn): JSONResponse {
         try {
@@ -642,31 +642,31 @@ class RoomApiController extends Controller {
     }
 
     /**
-     * Deck-Änderung (Fragen, Reihenfolge, Bilder, Stimmen einer Frage leeren):
-     * im eigenen Tempo ab dem Öffnen gesperrt — die eingefrorene Reihenfolge
-     * bleibt so auch physisch stabil.
+     * Deck change (questions, order, images, clearing a question's votes):
+     * locked in self-paced mode from the moment it opens — that way the frozen
+     * order also stays physically stable.
      */
     private function deckChange(Room $room, callable $fn): mixed {
         return $this->paced($room, fn (Room $r) => $this->paceService->assertDeckEditable($r), $fn);
     }
 
-    /** Cursor-Steuerung (aktuelle Frage, sperren, beenden, Demo): im eigenen Tempo nie. */
+    /** Cursor control (current question, lock, end, demo): never in self-paced mode. */
     private function liveControl(Room $room, callable $fn): mixed {
         return $this->paced($room, fn (Room $r) => $this->paceService->assertLiveControl($r), $fn);
     }
 
-    /** Raum leeren (Zurücksetzen, Probelauf): im eigenen Tempo nicht bei offenem Fenster. */
+    /** Empty the room (reset, practice run): in self-paced mode not while the window is open. */
     private function notOpen(Room $room, callable $fn): mixed {
         return $this->paced($room, fn (Room $r) => $this->paceService->assertNotOpen($r), $fn);
     }
 
     /**
-     * Schreibende Moderator-Aktion. Moderiert: $fn($room) wie bisher, ohne
-     * Transaktion. Im eigenen Tempo unter der Raumsperre: Wächter und $fn
-     * bekommen die frisch gesperrte Zeile. Jede Ausnahme rollt zurück und
-     * fliegt weiter (ConflictException des Wächters -> 409 in withRoom).
+     * Writing moderator action. Moderated: $fn($room) as before, without a
+     * transaction. Self-paced: under the room lock; the guard and $fn
+     * get the freshly locked row. Every exception rolls back and
+     * propagates (the guard's ConflictException -> 409 in withRoom).
      *
-     * @param callable(Room): void $guard wirft ConflictException
+     * @param callable(Room): void $guard throws ConflictException
      * @param callable(Room): mixed $fn
      */
     private function paced(Room $room, callable $guard, callable $fn): mixed {
@@ -680,10 +680,10 @@ class RoomApiController extends Controller {
     }
 
     /**
-     * Besuch des Besitzers vermerken (show, /progress, /pace) — nur im eigenen
-     * Tempo. Sonst gibt der Besitzer einer Hausaufgabe nie ein Lebenszeichen,
-     * und der Aufräum-Job löschte sie samt Ergebnissen, während er noch
-     * auswertet. Gedrosselt im Mapper (höchstens stündlich).
+     * Record the owner's visit (show, /progress, /pace) — only in self-paced
+     * mode. Otherwise the owner of a homework quiz never gives a sign of life,
+     * and the cleanup job would delete it together with its results while they
+     * are still evaluating it. Throttled in the mapper (at most hourly).
      */
     private function touch(Room $room): void {
         if (PaceService::isSelf($room)) {

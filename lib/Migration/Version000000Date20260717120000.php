@@ -14,10 +14,10 @@ use OCP\Migration\IOutput;
 use OCP\Migration\SimpleMigrationStep;
 
 /**
- * Probelauf-Modus: ein Raum kann als „Probelauf" laufen — Stimmen zählen nicht
- * in die Rangliste (die bleibt ausgeblendet), zum Testen von Fragen/Timing. Das
- * Umschalten leert den Raum (siehe RoomService::setPractice), die Spalte hält
- * nur, ob der Raum gerade im Probelauf ist.
+ * Practice-run mode: a room can run as a "Practice run" — votes do not count
+ * towards the leaderboard (which stays hidden), for testing questions/timing.
+ * Switching empties the room (see RoomService::setPractice); the column only
+ * records whether the room is currently in a practice run.
  */
 class Version000000Date20260717120000 extends SimpleMigrationStep {
 

@@ -11,18 +11,18 @@ use OCA\Pulse\Db\RoomMapper;
 use OCP\Security\ISecureRandom;
 
 /**
- * Erzeugt die verschiedenen IDs aus einem verwechslungsarmen Alphabet
- * (ohne I/O/0/1 → beim Vorlesen/Abtippen robust):
- * - Raumcode alphanumerisch, 6 Zeichen → 32^6 ≈ 1,07 Mrd. (statt 10^6 numerisch),
- *   damit Durchprobieren des Codes teuer wird.
- * - Options-IDs ebenfalls aus diesem Alphabet.
- * - Voter-Token kryptografisch, nur intern (Cookie).
+ * Generates the various IDs from an alphabet that is hard to confuse
+ * (no I/O/0/1 → robust when read aloud or typed in):
+ * - Room code alphanumeric, 6 characters → 32^6 ≈ 1.07 billion (instead of 10^6 numeric),
+ *   so that brute-forcing the code becomes expensive.
+ * - Option IDs from the same alphabet.
+ * - Voter token cryptographic, internal only (cookie).
  */
 class CodeGenerator {
-    /** verwechslungsarm beim Vorlesen: kein I, O, 0, 1 */
+    /** hard to confuse when read aloud: no I, O, 0, 1 */
     private const SAFE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
-    /** Länge des Voter-Tokens; alle Token-Spalten sind varchar(32). */
+    /** Length of the voter token; all token columns are varchar(32). */
     public const VOTER_TOKEN_LENGTH = 32;
 
     public function __construct(
@@ -32,7 +32,7 @@ class CodeGenerator {
     }
 
     /**
-     * 6-stelliger, kollisionsfreier, alphanumerischer Raumcode (Großbuchstaben).
+     * 6-character, collision-free, alphanumeric room code (upper case).
      */
     public function uniqueRoomCode(): string {
         for ($attempt = 0; $attempt < 20; $attempt++) {
@@ -41,7 +41,7 @@ class CodeGenerator {
                 return $code;
             }
         }
-        // Bei ~1 Mrd. Codes praktisch ausgeschlossen; klare Fehlermeldung statt Endlosschleife.
+        // Practically impossible with ~1 billion codes; a clear error instead of an endless loop.
         throw new \RuntimeException('Could not generate a free room code.');
     }
 
@@ -54,8 +54,8 @@ class CodeGenerator {
     }
 
     /**
-     * Hat ein Wert die Form, die voterToken() vergibt (32 Zeichen A–Z, a–z,
-     * 0–9)? `\z` statt `$`: `$` ließe einen Zeilenumbruch am Ende durch.
+     * Does a value have the shape that voterToken() hands out (32 characters A–Z, a–z,
+     * 0–9)? `\z` instead of `$`: `$` would let a trailing newline through.
      */
     public static function isVoterToken(string $s): bool {
         return preg_match('/^[A-Za-z0-9]{' . self::VOTER_TOKEN_LENGTH . '}\z/', $s) === 1;

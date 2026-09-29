@@ -23,22 +23,22 @@ use OCP\IDBConnection;
 use OCP\IL10N;
 
 /**
- * Quiz im eigenen Tempo: Jede Person läuft allein durch das beim Öffnen
- * eingefrorene Deck, ihre Uhr startet je Frage erst mit /next. Der Moderator
- * steuert keinen Cursor mehr, sondern nur das Fenster (öffnen, schließen,
- * verlängern, freigeben) — ohne Frist ein „Rennen", mit Frist eine
- * „Hausaufgabe".
+ * Self-paced quiz: every person runs alone through the deck that was frozen
+ * on opening; their clock for each question only starts with /next. The
+ * moderator no longer steers a cursor, only the window (open, close,
+ * extend, release) — without a deadline a "race", with a deadline a
+ * "homework".
  *
- * Zwei Hälften:
- * - statisch und ohne DI: Zustand ableiten, Reihenfolge lesen, Endgültigkeit.
- *   Das brauchen auch Pfade, die im moderierten Betrieb durchlaufen (sie
- *   verzweigen über isSelf), und die Reflection-Tests der bestehenden Dienste
- *   müssen so nichts zusätzlich einspritzen.
- * - Instanz: Fenster-Aktionen und Wächter unter der Raumsperre (locked()),
- *   dazu /next.
+ * Two halves:
+ * - static and without DI: derive the state, read the order, finality.
+ *   Paths that also run in moderated mode need these too (they branch via
+ *   isSelf), and this way the reflection tests of the existing services
+ *   don't have to inject anything extra.
+ * - instance: window actions and guards under the room lock (locked()),
+ *   plus /next.
  *
- * Der Fensterzustand steht nirgends, er wird aus den Zeitstempeln abgeleitet
- * (deriveState) — eine ablaufende Frist braucht keinen Hintergrund-Job.
+ * The window state is not stored anywhere; it is derived from the timestamps
+ * (deriveState) — an expiring deadline needs no background job.
  */
 class PaceService {
     use TTransactional;
@@ -51,13 +51,13 @@ class PaceService {
     public const STATE_OPEN = 'open';
     public const STATE_CLOSED = 'closed';
     public const STATE_RELEASED = 'released';
-    /** Frist frühestens so weit in der Zukunft (kürzer ist fast immer ein Tippfehler). */
+    /** Deadline at least this far in the future (shorter is almost always a typo). */
     public const MIN_LEAD = 60;
-    /** Frist höchstens so weit in der Zukunft. */
+    /** Deadline at most this far in the future. */
     public const MAX_LEAD = 30 * 86400;
-    /** Höchstzahl Spieler je Raum im eigenen Tempo (Spam-Deckel beim Beitritt). */
+    /** Maximum number of players per self-paced room (spam cap on joining). */
     public const MAX_PLAYERS = 300;
-    /** Beitritte je IP und Raum im eigenen Tempo: 120 in 10 min. */
+    /** Joins per IP and self-paced room: 120 in 10 min. */
     public const JOIN_LIMIT = 120;
     public const JOIN_PERIOD = 600;
 
@@ -66,7 +66,7 @@ class PaceService {
         private PollMapper $pollMapper,
         private PlayerMapper $playerMapper,
         private ProgressMapper $progressMapper,
-        private VoteMapper $voteMapper,          // /next-Vorschausperre, removePlayer
+        private VoteMapper $voteMapper,          // /next preview lock, removePlayer
         private PresenceMapper $presenceMapper,  // removePlayer
         private RoomService $roomService,
         private IDBConnection $db,               // locked()
@@ -75,16 +75,16 @@ class PaceService {
     ) {
     }
 
-    // ── Reine Funktionen ────────────────────────────────────────────────────
+    // ── Pure functions ──────────────────────────────────────────────────────
 
-    /** Läuft der Raum im eigenen Tempo? Nur Quiz-Räume können das. */
+    /** Does the room run self-paced? Only quiz rooms can. */
     public static function isSelf(Room $room): bool {
         return $room->getMode() === 'quiz' && $room->getPace() === self::PACE_SELF;
     }
 
     /**
-     * Fensterzustand aus den Zeitstempeln. Die Freigabe schlägt alles; in der
-     * Sekunde closes_at ist das Fenster schon zu (dieselbe Grenze überall).
+     * Window state from the timestamps. The release beats everything; in the
+     * second of closes_at the window is already closed (the same boundary everywhere).
      */
     public static function deriveState(Room $room, int $now): string {
         if ($room->getReleasedAt() > 0) {
@@ -100,8 +100,8 @@ class PaceService {
     }
 
     /**
-     * Wann das Fenster zuging: manuell (closed_at) oder durch die abgelaufene
-     * Frist. 0 = noch nicht zu.
+     * When the window closed: manually (closed_at) or through the expired
+     * deadline. 0 = not closed yet.
      */
     public static function effectiveClosedAt(Room $room, int $now): int {
         if ($room->getClosedAt() > 0) {
@@ -111,23 +111,23 @@ class PaceService {
         return ($closes > 0 && $now >= $closes) ? $closes : 0;
     }
 
-    /** Im Probelauf gibt es das Urteil immer sofort (openWindow speichert es ohnehin so). */
+    /** In a practice run the verdict is always immediate (openWindow stores it that way anyway). */
     public static function effectiveFeedback(Room $room): string {
         return $room->getPractice() ? self::FEEDBACK_EACH : $room->getFeedback();
     }
 
     /**
-     * Ist eine Stimme endgültig — zählt sie für Punkte, Urteil und Rangliste?
-     * EINE Regel für alle Sichten: korrigiert (`fixed`), nicht mehr
-     * korrigierbar, oder das Korrekturfenster der ersten Antwort (`fw`) ist
-     * vorbei. Strikt „>": in der Sekunde created+fw geht die Korrektur noch
-     * (dieselbe Grenze wie im moderierten Quiz).
+     * Is a vote final — does it count for points, verdict and leaderboard?
+     * ONE rule for all views: corrected (`fixed`), no longer
+     * correctable, or the correction window of the first answer (`fw`) is
+     * over. Strictly ">": in the second created+fw a correction still works
+     * (the same boundary as in the moderated quiz).
      *
-     * $correctable = Fenster offen UND die Zeile der Person zu dieser Frage ist
-     * noch offen. Was nicht mehr korrigiert werden kann, ist sofort endgültig —
-     * sonst sortierte sich der Endstand nach dem Schließen noch fw Sekunden lang
-     * um, und einer CSV direkt danach fehlten Punkte. Kein Leck: korrigieren
-     * geht ab da ohnehin nicht mehr.
+     * $correctable = window open AND the person's row for this question is
+     * still open. Whatever can no longer be corrected is final immediately —
+     * otherwise the final standings would keep re-sorting for fw seconds after
+     * closing, and a CSV taken right then would be missing points. No leak:
+     * correcting is no longer possible from that point anyway.
      */
     public static function isFinal(array $payload, int $createdAt, int $now, bool $correctable = true): bool {
         return !empty($payload['fixed'])
@@ -135,20 +135,20 @@ class PaceService {
             || ($now - $createdAt) > (int)($payload['fw'] ?? VoteService::FIX_WINDOW);
     }
 
-    /** Kann die Person ihre Antwort auf die Frage dieser Zeile noch korrigieren? */
+    /** Can the person still correct their answer to this row's question? */
     public static function correctable(Room $room, int $now, ?Progress $row): bool {
         return self::deriveState($room, $now) === self::STATE_OPEN
             && $row !== null && $row->getLeftAt() === 0;
     }
 
     /**
-     * Ist die Person durch? Sie hat die letzte Frage erreicht und sie entweder
-     * verlassen („Fertig" getippt), beantwortet oder das Fenster ist zu. Wer die
-     * letzte Antwort gegeben, aber nicht mehr „Fertig" getippt hat, ist also
-     * fertig. EINE Definition für Handy, Beamer, Fortschritt und CSV.
+     * Is the person through? They reached the last question and either left
+     * it (tapped "I’m done"), answered it, or the window is closed. So whoever
+     * gave the last answer but did not tap "I’m done" any more is
+     * finished. ONE definition for phone, projector, progress and CSV.
      *
-     * @param int $n Fragen in der eingefrorenen Reihenfolge
-     * @param ?Progress $last Zeile mit dem höchsten seq der Person
+     * @param int $n questions in the frozen order
+     * @param ?Progress $last the person's row with the highest seq
      */
     public static function isFinished(int $n, ?Progress $last, bool $answeredLast, string $state): bool {
         return $last !== null && $last->getSeq() === $n - 1
@@ -156,11 +156,11 @@ class PaceService {
     }
 
     /**
-     * Der Wert, den der Client als /next {after} schickt: die offene Frage,
-     * sonst die zuletzt erreichte, sonst 0. Fängt auch eine Anfrage, die
-     * zwischen Schließen der alten und Starten der neuen Zeile abbrach.
+     * The value the client sends as /next {after}: the open question,
+     * otherwise the last one reached, otherwise 0. Also catches a request that
+     * broke off between closing the old row and starting the new one.
      *
-     * @param Progress[] $rows Zeilen EINER Person
+     * @param Progress[] $rows rows of ONE person
      */
     public static function afterFor(array $rows): int {
         $open = self::openOf($rows);
@@ -171,8 +171,8 @@ class PaceService {
     }
 
     /**
-     * Fenster für Raum-JSON und Zustand. `total` kommt nach dem Öffnen aus der
-     * eingefrorenen Reihenfolge, davor aus dem aktuellen Deck.
+     * Window for the room JSON and the state. After opening `total` comes from the
+     * frozen order, before that from the current deck.
      */
     public static function windowView(Room $room, int $now, int $deckCount): array {
         return [
@@ -188,11 +188,11 @@ class PaceService {
     }
 
     /**
-     * Eingefrorene Reihenfolge (beim Öffnen geschrieben). Einzige Quelle für
-     * „Frage k von n" und „nächste Frage" — nie `position`. Robust gegen Müll:
-     * nur ganzzahlige Einträge > 0, Dubletten raus.
+     * Frozen order (written on opening). The only source for
+     * "Question k of n" and "next question" — never `position`. Robust against
+     * garbage: only integer entries > 0, duplicates removed.
      *
-     * @return list<int> Poll-IDs; [] im Entwurf
+     * @return list<int> poll IDs; [] in the draft
      */
     public static function order(Room $room): array {
         $raw = $room->getDeckOrder();
@@ -216,14 +216,14 @@ class PaceService {
     }
 
     /**
-     * Nachfolger von $after in der eingefrorenen Reihenfolge. $after = 0 ->
-     * erste Frage. Unbekanntes $after oder letzte Frage -> null.
+     * Successor of $after in the frozen order. $after = 0 ->
+     * first question. Unknown $after or last question -> null.
      *
-     * $existing (Poll-IDs, die es noch gibt): fehlende Einträge werden
-     * übersprungen. Reine Abwehr — seit das Deck ab dem Öffnen gesperrt ist,
-     * sollte das nie greifen. seq bleibt der Index in der VOLLEN Reihenfolge.
+     * $existing (poll IDs that still exist): missing entries are
+     * skipped. Pure defence — since the deck is locked from opening on,
+     * this should never kick in. seq stays the index in the FULL order.
      *
-     * @param ?list<int> $existing null = nicht filtern
+     * @param ?list<int> $existing null = do not filter
      * @return ?array{pollId:int, seq:int}
      */
     public static function nextAfter(Room $room, int $after, ?array $existing = null): ?array {
@@ -246,9 +246,9 @@ class PaceService {
     }
 
     /**
-     * Offene Zeile (left_at = 0) einer Person. Der Algorithmus in next() hält
-     * höchstens eine offen; bei mehreren gilt die erste. Öffentlich, weil die
-     * Lesesichten (PaceStateService) dieselbe Auswahl treffen müssen.
+     * A person's open row (left_at = 0). The algorithm in next() keeps
+     * at most one open; if there are several, the first one applies. Public
+     * because the read views (PaceStateService) have to make the same choice.
      *
      * @param Progress[] $rows
      */
@@ -262,7 +262,7 @@ class PaceService {
     }
 
     /**
-     * Zuletzt erreichte Zeile (höchstes seq) einer Person, null ohne Zeilen.
+     * A person's last reached row (highest seq), null without rows.
      *
      * @param Progress[] $rows
      */
@@ -276,21 +276,21 @@ class PaceService {
         return $last;
     }
 
-    // ── Sperre und Wächter ──────────────────────────────────────────────────
+    // ── Lock and guards ─────────────────────────────────────────────────────
 
     /**
-     * $fn($frischGesperrterRaum) in einer Transaktion unter SELECT … FOR UPDATE
-     * auf die Raumzeile. Wächter und Zustand prüft $fn an DIESER Zeile, nicht
-     * am übergebenen (evtl. veralteten) Raum — so gibt es kein Prüfen-dann-
-     * Handeln zwischen zwei Tabs, Add-in und Browser. Jede Ausnahme rollt
-     * zurück und fliegt weiter. Innerhalb von $fn keine Unique-Verstöße (auf
-     * PostgreSQL bräche das die ganze Transaktion ab).
+     * $fn($freshlyLockedRoom) in a transaction under SELECT … FOR UPDATE
+     * on the room row. $fn checks guards and state on THIS row, not on
+     * the room passed in (possibly stale) — so there is no check-then-act
+     * between two tabs, add-in and browser. Every exception rolls
+     * back and propagates. No unique violations inside $fn (on
+     * PostgreSQL that would abort the whole transaction).
      *
-     * Ist der Raum inzwischen gelöscht (anderer Tab, Aufräum-Job), gibt es
-     * keine Zeile mehr zu sperren: RoomGoneException, die Controller machen
-     * daraus 404 — nicht ein nacktes DoesNotExistException und damit 500.
+     * If the room has been deleted in the meantime (other tab, cleanup job),
+     * there is no row left to lock: RoomGoneException, which the controllers
+     * turn into 404 — not a bare DoesNotExistException and thus 500.
      *
-     * @return mixed Rückgabe von $fn
+     * @return mixed return value of $fn
      * @throws RoomGoneException
      */
     public function locked(Room $room, callable $fn): mixed {
@@ -305,8 +305,8 @@ class PaceService {
     }
 
     /**
-     * Cursor-Steuerung (aktuelle Frage, sperren, beenden, Demo) gibt es im
-     * eigenen Tempo nicht.
+     * Cursor control (current question, lock, end, demo) does not exist in
+     * self-paced mode.
      *
      * @throws ConflictException
      */
@@ -317,8 +317,8 @@ class PaceService {
     }
 
     /**
-     * Ab dem Öffnen ist das Deck bis zum Zurücksetzen gesperrt — die
-     * eingefrorene Reihenfolge bleibt so auch physisch stabil.
+     * From opening until a reset the deck is locked — so the
+     * frozen order also stays physically stable.
      *
      * @throws ConflictException
      */
@@ -329,8 +329,8 @@ class PaceService {
     }
 
     /**
-     * Zurücksetzen, Probelauf und Tempo umschalten leeren den Raum — nicht,
-     * solange Leute mitten im Quiz sind.
+     * Reset, practice run and switching the pace empty the room — not
+     * while people are in the middle of the quiz.
      *
      * @throws ConflictException
      */
@@ -340,16 +340,16 @@ class PaceService {
         }
     }
 
-    // ── Moderator-Aktionen (alle unter der Raumsperre) ──────────────────────
+    // ── Moderator actions (all under the room lock) ─────────────────────────
 
     /**
-     * Tempo umschalten. Leert den Raum wie der Probelauf-Schalter (Stimmen,
-     * Spieler, Präsenz, Fortschritt, Fenster). Derselbe Wert ist ein No-op —
-     * ein doppelter Klick darf keine Ergebnisse löschen.
+     * Switch the pace. Empties the room like the practice-run toggle (votes,
+     * players, presence, progress, window). The same value is a no-op —
+     * a double click must not delete results.
      *
-     * @return Room frisch geladen
-     * @throws \InvalidArgumentException unbekanntes Tempo / kein Quiz-Raum
-     * @throws ConflictException         Fenster gerade offen
+     * @return Room freshly loaded
+     * @throws \InvalidArgumentException unknown pace / not a quiz room
+     * @throws ConflictException         window currently open
      */
     public function setPace(Room $room, string $pace): Room {
         return $this->locked($room, function (Room $r) use ($pace): Room {
@@ -371,14 +371,14 @@ class PaceService {
     }
 
     /**
-     * Fenster öffnen und die Reihenfolge einfrieren. Nur aus dem Entwurf.
+     * Open the window and freeze the order. Only from the draft.
      *
-     * @param int $closesAt 0 = bis manuell geschlossen (Rennen), sonst Unix-Sekunden (Hausaufgabe)
-     * @param ?bool $timed null = Vorgabe (ohne Frist mit Timer, mit Frist ohne)
-     * @param ?string $feedback null = Vorgabe (ohne Frist 'each', mit Frist 'end')
-     * @return Room frisch geladen
-     * @throws ConflictException         kein self-Raum / schon geöffnet
-     * @throws \InvalidArgumentException leeres Deck / Frist außerhalb / unbekannte Rückmeldung
+     * @param int $closesAt 0 = until closed manually (race), otherwise Unix seconds (homework)
+     * @param ?bool $timed null = default (without a deadline with timer, with a deadline without)
+     * @param ?string $feedback null = default (without a deadline 'each', with a deadline 'end')
+     * @return Room freshly loaded
+     * @throws ConflictException         not a self room / already opened
+     * @throws \InvalidArgumentException empty deck / deadline out of range / unknown feedback
      */
     public function openWindow(Room $room, int $closesAt, ?bool $timed, ?string $feedback): Room {
         return $this->locked($room, function (Room $r) use ($closesAt, $timed, $feedback): Room {
@@ -398,11 +398,11 @@ class PaceService {
                 throw new \InvalidArgumentException($this->l10n->t('Unknown feedback setting.'));
             }
             if ($r->getPractice()) {
-                // Probelauf: Urteil immer sofort, sonst sieht man beim Testen nichts.
+                // Practice run: verdict always immediate, otherwise you see nothing while testing.
                 $feedback = self::FEEDBACK_EACH;
             }
             $order = json_encode(array_map(static fn (Poll $p): int => $p->getId(), $deck));
-            // Zweiter Gurt neben der Sperre: nur aus dem Entwurf eines self-Raums.
+            // Belt and braces on top of the lock: only from the draft of a self room.
             if (!$this->roomMapper->openIfDraft($r->getId(), $order, $now, $closesAt, $timed, $feedback)) {
                 throw new ConflictException($this->l10n->t('The quiz has already been opened. Reset the room to start over.'));
             }
@@ -411,18 +411,18 @@ class PaceService {
     }
 
     /**
-     * Fenster schließen. Ob das zugleich die Ergebnisse freigibt, sagt
-     * $release: null = Regel nach der Frist (ohne Frist, also im Rennen, ja;
-     * mit Frist, also als Hausaufgabe, nein — die Freigabe bleibt ein eigener
-     * Schritt); false = nie („Stoppen ohne Freigabe“ in EINEM Aufruf: danach
-     * bewerten, freigeben, wieder öffnen oder zurücksetzen); true = immer. Die
-     * Frist bleibt, wie sie ist. $release zählt nur, wenn dieser Aufruf ein
-     * offenes Fenster schließt: schon geschlossen = No-op, auch mit true
-     * (freigeben heißt dann `release`).
+     * Close the window. Whether that also releases the results is decided by
+     * $release: null = rule based on the deadline (without a deadline, i.e. in a race, yes;
+     * with a deadline, i.e. as homework, no — the release stays a separate
+     * step); false = never ("Stop without releasing" in ONE call: afterwards
+     * grade, release, reopen or reset); true = always. The
+     * deadline stays as it is. $release only counts if this call closes an
+     * open window: already closed = no-op, even with true
+     * (releasing is then done with `release`).
      *
-     * @param ?bool $release null = Regel nach der Frist (Clients ohne den Parameter)
-     * @return Room frisch geladen
-     * @throws ConflictException kein self-Raum / Entwurf / schon freigegeben
+     * @param ?bool $release null = rule based on the deadline (clients without the parameter)
+     * @return Room freshly loaded
+     * @throws ConflictException not a self room / draft / already released
      */
     public function closeWindow(Room $room, ?bool $release = null): Room {
         return $this->locked($room, function (Room $r) use ($release): Room {
@@ -447,14 +447,14 @@ class PaceService {
     }
 
     /**
-     * Frist verlängern bzw. ein geschlossenes Fenster wieder öffnen.
-     * Einstellungen (timed, feedback) und Reihenfolge bleiben.
+     * Extend the deadline or reopen a closed window.
+     * Settings (timed, feedback) and order stay.
      *
-     * @param int $closesAt neue Frist; 0 = offen bis manuell geschlossen
-     *        (danach gibt `close` ohne `release` wieder zugleich frei)
-     * @return Room frisch geladen
-     * @throws ConflictException         kein self-Raum / Entwurf / schon freigegeben
-     * @throws \InvalidArgumentException Frist außerhalb der Grenzen
+     * @param int $closesAt new deadline; 0 = open until closed manually
+     *        (after that `close` without `release` releases at the same time again)
+     * @return Room freshly loaded
+     * @throws ConflictException         not a self room / draft / already released
+     * @throws \InvalidArgumentException deadline out of bounds
      */
     public function extendWindow(Room $room, int $closesAt): Room {
         return $this->locked($room, function (Room $r) use ($closesAt): Room {
@@ -476,12 +476,12 @@ class PaceService {
     }
 
     /**
-     * Lösungen und Endstand freigeben. Aus dem offenen Fenster in einem Klick:
-     * es wird zugleich geschlossen, also kein Leck. Nach abgelaufener Frist
-     * wird deren Zeitpunkt als Schluss festgeschrieben. Schon freigegeben = No-op.
+     * Release solutions and final standings. From the open window in one click:
+     * it is closed at the same time, so no leak. After an expired deadline
+     * its moment is pinned as the close. Already released = no-op.
      *
-     * @return Room frisch geladen
-     * @throws ConflictException kein self-Raum / Entwurf
+     * @return Room freshly loaded
+     * @throws ConflictException not a self room / draft
      */
     public function releaseWindow(Room $room): Room {
         return $this->locked($room, function (Room $r): Room {
@@ -507,12 +507,12 @@ class PaceService {
     }
 
     /**
-     * „Beitritt sperren": neue Tokens werden abgewiesen, bekannte Spieler
-     * kommen weiter rein. Gegenmittel gegen Wegwerf-Spieler, in jedem
-     * Fensterzustand erlaubt.
+     * "Lock joining": new tokens are rejected, known players
+     * still get in. A countermeasure against throwaway players, allowed in
+     * every window state.
      *
-     * @return Room frisch geladen
-     * @throws ConflictException kein self-Raum
+     * @return Room freshly loaded
+     * @throws ConflictException not a self room
      */
     public function setJoinsLocked(Room $room, bool $locked): Room {
         return $this->locked($room, function (Room $r) use ($locked): Room {
@@ -524,21 +524,21 @@ class PaceService {
     }
 
     /**
-     * Person entfernen (Wegwerf-Spieler, Namensbesetzer): zuerst der Spieler —
-     * der Name wird frei —, dann Stimmen im Deck, Fortschritt, Präsenz. In jedem
-     * Fensterzustand erlaubt, auch nach der Freigabe (ein Besetzer soll nicht
-     * im Endstand/CSV stehen bleiben). Das Cookie steht danach ohne Namen da
-     * und darf, solange offen und nicht gesperrt, neu beitreten — dann aber
-     * ab Frage 1 mit neuer Uhr.
+     * Remove a person (throwaway player, name squatter): the player first —
+     * the name becomes free —, then votes in the deck, progress, presence. Allowed in
+     * every window state, even after the release (a squatter should not
+     * remain in the final standings/CSV). The cookie is left without a name
+     * afterwards and may join again as long as the quiz is open and not locked —
+     * but then from question 1 with a new clock.
      *
-     * Der Spieler zuerst, weil seine Zeile damit bis zum Commit gesperrt ist:
-     * ein /vote oder /next derselben Person, das gerade schreibt, wartet in
-     * assertStillJoined darauf, statt eine verwaiste Stimme oder Zeile zu
-     * hinterlassen.
+     * The player first, because that keeps their row locked until the commit:
+     * a /vote or /next by the same person that is currently writing waits for
+     * it in assertStillJoined instead of leaving an orphaned vote or row
+     * behind.
      *
-     * @return Room frisch geladen
-     * @throws ConflictException         kein self-Raum
-     * @throws \InvalidArgumentException die ID gehört zu keinem Spieler dieses Raums
+     * @return Room freshly loaded
+     * @throws ConflictException         not a self room
+     * @throws \InvalidArgumentException the ID belongs to no player of this room
      */
     public function removePlayer(Room $room, int $playerId): Room {
         return $this->locked($room, function (Room $r) use ($playerId): Room {
@@ -562,12 +562,12 @@ class PaceService {
     }
 
     /**
-     * Stimmen im Deck und Fortschritt eines Tokens löschen; Spieler und
-     * Präsenz bleiben. Für removePlayer, den erneuten Beitritt eines entfernten
-     * Cookies (VoteService::selfJoin) und assertStillJoined.
+     * Delete a token's votes in the deck and its progress; player and
+     * presence stay. For removePlayer, the re-join of a removed
+     * cookie (VoteService::selfJoin) and assertStillJoined.
      */
     public function forgetToken(Room $room, string $voterToken): void {
-        // Geöffnet: das eingefrorene Deck; im Entwurf gibt es keine self-Stimmen.
+        // Opened: the frozen deck; in the draft there are no self votes.
         $pollIds = $room->getOpenedAt() > 0
             ? self::order($room)
             : array_map(static fn (Poll $p): int => $p->getId(), $this->pollMapper->findByRoom($room->getId()));
@@ -575,22 +575,22 @@ class PaceService {
         $this->progressMapper->deleteByRoomAndToken($room->getId(), $voterToken);
     }
 
-    // ── Teilnehmende ────────────────────────────────────────────────────────
+    // ── Participants ────────────────────────────────────────────────────────
 
     /**
-     * Weiter zur nächsten Frage — die EINZIGE Stelle, an der eine Uhr startet.
-     * Idempotent: ein zweites /next mit demselben $after tut nichts, ebenso
-     * ein veraltetes $after (Doppeltipp, zweiter Tab). Zurück geht es nie.
+     * On to the next question — the ONLY place where a clock starts.
+     * Idempotent: a second /next with the same $after does nothing, and neither
+     * does a stale $after (double tap, second tab). There is never a way back.
      *
-     * Ohne Raumsperre: alles ist je Token, der Wettlauf zweier Tabs entscheidet
-     * sich am Compare-and-set (closeIfOpen) bzw. am Unique-Index (start). Bricht
-     * eine Anfrage zwischen beiden ab, heilt das nächste /next mit der zuletzt
-     * verlassenen Frage als $after (der Client nimmt dafür progress.after).
-     * Gegen das Entfernen der Person mitten in der Anfrage: assertStillJoined.
+     * Without the room lock: everything is per token, the race of two tabs is decided
+     * by the compare-and-set (closeIfOpen) or the unique index (start). If
+     * a request breaks off between the two, the next /next heals it with the last
+     * question left as $after (the client uses progress.after for that).
+     * Against the person being removed in the middle of the request: assertStillJoined.
      *
-     * @throws \InvalidArgumentException kein self-Raum / Entwurf / geschlossen /
-     *         ohne Namen / $after < 0
-     * @throws RoomGoneException          der Raum wurde währenddessen gelöscht
+     * @throws \InvalidArgumentException not a self room / draft / closed /
+     *         without a name / $after < 0
+     * @throws RoomGoneException          the room was deleted in the meantime
      */
     public function next(Room $room, string $voterToken, int $after): void {
         if (!self::isSelf($room)) {
@@ -615,7 +615,7 @@ class PaceService {
 
         $rows = $this->rows($room, $voterToken);
         $open = self::openOf($rows);
-        // Fragen, die es noch gibt (Abwehr gelöschter Fragen, s. nextAfter).
+        // Questions that still exist (defence against deleted questions, see nextAfter).
         $deck = [];
         foreach ($this->pollMapper->findByRoom($room->getId()) as $poll) {
             $deck[$poll->getId()] = $poll;
@@ -623,18 +623,18 @@ class PaceService {
 
         if ($open !== null) {
             if ($open->getPollId() !== $after) {
-                return; // Doppeltipp oder veralteter Stand
+                return; // double tap or stale state
             }
             $poll = $deck[$after] ?? null;
             if ($poll !== null && $this->previewLocked($room, $poll, $open, $voterToken, $now)) {
                 return;
             }
             if (!$this->progressMapper->closeIfOpen($open->getId(), $now)) {
-                return; // ein anderer Tab war schneller
+                return; // another tab was faster
             }
         } else {
-            // Keine offene Zeile: ganz am Anfang (after = 0) oder Selbstheilung
-            // nach einem Abbruch zwischen Schließen und Starten.
+            // No open row: right at the start (after = 0) or self-healing
+            // after a break-off between closing and starting.
             $lastId = self::lastOf($rows)?->getPollId() ?? 0;
             if ($after !== $lastId) {
                 return;
@@ -642,28 +642,28 @@ class PaceService {
         }
 
         $succ = self::nextAfter($room, $after, array_keys($deck));
-        // start() false = Unique-Verstoß: die Frage läuft schon (paralleler Tab) — gut so.
+        // start() false = unique violation: the question is already running (parallel tab) — fine.
         if ($succ !== null && $this->progressMapper->start($room->getId(), $succ['pollId'], $voterToken, $succ['seq'], $now)) {
             $this->assertStillJoined($room, $voterToken);
         }
     }
 
     /**
-     * Nach dem Schreiben einer Stimme oder Zeile (/vote, /next — beide ohne
-     * Raumsperre): Wurde die Person zwischen Spielerprüfung und Schreiben
-     * entfernt (removePlayer, oder der ganze Raum gelöscht), wäre das eben
-     * Geschriebene verwaist. Es zählte in Fortschritt, Auszählung und CSV, und
-     * träte das Cookie wieder bei, erbte die neue Identität Frage, Uhr und
-     * Antwort der alten. Dann ist alles dieses Tokens wieder weg, mit derselben
-     * Antwort wie bei einer Entfernung Millisekunden früher.
+     * After writing a vote or a row (/vote, /next — both without the
+     * room lock): if the person was removed between the player check and the write
+     * (removePlayer, or the whole room deleted), what was just written would
+     * be orphaned. It would count in progress, tally and CSV, and
+     * if the cookie joined again, the new identity would inherit question, clock and
+     * answer of the old one. Then everything of this token is gone again, with the same
+     * response as for a removal milliseconds earlier.
      *
-     * Lückenlos, weil die Spielerzeile sperrend gelesen wird: removePlayer
-     * löscht sie als Erstes und hält die Sperre bis zum Commit, deleteRoom
-     * löscht Spieler vor Stimmen und Fortschritt. Sieht diese Prüfung den
-     * Spieler noch, trifft das spätere Löschen das Geschriebene mit.
+     * Without gaps, because the player row is read with a lock: removePlayer
+     * deletes it first and holds the lock until the commit, deleteRoom
+     * deletes players before votes and progress. If this check still sees the
+     * player, the later deletion takes what was written with it.
      *
      * @throws \InvalidArgumentException 'Please choose a name first.'
-     * @throws RoomGoneException          der Raum wurde währenddessen gelöscht
+     * @throws RoomGoneException          the room was deleted in the meantime
      */
     public function assertStillJoined(Room $room, string $voterToken): void {
         if ($this->playerMapper->existsForUpdate($room->getId(), $voterToken)) {
@@ -671,14 +671,14 @@ class PaceService {
         }
         try {
             $this->locked($room, function (Room $r) use ($voterToken): void {
-                // Inzwischen neu beigetreten? Dann hat selfJoin schon geräumt,
-                // und was jetzt da ist, gehört der neuen Identität.
+                // Joined again in the meantime? Then selfJoin has already cleaned up,
+                // and what is there now belongs to the new identity.
                 if (!$this->playerMapper->existsForUpdate($r->getId(), $voterToken)) {
                     $this->forgetToken($r, $voterToken);
                 }
             });
         } catch (RoomGoneException $e) {
-            // Raum samt Spielern gelöscht: nur noch das eben Geschriebene.
+            // Room deleted along with its players: only what was just written is left.
             $this->forgetToken($room, $voterToken);
             throw $e;
         }
@@ -686,11 +686,11 @@ class PaceService {
     }
 
     /**
-     * Vorschau-Sperre: Mit Timer darf eine UNBEANTWORTETE Frage erst nach
-     * Zeitablauf verlassen werden (Grenze wie /vote: elapsed > limit). Sonst
-     * blättert ein Wegwerf-Spieler mit n Anfragen durchs ganze Deck, während
-     * die Uhr seines Haupt-Cookies noch gar nicht läuft. Ohne Timer gibt es
-     * keine Tempopunkte zu gewinnen — dort sofort weiter.
+     * Preview lock: with a timer an UNANSWERED question may only be left after
+     * the time has run out (same boundary as /vote: elapsed > limit). Otherwise
+     * a throwaway player pages through the whole deck with n requests while
+     * the clock of their main cookie has not even started. Without a timer there
+     * are no speed points to win — there it moves on immediately.
      */
     private function previewLocked(Room $room, Poll $poll, Progress $open, string $voterToken, int $now): bool {
         $limit = $poll->getTimeLimit();
@@ -699,25 +699,25 @@ class PaceService {
         }
         try {
             $this->voteMapper->findByPollAndToken($poll->getId(), $voterToken);
-            return false; // beantwortet -> sofort weiter
+            return false; // answered -> move on immediately
         } catch (DoesNotExistException) {
             return true;
         }
     }
 
     /**
-     * @return Progress[] Zeilen einer Person, nach seq aufsteigend
+     * @return Progress[] a person's rows, ascending by seq
      */
     public function rows(Room $room, string $voterToken): array {
         return $this->progressMapper->findByRoomAndToken($room->getId(), $voterToken);
     }
 
-    /** Die gerade offene Zeile einer Person (left_at = 0), null ohne. */
+    /** A person's currently open row (left_at = 0), null if there is none. */
     public function openRow(Room $room, string $voterToken): ?Progress {
         return self::openOf($this->rows($room, $voterToken));
     }
 
-    // ── Helfer ──────────────────────────────────────────────────────────────
+    // ── Helpers ─────────────────────────────────────────────────────────────
 
     /** @throws ConflictException */
     private function assertSelf(Room $room): void {
@@ -727,7 +727,7 @@ class PaceService {
     }
 
     /**
-     * Frist 0 = keine; sonst zwischen einer Minute und 30 Tagen ab jetzt.
+     * Deadline 0 = none; otherwise between one minute and 30 days from now.
      *
      * @throws \InvalidArgumentException
      */
@@ -738,9 +738,9 @@ class PaceService {
     }
 
     /**
-     * Raum nach dem Schreiben frisch laden — noch in der Transaktion, also
-     * genau mit dem Stand, den diese Aktion geschrieben hat (openIfDraft
-     * schreibt an der Entität vorbei).
+     * Reload the room fresh after writing — still inside the transaction, so
+     * exactly with the state this action wrote (openIfDraft
+     * writes past the entity).
      */
     private function reload(Room $room): Room {
         return $this->roomMapper->findByCode($room->getCode());

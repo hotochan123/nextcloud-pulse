@@ -3,21 +3,21 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 /*
- * pulseConfirm — Promise-basierter Ersatz für window.confirm().
- * Montiert PulseConfirm imperativ an <body> und räumt danach auf.
+ * pulseConfirm — promise-based replacement for window.confirm().
+ * Mounts PulseConfirm imperatively on <body> and cleans up afterwards.
  *
- *   if (!await pulseConfirm({ title: 'Raum löschen?', text: '…', danger: true,
- *                            confirmLabel: 'Endgültig löschen' })) return
+ *   if (!await pulseConfirm({ title: 'Delete room?', text: '…', danger: true,
+ *                            confirmLabel: 'Delete permanently' })) return
  *
- * Mit altLabel gibt es einen dritten Ausgang: die Promise liefert dann 'alt'.
+ * With altLabel there is a third outcome: the promise then resolves to 'alt'.
  */
 import Vue from 'vue'
 import PulseConfirm from '../components/ui/PulseConfirm.vue'
 
 /**
  * @param {object} [options] title, text, confirmLabel, cancelLabel, danger, altLabel
- * @return {Promise<boolean|string>} true = bestätigt, false = abgebrochen,
- *   'alt' = dritter Knopf (nur mit altLabel)
+ * @return {Promise<boolean|string>} true = confirmed, false = cancelled,
+ *   'alt' = third button (only with altLabel)
  */
 export function pulseConfirm(options = {}) {
 	return new Promise((resolve) => {
@@ -28,7 +28,7 @@ export function pulseConfirm(options = {}) {
 		const finish = (result) => {
 			if (settled) return
 			settled = true
-			// $mount hat `mount` durch vm.$el ersetzt -> vm.$el aus dem DOM nehmen.
+			// $mount replaced `mount` with vm.$el -> take vm.$el out of the DOM.
 			const el = vm.$el
 			vm.$destroy()
 			if (el && el.parentNode) el.parentNode.removeChild(el)

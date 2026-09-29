@@ -25,24 +25,25 @@ use PHPUnit\Framework\TestCase;
 use ReflectionProperty;
 
 /**
- * Was die öffentlichen Sichten (Beamer, Handy) vorab NICHT verraten dürfen.
+ * What the public views (projector, phone) must NOT give away in advance.
  *
- * 1. Reihenfolge/Zuordnung im Quiz: die gespeicherte Optionsfolge IST die
- *    Lösung (bzw. Ziel i gehört zu Item i). Bis zum Auflösen kommt sie
- *    gemischt heraus — geordnet nach einem Schlüssel-Hash über Server-
- *    Geheimnis, Frage-ID und Options-ID. Damit ist die Folge für alle
- *    Betrachter gleich und hängt nicht an der gespeicherten Folge.
- * 2. Gesamtauswertung `/s/{code}/summary`: nie gezeigte Fragen fehlen ganz,
- *    sonst läge das restliche Deck samt Antwortmöglichkeiten auf jedem Handy.
+ * 1. Ordering/matching in the quiz: the stored option order IS the
+ *    solution (or: target i belongs to item i). Until the reveal it comes out
+ *    shuffled — sorted by a keyed hash over the server
+ *    secret, question ID and option ID. That makes the order the same for all
+ *    viewers and independent of the stored order.
+ * 2. Overall summary `/s/{code}/summary`: questions never shown are left out
+ *    entirely, otherwise the rest of the deck, answer options included, would
+ *    be on every phone.
  *
- * Geprüft über die öffentlichen Einstiege publicState/publicSummary — genau
- * das, was die Controller ausliefern. Auszählung ist echt (TallyService),
- * die Mapper sind gedoubelt; es gibt keine Stimmen.
+ * Tested through the public entry points publicState/publicSummary — exactly
+ * what the controllers deliver. The tally is real (TallyService),
+ * the mappers are test doubles; there are no votes.
  */
 #[CoversClass(StateService::class)]
 class PublicSpoilerTest extends TestCase {
 
-    /** Gespeicherte Folge = Lösung. */
+    /** Stored order = solution. */
     private const RANK = [
         ['id' => 'ZZ9A', 'label' => 'Erster'],
         ['id' => 'AB12', 'label' => 'Zweiter'],
@@ -94,7 +95,7 @@ class PublicSpoilerTest extends TestCase {
         }
     }
 
-    // ── Reihenfolge: kein Spoiler über die Optionsfolge ────────────────────
+    // ── Ordering: no spoiler via the option order ──────────────────────────
 
     public function testQuizRangfolgeVorDemAufloesenGemischt(): void {
         $state = $this->stateFor($this->room('quiz', active: 7), $this->rankPoll('active'));
@@ -106,7 +107,7 @@ class PublicSpoilerTest extends TestCase {
     }
 
     public function testQuizRangfolgeNachDemAufloesenInGespeicherterFolge(): void {
-        // Je-Frage-Auflösung: 'locked' heißt aufgelöst.
+        // Per-question reveal: 'locked' means revealed.
         $state = $this->stateFor($this->room('quiz', active: 7), $this->rankPoll('locked'));
 
         $this->assertTrue($state['poll']['revealed']);
@@ -114,7 +115,7 @@ class PublicSpoilerTest extends TestCase {
     }
 
     public function testQuizAufloesungAmEndeBleibtBeiLockedGemischt(): void {
-        // „Auflösung am Ende": 'locked' ist nur pausiert, erst 'ended' löst auf.
+        // "Reveal at the end": 'locked' is only paused, only 'ended' reveals.
         $room = $this->room('quiz', active: 7, revealAtEnd: true);
 
         $locked = $this->stateFor($room, $this->rankPoll('locked'));
@@ -128,7 +129,7 @@ class PublicSpoilerTest extends TestCase {
     }
 
     public function testUmfrageRangfolgeBleibtInGespeicherterFolge(): void {
-        // In der Umfrage gibt es keine Lösung — die Folge des Moderators gilt.
+        // A poll has no solution — the moderator's order applies.
         $state = $this->stateFor($this->room('poll', active: 7), $this->rankPoll('active'));
 
         $this->assertSame(['ZZ9A', 'AB12', 'M3K0'], array_column($state['poll']['options'], 'id'));
@@ -136,7 +137,7 @@ class PublicSpoilerTest extends TestCase {
 
     public function testQuizZuordnungMischtNurDieZiele(): void {
         $items = [['id' => 'QQ01', 'label' => 'Hund'], ['id' => 'AA01', 'label' => 'Katze'], ['id' => 'MM01', 'label' => 'Kuh']];
-        // Ziel i gehört zu Item i — gespeichert ist also die Lösung.
+        // Target i belongs to item i — so what is stored is the solution.
         $targets = [['id' => 'TC03', 'label' => 'bellt'], ['id' => 'TA01', 'label' => 'miaut'], ['id' => 'TB02', 'label' => 'muht']];
         $poll = $this->poll(7, 'match', 'active', 900, ['items' => $items, 'targets' => $targets]);
 
@@ -160,9 +161,9 @@ class PublicSpoilerTest extends TestCase {
     }
 
     public function testMischungIstFuerAlleBetrachterGleich(): void {
-        // Beamer und Handys fragen getrennt — die Folge darf nicht springen,
-        // weder zwischen zwei Abrufen noch zwischen Tokens noch zwischen
-        // Live-Sicht und Gesamtauswertung.
+        // Projector and phones fetch separately — the order must not jump,
+        // neither between two fetches nor between tokens nor between the
+        // live view and the overall summary.
         $room = $this->room('quiz', active: 7);
         $first = $this->stateFor($room, $this->rankPoll('active'))['poll']['options'];
 
@@ -171,7 +172,7 @@ class PublicSpoilerTest extends TestCase {
             $this->assertSame($first, $this->stateFor($room, $this->rankPoll('active'), $token)['poll']['options'], 'Token ' . $token);
         }
 
-        // stateFor hat den Mapper getauscht — für die Gesamtauswertung zurück.
+        // stateFor has swapped the mapper — swap it back for the overall summary.
         (new ReflectionProperty(StateService::class, 'pollMapper'))->setValue($this->service, $this->polls);
         $this->polls->method('findByRoom')->willReturn([$this->rankPoll('active')]);
         foreach ([null, 'tok-a'] as $token) {
@@ -180,9 +181,9 @@ class PublicSpoilerTest extends TestCase {
     }
 
     public function testMischungHaengtAnGeheimnisUndFrage(): void {
-        // Dieselben Options-IDs, dieselbe Lösung: eine andere Instanz (anderes
-        // Geheimnis) oder eine andere Frage mischt anders. Die IDs sind so
-        // gewählt, dass sich die Folgen tatsächlich unterscheiden.
+        // The same option IDs, the same solution: another instance (another
+        // secret) or another question shuffles differently. The IDs are
+        // chosen so that the orders actually differ.
         $room7 = $this->room('quiz', active: 7);
         $room8 = $this->room('quiz', active: 8);
 
@@ -193,14 +194,14 @@ class PublicSpoilerTest extends TestCase {
         $this->assertSame(['M3K0', 'ZZ9A', 'AB12'], $this->servedIds($room7, $this->rankPoll('active')), 'anderes Geheimnis');
     }
 
-    // ── Gesamtauswertung: nur gezeigte Fragen ──────────────────────────────
+    // ── Overall summary: only questions that were shown ────────────────────
 
     public function testSummaryLaesstNieGezeigteFragenWeg(): void {
         $room = $this->room('poll', active: 2);
         $this->polls->method('findByRoom')->willReturn([
-            $this->poll(1, 'choice', 'active', 900),   // früher gezeigt
-            $this->poll(2, 'choice', 'active', 950),   // läuft gerade
-            $this->poll(3, 'choice', 'active', 0),     // noch nie dran
+            $this->poll(1, 'choice', 'active', 900),   // shown earlier
+            $this->poll(2, 'choice', 'active', 950),   // running now
+            $this->poll(3, 'choice', 'active', 0),     // never shown yet
         ]);
 
         $summary = $this->service->publicSummary($room, null);
@@ -210,7 +211,7 @@ class PublicSpoilerTest extends TestCase {
     }
 
     public function testSummaryBehaeltAktiveFrageOhneStartzeitpunkt(): void {
-        // Umfrage-Raum von vor dem Startzeitpunkt: die laufende Frage hat 0.
+        // Poll room from before the start time existed: the running question has 0.
         $room = $this->room('poll', active: 3);
         $this->polls->method('findByRoom')->willReturn([$this->poll(3, 'choice', 'active', 0)]);
 
@@ -218,8 +219,8 @@ class PublicSpoilerTest extends TestCase {
     }
 
     public function testSummaryBehaeltAlteGesperrteUmfragefrage(): void {
-        // Altbestand: gesperrt, aber nie mit Startzeitpunkt versehen — gezeigt
-        // wurde sie trotzdem (sonst hätte niemand sie sperren können).
+        // Legacy data: locked, but never given a start time — it was
+        // shown nonetheless (otherwise nobody could have locked it).
         $room = $this->room('poll', active: 0);
         $this->polls->method('findByRoom')->willReturn([
             $this->poll(1, 'choice', 'locked', 0),
@@ -233,7 +234,7 @@ class PublicSpoilerTest extends TestCase {
     }
 
     public function testQuizSummaryZeigtKeineFolgefragenUndMischtOffeneRangfolge(): void {
-        // Quiz je Frage: Frage 1 aufgelöst, Frage 2 läuft, Frage 3 kommt erst.
+        // Quiz per question: question 1 revealed, question 2 running, question 3 still to come.
         $room = $this->room('quiz', active: 2);
         $this->polls->method('findByRoom')->willReturn([
             $this->poll(1, 'choice', 'locked', 900, [['id' => 'AA', 'label' => 'A'], ['id' => 'BB', 'label' => 'B']]),
@@ -254,8 +255,8 @@ class PublicSpoilerTest extends TestCase {
     }
 
     public function testQuizSummaryAmEndeOhneNieGezeigteFragen(): void {
-        // „Auflösung am Ende" nach /end: das Deck wird aufgedeckt — aber nur,
-        // was auch dran war. Übersprungene Fragen bleiben draußen.
+        // "Reveal at the end" after /end: the deck is uncovered — but only
+        // what was actually shown. Skipped questions stay out.
         $room = $this->room('quiz', active: 2, revealAtEnd: true);
         $this->polls->method('findByRoom')->willReturn([
             $this->poll(1, 'rank', 'locked', 900, self::RANK),
@@ -271,12 +272,12 @@ class PublicSpoilerTest extends TestCase {
             'aufgelöst → gespeicherte Folge (= Lösung)');
     }
 
-    // ── Hilfen ─────────────────────────────────────────────────────────────
+    // ── Helpers ────────────────────────────────────────────────────────────
 
     /**
-     * Erwartete Mischung, unabhängig vom Dienst nachgerechnet: aufsteigend
-     * nach HMAC-SHA256 über „Frage-ID:Options-ID", Schlüssel „pulse-order:"
-     * + Instanz-Geheimnis. Die gespeicherte Folge geht nicht ein.
+     * Expected shuffle, recomputed independently of the service: ascending
+     * by HMAC-SHA256 over "questionID:optionID", key "pulse-order:"
+     * + instance secret. The stored order plays no part.
      *
      * @param list<array{id:string,label:string}> $list
      * @return list<array{id:string,label:string}>
@@ -290,8 +291,8 @@ class PublicSpoilerTest extends TestCase {
     }
 
     /**
-     * Ausgeliefert ist eine Umordnung der gespeicherten Liste: dieselben
-     * Einträge, jede Beschriftung noch an ihrer ID, nichts doppelt.
+     * What is delivered is a permutation of the stored list: the same
+     * entries, every label still attached to its ID, nothing duplicated.
      */
     private function assertIsPermutation(array $stored, array $served): void {
         $this->assertCount(count($stored), $served);

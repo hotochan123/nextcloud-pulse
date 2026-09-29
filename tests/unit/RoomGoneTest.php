@@ -33,10 +33,10 @@ use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Raum gelöscht, während die Anfrage unterwegs war: geladen war er noch, beim
- * Sperren (PaceService::locked) gibt es ihn nicht mehr. Das ist dieselbe Lage
- * wie ein paar Millisekunden später — also 404 „Room not found.", öffentlich
- * wie ein unbekannter Code (gedrosselt), nicht 500.
+ * Room deleted while the request was in flight: it was still loaded, but by
+ * the time of locking (PaceService::locked) it no longer exists. That is the
+ * same situation as a few milliseconds later — so 404 "Room not found.",
+ * publicly like an unknown code (throttled), not 500.
  */
 #[CoversClass(RoomApiController::class)]
 #[CoversClass(PublicVoteController::class)]
@@ -59,7 +59,7 @@ class RoomGoneTest extends TestCase {
             'after' => 0,
             default => $default,
         });
-        // Cookie in der Form, die CodeGenerator::voterToken vergibt — sonst gilt es als keins
+        // Cookie in the form CodeGenerator::voterToken hands out — otherwise it counts as none
         $this->request->method('getCookie')->willReturn(str_repeat('Anna', 8));
         $this->request->method('getRemoteAddress')->willReturn('192.0.2.1');
         $this->l10n = $this->createMock(IL10N::class);
@@ -83,13 +83,13 @@ class RoomGoneTest extends TestCase {
     }
 
     public function testDeckAenderungAufGeloeschtemRaum(): void {
-        // deckChange -> paced -> locked: der Raum ist schon weg.
+        // deckChange -> paced -> locked: the room is already gone.
         $this->pace->method('locked')->willThrowException(new RoomGoneException());
 
         $this->assertNotFound($this->moderator()->deletePoll('ABCDEF', 13));
     }
 
-    // ── Öffentlich ─────────────────────────────────────────────────────────
+    // ── Public ─────────────────────────────────────────────────────────────
 
     public function testBeitrittAufGeloeschtemRaum(): void {
         $this->votes->method('quizJoin')->willThrowException(new RoomGoneException());
@@ -109,7 +109,7 @@ class RoomGoneTest extends TestCase {
         $this->assertThrottledNotFound($this->public()->next('ABCDEF'));
     }
 
-    // ── Helfer ─────────────────────────────────────────────────────────────
+    // ── Helpers ────────────────────────────────────────────────────────────
 
     private function assertNotFound(JSONResponse $response): void {
         $this->assertSame(Http::STATUS_NOT_FOUND, $response->getStatus());

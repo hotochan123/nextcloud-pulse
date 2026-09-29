@@ -20,11 +20,11 @@ use PHPUnit\Framework\TestCase;
 use ReflectionProperty;
 
 /**
- * Quiz-Beitritt: Namen sind je Raum eindeutig, ohne Groß/Klein.
+ * Joining a quiz: names are unique per room, case-insensitively.
  *
- * Sonst stehen zwei „Anna" in der Rangliste und niemand weiß, welche Zeile die
- * eigene ist. Das eigene Token darf seinen Namen behalten oder umschreiben —
- * wer „anna" heißt und auf „Anna" korrigiert, kollidiert nicht mit sich selbst.
+ * Otherwise there are two "Anna"s in the leaderboard and nobody knows which row is
+ * their own. One's own token may keep its name or change its spelling —
+ * someone called "anna" who corrects it to "Anna" does not collide with themselves.
  */
 #[CoversClass(VoteService::class)]
 class QuizJoinNameTest extends TestCase {
@@ -92,7 +92,7 @@ class QuizJoinNameTest extends TestCase {
     }
 
     public function testFreierNameWirdBereinigtRegistriert(): void {
-        // Die Prüfung läuft auf dem bereinigten Namen — und genau der wird gespeichert.
+        // The check runs on the cleaned-up name — and exactly that one is stored.
         $this->players->expects($this->once())->method('register')
             ->with(1, 'tok-neu', 'Anna Lena', 1000)
             ->willReturn($this->player('tok-neu', 'Anna Lena'));
@@ -101,7 +101,7 @@ class QuizJoinNameTest extends TestCase {
     }
 
     public function testUmbenennenAufVergebenenNamenWirdAbgelehnt(): void {
-        // Umbenennen ist auch ein Beitritt: Özil darf nicht zu „anna" werden.
+        // Renaming is joining too: Özil must not become "anna".
         $this->players->expects($this->never())->method('register');
 
         $this->expectExceptionMessage(self::TAKEN);

@@ -6,15 +6,15 @@
 	<div class="sopen">
 		<p v-if="hint" class="sopen-hint">{{ hint }}</p>
 
-		<!-- Optionen, Elemente, Aspekte: dieselbe Zeile wie die Auflösung,
-		     aber als Umriss und ohne jeden Wert. -->
+		<!-- Options, items, aspects: the same row as the reveal,
+		     but as an outline and without any value. -->
 		<div v-if="rows.length" class="srows srows--stretch" :class="{ 'is-tall': tall }">
 			<StageRow v-for="r in rows" :key="r.id" :class="r.cls"
 				:badge="r.badge" :label="r.label" :tall="tall" outline />
 		</div>
 
-		<!-- Skala einzel: die Achse mit beiden Polen — ablesbar, was am Handy
-		     zu tun ist, ohne die Verteilung zu verraten. -->
+		<!-- Single scale: the axis with both poles — shows what to do on the
+		     phone without giving away the distribution. -->
 		<div v-else-if="scaleMode === 'single'" class="sopen-scale">
 			<ol class="sopen-ticks">
 				<li v-for="v in ticks" :key="v" class="sopen-tick">{{ v }}</li>
@@ -25,8 +25,8 @@
 			</div>
 		</div>
 
-		<!-- Kompass: das Achsenkreuz ist Orientierung. Sobald ein Punkt darauf
-		     liegt, ist die Verteilung verraten — also keiner. -->
+		<!-- Compass: the axis cross is for orientation. As soon as a dot sits
+		     on it, the distribution is given away — so there are none. -->
 		<div v-else-if="scaleMode === 'compass'" class="sopen-compass">
 			<span class="cp-pole cp-top">{{ axisY.poleHigh }}</span>
 			<span class="cp-pole cp-left">{{ axisX.poleLow }}</span>
@@ -35,9 +35,9 @@
 			<span class="cp-pole cp-bottom">{{ axisY.poleLow }}</span>
 		</div>
 
-		<!-- Zuordnung: Zeilen oben, Ziele als Chips darunter. Elemente und Ziele
-		     nie als zwei gleich hohe Spalten nebeneinander — die läsen sich
-		     zeilenweise als Lösung. Die Elemente unter sich dürfen umbrechen. -->
+		<!-- Matching: rows on top, targets as chips below. Never items and targets
+		     as two equally tall columns side by side — they would read row by row
+		     as the solution. The items among themselves may wrap. -->
 		<div v-else-if="poll.type === 'match'" class="sopen-match">
 			<div class="srows srows--stretch" :class="{ 'is-cols': matchCols }"
 				:style="matchCols ? { '--rows': Math.ceil(matchItems.length / 2) } : null">
@@ -52,11 +52,11 @@
 
 <script>
 /*
- * Inhalt der offenen Bühne (Redesign §6.3).
+ * Content of the open stage (design notes §6.3, not in the public repository).
  *
- * Regel für alle Typen: die Antwortmöglichkeiten sind lesbar, Werte nicht. Wer
- * den Blick hebt, soll ablesen können, was am Handy zu tun ist — ohne dass die
- * Leinwand das Ergebnis vorwegnimmt (E1/E4).
+ * Rule for all types: the answer choices are readable, values are not. Anyone
+ * who looks up should be able to read what to do on the phone — without the
+ * screen anticipating the result (E1/E4).
  */
 import { withPalette } from '../util/palette.js'
 import StageRow from './StageRow.vue'
@@ -89,9 +89,9 @@ export default {
 			for (let v = min; v <= max; v++) out.push(v)
 			return out
 		},
-		// Zeilen der offenen Bühne: Optionen mit Palette, Reihenfolge-Elemente
-		// ohne Nummer (eine Nummerierung behauptete eine Reihenfolge, bevor
-		// abgestimmt wurde), Spektrum-Aspekte als Namensliste.
+		// Rows of the open stage: options with palette, ranking items
+		// without a number (numbering would claim an order before anyone
+		// has voted), spectrum aspects as a list of names.
 		rows() {
 			const p = this.poll
 			if (['choice', 'multi', 'truefalse'].includes(p.type) && Array.isArray(p.options)) {
@@ -111,7 +111,8 @@ export default {
 		matchItems() {
 			return (this.poll.match && this.poll.match.items) || []
 		},
-		// Ab sechs Paaren steht die Zeilenliste zweispaltig (§Zuordnung R2).
+		// From six pairs on, the row list has two columns
+		// (matching design notes R2, not in the public repository).
 		matchCols() {
 			return this.matchItems.length > 5
 		},
@@ -132,15 +133,15 @@ export default {
 <style scoped>
 .sopen { display: flex; flex-direction: column; min-height: 0; min-width: 0; gap: 0.4em; }
 .sopen > .srows, .sopen-match, .sopen-scale, .sopen-compass { flex: 1 1 auto; min-height: 0; }
-/* .srows--stretch trägt height:100 % — richtig, wenn die Zeilenliste die Bühne
-   allein füllt. Hier ist sie EIN Kind unter mehreren: der Hinweis steht darüber,
-   bei der Zuordnung die Chips darunter. 100 % der Elternhöhe hieß, sich über
-   beide zu legen, und genau das tat sie (der Hinweis lag im ersten Kasten, die
-   Chips im vorletzten). Die Höhe kommt hier aus dem Flex. */
+/* .srows--stretch carries height:100 % — right when the row list fills the stage
+   on its own. Here it is ONE child among several: the hint sits above it,
+   and for matching the chips below. 100 % of the parent height meant covering
+   both, and that is exactly what it did (the hint lay in the first box, the
+   chips in the second to last). Here the height comes from the flex layout. */
 .sopen > .srows, .sopen-match > .srows { height: auto; }
 .sopen-hint { flex: 0 0 auto; margin: 0; color: var(--pulse-meta); font-weight: 600; font-size: 0.6em; }
 
-/* Skala einzel: Achse mit Werten und beiden Polen. */
+/* Single scale: axis with values and both poles. */
 .sopen-scale { display: flex; flex-direction: column; justify-content: center; gap: 0.5em; }
 .sopen-ticks {
 	list-style: none; margin: 0; padding: 0.4em 0 0;
@@ -152,7 +153,7 @@ export default {
 .sopen-poles span { max-width: 45%; }
 .sopen-poles span:last-child { text-align: right; }
 
-/* Kompass: Achsenkreuz ohne einen einzigen Punkt. */
+/* Compass: axis cross without a single dot. */
 .sopen-compass {
 	display: grid; place-items: center;
 	grid-template-columns: auto 1fr auto;
@@ -173,23 +174,23 @@ export default {
 .cp-field::before { left: 0; right: 0; top: 50%; height: 0.05em; transform: translateY(-50%); }
 .cp-field::after { top: 0; bottom: 0; left: 50%; width: 0.05em; transform: translateX(-50%); }
 
-/* Zuordnung: Zeilen, darunter die Ziele als lose Chips. */
+/* Matching: rows, with the targets below as loose chips. */
 .sopen-match { display: flex; flex-direction: column; gap: 0.6em; }
 .sopen-match > .srows { flex: 1 1 auto; min-height: 0; }
-/* Ab sechs Paaren zweispaltig — dieselbe Schwelle wie bei der Auflösung. Acht
-   volle Bühnenbreiten für je ein Wort („DNS") stehen zu lassen und dafür die
-   Schrift zu schrumpfen, ist die falsche Reihenfolge. Die Spalten laufen von
-   oben nach unten, damit die Reihenfolge der Frage erhalten bleibt. */
+/* Two columns from six pairs on — the same threshold as in the reveal. Keeping
+   eight full stage widths for one word each ("DNS") and shrinking the font
+   for it gets the priorities backwards. The columns run from top to
+   bottom so that the order of the question is kept. */
 .sopen-match > .srows.is-cols {
 	display: grid; grid-auto-flow: column;
 	grid-template-columns: 1fr 1fr;
 	grid-template-rows: repeat(var(--rows, 4), minmax(0, 1fr));
 	gap: 0.4em 1.4em;
 }
-/* Im Raster teilen die Spuren die Höhe unter sich auf. Die Mindesthöhe der
-   Zeile stammt aus der einspaltigen Bühne (1,9 em) und ist hier zu viel: vier
-   Spuren plus Chips plus Eingang überschritten die Bühne, und die Zeilen liefen
-   in ihre Abstände. */
+/* In the grid the tracks share the height among themselves. The row's minimum
+   height comes from the single-column stage (1.9 em) and is too much here: four
+   tracks plus chips plus the intake overflowed the stage, and the rows ran
+   into their gaps. */
 .sopen-match > .srows.is-cols > .srow { min-height: 0; max-height: none; }
 .sopen-chips { flex: 0 0 auto; list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.35em; }
 .sopen-chip { background: var(--pulse-bar-track); color: var(--pulse-text); border-radius: 999px; padding: 0.2em 0.7em; font-weight: 700; font-size: 0.8em; }

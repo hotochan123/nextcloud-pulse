@@ -8,8 +8,8 @@ declare(strict_types=1);
 namespace OCA\Pulse\Service;
 
 /**
- * Ein Raum wurde von jemandem angesprochen, dem er nicht gehört.
- * Vom Controller auf HTTP 403 abgebildet.
+ * A room was accessed by someone who does not own it.
+ * The controller maps this to HTTP 403.
  */
 class NotOwnerException extends \RuntimeException {
 }

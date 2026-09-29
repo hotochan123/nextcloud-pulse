@@ -10,10 +10,10 @@ namespace OCA\Pulse\Db;
 use OCP\AppFramework\Db\Entity;
 
 /**
- * Quiz im eigenen Tempo: eine Zeile je (Frage, Voter-Token), die diese Person
- * erreicht hat. `startedAt` ist ihr persönlicher Start (Countdown/Tempo),
- * `leftAt` das Verlassen der Frage (0 = gerade offen). Bewusst ohne
- * JsonSerializable — der voter_token verlässt den Server nie.
+ * Self-paced quiz: one row per (question, voter token) that this person
+ * has reached. `startedAt` is their personal start (countdown/pace),
+ * `leftAt` is when they left the question (0 = still open). Deliberately
+ * not JsonSerializable — the voter_token never leaves the server.
  *
  * @method int getRoomId()
  * @method void setRoomId(int $roomId)
@@ -32,7 +32,7 @@ class Progress extends Entity {
     protected $roomId = 0;
     protected $pollId = 0;
     protected $voterToken = '';
-    protected $seq = 0;         // Index in der eingefrorenen Reihenfolge (0-basiert)
+    protected $seq = 0;         // index in the frozen order (0-based)
     protected $startedAt = 0;
     protected $leftAt = 0;
 

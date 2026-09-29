@@ -5,10 +5,10 @@
 <template>
 	<div class="pulse-mod" :class="{ 'is-fs': isFullscreen, 'is-live': liveFrame, 'is-start': phase === 'start' }">
 		<!--
-		  Startbildschirm (§9.5): zweispaltig ab 1200 px. Vorher standen rund
-		  150 px Leerraum über dem Kopfblock und „Meine Räume" begann so weit
-		  unten, dass die erste Raumkarte angeschnitten war — beides löst die
-		  zweite Spalte in einem Zug.
+		  Start screen (§9.5): two columns from 1200 px. Before, there were about
+		  150 px of empty space above the header block and "My rooms" started so
+		  far down that the first room card was cut off — the second column
+		  solves both in one go.
 		-->
 		<section v-if="phase === 'start'" class="start" :class="{ 'has-rooms': myRooms.length }">
 			<div class="start-intro">
@@ -16,7 +16,7 @@
 				<h1>{{ t('pulse', 'Live poll or quiz') }}</h1>
 				<p class="lede">{{ t('pulse', 'Build a deck of questions, project code and QR, and click through it during your talk.') }}</p>
 
-				<!-- Ein CTA + Modus-Segmented (§4.1): erst Modus wählen, dann EIN Start-Knopf -->
+				<!-- One CTA + mode segmented control (§4.1): pick the mode first, then ONE start button -->
 				<div class="start-cta">
 					<PulseSegmented v-model="startMode" :options="modeOptions" :label="t('pulse', 'Choose mode')" />
 					<button class="pulse-btn is-primary is-lg" :disabled="busy" @click="startRoom(startMode)">
@@ -28,8 +28,8 @@
 					<b>{{ t('pulse', 'Quiz:') }}</b> {{ t('pulse', 'with names, correct answer, countdown & leaderboard.') }}
 				</p>
 
-				<!-- Beitreten ist die seltenere Handlung und tritt deshalb als
-				     Textknopf auf, nicht als zweiter Rahmenknopf neben dem Start. -->
+				<!-- Joining is the rarer action and therefore appears as a
+				     text button, not as a second outlined button next to Start. -->
 				<a class="start-join" :href="joinPagePath" target="_blank" rel="noopener">{{ t('pulse', 'Join a room') }}</a>
 			</div>
 
@@ -56,7 +56,7 @@
 			</div>
 		</section>
 
-		<!-- Zusammenfassung: alle Fragen mit Ergebnissen + CSV-Export -->
+		<!-- Summary: all questions with results + CSV export -->
 		<section v-else-if="phase === 'summary'" class="summary-view">
 			<div class="deck-head">
 				<h2>{{ t('pulse', 'Summary') }}</h2>
@@ -65,12 +65,12 @@
 						<button class="pulse-btn is-secondary is-sm" @click="goHome"><PulseIcon name="chevron" size="1em" class="ic-flip" /> {{ t('pulse', 'My rooms') }}</button>
 						<button class="pulse-btn is-secondary is-sm summary-back" @click="summaryBack">{{ summaryToPace ? t('pulse', 'Back to progress') : t('pulse', 'Back to the deck') }}</button>
 					</div>
-					<!-- Eigenes Tempo: neben „Teilnehmende/Antworten als CSV" (Laufansicht)
-					     ist das die dritte CSV — darum eindeutig benannt. -->
+					<!-- Self-paced: next to "Participants/Answers as CSV" (run view)
+					     this is the third CSV — hence the unambiguous name. -->
 					<a class="pulse-btn is-primary is-sm export-btn" :href="exportUrl" download>{{ isPaced ? t('pulse', 'Results per question (CSV)') : t('pulse', 'Export CSV') }}</a>
 				</div>
 			</div>
-			<!-- Solange das Quiz offen ist, zeigt diese Seite die Lösungen — nicht spiegeln. -->
+			<!-- While the quiz is open, this page shows the solutions — do not mirror it. -->
 			<p v-if="isPaced && paceState === 'open'" class="pulse-notice is-warn summary-warn"><PulseIcon name="lock" size="1.1em" class="pulse-notice-ico" /><span><b class="summary-warn-head">{{ t('pulse', 'Only for you') }}</b> {{ t('pulse', 'This page shows the solutions — do not mirror it while the quiz is open.') }}</span></p>
 			<div v-if="summary.length" class="summary-list">
 				<div v-for="(item, i) in summary" :key="item.poll.id" class="summary-item">
@@ -86,10 +86,10 @@
 			<p v-else class="deck-empty">{{ t('pulse', 'No questions in the deck yet.') }}</p>
 		</section>
 
-		<!-- Deck-Editor: Fragen anlegen, sortieren, Ablauf einstellen (§9.6 — bleibt) -->
+		<!-- Deck editor: create and sort questions, set up the flow (§9.6 — stays) -->
 		<section v-else-if="phase === 'deck'" class="present">
 			<div class="present-main">
-				<!-- ── DECK-EDITOR ─────────────────────────────────────────── -->
+				<!-- ── DECK EDITOR ─────────────────────────────────────────── -->
 				<div class="deck-head" :class="{ 'is-paced': isPaced }">
 					<button class="pulse-btn is-secondary is-icon deck-back" :title="t('pulse', 'My rooms')" :aria-label="t('pulse', 'My rooms')" @click="goHome"><PulseIcon name="chevron" size="1.1em" class="ic-flip" /></button>
 					<h2 v-if="!renaming" class="deck-title">
@@ -105,16 +105,16 @@
 					<span v-if="deckStateChip" class="pulse-chip deck-state" :class="deckStateChip.cls"><span v-if="deckStateChip.dot" class="pulse-chip-dot" />{{ deckStateChip.label }}</span>
 					<span class="deck-head-spacer" />
 					<PulseMenu :items="deckMenu" :label="t('pulse', 'More actions')" />
-					<!-- Leeres Deck: der Kopf bleibt ohne Hauptaktion, die trägt der leere
-					     Zustand in der Mitte. Steht ein Formular offen, tritt der Kopf
-					     zurück — der gefüllte Knopf gehört dann dem Formular (R1), auch
-					     dem Öffnen-Dialog im eigenen Tempo. -->
+					<!-- Empty deck: the header has no primary action, the empty state in the
+					     middle carries it. While a form is open, the header steps
+					     back — the filled button then belongs to the form (R1), including
+					     the "Open quiz" dialog in self-paced mode. -->
 					<button v-if="deckPrimary" ref="deckPrimary" class="pulse-btn" :class="deckQuiet ? 'is-secondary' : 'is-primary'" @click="deckPrimary.act()"><PulseIcon :name="deckPrimary.icon" size="1em" /> {{ deckPrimary.label }}</button>
 				</div>
 				<p v-if="isPractice" class="pulse-notice is-warn practice-banner"><PulseIcon name="warning" size="1.1em" class="pulse-notice-ico" /><span>{{ t('pulse', 'Practice run active — votes do not count towards the leaderboard. For the real start switch the practice run off in the menu (empties the room).') }}</span></p>
-				<!-- Eigenes Tempo ab dem Öffnen: die eingefrorene Reihenfolge bleibt bis
-				     zum Zurücksetzen stehen. Solange offen, geht Zurücksetzen noch nicht —
-				     deshalb dort der Zwischenschritt „erst schließen". -->
+				<!-- Self-paced from opening on: the frozen order stays until the
+				     reset. While the quiz is open, resetting is not possible yet —
+				     hence the intermediate step "close first" there. -->
 				<p v-if="deckLocked" class="pulse-notice is-info deck-lock-note"><PulseIcon name="lock" size="1.1em" class="pulse-notice-ico" /><span>{{ paceState === 'open' ? t('pulse', 'Close the quiz, then reset it to edit the questions.') : t('pulse', 'The questions are locked since the quiz was opened. Reset the room to edit them.') }}</span></p>
 
 				<draggable v-if="deck.length" v-model="deck" tag="ol" class="deck-list"
@@ -145,8 +145,8 @@
 
 					<input ref="qInput" v-model="draft.question" class="pinput pinput--q" type="text" :placeholder="t('pulse', 'Your question …')" @keyup.enter="focusFirstOption">
 
-					<!-- Bild zur Frage (optional). Wird beim Speichern hochgeladen und
-					     serverseitig neu kodiert + verkleinert. -->
+					<!-- Image for the question (optional). Uploaded on save and
+					     re-encoded + downscaled on the server. -->
 					<div class="img-row">
 						<div v-if="draft.imagePreview" class="img-preview">
 							<img :src="draft.imagePreview" :alt="t('pulse', 'Preview of the question image')">
@@ -159,7 +159,7 @@
 						<span class="img-hint">{{ t('pulse', 'PNG, JPEG, GIF or WebP · up to 5 MB') }}</span>
 					</div>
 
-					<!-- Multiple Choice + Mehrfachauswahl: Optionen -->
+					<!-- Multiple choice + multiple answers: options -->
 					<template v-if="draft.type === 'choice' || draft.type === 'multi' || draft.type === 'rank'">
 						<p v-if="draft.type === 'rank'" class="quiz-hint">{{ isQuiz ? t('pulse', 'Enter the answers in the CORRECT order — that is the solution. On the phone they appear shuffled.') : t('pulse', 'The audience sorts these answers. The order here is only the starting line-up.') }}</p>
 						<p v-else-if="isQuiz" class="quiz-hint">{{ draft.type === 'multi' ? t('pulse', 'Mark all correct answers:') : t('pulse', 'Mark the correct answer:') }}</p>
@@ -176,7 +176,7 @@
 						<button v-if="draft.options.length < 8" class="pulse-btn is-secondary is-sm" @click="addOption"><PulseIcon name="plus" size="1em" /> {{ t('pulse', 'Option') }}</button>
 					</template>
 
-					<!-- Zuordnung: je Zeile ein Paar. Rechts erscheint am Handy gemischt. -->
+					<!-- Matching: one pair per row. The right side appears shuffled on the phone. -->
 					<template v-else-if="draft.type === 'match'">
 						<p class="quiz-hint">{{ isQuiz ? t('pulse', 'Each row is one correct pair — on the phone the right-hand column appears shuffled.') : t('pulse', 'Each row is one pair. The audience assigns the right column to the left one; there is no right or wrong.') }}</p>
 						<div v-for="(pair, i) in draft.pairs" :key="i" class="pair-row">
@@ -189,7 +189,7 @@
 						<button v-if="draft.pairs.length < 8" class="pulse-btn is-secondary is-sm" @click="addPair"><PulseIcon name="plus" size="1em" /> {{ t('pulse', 'Pair') }}</button>
 					</template>
 
-					<!-- Wahr/Falsch -->
+					<!-- True/false -->
 					<template v-else-if="draft.type === 'truefalse'">
 						<p class="quiz-hint">{{ t('pulse', 'Which one is correct?') }}</p>
 						<div class="tf-pick">
@@ -198,7 +198,7 @@
 						</div>
 					</template>
 
-					<!-- Schätzfrage -->
+					<!-- Number guess -->
 					<template v-else-if="draft.type === 'number'">
 						<div class="num-fields">
 							<label class="words-hint">{{ t('pulse', 'Correct number') }}
@@ -211,7 +211,7 @@
 						<p class="quiz-hint">{{ t('pulse', 'Anyone within number ± tolerance counts as correct.') }}</p>
 					</template>
 
-					<!-- Freitext -->
+					<!-- Free text -->
 					<template v-else-if="draft.type === 'text'">
 						<p class="quiz-hint">{{ t('pulse', 'Accepted answer(s) — you can approve further spellings later during the reveal:') }}</p>
 						<div v-for="(a, i) in draft.answers" :key="i" class="opt-row">
@@ -221,23 +221,23 @@
 						<button v-if="draft.answers.length < 8" class="pulse-btn is-secondary is-sm" @click="addAnswer"><PulseIcon name="plus" size="1em" /> {{ t('pulse', 'Answer') }}</button>
 					</template>
 
-					<!-- Skala (Umfrage) — Modus Einzel | Spektrum | Kompass -->
+					<!-- Scale (poll) — mode Single | Spectrum | Compass -->
 					<template v-else-if="draft.type === 'scale'">
 						<div class="submode">
 								<span class="submode-arrow" aria-hidden="true">▸</span>
 								<span class="submode-key">{{ t('pulse', 'Scale mode') }}</span>
 								<PulseSegmented v-model="draft.scaleMode" :options="scaleModeOptions" :label="t('pulse', 'Scale mode')" class="submode-seg" />
 							</div>
-						<!-- Einzel/Spektrum: gemeinsames Maximum X -->
+						<!-- Single/Spectrum: shared maximum X -->
 						<label v-if="draft.scaleMode !== 'compass'" class="words-hint">{{ draft.scaleMode === 'spectrum' ? t('pulse', 'Scale 0 to') : t('pulse', 'Scale 1 to') }}
 							<input v-model.number="draft.scaleMax" class="pinput pinput--num" type="number" min="2" max="20" step="1">
 						</label>
-						<!-- Einzel: optionale Pol-Labels an 1 und X -->
+						<!-- Single: optional pole labels at 1 and X -->
 						<template v-if="draft.scaleMode === 'single'">
 							<input v-model="draft.minLabel" class="pinput" type="text" :placeholder="t('pulse', 'Label for 1 (optional, e.g. “disagree”)')">
 							<input v-model="draft.maxLabel" class="pinput" type="text" :placeholder="t('pulse', 'Label for {max} (optional, e.g. “fully agree”)', { max: draft.scaleMax })">
 						</template>
-						<!-- Spektrum: 3–8 Aspekte, je ein Regler von 0 bis X -->
+						<!-- Spectrum: 3–8 aspects, one slider each from 0 to X -->
 						<template v-else-if="draft.scaleMode === 'spectrum'">
 							<p class="quiz-hint">{{ t('pulse', 'Aspects (3–8) — one slider each from 0 to {max}:', { max: draft.scaleMax }) }}</p>
 							<div v-for="(asp, i) in draft.aspects" :key="i" class="aspect-row">
@@ -253,7 +253,7 @@
 							</div>
 							<button v-if="draft.aspects.length < 8" class="pulse-btn is-secondary is-sm" @click="addAspect"><PulseIcon name="plus" size="1em" /> {{ t('pulse', 'Aspect') }}</button>
 						</template>
-						<!-- Kompass: gerahmte Sektionen (§4) — Achsen · Bereich & Darstellung · Ecklabels -->
+						<!-- Compass: framed sections (§4) — axes · range & display · corner labels -->
 						<template v-else>
 							<div class="sgroup">
 								<h4 class="sgroup-head">{{ t('pulse', 'Two axes') }}</h4>
@@ -303,7 +303,7 @@
 							</div>
 						</template>
 					</template>
-					<!-- Wortwolke (Umfrage) -->
+					<!-- Word cloud (poll) -->
 					<template v-else-if="draft.type === 'words'">
 						<label class="words-hint">{{ t('pulse', 'Up to') }}
 							<select v-model.number="draft.maxWords" class="pinput pinput--sel">
@@ -326,21 +326,21 @@
 				<button v-else-if="deck.length && !deckLocked" class="pulse-btn is-secondary add-btn" @click="openComposer()">{{ t('pulse', '+ Add question') }}</button>
 			</div>
 
-			<!-- Beitritts-Panel mit QR -->
+			<!-- Join panel with QR -->
 			<aside class="present-aside">
 				<div class="qr-card">
 					<QrCode :value="joinUrlFull" />
 				</div>
-				<!-- Eine ruhige Beitritts-Einheit: Code (groß) + kurze Adresse + Kopieren (§5b). -->
+				<!-- One calm join unit: code (large) + short address + copy (§5b). -->
 				<span class="join-hint">{{ t('pulse', 'Join in — code at') }} <b>{{ joinBase }}</b></span>
 				<span class="join-code">{{ spacedCode }}</span>
 				<div class="join-link">
 					<a class="join-url" :href="joinPath" target="_blank" rel="noopener">{{ joinUrl }}</a>
 					<button class="pulse-btn is-secondary is-icon is-xs join-copy" :title="t('pulse', 'Copy join link')" :aria-label="t('pulse', 'Copy join link')" @click="copyJoin"><PulseIcon name="copy" size="1em" /></button>
 				</div>
-				<!-- Eigenes Tempo: statt „● live" die Statuszeile — wer schon da ist,
-				     auch vor dem Öffnen. Sie hält zugleich das Fenster aktuell (Frist,
-				     zweiter Tab). -->
+				<!-- Self-paced: the status line instead of "● live" — who is already here,
+				     even before opening. It also keeps the window up to date (deadline,
+				     second tab). -->
 				<span v-if="!isPaced" class="conn" role="status" :class="{ 'is-off': !online }">{{ online ? t('pulse', '● live') : t('pulse', '● offline — connecting …') }}</span>
 				<PaceDeckStatus v-else
 					:key="room.code"
@@ -362,8 +362,8 @@
 				@cancel="paceDialog = null" />
 		</section>
 
-		<!-- Eigenes Tempo ab dem Öffnen: Fortschritt je Person und EINE
-		     Hauptaktion (schließen, freigeben …), mit eigenem /progress-Abruf. -->
+		<!-- Self-paced from opening on: progress per person and ONE
+		     primary action (close, release …), with its own /progress fetch. -->
 		<PaceRun v-else-if="phase === 'pace'"
 			:key="room.code"
 			:room="room"
@@ -381,12 +381,12 @@
 			@reload="loadRoom(room.code)" />
 
 		<!--
-		  Präsentation und Endstand (§9): EIN Rahmen — Kopfzeile, Leinwand-
-		  Vorschau neben dem privaten Panel, Steuerleiste mit genau EINER
-		  Hauptaktion. Vorher standen sechs gleichrangige Knöpfe nebeneinander,
-		  der auffälligste war der destruktive („Finish"), und die häufigste
-		  Handlung — weiterschalten und auflösen — hatte gar keinen Knopf,
-		  sondern versteckte sich in Chevrons (N9).
+		  Presentation and final standings (§9): ONE frame — header, canvas
+		  preview next to the private panel, control bar with exactly ONE
+		  primary action. Before, six equally weighted buttons stood side by side,
+		  the most prominent one was the destructive one ("Finish"), and the most
+		  frequent action — advancing and revealing — had no button at all
+		  but hid in chevrons (N9).
 		-->
 		<section v-else class="mod-live">
 			<header class="mod-top">
@@ -398,37 +398,37 @@
 				<span class="mod-spacer" />
 				<span v-if="room" class="mod-code" :title="t('pulse', 'Room code')">{{ spacedCode }}</span>
 				<button class="pulse-btn is-secondary is-sm" :aria-expanded="joinOpen ? 'true' : 'false'" @click="toggleJoin">{{ t('pulse', 'Join') }}</button>
-				<!-- Überlaufmenü: alles, was ein- bis zweimal je Sitzung gebraucht
-				     wird, statt dauerhaft neben der Arbeitsfläche zu leuchten. -->
+				<!-- Overflow menu: everything needed once or twice per session,
+				     instead of glowing permanently next to the work area. -->
 				<PulseMenu :items="menuItems" :label="t('pulse', 'More actions')" small />
 				<p v-if="!online" class="pulse-notice is-warn mod-offline" role="status"><PulseIcon name="warning" size="1.1em" class="pulse-notice-ico" /><span>{{ t('pulse', 'No connection — the room is not answering. The main action stays disabled until it is back.') }}</span></p>
 			</header>
 
 			<div class="mod-body">
-				<!-- Endstand: derselbe Rahmen, anderer Körper. Kein privates Panel —
-				     nach finish() (/end) sieht der Saal denselben Stand. Nur der
-				     Zwischenstand übers Menü bleibt beim Moderator (Kopf: „Rangliste“). -->
+				<!-- Final standings: the same frame, a different body. No private panel —
+				     after finish() (/end) the room sees the same standings. Only the
+				     interim standings via the menu stay with the moderator (header: "Leaderboard"). -->
 				<div v-if="phase === 'leaderboard'" class="mod-standings">
 					<h2 class="mod-standings-head"><PulseIcon name="ranking" size="1em" /> {{ quizOver ? t('pulse', 'Final standings') : t('pulse', 'Leaderboard') }}</h2>
 					<Leaderboard v-if="leaderboard.length" :rows="leaderboard" :podium="true" :limit="30" />
 					<p v-else class="deck-empty">{{ t('pulse', 'No points yet — nobody has played along.') }}</p>
 				</div>
 				<template v-else>
-					<!-- Leinwand-Vorschau statt Nachbildung: dieselbe Seite wie
-					     /screen/{code}, in 16:9 verkleinert. Ein Nachbau wäre eine
-					     zweite Wahrheit, die auseinanderläuft; so sieht der
-					     Moderator, was der Saal sieht. Rein lesend — die Richtung
-					     „Beamer spiegelt den Moderator" bleibt verboten. -->
+					<!-- Canvas preview instead of a replica: the same page as
+					     /screen/{code}, scaled down to 16:9. A rebuild would be a
+					     second truth that drifts apart; this way the moderator
+					     sees what the room sees. Read-only — the direction
+					     "projector mirrors the moderator" stays forbidden. -->
 					<div ref="canvas" class="mod-canvas">
 						<div class="mod-canvas-in" :style="canvasStyle">
 							<iframe v-if="room" class="mod-frame" :style="frameStyle" :src="screenPath" :title="t('pulse', 'Preview of the projector view')" />
 						</div>
 					</div>
-					<!-- „Nur für dich" (E3): der Stand, den der Saal NICHT sieht.
-					     Im Vollbild ist das Panel nicht ausgeblendet, sondern gar
-					     nicht im Dokument — Vollbild ist genau der Modus, der
-					     projiziert wird. Das ist keine Sicht-, sondern eine
-					     Sicherheitsfrage (§9.3). -->
+					<!-- "Only for you" (E3): the state the room does NOT see.
+					     In fullscreen the panel is not hidden but not in the
+					     document at all — fullscreen is exactly the mode that
+					     gets projected. This is not a question of looks but one
+					     of security (§9.3). -->
 					<aside v-if="!isFullscreen" class="mod-private">
 						<h2 class="mod-private-head"><PulseIcon name="lock" size="1.05em" /> {{ t('pulse', 'Only for you') }}</h2>
 						<p class="mod-private-sub">{{ t('pulse', 'Live distribution — this panel never goes on the projector.') }}</p>
@@ -439,7 +439,7 @@
 						<p v-else class="mod-private-empty">{{ t('pulse', 'No question yet — the room shows the code and waits.') }}</p>
 						<Leaderboard v-if="isQuiz && leaderboard.length" class="mod-private-lb" :rows="leaderboard" :limit="5" />
 
-						<!-- Demo-/Testwerkzeug: aktive Frage mit vielen Stimmen befüllen (Vorschau) -->
+						<!-- Demo/test tool: fill the active question with many votes (preview) -->
 						<div v-if="demoMode" class="demo-bar" role="group" :aria-label="t('pulse', 'Test tool: demo votes')">
 							<span class="pulse-chip is-warning demo-chip"><span class="pulse-chip-dot" /> {{ t('pulse', 'Demo mode') }}</span>
 							<span class="demo-hint">{{ t('pulse', 'only to check the display — real votes stay') }}</span>
@@ -456,8 +456,8 @@
 
 			<footer class="mod-bar">
 				<button class="pulse-btn is-secondary" :disabled="!canPrev || (phase === 'leaderboard' && quizOver)" @click="prev"><PulseIcon name="chevron" size="1em" class="ic-flip" /> {{ t('pulse', 'Back') }}</button>
-				<!-- Der einzige gefüllte Knopf auf dem Schirm, und er weiß, was
-				     gerade dran ist (§9.1). Destruktiv eingefärbt erst am Endstand. -->
+				<!-- The only filled button on the screen, and it knows what is
+				     up next (§9.1). Colored as destructive only at the final standings. -->
 				<button class="pulse-btn mod-primary is-lg" :class="primary.danger ? 'is-danger is-solid' : 'is-primary'" :disabled="!online || busy" :title="online ? '' : t('pulse', 'No connection to the room')" @click="runPrimary">
 					<PulseIcon :name="primary.icon" size="1.05em" /> {{ primary.label }}
 				</button>
@@ -465,15 +465,15 @@
 				<span v-if="advanceIn !== null" class="pulse-chip is-accent auto-next" role="status"><PulseIcon name="timer" size="1em" /> {{ advanceLabel }} {{ t('pulse', 'in {seconds} s', { seconds: advanceIn }) }}</span>
 				<button v-if="advanceIn !== null" class="pulse-btn is-secondary is-sm" @click="cancelAdvance">{{ t('pulse', 'Stop') }}</button>
 				<span class="mod-spacer" />
-				<!-- Die Zahl steht neben ihrem Bezug, nicht allein im Leeren (D20):
-				     derselbe Baustein wie am Beamer, nur klein. -->
+				<!-- The number sits next to what it refers to, not alone in empty space (D20):
+				     the same building block as on the projector, just small. -->
 				<IntakeBoard v-if="phase === 'present' && currentPoll" class="mod-intake" :answered="resultsTotal" :present="presentCount" :compact="true" />
 			</footer>
 
-			<!-- Beitritt ist ein Zustand, keine Spalte (D20): offen, solange
-			     niemand verbunden ist — dann wird er gebraucht —, danach
-			     einmalig eingeklappt und über den Knopf in der Kopfzeile
-			     erreichbar. Der Verweis steht nur hier, nicht dauerhaft. -->
+			<!-- Joining is a state, not a column (D20): open as long as
+			     nobody is connected — that is when it is needed —, then
+			     collapsed once and reachable via the button in the header.
+			     The link sits only here, not permanently. -->
 			<div v-if="joinOpen" class="mod-joinwrap" @click.self="joinOpen = false">
 				<aside class="mod-joinpanel" role="dialog" :aria-label="t('pulse', 'Join in')">
 					<div class="mod-join-head">
@@ -494,6 +494,11 @@
 </template>
 
 <script>
+/*
+ * Section references (§…) and review IDs (B1, R3, …) point to the design notes
+ * of the redesign and of the self-paced quiz, which are not in the public
+ * repository (see "References in code comments" in the README).
+ */
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
 import { t, n } from './util/l10n.js'
@@ -518,9 +523,9 @@ import PaceOpenDialog from './components/PaceOpenDialog.vue'
 import PaceDeckStatus from './components/PaceDeckStatus.vue'
 import PaceRun from './components/PaceRun.vue'
 
-// Pro Fragetyp an EINER Stelle: Deserialisierung (poll -> draft) und
-// Serialisierung+Validierung (draft -> body). Hält die zwei Composer-Seiten
-// synchron. toBody meldet Fehler über fail(msg); der Aufrufer bricht dann ab.
+// Per question type in ONE place: deserialization (poll -> draft) and
+// serialization+validation (draft -> body). Keeps the two composer sides
+// in sync. toBody reports errors via fail(msg); the caller then aborts.
 function keptOptions(draft, body, fail) {
 	const kept = []
 	draft.options.forEach((o, i) => { if (o.trim() !== '') kept.push(i) })
@@ -550,7 +555,7 @@ const QUESTION_TYPES = {
 	},
 	rank: {
 		toDraft(poll, key, d) {
-			// Die gespeicherte Optionsreihenfolge IST im Quiz die Lösung.
+			// In a quiz, the stored option order IS the solution.
 			d.options = (poll.options || []).map((o) => o.label)
 		},
 		toBody(draft, body, isQuiz, fail) {
@@ -565,8 +570,8 @@ const QUESTION_TYPES = {
 			const labelById = {}
 			for (const target of targets) labelById[target.id] = target.label
 			const map = key.map || {}
-			// Quiz: die rechte Spalte kommt aus der Lösung. Umfrage: dort gibt es
-			// keine — die Paarung ist dann die Eingabefolge (Item i zu Ziel i).
+			// Quiz: the right column comes from the solution. Poll: there is none
+			// there — the pairing is then the input order (item i to target i).
 			d.pairs = (match.items || []).map((item, i) => ({
 				left: item.label,
 				right: labelById[map[item.id]] !== undefined ? labelById[map[item.id]] : ((targets[i] || {}).label || ''),
@@ -694,8 +699,8 @@ export default {
 	components: { ResultsView, QrCode, Leaderboard, TextGrading, PulseIcon, PulseSegmented, PulseMenu, CountdownRing, IntakeBoard, draggable, PaceOpenDialog, PaceDeckStatus, PaceRun },
 	data() {
 		return {
-			phase: 'start', // 'start' | 'deck' | 'present' | 'summary' | 'leaderboard' | 'pace' (Laufansicht, eigenes Tempo)
-			startMode: 'poll', // Modus-Segmented auf dem Startbildschirm (§4.1)
+			phase: 'start', // 'start' | 'deck' | 'present' | 'summary' | 'leaderboard' | 'pace' (run view, self-paced)
+			startMode: 'poll', // mode segmented control on the start screen (§4.1)
 			room: null,
 			myRooms: [],
 			summary: [],
@@ -712,43 +717,43 @@ export default {
 			online: true,
 			busy: false,
 			isFullscreen: false,
-			joinOpen: false,   // Beitritts-Panel — ein Zustand, keine Spalte (§9.4)
-			frameScale: 0.5,   // Maßstab der Leinwand-Vorschau (1280×720 -> Kasten)
+			joinOpen: false,   // join panel — a state, not a column (§9.4)
+			frameScale: 0.5,   // scale of the canvas preview (1280×720 -> box)
 			tickTimer: null,
-			advanceTimer: null,  // Auto-Weiterschalten nach Timer-Ende
-			advanceAtSec: 0,     // lokale Zielsekunde (0 = nichts geplant)
+			advanceTimer: null,  // auto-advance after the timer ends
+			advanceAtSec: 0,     // local target second (0 = nothing scheduled)
 			polling: false,
 			resVersion: '',
 			serverSkew: 0,
 			nowSec: Math.floor(Date.now() / 1000),
-			renaming: false,   // Deck-Kopf: Inline-Umbenennen offen?
+			renaming: false,   // deck header: inline rename open?
 			renameDraft: '',
 			draft: this.emptyDraft(),
-			// ── Quiz im eigenen Tempo ──
-			paceDialog: null,    // null | 'open' — Öffnen-Dialog im Deck
-			paceFocus: false,    // nächste Laufansicht setzt den Fokus auf ihren Titel
-			paceCounts: null,    // letzter Zählstand aus PaceDeckStatus (Bestätigungstexte)
-			paceSkew: 0,         // Serverzeit − Laptopzeit in s (aus /progress)
-			paceBusy: false,     // Umschalten läuft (zählen, bestätigen, senden)
-			summaryFrom: 'deck', // woher die Zusammenfassung geöffnet wurde ('deck' | 'pace')
+			// ── Self-paced quiz ──
+			paceDialog: null,    // null | 'open' — the "open quiz" dialog in the deck
+			paceFocus: false,    // the next run view puts the focus on its title
+			paceCounts: null,    // last counts from PaceDeckStatus (confirmation texts)
+			paceSkew: 0,         // server time − laptop time in s (from /progress)
+			paceBusy: false,     // switching in progress (count, confirm, send)
+			summaryFrom: 'deck', // where the summary was opened from ('deck' | 'pace')
 		}
 	},
 	computed: {
-		// Frei gewählter Raumname; leer = die Oberfläche fällt auf „Dein Deck/Quiz" zurück.
+		// Freely chosen room name; empty = the UI falls back to "Your deck/quiz".
 		roomTitle() {
 			return (this.room && this.room.title) || ''
 		},
 		isQuiz() {
 			return !!this.room && this.room.mode === 'quiz'
 		},
-		// Start-Segmented: Umfrage vs. Quiz.
+		// Start segmented control: poll vs. quiz.
 		modeOptions() {
 			return [
 				{ value: 'poll', label: t('pulse', 'Poll'), icon: 'poll' },
 				{ value: 'quiz', label: t('pulse', 'Quiz'), icon: 'quiz' },
 			]
 		},
-		// Composer-Segmented für den Skala-Modus (Umfrage): Einzel vs. Spektrum.
+		// Composer segmented control for the scale mode (poll): single vs. spectrum.
 		scaleModeOptions() {
 			return [
 				{ value: 'single', label: t('pulse', 'Single') },
@@ -756,7 +761,7 @@ export default {
 				{ value: 'compass', label: t('pulse', 'Compass') },
 			]
 		},
-		// Composer-Segmented: Fragetypen je Modus (§4.3, wrap-fest).
+		// Composer segmented control: question types per mode (§4.3, wrap-safe).
 		typeOptions() {
 			return this.isQuiz
 				? [
@@ -782,27 +787,27 @@ export default {
 		isRevealAtEnd() {
 			return !!this.room && !!this.room.revealAtEnd
 		},
-		// ── Quiz im eigenen Tempo (Stufe 4) ─────────────────────────────────
-		// Jeder neue Zweig hängt hieran; moderiert bleibt alles wie gehabt.
+		// ── Self-paced quiz (stage 4) ───────────────────────────────────────
+		// Every new branch hangs off this; moderated, everything stays as before.
 		isPaced() {
 			return isPacedRoom(this.room)
 		},
-		// Fensterzustand gegen die Serverzeit: eine Frist, die gerade abläuft,
-		// schließt das Deck sofort — der nächste Abruf bestätigt es nur.
-		// Moderiert '' (und dann ohne Abhängigkeit vom Sekundentakt).
+		// Window state against the server time: a deadline that is just expiring
+		// closes the deck immediately — the next fetch merely confirms it.
+		// Moderated: '' (and then without depending on the seconds tick).
 		paceState() {
 			return this.isPaced ? windowState(this.room.window, this.nowSec + this.paceSkew) : ''
 		},
-		// Ab dem Öffnen bis zum Zurücksetzen: keine Fragen anlegen, bearbeiten,
-		// löschen oder sortieren (der Server sagt sonst 409).
+		// From opening until the reset: no creating, editing, deleting or
+		// sorting questions (otherwise the server says 409).
 		deckLocked() {
 			return this.isPaced && !!this.paceState && this.paceState !== 'draft'
 		},
-		// Zustands-Chip im Deck-Kopf — im Entwurf keiner.
+		// State chip in the deck header — none in draft.
 		deckStateChip() {
 			return this.deckLocked ? this.paceChip(this.room.window) : null
 		},
-		// „· 30s ·" je Zeile nur, wenn die Zeit auch gilt (offen ohne Timer: nein).
+		// "· 30s ·" per row only when the time actually applies (open without a timer: no).
 		showRowLimit() {
 			return !this.isPaced || this.paceState === 'draft' || !!(this.room.window && this.room.window.timed)
 		},
@@ -827,12 +832,12 @@ export default {
 		joinPagePath() {
 			return generateUrl('/apps/pulse/join')
 		},
-		// Mit Requesttoken in der Query: ein <a download> schickt keinen Header,
-		// ohne Token antwortete die Route mit 412 (util/csv.js).
+		// With the request token in the query: an <a download> sends no header,
+		// and without the token the route answered with 412 (util/csv.js).
 		exportUrl() {
 			return this.room ? csvUrl(this.room.code) : ''
 		},
-		// Aus der Laufansicht geöffnet: dorthin geht es zurück, nicht ins Deck.
+		// Opened from the run view: going back leads there, not into the deck.
 		summaryToPace() {
 			return this.isPaced && this.summaryFrom === 'pace'
 		},
@@ -858,29 +863,29 @@ export default {
 		quizRemaining() {
 			return this.isQuiz ? remainingSecs(this.results, this.nowSec, this.serverSkew) : null
 		},
-		// Sekunden bis zum automatischen Weiterschalten (null = nichts geplant).
+		// Seconds until auto-advance (null = nothing scheduled).
 		advanceIn() {
 			return this.advanceAtSec ? Math.max(0, this.advanceAtSec - this.nowSec) : null
 		},
-		// Was autoAdvance gleich tut — nach der letzten Frage im Probelauf gibt
-		// es keinen Endstand, nur (bei „am Ende") die Auflösung.
+		// What autoAdvance is about to do — after the last question of a practice run there
+		// are no final standings, only the reveal (with "Reveal at the end").
 		advanceLabel() {
 			if (this.canNext) return t('pulse', 'Next question')
 			return this.isPractice ? t('pulse', 'Reveal') : t('pulse', 'Final standings')
 		},
 
-		// ── Präsentationsansicht (§9) ───────────────────────────────────────
-		// Präsentation, Endstand und die Laufansicht im eigenen Tempo teilen sich
-		// einen Rahmen: volle Höhe, eigene Kopf- und Fußzeile, kein Seitenrand
-		// von .pulse-mod.
+		// ── Presentation view (§9) ──────────────────────────────────────────
+		// Presentation, final standings and the self-paced run view share
+		// one frame: full height, their own header and footer, no page margin
+		// from .pulse-mod.
 		liveFrame() {
 			return this.phase === 'present' || this.phase === 'leaderboard' || this.phase === 'pace'
 		},
-		// Aufgelöst = der Server hat die Frage freigegeben. Dieselbe Regel wie
-		// StateService::publicState — nicht ein zweites, lokales „schon gezeigt".
-		// Bei „Auflösung am Ende" zählt nur 'ended': ein 'locked' entsteht dort
-		// nur, wenn der Schalter nach dem Auflösen umgelegt wurde, und ist für
-		// den Saal verdeckt.
+		// Revealed = the server has released the question. The same rule as
+		// StateService::publicState — not a second, local "already shown".
+		// With "Reveal at the end" only 'ended' counts: a 'locked' arises there
+		// only when the switch was flipped after revealing, and it is hidden from
+		// the room.
 		isRevealed() {
 			if (!this.currentPoll) return false
 			const st = this.currentPoll.status
@@ -890,14 +895,14 @@ export default {
 			return this.isQuiz && !this.isRevealed && this.quizRemaining !== null
 		},
 		headPos() {
-			// Endstand erst, wenn das Quiz beendet ist — mittendrin ist es ein
-			// Zwischenstand, den nur der Moderator sieht.
+			// Final standings only once the quiz has ended — in the middle these are
+			// interim standings that only the moderator sees.
 			if (this.phase === 'leaderboard') return this.quizOver ? t('pulse', 'Final standings') : t('pulse', 'Leaderboard')
 			if (!this.currentPoll) return t('pulse', 'No question yet')
 			return t('pulse', 'Question {number} of {total}', { number: this.currentIndex + 1, total: this.deck.length })
 		},
-		// Die Leinwand-Vorschau zeigt die echte Beamer-Seite (same-origin), nicht
-		// einen Nachbau: zwei Wahrheiten laufen sonst auseinander.
+		// The canvas preview shows the real projector page (same-origin), not
+		// a rebuild: two truths would otherwise drift apart.
 		screenPath() {
 			return this.room ? generateUrl('/apps/pulse/screen/' + this.room.code) : ''
 		},
@@ -908,13 +913,13 @@ export default {
 			return { transform: 'scale(' + this.frameScale + ')' }
 		},
 		/*
-		 * DIE Hauptaktion (§9.1) — der einzige gefüllte Knopf, und er weiß, was
-		 * gerade dran ist. Vorher hatte die häufigste Handlung überhaupt keinen
-		 * Knopf, während der destruktive dauerhaft leuchtete.
+		 * THE primary action (§9.1) — the only filled button, and it knows what is
+		 * up next. Before, the most frequent action had no button at all,
+		 * while the destructive one glowed permanently.
 		 */
 		primary() {
 			if (this.phase === 'leaderboard') {
-				// Ohne laufende Frage gibt es nichts zu beenden (/end liefe ins Leere).
+				// Without a running question there is nothing to finish (/end would go nowhere).
 				return this.quizOver || !this.currentPoll
 					? { key: 'deck', label: t('pulse', 'Back to the deck'), icon: 'chevron', act: this.backToDeck }
 					: { key: 'end', label: t('pulse', 'Finish quiz'), icon: 'check', act: this.finish, danger: true }
@@ -922,11 +927,11 @@ export default {
 			if (!this.currentPoll) {
 				return { key: 'add', label: t('pulse', 'Add a question'), icon: 'plus', act: this.addQuestion }
 			}
-			// „Auflösung am Ende": je Frage wird nicht aufgelöst, es geht nur weiter.
+			// "Reveal at the end": questions are not revealed one by one, it just moves on.
 			if (this.isQuiz && this.isRevealAtEnd) {
 				if (this.canNext) return { key: 'next', label: t('pulse', 'Next question'), icon: 'play', act: this.next }
-				// Probelauf: auflösen ja — dafür ist er da, man prüft die Fragen —,
-				// Endstand nein. Danach beendet derselbe Knopf den Lauf.
+				// Practice run: reveal yes — that is what it is for, you check the questions —,
+				// final standings no. Afterwards the same button ends the run.
 				if (this.isPractice) {
 					return this.isRevealed
 						? { key: 'finish', label: t('pulse', 'Finish'), icon: 'check', act: this.finish }
@@ -941,27 +946,27 @@ export default {
 				return { key: 'next', label: t('pulse', 'Next question'), icon: 'play', act: this.next }
 			}
 			if (this.isQuiz && !this.isPractice) {
-				// finish, nicht openLeaderboard: der Endstand soll mit diesem einen
-				// Klick auf Beamer und Handys stehen, nicht nur hier.
+				// finish, not openLeaderboard: with this one click the final standings
+				// should show on the projector and the phones, not just here.
 				return { key: 'standings', label: t('pulse', 'Show final standings'), icon: 'ranking', act: this.finish }
 			}
 			return { key: 'finish', label: t('pulse', 'Finish'), icon: 'check', act: this.finish }
 		},
-		// Quiz vorbei = die letzte Frage steht auf 'ended' (das setzt /end).
+		// Quiz over = the last question is 'ended' (set by /end).
 		quizOver() {
 			return this.deck.some((p) => p.status === 'ended')
 		},
 		/*
-		 * Deck-Kopf: eine Zeile, drei Bedienelemente. Vorher standen hier neun
-		 * Knöpfe in drei fest verdrahteten Gruppen — Navigation, Zustandsschalter
-		 * und Ansichten gleich laut nebeneinander, bei jeder Breite (Handoff
-		 * „Übersichten" B1).
+		 * Deck header: one row, three controls. Before, there were nine
+		 * buttons here in three hard-wired groups — navigation, state switches
+		 * and views equally loud side by side, at every width (overview design
+		 * notes B1, not in the public repository).
 		 *
-		 * Die beiden Quiz-Schalter sind hier KEINE Knöpfe mehr, deren Beschriftung
-		 * mitwandert: als `menuitemcheckbox` steht der Text fest und das Häkchen
-		 * trägt den Zustand (R3). „Practice run off" war sonst genauso gut als
-		 * Zustand wie als Wirkung zu lesen — und die falsche Lesart kostet den
-		 * echten Durchlauf.
+		 * The two quiz switches are NO LONGER buttons whose label changes
+		 * along with them: as a `menuitemcheckbox` the text stays fixed and the check mark
+		 * carries the state (R3). "Practice run off" could otherwise be read as a
+		 * state just as well as an effect — and the wrong reading costs the
+		 * real run.
 		 */
 		deckMenu() {
 			const items = []
@@ -974,8 +979,8 @@ export default {
 			if (this.deck.length) {
 				items.push({ key: 'summary', label: t('pulse', 'Summary'), icon: 'poll', act: this.openSummary })
 			}
-			// Im eigenen Tempo gibt es weder eine Zwischenrangliste zum Zeigen noch
-			// ein „Auflösen am Ende" — das Fenster regelt beides.
+			// Self-paced mode has neither interim standings to show nor a
+			// "Reveal at the end" — the window governs both.
 			if (this.isQuiz && !this.isPractice && this.deck.length && !paced) {
 				items.push({ key: 'lb', label: this.quizOver ? t('pulse', 'Final standings') : t('pulse', 'Leaderboard'), icon: 'ranking', act: this.openLeaderboard })
 			}
@@ -983,10 +988,10 @@ export default {
 				if (!paced) {
 					items.push({ key: 'revealend', label: t('pulse', 'Reveal at the end'), icon: 'check_ring', checked: this.isRevealAtEnd, act: this.toggleRevealAtEnd })
 				}
-				// Probelauf beenden geht auch geschlossen (dabei gehen nur Testdaten verloren).
+				// Ending the practice run also works while closed (only test data is lost).
 				items.push({ key: 'practice', label: t('pulse', 'Practice run'), icon: 'warning', checked: this.isPractice, act: this.togglePractice, ...this.paceLock(!this.isPractice) })
-				// PACE_UI ist seit der Freischaltung (4.6) an; bis dahin brauchte der
-				// Schalter ?pace=1. Ein Raum im eigenen Tempo zeigt ihn in jedem Fall.
+				// PACE_UI has been on since the rollout (4.6); until then the
+				// switch needed ?pace=1. A self-paced room shows it in any case.
 				if (PACE_UI || paced) {
 					items.push({ key: 'pace', label: t('pulse', 'Self-paced'), checked: paced, act: this.togglePace, ...this.paceLock(true) })
 				}
@@ -1000,10 +1005,10 @@ export default {
 			return items
 		},
 		/*
-		 * DIE Hauptaktion im Deck-Kopf. Moderiert „Start presenting"; im eigenen
-		 * Tempo „Open quiz …" (Entwurf) — die Präsentation ist dort 409. Nach
-		 * dem Öffnen führt „Show progress" zurück in die Laufansicht. Leeres
-		 * Deck: keine.
+		 * THE primary action in the deck header. Moderated: "Start presenting"; self-paced:
+		 * "Open quiz …" (draft) — presenting is a 409 there. After
+		 * opening, "Show progress" leads back to the run view. Empty
+		 * deck: none.
 		 */
 		deckPrimary() {
 			if (!this.deck.length) return null
@@ -1011,26 +1016,26 @@ export default {
 			if (this.paceState === 'draft') return { key: 'open', label: t('pulse', 'Open quiz …'), icon: 'play', act: this.openPaceDialog }
 			return { key: 'progress', label: t('pulse', 'Show progress'), icon: 'users', act: this.showProgress }
 		},
-		// Die Laufansicht gehört zu einem geöffneten Raum im eigenen Tempo. Steht
-		// sie noch, während der Raum zurückgesetzt (Entwurf), umgestellt oder aus
-		// einem zweiten Tab verändert wurde, geht es zurück ins Deck.
+		// The run view belongs to an opened self-paced room. If it is still
+		// up while the room was reset (draft), switched over or changed from
+		// a second tab, it goes back to the deck.
 		paceRunStale() {
 			return this.phase === 'pace' && (!this.isPaced || this.paceState === 'draft')
 		},
-		// Steht ein Formular offen, gehört ihm der gefüllte Knopf (R1).
+		// While a form is open, the filled button belongs to it (R1).
 		deckQuiet() {
 			return this.showComposer || this.renaming || !!this.paceDialog
 		},
 		/*
-		 * Überlaufmenü: alles, was ein- bis zweimal je Sitzung gebraucht wird.
-		 * „Beenden" steht hier unten, solange das Quiz läuft — ein rot gefärbter
-		 * Knopf neben der Arbeitsfläche wird über 90 Minuten entweder ignoriert
-		 * oder versehentlich getroffen.
+		 * Overflow menu: everything needed once or twice per session.
+		 * "Finish" sits down here while the quiz is running — a red button
+		 * next to the work area either gets ignored over 90 minutes
+		 * or hit by accident.
 		 */
 		menuItems() {
 			const items = []
-			// Wieder öffnen: im Quiz startet das den Timer neu (setCurrent), in der
-			// Umfrage genügt das Entriegeln — setCurrent rührt dort den Status nicht an.
+			// Open again: in a quiz this restarts the timer (setCurrent); in a
+			// poll unlocking is enough — setCurrent does not touch the status there.
 			if (this.phase === 'present' && this.isRevealed && !this.isRevealAtEnd) {
 				items.push({ key: 'reopen', label: t('pulse', 'Open again'), icon: 'reset',
 					act: this.isQuiz ? this.reopen : () => this.setLock(false) })
@@ -1053,13 +1058,13 @@ export default {
 		},
 	},
 	watch: {
-		// Der Maßstab der Vorschau hängt am Kasten, der Kasten an der Phase.
+		// The preview's scale depends on the box, the box on the phase.
 		phase(v) {
 			this.$nextTick(this.fitFrame)
 			if (v !== 'pace') this.paceFocus = false
 		},
-		// Raum nicht mehr im eigenen Tempo (umgeschaltet, anderer Tab): alte
-		// Zahlen und ein offener Dialog gehören zum vorigen Zustand.
+		// Room no longer self-paced (switched over, other tab): old
+		// numbers and an open dialog belong to the previous state.
 		isPaced(v) {
 			if (!v) {
 				this.paceCounts = null
@@ -1069,33 +1074,33 @@ export default {
 		paceRunStale(v) {
 			if (v) this.phase = 'deck'
 		},
-		// Timer-Ende (Übergang auf 0, genau einmal) treibt das Quiz von selbst
-		// weiter — kein manuelles Klicken mehr nötig:
-		//  · Auflösung je Frage: erst auflösen (Antwort + Rangliste), kurz zeigen,
-		//    dann automatisch zur nächsten Frage (bzw. Endstand nach der letzten).
-		//  · Auflösung am Ende: kurze Atempause, dann direkt weiter.
-		// Der geplante Sprung ist per „Anhalten" abbrechbar (advanceIn/cancelAdvance).
+		// The timer ending (transition to 0, exactly once) drives the quiz on by
+		// itself — no more manual clicking needed:
+		//  · Reveal per question: reveal first (answer + leaderboard), show briefly,
+		//    then automatically on to the next question (or final standings after the last).
+		//  · Reveal at the end: a short breather, then straight on.
+		// The scheduled jump can be cancelled via "Stop" (advanceIn/cancelAdvance).
 		quizRemaining(val, old) {
 			if (!(this.isQuiz && val === 0 && old > 0 && this.phase === 'present' && this.currentId)) {
 				return
 			}
 			if (this.isRevealAtEnd) {
-				// Schon aufgelöst (Probelauf: „Auflösen" vor Ablauf geklickt) -> nichts
-				// mehr zu tun; sonst beendete der Timer den Lauf ungefragt.
+				// Already revealed (practice run: "Reveal" clicked before time ran out) -> nothing
+				// left to do; otherwise the timer would end the run unasked.
 				if (!this.isRevealed) this.scheduleAdvance(2)
 			} else if (this.quizStatus !== 'locked') {
 				this.setLock(true)
-				// Freitext braucht manuelle Bewertung -> nicht automatisch weiter.
-				// Probelauf nach der letzten Frage: es gibt keinen Endstand, den
-				// Lauf beendet der Moderator selbst („Beenden").
+				// Free text needs manual grading -> no automatic advance.
+				// Practice run after the last question: there are no final standings, the
+				// moderator ends the run themselves ("Finish").
 				const text = !!this.currentPoll && this.currentPoll.type === 'text'
 				if (!text && (this.canNext || !this.isPractice)) this.scheduleAdvance(8)
 			}
 		},
 	},
 	created() {
-		// Absichtlich außerhalb von data(): Vue soll den Beobachter nicht in einen
-		// reaktiven Proxy hüllen.
+		// Deliberately outside data(): Vue should not wrap the observer in a
+		// reactive proxy.
 		this.canvasRo = null
 		this.canvasWatched = null
 	},
@@ -1108,7 +1113,7 @@ export default {
 		this.tickTimer = setInterval(() => { this.nowSec = Math.floor(Date.now() / 1000) }, 500)
 		const m = window.location.pathname.match(/\/room\/([A-Za-z0-9]{6})$/)
 		if (m) {
-			// Deep-Link/Refresh -> Raum laden; scheitert er, normaler Start + Liste.
+			// Deep link/refresh -> load the room; if that fails, normal start + list.
 			const ok = await this.loadRoom(m[1])
 			if (!ok) this.fetchMyRooms()
 		} else {
@@ -1132,7 +1137,7 @@ export default {
 		emptyDraft() {
 			return { type: 'choice', question: '', options: ['', ''], maxWords: 3, scaleMax: 5, scaleMode: 'single', aspects: [{ label: '', poleLow: '', poleHigh: '' }, { label: '', poleLow: '', poleHigh: '' }, { label: '', poleLow: '', poleHigh: '' }], range: 5, axisX: { title: '', poleLow: '', poleHigh: '' }, axisY: { title: '', poleLow: '', poleHigh: '' }, cornerLabels: ['', '', '', ''], heatmapThreshold: 45, minLabel: '', maxLabel: '', imageFile: null, imagePreview: '', imageExisting: '', imageRemove: false, correctIndex: 0, correctIndexes: [], target: '', tolerance: 0, answers: [''], pairs: [{ left: '', right: '' }, { left: '', right: '' }], timeLimit: 30 }
 		},
-		// Kurz-Tag + Farbklasse fürs Deck-Icon (SK = Skala-Familie in „Du"-Magenta).
+		// Short tag + color class for the deck icon (SC = the scale family, in the "you" magenta).
 		typeTag(type) {
 			return ({
 				choice: { t: t('pulse', 'MC'), c: 'mc' }, words: { t: t('pulse', 'WC'), c: 'wc' }, scale: { t: t('pulse', 'SC'), c: 'sc' },
@@ -1140,7 +1145,7 @@ export default {
 				rank: { t: '1-2-3', c: 'rk' }, match: { t: t('pulse', 'MT'), c: 'mt' },
 			})[type] || { t: t('pulse', 'MC'), c: 'mc' }
 		},
-		// Skala-Submodus fürs Deck-Untertitel.
+		// Scale submode for the deck subtitle.
 		scaleModeLabel(p) {
 			const m = (p.scale && p.scale.mode) || 'single'
 			return m === 'spectrum' ? t('pulse', 'Spectrum') : m === 'compass' ? t('pulse', 'Compass') : t('pulse', 'Single')
@@ -1151,7 +1156,7 @@ export default {
 				multi: t('pulse', 'Multiple answers'), number: t('pulse', 'Number guess'), text: t('pulse', 'Free text'),
 			}[type] || t('pulse', 'Multiple choice')
 		},
-		// Kurzer Antwort-Hinweis je Quiz-Frage in der Deck-Liste.
+		// Short answer hint per quiz question in the deck list.
 		answerHint(poll) {
 			if (poll.type === 'truefalse') {
 				const o = (poll.options || []).find((x) => x.id === poll.correctOption)
@@ -1164,12 +1169,12 @@ export default {
 				return '= ' + (k.target ?? '?') + (k.tolerance ? ' ±' + k.tolerance : '')
 			}
 			if (poll.type === 'text') return t('pulse', 'Free text')
-			// Reihenfolge: die Lösung ist die Optionsreihenfolge — Zahl statt Aufzählung.
+			// Ranking: the solution is the option order — a count instead of a list.
 			if (poll.type === 'rank') return n('pulse', '%n in order', '%n in order', (poll.options || []).length)
 			if (poll.type === 'match') return n('pulse', '%n pair', '%n pairs', ((poll.match || {}).items || []).length)
 			return ''
 		},
-		// Composer: ist Option i als richtig markiert (choice=Radio, multi=Mehrfach)?
+		// Composer: is option i marked as correct (choice = radio, multi = multiple)?
 		isOptCorrect(i) {
 			return this.draft.type === 'multi' ? this.draft.correctIndexes.includes(i) : this.draft.correctIndex === i
 		},
@@ -1200,7 +1205,7 @@ export default {
 		removeAspect(i) {
 			if (this.draft.aspects.length > 3) this.draft.aspects.splice(i, 1)
 		},
-		// Quiz: Buchstabe (A, B, …) der richtigen Antwort einer Frage.
+		// Quiz: letter (A, B, …) of a question's correct answer.
 		correctLetter(poll) {
 			if (!poll || !poll.options) return '—'
 			const i = poll.options.findIndex((o) => o.id === poll.correctOption)
@@ -1210,7 +1215,7 @@ export default {
 			return generateUrl('/apps/pulse/api/1.0/rooms/' + code + suffix)
 		},
 
-		// ── Meine Räume ─────────────────────────────────────────────────────
+		// ── My rooms ────────────────────────────────────────────────────────
 		spaced(code) {
 			return formatCode(code)
 		},
@@ -1229,11 +1234,11 @@ export default {
 				const { data } = await axios.get(generateUrl('/apps/pulse/api/1.0/rooms'))
 				this.myRooms = data
 			} catch (e) {
-				// keine Liste -> Start-Screen bleibt schlicht
+				// no list -> the start screen stays plain
 			}
 		},
-		// Raum per Code laden und in Editor/Präsentation springen. Genutzt von
-		// Deep-Link-Refresh und „Meine Räume".
+		// Load a room by code and jump into the editor/presentation. Used by
+		// the deep-link refresh and "My rooms".
 		async loadRoom(code) {
 			try {
 				const { data } = await axios.get(this.api(code))
@@ -1243,9 +1248,9 @@ export default {
 				this.paceDialog = null
 				this.paceCounts = null
 				window.history.replaceState(null, '', generateUrl('/apps/pulse/room/' + code))
-				// Eigenes Tempo: nie die Präsentation (jede Cursor-Aktion ist dort
-				// 409), auch nicht bei leerem Deck — und kein Ergebnis-Polling: im
-				// Entwurf holt PaceDeckStatus die Zahlen, danach die Laufansicht.
+				// Self-paced: never the presentation (every cursor action is a 409
+				// there), not even with an empty deck — and no results polling: in
+				// draft PaceDeckStatus fetches the numbers, afterwards the run view does.
 				if (isPacedRoom(data)) {
 					this.phase = windowState(data.window) === 'draft' ? 'deck' : 'pace'
 					return true
@@ -1254,7 +1259,7 @@ export default {
 					this.phase = 'present'
 					this.startPolling()
 				} else if (!this.deck.length) {
-					// §9.8: leeres Deck -> Präsentationsansicht mit „Frage anlegen".
+					// §9.8: empty deck -> presentation view with "Add a question".
 					this.phase = 'present'
 				} else {
 					this.phase = 'deck'
@@ -1270,8 +1275,8 @@ export default {
 				this.fetchMyRooms()
 			}
 		},
-		// Beitritts-Deep-Link in die Zwischenablage (§5b). Fallback für ältere
-		// Browser/kein Clipboard-API (z. B. http-Kontext): temporäres Textfeld.
+		// Join deep link to the clipboard (§5b). Fallback for older
+		// browsers/no Clipboard API (e.g. http context): a temporary text field.
 		async copyJoin() {
 			const url = this.joinUrlFull
 			try {
@@ -1292,9 +1297,9 @@ export default {
 				showError(t('pulse', 'Could not copy the link.'))
 			}
 		},
-		// Raum als Vorlage kopieren: der Server legt die Kopie mit denselben
-		// Fragen an (ohne Stimmen). Wir bleiben auf der Liste — die Kopie taucht
-		// dort als neuester Eintrag auf.
+		// Copy a room as a template: the server creates the copy with the same
+		// questions (without votes). We stay on the list — the copy shows up
+		// there as the newest entry.
 		async duplicateRoom(r) {
 			if (this.busy) return
 			this.busy = true
@@ -1310,8 +1315,8 @@ export default {
 		},
 		async deleteRoom(r) {
 			let text = t('pulse', 'Room {code} will be deleted, with all its questions and votes. This cannot be undone.', { code: this.spaced(r.code) })
-			// Eigenes Tempo, offen oder geschlossen: vorher zählen, wer drin ist —
-			// eine laufende Hausaufgabe wäre sonst mit einem Klick samt Antworten weg.
+			// Self-paced, open or closed: count first who is in —
+			// a running homework would otherwise be gone with one click, answers and all.
 			const listed = r.pace === 'self' && r.window ? windowState(r.window, this.nowSec + this.paceSkew) : ''
 			if (listed === 'open' || listed === 'closed') {
 				const counts = await this.fetchCounts(r.code, true)
@@ -1338,9 +1343,9 @@ export default {
 			}
 		},
 
-		// ── Bild zur Frage ──────────────────────────────────────────────────
-		// URL fürs Moderator-Bild; der Dateiname hängt als ?v= dran, damit ein
-		// ersetztes Bild nicht aus dem Browser-Cache kommt.
+		// ── Question image ──────────────────────────────────────────────────
+		// URL for the moderator image; the file name is appended as ?v= so that a
+		// replaced image does not come from the browser cache.
 		modImageUrl(poll) {
 			if (!this.room || !poll || !poll.image) return ''
 			return this.api(this.room.code, '/polls/' + poll.id + '/image') + '?v=' + encodeURIComponent(poll.image)
@@ -1356,12 +1361,12 @@ export default {
 		clearImage() {
 			this.$set(this.draft, 'imageFile', null)
 			this.$set(this.draft, 'imagePreview', '')
-			// Ein bereits gespeichertes Bild wird erst beim Speichern gelöscht.
+			// An image that was already saved is only deleted on save.
 			this.$set(this.draft, 'imageRemove', !!this.draft.imageExisting)
 			if (this.$refs.imageInput) this.$refs.imageInput.value = ''
 		},
-		// Nach dem Speichern der Frage: Bild hochladen bzw. entfernen. Gibt die
-		// aktualisierte Frage zurück (mit neuem image-Dateinamen).
+		// After saving the question: upload or remove the image. Returns the
+		// updated question (with the new image file name).
 		async syncImage(poll) {
 			try {
 				const base = this.api(this.room.code, '/polls/' + poll.id + '/image')
@@ -1381,7 +1386,7 @@ export default {
 			return poll
 		},
 
-		// ── Umbenennen ──────────────────────────────────────────────────────
+		// ── Rename ──────────────────────────────────────────────────────────
 		startRename() {
 			this.renameDraft = this.roomTitle
 			this.renaming = true
@@ -1396,7 +1401,7 @@ export default {
 			if (!this.room || title === this.roomTitle) return
 			try {
 				const { data } = await axios.post(this.api(this.room.code, '/title'), { title })
-				// Nur den Titel übernehmen: applyRoom würde Ergebnisse/Rangliste leeren.
+				// Take over only the title: applyRoom would clear results/leaderboard.
 				this.room = { ...this.room, title: data.title }
 				const row = this.myRooms.find((r) => r.code === this.room.code)
 				if (row) row.title = data.title
@@ -1405,9 +1410,9 @@ export default {
 			}
 		},
 
-		// ── Zurücksetzen / Probelauf ────────────────────────────────────────
-		// Nimmt eine frische roomView (Server liefert sie nach Reset/Umschalten)
-		// und spiegelt sie lokal: Deck neu, Stimmen/Rangliste weg, Cursor auf 0.
+		// ── Reset / practice run ────────────────────────────────────────────
+		// Takes a fresh roomView (the server returns it after a reset/switch)
+		// and mirrors it locally: new deck, votes/leaderboard gone, cursor at 0.
 		applyRoom(data) {
 			this.room = data
 			this.deck = data.polls || []
@@ -1415,14 +1420,14 @@ export default {
 			this.results = null
 			this.leaderboard = []
 			this.resVersion = ''
-			// Der Raum ruht nach dem Leeren -> falls wir präsentierten, zurück zum Deck.
+			// The room rests after being cleared -> if we were presenting, back to the deck.
 			if (this.currentId === 0) {
 				this.stopPolling()
 				if (this.phase === 'present') this.phase = 'deck'
 			}
 		},
-		// counts: optionaler Zählstand (die Laufansicht hat einen eigenen), sonst
-		// der letzte aus PaceDeckStatus. Aus dem Menü kommt kein Argument.
+		// counts: optional counts (the run view has its own), otherwise
+		// the last ones from PaceDeckStatus. The menu passes no argument.
 		async resetRoom(counts) {
 			let text = t('pulse', 'All votes, participants and the leaderboard in this room will be deleted. The questions stay.')
 			if (this.isPaced) {
@@ -1445,7 +1450,7 @@ export default {
 			}
 		},
 		async toggleRevealAtEnd() {
-			// Reines Ablauf-Flag — leert nichts. Server liefert frische roomView.
+			// A pure flow flag — clears nothing. The server returns a fresh roomView.
 			const on = !this.isRevealAtEnd
 			try {
 				const { data } = await axios.post(this.api(this.room.code, '/reveal'), { on })
@@ -1454,14 +1459,14 @@ export default {
 				this.failWrite(e, t('pulse', 'Could not switch the reveal mode.'))
 			}
 		},
-		// Gibt zurück, ob umgeschaltet wurde (endPracticeThenOpen öffnet danach
-		// den Dialog neu).
+		// Returns whether it was switched (endPracticeThenOpen then reopens
+		// the dialog).
 		async togglePractice() {
 			const on = !this.isPractice
 			let text = on
 				? t('pulse', 'The votes, participants and leaderboard collected so far will be cleared — the questions stay.')
 				: t('pulse', 'Everything is reset for the real run: the test votes and test participants are cleared.')
-			// Einschalten im eigenen Tempo leert echte Ergebnisse — mit Zahl sagen.
+			// Switching on in self-paced mode clears real results — say so with a number.
 			if (on && this.isPaced) {
 				const loss = this.lossText(this.paceCounts, this.paceState)
 				if (loss) text += ' ' + loss
@@ -1483,12 +1488,12 @@ export default {
 			}
 		},
 
-		// ── Quiz im eigenen Tempo: Deck, Umschalter, Öffnen (§0.9, §1.1–1.5) ──
+		// ── Self-paced quiz: deck, switches, opening (§0.9, §1.1–1.5) ──
 		/*
-		 * Sperren aus Tabelle §1.3 als Menü-Felder: offen -> aus mit „Close the
-		 * quiz first.", geschlossen (nur wo closedToo) -> aus mit „Release or
-		 * reset first." — eine nicht freigegebene Hausaufgabe soll nicht durch
-		 * einen Schalter verschwinden. Moderiert: nie gesperrt.
+		 * Locks from table §1.3 as menu fields: open -> disabled with "Close the
+		 * quiz first.", closed (only where closedToo) -> disabled with "Release or
+		 * reset first." — an unreleased homework should not vanish through
+		 * a switch. Moderated: never locked.
 		 */
 		paceLock(closedToo) {
 			if (!this.isPaced) return {}
@@ -1496,17 +1501,17 @@ export default {
 			if (closedToo && this.paceState === 'closed') return { disabled: true, hint: t('pulse', 'Release or reset first.') }
 			return {}
 		},
-		// Zustands-Chip eines Fensters (Deck-Kopf §1.4, Raumliste §1.9) — die
-		// Frist zählt gegen die Serverzeit. Ein Entwurf heißt in der Liste
-		// schlicht „Self-paced"; im Deck-Kopf steht dafür kein Chip.
+		// State chip of a window (deck header §1.4, room list §1.9) — the
+		// deadline counts against the server time. In the list a draft is simply
+		// called "Self-paced"; the deck header shows no chip for it.
 		paceChip(win) {
 			return paceStateChip(win, this.nowSec + this.paceSkew)
 		},
 		/*
-		 * Zählstand für zerstörende Bestätigungen — eine Anfrage, keine Schleife.
-		 * Eigenes Tempo über /progress (ohne Version), moderiert über die
-		 * Rangliste (eine Zeile je Person). Fehler -> null: die Bestätigung
-		 * kommt dann ohne Zahlen, aber immer als „danger".
+		 * Counts for destructive confirmations — one request, no loop.
+		 * Self-paced via /progress (without a version), moderated via the
+		 * leaderboard (one row per person). Error -> null: the confirmation
+		 * then comes without numbers, but always as "danger".
 		 */
 		async fetchCounts(code, paced) {
 			try {
@@ -1521,9 +1526,9 @@ export default {
 			}
 		},
 		/*
-		 * Was eine zerstörende Aktion kostet, als Zusatzsatz zur Bestätigung
-		 * (§0.9). Ohne Zählstand oder ohne Beigetretene: ''. Moderiert zählt
-		 * wie der Entwurf (wer drin ist, muss neu beitreten).
+		 * What a destructive action costs, as an extra sentence for the confirmation
+		 * (§0.9). Without counts or without anyone joined: ''. Moderated counts
+		 * like the draft (whoever is in has to join again).
 		 */
 		lossText(counts, state) {
 			if (!counts || !counts.joined) return ''
@@ -1539,22 +1544,21 @@ export default {
 			return n('pulse', '%n person who already joined will have to join again.', '%n people who already joined will have to join again.', counts.joined)
 		},
 		/*
-		 * Schreibender Aufruf gescheitert: die Servermeldung statt eines
-		 * Pauschaltexts (sie sagt, WARUM). Eine 409 heißt, der Raum steht auf
-		 * dem Server anders als hier — neu laden; beim Sortieren stellt das
-		 * zugleich die Reihenfolge wieder her, die vuedraggable schon lokal
-		 * umgestellt hatte.
+		 * A write call failed: show the server message instead of a generic text
+		 * (it says WHY). A 409 means the room is in a different state on the
+		 * server than here — reload; when sorting, this also restores the order
+		 * that vuedraggable had already changed locally.
 		 */
 		failWrite(e, fallback) {
 			showError(e?.response?.data?.message || fallback)
 			if (e?.response?.status === 409) this.refreshRoom(true)
 		},
 		/*
-		 * 409 auf eine Cursor-Aktion der Präsentation (Zeigen, Blättern,
-		 * Auflösen, Beenden): der Raum läuft inzwischen im eigenen Tempo —
-		 * moderiert gibt es die 409 nicht (RoomApiController::paced). Dann die
-		 * Servermeldung zeigen und den Raum neu laden, statt mit einem
-		 * Pauschaltext in der überholten Präsentation zu bleiben. true = erledigt.
+		 * 409 on a cursor action of the presentation (show, page, reveal,
+		 * finish): the room now runs self-paced — moderated rooms never
+		 * get the 409 (RoomApiController::paced). Then show the server
+		 * message and reload the room instead of staying in the outdated
+		 * presentation with a generic text. true = handled.
 		 */
 		staleLive(e) {
 			if (e?.response?.status !== 409 || !this.room) return false
@@ -1564,10 +1568,10 @@ export default {
 			return true
 		},
 		/*
-		 * Raum neu laden OHNE Phasenwechsel (Deck bleibt Deck). Sperrt sich das
-		 * Deck dabei, während der Composer offen steht, geht er zu — mit dem
-		 * Grund als Toast, außer der Aufrufer hat die Servermeldung schon
-		 * gezeigt (quiet). Fehler still: die nächste Aktion zeigt sie.
+		 * Reload the room WITHOUT a phase change (deck stays deck). If the deck
+		 * gets locked while the composer is open, the composer closes — with the
+		 * reason as a toast, unless the caller has already shown the server
+		 * message (quiet). Errors stay silent: the next action shows them.
 		 */
 		async refreshRoom(quiet = false) {
 			if (!this.room) return
@@ -1582,22 +1586,22 @@ export default {
 					if (!quiet) showError(t('pulse', 'The questions are locked since the quiz was opened. Reset the room to edit them.'))
 				}
 			} catch (e) {
-				// still
+				// silent
 			}
 		},
-		// Raum-JSON aus einem /pace-Aufruf übernehmen — ohne applyRoom (das
-		// stoppt Polling und leert Ergebnisse, beides gibt es hier nicht).
+		// Take over the room JSON from a /pace call — without applyRoom (that
+		// stops polling and clears results, neither of which exists here).
 		onPaceRoom(data) {
 			this.room = data
 			this.deck = data.polls || []
-			// Wer selbst geöffnet hat, weiß, warum das Formular zugeht.
+			// Whoever opened it themselves knows why the form closes.
 			if (this.deckLocked && this.showComposer) this.cancelComposer()
-			// Ein Entwurf gehört ins Deck. Sonst bleibt die Ansicht, wo sie ist:
-			// „Lock joining" im Deck-Menü soll nicht in die Laufansicht springen.
+			// A draft belongs in the deck. Otherwise the view stays where it is:
+			// "Lock joining" in the deck menu should not jump into the run view.
 			if (windowState(data.window) === 'draft') this.phase = 'deck'
 		},
-		// Frisches Fenster aus /progress. Wechselt der Zustand, auch den Raum
-		// neu laden (Beitrittssperre, Fenster im Raum-JSON, Deck-Sperre).
+		// Fresh window from /progress. If the state changes, reload the room
+		// too (join lock, window in the room JSON, deck lock).
 		onPaceWindow(w) {
 			if (!this.room || !w) return
 			const before = this.room.window ? this.room.window.state : ''
@@ -1611,7 +1615,7 @@ export default {
 		openPaceDialog() {
 			this.paceDialog = 'open'
 		},
-		// Frisch geöffnet: weiter in die Laufansicht — dort steht der Link zum Teilen.
+		// Freshly opened: on into the run view — that is where the link to share is.
 		onPaceDone(data) {
 			this.paceDialog = null
 			this.onPaceRoom(data)
@@ -1620,35 +1624,35 @@ export default {
 		showProgress() {
 			this.enterPace()
 		},
-		// Per Klick in die Laufansicht: der Auslöser (Dialog, „Show progress",
-		// „Back to progress") verschwindet mit der alten Ansicht, der Fokus fiele
-		// auf <body>. PaceRun setzt ihn dann auf ihren Titel.
+		// Clicking into the run view: the trigger (dialog, "Show progress",
+		// "Back to progress") disappears with the old view, and focus would fall
+		// on <body>. PaceRun then puts it on its title.
 		enterPace() {
 			this.paceFocus = true
 			this.phase = 'pace'
 		},
-		// Menü der Laufansicht: Übersicht (Deck), Zusammenfassung, Meine Räume.
+		// Run view menu: overview (deck), summary, my rooms.
 		onPaceGo(p) {
 			if (p === 'deck') this.phase = 'deck'
 			else if (p === 'summary') this.openSummary('pace')
 			else if (p === 'home') this.goHome()
 		},
-		// 409 aus dem Dialog: jemand anderes war schneller (zweiter Tab, Add-in).
+		// 409 from the dialog: someone else was faster (second tab, add-in).
 		onPaceConflict(message) {
 			showError(message)
 			this.paceDialog = null
 			this.refreshRoom(true)
 		},
-		// „End practice run" im Dialog: erst der Dialog weg (keine Bestätigung
-		// über einem Formular), dann ohne Probelauf neu öffnen.
+		// "End practice run" in the dialog: first the dialog goes away (no confirmation
+		// on top of a form), then reopen without the practice run.
 		async endPracticeThenOpen() {
 			this.paceDialog = null
 			if (await this.togglePractice()) this.paceDialog = 'open'
 		},
 		/*
-		 * Moderiert ↔ eigenes Tempo (§1.2). Leert den Raum — gefragt wird aber
-		 * nur, wenn dabei etwas verloren geht: ohne Beigetretene (und im eigenen
-		 * Tempo nur im Entwurf) wird sofort umgeschaltet.
+		 * Moderated ↔ self-paced (§1.2). Clears the room — but it only asks
+		 * when something gets lost in the process: with nobody joined (and in
+		 * self-paced mode only in draft) it switches immediately.
 		 */
 		async togglePace() {
 			if (!this.room || this.paceBusy) return
@@ -1681,7 +1685,7 @@ export default {
 				this.paceBusy = false
 			}
 		},
-		// Beitritt sperren: wer schon drin ist, kommt weiter herein.
+		// Lock joining: whoever is already in can still get back in.
 		async toggleJoinsLocked() {
 			if (!this.room) return
 			const on = !this.room.joinsLocked
@@ -1693,7 +1697,7 @@ export default {
 			}
 		},
 
-		// ── Präsentationsansicht (§9) ───────────────────────────────────────
+		// ── Presentation view (§9) ──────────────────────────────────────────
 		runPrimary() {
 			this.primary.act()
 		},
@@ -1704,16 +1708,16 @@ export default {
 			if (e.key !== 'Escape') return
 			if (this.joinOpen) this.joinOpen = false
 		},
-		// Leere Bühne: der Weg zurück ins Deck mit offenem Composer (§9.8).
+		// Empty stage: the way back into the deck with the composer open (§9.8).
 		addQuestion() {
 			this.backToDeck()
 			this.openComposer()
 		},
 		/*
-		 * Maßstab der Leinwand-Vorschau: die Beamer-Seite rechnet in vw/vh und
-		 * braucht deshalb ihren echten Kiosk (1280×720) — verkleinert wird per
-		 * transform, nicht per Fenstergröße. Sonst läge im iframe ein anderes
-		 * Layout als im Saal, und die Vorschau wäre wertlos.
+		 * Scale of the canvas preview: the projector page computes in vw/vh and
+		 * therefore needs its real kiosk (1280×720) — it is scaled down via
+		 * transform, not via the window size. Otherwise the iframe would hold a
+		 * different layout than the room, and the preview would be worthless.
 		 */
 		fitFrame() {
 			const box = this.$refs.canvas
@@ -1722,10 +1726,10 @@ export default {
 			if (k > 0.05 && Math.abs(k - this.frameScale) > 0.002) this.frameScale = k
 		},
 		/*
-		 * Der Kasten ändert seine Größe auch ohne Fenster-Ereignis: das private
-		 * Panel geht, das Vollbild kommt. Beim Vollbild liegt die neue Geometrie
-		 * erst NACH dem Neuzeichnen vor — ein fitFrame() im selben Tick misst
-		 * noch die alte. Der ResizeObserver misst, wenn es so weit ist.
+		 * The box also changes size without a window event: the private
+		 * panel goes, fullscreen comes. With fullscreen the new geometry only
+		 * exists AFTER the repaint — a fitFrame() in the same tick still
+		 * measures the old one. The ResizeObserver measures when the time comes.
 		 */
 		observeCanvas() {
 			const box = this.$refs.canvas || null
@@ -1739,7 +1743,7 @@ export default {
 			this.fitFrame()
 		},
 
-		// ── Vollbild ────────────────────────────────────────────────────────
+		// ── Fullscreen ──────────────────────────────────────────────────────
 		toggleFullscreen() {
 			if (document.fullscreenElement) {
 				document.exitFullscreen()
@@ -1749,14 +1753,14 @@ export default {
 		},
 		onFsChange() {
 			this.isFullscreen = document.fullscreenElement === this.$el
-			// Der Wechsel ins Vollbild ändert die Geometrie erst nach dem
-			// Neuzeichnen, und ohne Fenster-Ereignis meldet sich nichts von
-			// selbst — deshalb ein paar Nachmessungen statt einer.
+			// Switching to fullscreen changes the geometry only after the
+			// repaint, and without a window event nothing reports it by
+			// itself — hence a few re-measurements instead of one.
 			this.$nextTick(this.fitFrame)
 			for (const ms of [120, 350, 800]) setTimeout(this.fitFrame, ms)
 		},
 
-		// ── Raum ────────────────────────────────────────────────────────────
+		// ── Room ────────────────────────────────────────────────────────────
 		async startRoom(mode) {
 			this.busy = true
 			try {
@@ -1777,7 +1781,7 @@ export default {
 			}
 		},
 
-		// ── Composer / Deck bauen ───────────────────────────────────────────
+		// ── Composer / building the deck ────────────────────────────────────
 		openComposer(poll = null) {
 			if (poll && poll.id) {
 				this.editingId = poll.id
@@ -1795,8 +1799,8 @@ export default {
 				this.draft = this.emptyDraft()
 			}
 			this.showComposer = true
-			// Bei sieben Fragen öffnet sich das Formular sonst unter der Falz und
-			// es sieht aus, als sei nichts passiert.
+			// With seven questions the form would otherwise open below the fold and
+			// it would look as if nothing had happened.
 			this.$nextTick(() => {
 				if (this.$refs.composer) this.$refs.composer.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
 				if (this.$refs.qInput) this.$refs.qInput.focus()
@@ -1811,10 +1815,10 @@ export default {
 		},
 		removeOption(i) {
 			this.draft.options.splice(i, 1)
-			// Markierung der richtigen Antwort nachziehen (choice: Radio).
+			// Keep the correct-answer mark in step (choice: radio).
 			if (this.draft.correctIndex === i) this.draft.correctIndex = 0
 			else if (this.draft.correctIndex > i) this.draft.correctIndex--
-			// … und die Mehrfach-Markierungen (multi).
+			// … and the multiple marks (multi).
 			this.draft.correctIndexes = this.draft.correctIndexes
 				.filter((x) => x !== i)
 				.map((x) => (x > i ? x - 1 : x))
@@ -1843,7 +1847,7 @@ export default {
 					data = await this.syncImage(data)
 					const idx = this.deck.findIndex((p) => p.id === this.editingId)
 					if (idx >= 0) this.$set(this.deck, idx, data)
-					// Bearbeitete Frage läuft gerade? Ergebnisse neu laden (Stimmen wurden geleert).
+					// Is the edited question running right now? Reload the results (the votes were cleared).
 					if (this.editingId === this.currentId) this.fetchResults()
 				} else {
 					let { data } = await axios.post(this.api(this.room.code, '/polls'), body)
@@ -1860,16 +1864,16 @@ export default {
 			}
 		},
 		async onReorder() {
-			// vuedraggable hat this.deck bereits umsortiert -> Reihenfolge persistieren.
+			// vuedraggable has already re-sorted this.deck -> persist the order.
 			try {
 				await axios.post(this.api(this.room.code, '/deck/order'), { order: this.deck.map((p) => p.id) })
 			} catch (e) {
 				this.failWrite(e, t('pulse', 'Could not save the order.'))
 			}
 		},
-		// ↑/↓-Sortierung (barrierefrei, zusätzlich zum Drag): Frage mit dem
-		// Nachbarn tauschen und die neue Reihenfolge wie beim Drag persistieren.
-		// Deck-Zeile: eine sichtbare Handlung („Show"), der Rest hängt am ⋯ (R5).
+		// ↑/↓ sorting (accessible, in addition to dragging): swap the question with its
+		// neighbor and persist the new order just like after a drag.
+		// Deck row: one visible action ("Show"), the rest hangs off the ⋯ (R5).
 		rowMenu(p, i) {
 			return [
 				{ key: 'edit', label: t('pulse', 'Edit'), icon: 'edit', act: () => this.openComposer(p) },
@@ -1878,7 +1882,7 @@ export default {
 				{ key: 'del', label: t('pulse', 'Delete question'), icon: 'trash', act: () => this.deleteQuestion(p), danger: true },
 			]
 		},
-		// Raumkarte: die Karte selbst öffnet den Raum (R6), hier liegt der Rest.
+		// Room card: the card itself opens the room (R6), the rest lives here.
 		roomMenu(r) {
 			return [
 				{ key: 'copy', label: t('pulse', 'Copy as a template'), icon: 'copy', disabled: this.busy, act: () => this.duplicateRoom(r) },
@@ -1894,9 +1898,9 @@ export default {
 			arr[j] = tmp
 			this.deck = arr
 			this.onReorder()
-			// Ohne Maus reißt sonst der Faden: die Frage sitzt jetzt eine Zeile
-			// weiter, ihr Menü hat sich beim Klick geschlossen, und der Fokus fiele
-			// auf den Seitenanfang zurück. Also mitwandern.
+			// Without a mouse the thread would otherwise break: the question now sits one row
+			// further on, its menu closed on the click, and the focus would fall back
+			// to the top of the page. So move along with it.
 			this.$nextTick(() => {
 				const menu = (this.$refs.rowMenus || [])[j]
 				if (menu) menu.focusTrigger()
@@ -1919,20 +1923,20 @@ export default {
 			}
 		},
 
-		// ── Navigation / Cursor ─────────────────────────────────────────────
+		// ── Navigation / cursor ─────────────────────────────────────────────
 		async setCurrentApi(pollId) {
 			await axios.post(this.api(this.room.code, '/current'), { pollId })
-			// Im Quiz startet der Server den Timer neu und öffnet die Frage -> lokal
-			// spiegeln. Ein früherer Endstand ('ended') ist damit vorbei; der
-			// Server macht daraus wieder eine aufgelöste Frage (unmarkEnded).
-			// Die Umfrage rührt den Status beim Blättern nicht an (pausiert bleibt pausiert).
+			// In a quiz the server restarts the timer and opens the question -> mirror
+			// that locally. Any earlier final standings ('ended') are thereby over; the
+			// server turns them back into a revealed question (unmarkEnded).
+			// A poll does not touch the status when paging (paused stays paused).
 			const idx = this.deck.findIndex((p) => p.id === pollId)
 			if (this.isQuiz && idx >= 0) this.$set(this.deck[idx], 'status', 'active')
 			if (this.isQuiz && pollId) {
 				this.deck.forEach((p) => { if (p.id !== pollId && p.status === 'ended') this.$set(p, 'status', 'locked') })
 			}
 		},
-		// Gemeinsamer Cursor-Wechsel für „Zeigen" und „Blättern".
+		// Shared cursor change for "Show" and paging.
 		async selectPoll(pollId) {
 			await this.setCurrentApi(pollId)
 			this.currentId = pollId
@@ -1951,12 +1955,12 @@ export default {
 			if (this.deck.length) this.present(this.deck[0].id)
 		},
 		async goto(pollId) {
-			this.cancelAdvance() // manueller Wechsel bricht ein geplantes Auto-Weiter ab
+			this.cancelAdvance() // a manual change cancels a scheduled auto-advance
 			try {
 				await this.selectPoll(pollId)
 				this.results = null
-				// Von der Zwischen-Rangliste aus: der Saal ist jetzt auf der Frage,
-				// also auch der Moderator (samt Polling für Timer und Auto-Weiter).
+				// From the interim leaderboard: the room is now on the question,
+				// so the moderator is too (including polling for the timer and auto-advance).
 				if (this.phase === 'leaderboard') {
 					this.phase = 'present'
 					this.startPolling()
@@ -1973,14 +1977,14 @@ export default {
 		prev() {
 			if (this.canPrev) this.goto(this.deck[this.currentIndex - 1].id)
 		},
-		// ── Auto-Weiterschalten nach Timer-Ende ─────────────────────────────
-		// Weiter zur nächsten Frage; nach der letzten genau das tun, was der
-		// jeweilige „letzte-Frage"-Button tut (Modus-abhängig).
+		// ── Auto-advance after the timer ends ───────────────────────────────
+		// On to the next question; after the last one do exactly what the
+		// respective "last question" button does (depends on the mode).
 		autoAdvance() {
 			if (this.canNext) { this.next(); return }
-			// Nach der letzten Frage dasselbe wie der Hauptknopf: Endstand für alle
-			// Bildschirme zugleich. Im Probelauf gibt es keinen — bei „am Ende"
-			// einmal auflösen, beenden tut der Moderator selbst.
+			// After the last question the same as the primary button: final standings on all
+			// screens at once. A practice run has none — with "Reveal at the end" it
+			// reveals once; the moderator finishes the run themselves.
 			if (!this.isPractice) this.finish()
 			else if (this.isRevealAtEnd && !this.isRevealed) this.revealLast()
 		},
@@ -2001,15 +2005,15 @@ export default {
 			this.stopPolling()
 			this.phase = 'deck'
 		},
-		// Zurück zur Pulse-Übersicht (Startbildschirm mit „Meine Räume").
+		// Back to the Pulse overview (start screen with "My rooms").
 		openBeamer() {
 			if (!this.room) return
 			window.open(this.screenUrl, 'pulse-beamer-' + this.room.code)
 		},
 		/*
-		 * Office-Manifest der eigenen Instanz holen. Der Server füllt die
-		 * Adressen ein (AddinController) — von Hand ist daran nichts mehr zu
-		 * ändern, und genau das war vorher die Fehlerquelle.
+		 * Fetch the Office manifest of this instance. The server fills in the
+		 * addresses (AddinController) — nothing has to be changed by hand
+		 * any more, and that was exactly the source of errors before.
 		 */
 		downloadAddin() {
 			window.location.href = generateUrl('/apps/pulse/addin/manifest.xml')
@@ -2030,7 +2034,7 @@ export default {
 			window.history.replaceState(null, '', generateUrl('/apps/pulse/'))
 			this.fetchMyRooms()
 		},
-		// Endstand/Zusammenfassung laden: Polling stoppen, Daten holen, Phase setzen.
+		// Load final standings/summary: stop polling, fetch the data, set the phase.
 		async loadPhase(endpoint, key, errMsg) {
 			if (!this.room) return
 			this.stopPolling()
@@ -2046,8 +2050,8 @@ export default {
 			this.summaryFrom = from === 'pace' ? 'pace' : 'deck'
 			return this.loadPhase('/summary', 'summary', t('pulse', 'Could not load the summary.'))
 		},
-		// Zurück, woher die Zusammenfassung kam. Ist der Raum inzwischen wieder
-		// ein Entwurf (Zurücksetzen im zweiten Tab), gehört er ins Deck.
+		// Back to where the summary came from. If the room has meanwhile become a
+		// draft again (reset in a second tab), it belongs in the deck.
 		summaryBack() {
 			if (this.summaryToPace && this.paceState !== 'draft') this.enterPace()
 			else this.phase = 'deck'
@@ -2056,36 +2060,36 @@ export default {
 			return this.loadPhase('/leaderboard', 'leaderboard', t('pulse', 'Could not load the leaderboard.'))
 		},
 		async finish() {
-			// Quiz beenden heißt: die laufende Frage auf 'ended' setzen und den
-			// Cursor stehen lassen. Nur so zeigt der Beamer den Endstand — mit
-			// geleertem Cursor (setCurrent 0) fiele er zurück in die Lobby. Gilt
-			// für beide Auflösungs-Arten; „am Ende" braucht das ohnehin, damit
-			// die Teilnehmer jetzt Auflösung + Endstand sehen.
+			// Finishing the quiz means: set the running question to 'ended' and
+			// leave the cursor where it is. Only then does the projector show the final standings —
+			// with a cleared cursor (setCurrent 0) it would fall back into the lobby. This applies
+			// to both reveal modes; "Reveal at the end" needs it anyway so that
+			// the participants now see the reveal + final standings.
 			if (this.isQuiz && !this.isPractice) {
-				// Scheitert /end, bleibt der Saal auf der letzten Frage — dann nicht
-				// so tun, als stünde der Endstand überall, sondern hierbleiben.
+				// If /end fails, the room stays on the last question — then don't
+				// pretend the final standings are up everywhere, stay here instead.
 				if (!await this.postEnd()) return
 				this.stopPolling()
 				this.openLeaderboard()
 				return
 			}
-			// Umfrage und Probelauf: kein Endstand -> Raum zurück in die Lobby,
-			// Moderator zurück aufs Deck.
+			// Poll and practice run: no final standings -> room back to the lobby,
+			// moderator back to the deck.
 			try {
 				await this.setCurrentApi(0)
 			} catch (e) {
-				// weiter, auch wenn das Setzen scheitert
+				// carry on even if setting it fails
 			}
 			this.stopPolling()
 			this.currentId = 0
 			this.phase = 'deck'
 		},
 
-		// Probelauf mit „Auflösung am Ende", letzte Frage: einmal auflösen, damit
-		// alle ihre Antworten prüfen können (ohne Rangliste — die blendet der
-		// Server im Probelauf aus). Der Moderator bleibt auf der Frage; „Beenden"
-		// schickt den Raum danach in die Lobby. Nur Hauptknopf und Auto-Weiter
-		// rufen das — „Quiz beenden" im Menü beendet mitten im Deck sofort.
+		// Practice run with "Reveal at the end", last question: reveal once so that
+		// everyone can check their answers (without a leaderboard — the server hides
+		// it in a practice run). The moderator stays on the question; "Finish"
+		// then sends the room to the lobby. Only the primary button and auto-advance
+		// call this — "Finish quiz" in the menu finishes immediately, even mid-deck.
 		async revealLast() {
 			this.cancelAdvance()
 			if (!await this.postEnd()) return
@@ -2093,8 +2097,8 @@ export default {
 			this.fetchResults()
 		},
 
-		// POST /end und den Zustand lokal spiegeln: die laufende Frage steht
-		// jetzt auf 'ended' (quizOver/isRevealed hängen daran).
+		// POST /end and mirror the state locally: the running question is
+		// now 'ended' (quizOver/isRevealed depend on it).
 		async postEnd() {
 			try {
 				await axios.post(this.api(this.room.code, '/end'))
@@ -2106,7 +2110,7 @@ export default {
 			return true
 		},
 
-		// ── Aktuelle Frage steuern ──────────────────────────────────────────
+		// ── Controlling the current question ────────────────────────────────
 		async setLock(lock) {
 			const verb = lock ? 'lock' : 'unlock'
 			try {
@@ -2114,14 +2118,14 @@ export default {
 				if (this.currentIndex >= 0) {
 					this.$set(this.deck[this.currentIndex], 'status', lock ? 'locked' : 'active')
 				}
-				// Reveal/Pause sofort sichtbar machen (nicht auf den nächsten Tick warten).
+				// Make reveal/pause visible immediately (don't wait for the next tick).
 				this.resVersion = ''
 				this.fetchResults()
 			} catch (e) {
 				if (!this.staleLive(e)) showError(lock ? t('pulse', 'Could not reveal.') : t('pulse', 'Could not resume.'))
 			}
 		},
-		// Quiz: aufgelöste Frage neu öffnen = Timer neu starten (setCurrent).
+		// Quiz: reopening a revealed question = restarting the timer (setCurrent).
 		async reopen() {
 			await this.present(this.currentId)
 		},
@@ -2133,7 +2137,7 @@ export default {
 				showError(t('pulse', 'Could not reset.'))
 			}
 		},
-		// ── Demo-/Testmodus: aktive Frage mit synthetischen Stimmen befüllen ──
+		// ── Demo/test mode: fill the active question with synthetic votes ──
 		async seedDemo() {
 			if (this.demoBusy || !this.room || !this.currentId) return
 			this.demoBusy = true
@@ -2162,8 +2166,8 @@ export default {
 				this.demoBusy = false
 			}
 		},
-		// Freitext bewerten (Präsentations-Reveal): Antwort ✓/✗ -> Server wertet
-		// alle gleichen Schreibweisen nach und liefert frische Ergebnisse+Rangliste.
+		// Grade free text (presentation reveal): answer ✓/✗ -> the server re-grades
+		// all identical spellings and returns fresh results + leaderboard.
 		async gradeAnswer(answer, correct) {
 			try {
 				const { data } = await axios.post(this.api(this.room.code, '/polls/' + this.currentId + '/grade'), { answer, correct })
@@ -2174,7 +2178,7 @@ export default {
 				showError(e?.response?.data?.message || t('pulse', 'Could not grade.'))
 			}
 		},
-		// Freitext bewerten aus der Zusammenfassung (aktualisiert nur diese Frage).
+		// Grade free text from the summary (updates only this question).
 		async gradeSummaryAnswer(item, answer, correct) {
 			try {
 				const { data } = await axios.post(this.api(this.room.code, '/polls/' + item.poll.id + '/grade'), { answer, correct })
@@ -2184,23 +2188,23 @@ export default {
 			}
 		},
 
-		// ── Ergebnis-Polling (adaptiv + Änderungs-Version) ──────────────────
+		// ── Results polling (adaptive + change version) ─────────────────────
 		async fetchResults() {
 			if (!this.currentId) return
 			try {
 				const params = this.resVersion ? { v: this.resVersion } : {}
 				const res = await axios.get(this.api(this.room.code, '/polls/' + this.currentId + '/results'), { params })
 				this.online = true
-				if (res.status === 204) { // unverändert
+				if (res.status === 204) { // unchanged
 					this.idleStreak++
 					return
 				}
 				const data = res.data
-				// Der Raum läuft inzwischen im eigenen Tempo (ein anderer Tab hat
-				// umgeschaltet): diese Präsentation ist überholt. Nichts übernehmen —
-				// die Ergebnisse im eigenen Tempo verdecken bei „am Ende" nichts —,
-				// sondern den Raum neu laden: loadRoom führt ins Deck bzw. in die
-				// Laufansicht.
+				// The room now runs self-paced (another tab switched it
+				// over): this presentation is outdated. Take over nothing —
+				// self-paced results hide nothing with "Reveal at the end" —,
+				// reload the room instead: loadRoom leads into the deck or the
+				// run view.
 				if (data.pace === 'self' && !this.isPaced) {
 					this.stopPolling()
 					this.loadRoom(this.room.code)
@@ -2209,13 +2213,13 @@ export default {
 				this.results = data
 				this.presentCount = data.present || 0
 				/*
-				 * Das Beitritts-Panel öffnet sich NICHT von selbst. Früher klappte es
-				 * hier auf, solange presentCount 0 war — und weil das im Ergebnis-Takt
-				 * (im Quiz jede 1,2 s) neu entschieden wurde, sprang es nach jedem
-				 * Schließen über ×, Klick daneben oder Escape sofort wieder auf. In einem
-				 * noch leeren Raum war es damit gar nicht zuzubekommen.
-				 * Der Code steht ohnehin dauerhaft in der Kopfzeile und groß auf der
-				 * Leinwand; wer den QR-Code braucht, holt ihn über „Mitmachen".
+				 * The join panel does NOT open by itself. It used to pop open here
+				 * as long as presentCount was 0 — and because that was re-decided on every
+				 * results tick (every 1.2 s in a quiz), it sprang open again right after
+				 * every close via ×, a click outside or Escape. In a room that was still
+				 * empty it could not be closed at all.
+				 * The code is shown permanently in the header anyway, and large on the
+				 * canvas; whoever needs the QR code gets it via "Join".
 				 */
 				if (data.serverNow) this.serverSkew = data.serverNow - Math.floor(Date.now() / 1000)
 				if (data.leaderboard) this.leaderboard = data.leaderboard
@@ -2227,12 +2231,12 @@ export default {
 			}
 		},
 		pollDelay() {
-			if (document.hidden) return null // pausieren -> onPollVisibility weckt auf
-			// Quiz mit laufendem Timer oder frische Stimmen -> flott; sonst zurückfahren.
+			if (document.hidden) return null // pause -> onPollVisibility wakes it up
+			// Quiz with a running timer or fresh votes -> fast; otherwise back off.
 			if (this.isQuiz && !this.isRevealed) return 1200
 			return this.idleStreak >= 3 ? 4000 : 1800
 		},
-		// Moderator pollt nur in bestimmten Phasen (Frage präsentiert) -> Gate.
+		// The moderator polls only in certain phases (question presented) -> gate.
 		pollActive() {
 			return this.polling
 		},
@@ -2255,15 +2259,15 @@ export default {
 
 <style scoped>
 .pulse-mod {
-	/* NC's #content ist ein row-Flex-Container -> ohne flex/width bliebe dieses
-	   Wurzel-div content-breit und klebte links (margin:auto hätte keinen Platz). */
+	/* NC's #content is a row flex container -> without flex/width this root
+	   div would stay content-wide and stick to the left (margin:auto would have no room). */
 	flex: 1 1 auto;
 	width: 100%;
 	min-width: 0;
 	min-height: 100%;
-	/* NC's #content ist fixhoch und schneidet Überstand ab -> dieses Wurzel-div
-	   muss selbst scrollen, sonst ist z.B. eine lange Raumliste unter dem Falz
-	   nicht erreichbar. max-height bindet die Höhe an den Flex-Parent. */
+	/* NC's #content has a fixed height and clips overflow -> this root div
+	   has to scroll itself, otherwise e.g. a long room list below the fold
+	   is unreachable. max-height binds the height to the flex parent. */
 	max-height: 100%;
 	overflow-y: auto;
 	background: var(--pulse-bg);
@@ -2273,18 +2277,18 @@ export default {
 	font-family: var(--font-face, system-ui, -apple-system, sans-serif);
 }
 .pulse-mod.is-fs { overflow: auto; }
-/* Präsentation und Endstand füllen die Fläche selbst (eigene Kopf-/Fußzeile) —
-   der Seitenrand von .pulse-mod würde den Rahmen doppelt rahmen. */
+/* Presentation and final standings fill the area themselves (own header/footer) —
+   the page margin of .pulse-mod would frame the frame twice. */
 .pulse-mod.is-live { padding: 0; overflow: hidden; }
-/* §9.5: der Kopfblock beginnt bei 64 px ab Fensterkante (NC-Kopf 50 px + 14),
-   nicht bei rund 150 — der Leerraum kostete die erste Raumkarte. */
+/* §9.5: the header block starts 64 px from the window edge (NC header 50 px + 14),
+   not at around 150 — the empty space cost the first room card. */
 .pulse-mod.is-start { padding-block-start: 14px; }
 
 /* Start */
 .start { max-width: 1180px; margin: 0 auto; display: grid; gap: 40px; align-items: start; }
-/* Ab 1200 px zwei Spalten: links der Kopfblock, rechts die Räume. Einspaltig
-   bleibt der Kopfblock unter 300 px, damit die erste Raumkarte über der Falz
-   steht (§9.5). */
+/* From 1200 px two columns: header block on the left, rooms on the right. In one
+   column the header block stays under 300 px so that the first room card sits above
+   the fold (§9.5). */
 @media (min-width: 1200px) { .start { grid-template-columns: minmax(0, 440px) minmax(0, 1fr); gap: 56px; } }
 .start-intro { max-width: 620px; }
 .eyebrow { color: var(--pulse-primary); letter-spacing: 0.18em; text-transform: uppercase; font-weight: 700; font-size: 13px; margin: 0 0 12px; }
@@ -2292,12 +2296,12 @@ export default {
 .lede { color: var(--pulse-text-2); font-size: 18px; margin: 0 0 32px; }
 .mode-note { color: var(--pulse-text-2); font-size: 13px; margin: 18px 0 0; }
 .mode-note b { color: var(--pulse-text); }
-/* Textknopf, kein zweiter Rahmenknopf: Beitreten ist die seltenere Handlung
-   und soll nicht mit dem Start konkurrieren (§9.5). */
+/* Text button, not a second outlined button: joining is the rarer action
+   and should not compete with Start (§9.5). */
 .start-join { display: inline-block; margin-top: 18px; font-size: 15px; font-weight: 600; color: var(--pulse-primary); text-decoration: underline; text-underline-offset: 3px; }
 .start-join:hover { color: var(--pulse-primary-hover); }
 
-/* Meine Räume */
+/* My rooms */
 .myrooms { text-align: left; }
 @media (max-width: 1199px) { .myrooms { margin-top: 8px; } }
 .myrooms-head { font-size: 15px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--pulse-text-2); margin: 0 0 12px; }
@@ -2312,13 +2316,13 @@ export default {
 .myroom-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .myroom-title { font-size: 19px; font-weight: 700; line-height: 1.25; overflow-wrap: anywhere; }
 .myroom-code { font-size: 22px; font-weight: 800; letter-spacing: 0.06em; font-variant-numeric: tabular-nums; }
-/* Mit Titel führt der Name — der Code rutscht zur Nebenzeile. */
+/* With a title, the name leads — the code moves to the secondary line. */
 .myroom-code.is-sub { font-size: 15px; font-weight: 700; color: var(--pulse-text-2); }
 .myroom-meta { font-size: 13px; color: var(--pulse-text-2); }
-/* Typ deutlich: farbiges Icon + Text-Chip (Quiz = Quiz-Lila, Umfrage = Blau). */
+/* Type clearly visible: colored icon + text chip (quiz = quiz purple, poll = blue). */
 .myroom-type { font-size: 12px; }
 
-/* Zentriertes Zwei-Spalten-Layout */
+/* Centered two-column layout */
 .present { display: flex; gap: 40px; align-items: flex-start; max-width: 1180px; margin: 0 auto; }
 .present-main { flex: 1; min-width: 0; }
 .present-aside {
@@ -2338,7 +2342,7 @@ export default {
 .join-hint { font-size: 12px; color: var(--pulse-text-2); text-transform: uppercase; letter-spacing: 0.1em; }
 .join-hint b { color: var(--pulse-text); font-weight: 700; }
 .join-code { font-size: clamp(34px, 4vw, 52px); font-weight: 800; letter-spacing: 0.08em; color: var(--pulse-text); font-variant-numeric: tabular-nums; line-height: 1.05; margin: 2px 0 6px; }
-/* Kurze Adresse + Kopieren als eine ruhige Zeile (§5b). */
+/* Short address + copy as one calm line (§5b). */
 .join-link { display: flex; align-items: center; gap: 8px; }
 .join-url { flex: 1; min-width: 0; font-size: clamp(14px, 1.4vw, 18px); font-weight: 600; color: var(--pulse-primary); word-break: break-all; text-decoration: none; }
 .join-url:hover { text-decoration: underline; }
@@ -2346,14 +2350,14 @@ export default {
 .conn { font-size: 12px; margin-top: 10px; color: var(--pulse-success); }
 .conn.is-off { color: var(--pulse-error); }
 
-/* Deck-Editor */
+/* Deck editor */
 .deck-head { display: flex; align-items: center; margin-bottom: 20px; gap: 10px; flex-wrap: wrap; }
 .deck-head h2 { margin: 0; font-size: 24px; }
 .deck-title { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
 .deck-title-txt { overflow-wrap: anywhere; }
 .deck-title-txt.is-untitled { color: var(--pulse-text-2); }
 .deck-rename { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-/* Erbt Rahmen/Fokus von .pinput, nur Titel-Optik und Breite hier. */
+/* Inherits border/focus from .pinput; only the title look and width here. */
 .deck-rename-input { font-size: 20px; font-weight: 700; width: min(380px, 60vw); }
 .deck-head-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 .deck-list { list-style: none; margin: 0 0 16px; padding: 0; }
@@ -2374,7 +2378,7 @@ export default {
 .deck-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .deck-q { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .deck-type { font-size: 12px; color: var(--pulse-text-2); display: flex; align-items: center; gap: 0.5em; flex-wrap: wrap; }
-/* Typ-Tag im Deck (MC/WC/SK/…): SK trägt das „Du"-Magenta der Skala-Familie. */
+/* Type tag in the deck (MC/WC/SC/…): SC carries the "you" magenta of the scale family. */
 .deck-tico {
 	display: inline-grid; place-items: center; min-width: 2.1em; height: 1.6em; padding: 0 0.4em;
 	border-radius: 0.35em; font-size: 0.82em; font-weight: 800; letter-spacing: 0.02em;
@@ -2394,17 +2398,17 @@ export default {
 .deck-empty { color: var(--pulse-text-2); margin: 8px 0 20px; }
 .add-btn { margin-top: 4px; }
 
-/* Quiz-Composer */
+/* Quiz composer */
 .quiz-hint { font-size: 13px; color: var(--pulse-text-2); margin: 4px 0 8px; }
 .quiz-time { margin-top: 6px; }
-/* .opt-correct wird im zweiten Style-Block neu definiert (Form+Farbe+Text, §4.6). */
+/* .opt-correct is redefined in the second style block (shape+color+text, §4.6). */
 .tf-pick { display: flex; gap: 12px; margin: 8px 0; }
 .tf-pick .pulse-btn { min-width: 96px; }
 .num-fields { display: flex; gap: 20px; flex-wrap: wrap; margin: 6px 0; }
 .num-fields .words-hint { flex-direction: column; align-items: flex-start; gap: 4px; }
 .num-fields input { width: 140px; }
 
-/* Zusammenfassung */
+/* Summary */
 .summary-view { max-width: 760px; margin: 0 auto; }
 .summary-warn { margin: 0 0 24px; }
 .summary-warn-head { display: block; }
@@ -2415,24 +2419,24 @@ export default {
 .summary-qtext { flex: 1; min-width: 0; }
 .summary-type { font-size: 12px; font-weight: 400; color: var(--pulse-text-2); }
 
-/* Endstand */
+/* Final standings */
 .lb-view { max-width: 640px; margin: 0 auto; }
 
-/* Präsentation — Status/Chips/Notice kommen jetzt aus dem DS (2. Block).
-   Hier nur noch die Layout-Reste. */
+/* Presentation — status/chips/notice now come from the DS (2nd block).
+   Only the layout leftovers remain here. */
 .practice-banner { margin: 4px 0 20px; }
-/* Demo-/Testleiste (§4): auf --pulse-*, Warn-Chip + gestrichelter warngetönter
-   Rahmen = „zählt nicht", Aktionen klar getrennt (Ghost vs. Danger-Outline). */
+/* Demo/test bar (§4): on --pulse-*, warning chip + dashed warning-tinted
+   frame = "does not count", actions clearly separated (ghost vs. danger outline). */
 .demo-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 16px; padding: 10px 14px; border: 1px dashed var(--pulse-warning); border-radius: var(--pulse-r-el); background: var(--pulse-warning-soft); }
 .demo-chip { flex: 0 0 auto; }
 .demo-lbl { display: inline-flex; align-items: center; gap: 7px; font-size: var(--t-sm); font-weight: 700; color: var(--pulse-warning); }
 .demo-count { width: 5em; }
 .demo-spacer { flex: 1 1 auto; }
 .demo-hint { font-size: var(--t-sm); font-weight: 600; color: var(--pulse-warning); }
-/* ── Präsentationsansicht (§9) ────────────────────────────────────────────
-   Drei Zeilen: Kopf (64), Körper (Rest), Steuerleiste (96). Der Körper ist die
-   einzige Zeile, die schrumpfen darf — minmax(0,1fr), sonst schiebt der
-   Inhalt die Leiste aus dem Bild. */
+/* ── Presentation view (§9) ───────────────────────────────────────────────
+   Three rows: header (64), body (rest), control bar (96). The body is the
+   only row allowed to shrink — minmax(0,1fr), otherwise the
+   content pushes the bar out of view. */
 .mod-live { position: relative; height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; background: var(--pulse-bg); }
 .mod-top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; min-height: 64px; padding: 8px 20px; border-block-end: 1px solid var(--pulse-border); }
 .mod-pos { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -2440,18 +2444,18 @@ export default {
 .mod-here { font-variant-numeric: tabular-nums; }
 .mod-spacer { flex: 1 1 auto; }
 .mod-code { font-size: 18px; font-weight: 800; letter-spacing: 0.08em; font-variant-numeric: tabular-nums; }
-/* Volle Zeile in der umbrechenden Kopfzeile — kein eigenes Rasterfeld. */
+/* Full row in the wrapping header — no grid cell of its own. */
 .mod-offline { flex: 1 0 100%; margin: 0; }
 
-/* Körper: Vorschau + privates Panel */
+/* Body: preview + private panel */
 .mod-body { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 20px; min-height: 0; padding: 16px 20px; }
-/* Unter 1000 px untereinander — die Steuerleiste bleibt unten (§9.8). */
+/* Below 1000 px stacked — the control bar stays at the bottom (§9.8). */
 @media (max-width: 999px) { .mod-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); overflow-y: auto; } }
 .mod-canvas { position: relative; min-width: 0; min-height: 0; display: grid; place-items: center; }
 .mod-canvas-in { position: relative; overflow: hidden; border: 1px solid var(--pulse-border-strong); border-radius: var(--pulse-r-card); background: var(--pulse-screen-bg); }
-/* Der Kiosk rechnet in vw/vh: das iframe MUSS 1280×720 groß sein und wird per
-   transform verkleinert. Ein kleineres Fenster ergäbe ein anderes Layout als
-   im Saal — und damit eine Vorschau, die nichts beweist. */
+/* The kiosk computes in vw/vh: the iframe MUST be 1280×720 and is scaled down via
+   transform. A smaller window would give a different layout than
+   in the room — and with it a preview that proves nothing. */
 .mod-frame { width: 1280px; height: 720px; border: 0; transform-origin: top left; display: block; }
 .mod-private { min-width: 0; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; padding: 14px; border: 1px solid var(--pulse-border-strong); border-radius: var(--pulse-r-card); background: var(--pulse-surface, var(--pulse-hover)); font-size: 14px; }
 .mod-private-head { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 15px; font-weight: 800; }
@@ -2462,17 +2466,17 @@ export default {
 .mod-standings { min-width: 0; overflow-y: auto; grid-column: 1 / -1; font-size: clamp(16px, 1.6vw, 21px); }
 .mod-standings-head { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; font-size: 24px; }
 
-/* Steuerleiste: eine Hauptaktion, links das Blättern, rechts der Eingang */
+/* Control bar: one primary action, paging on the left, the intake on the right */
 .mod-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; min-height: 96px; padding: 12px 20px; border-block-start: 1px solid var(--pulse-border); }
 .mod-primary { min-width: 220px; }
-/* Derselbe Baustein wie am Beamer, nur klein — Zahl, Bezug, Punktraster. */
+/* The same building block as on the projector, just small — number, reference, dot grid. */
 .mod-intake { font-size: 11px; }
 .mod-intake :deep(.intake-num) { font-size: 1.9em; }
 
-/* Beitritt: Zustand statt Spalte (§9.4) */
+/* Joining: a state instead of a column (§9.4) */
 .mod-joinwrap { position: absolute; inset: 0; z-index: 40; display: flex; justify-content: flex-end; background: rgba(0, 0, 0, 0.22); }
-/* Spalte, nicht Fluss: Hinweis, Code und Verweis sind <span>s aus der alten
-   QR-Spalte — nebeneinander liefen sie ineinander. */
+/* Column, not flow: hint, code and link are <span>s from the old
+   QR column — side by side they ran into each other. */
 .mod-joinpanel { width: min(420px, 92vw); padding: 20px; overflow-y: auto; display: flex; flex-direction: column; align-items: stretch; gap: 4px; background: var(--pulse-bg); border-inline-start: 1px solid var(--pulse-border-strong); box-shadow: var(--pulse-shadow-pop); }
 .mod-joinpanel .join-code { font-size: 40px; }
 .mod-joinpanel .join-hint { line-height: 1.5; }
@@ -2480,27 +2484,27 @@ export default {
 .mod-join-head h2 { margin: 0; font-size: 20px; }
 .mod-join-qr { margin-bottom: 12px; }
 
-/* Vollbild = der projizierte Modus: nur die Leinwand. Die Steuerleiste kommt
-   auf Hover zurück, damit man weiterschalten kann, ohne das Vollbild zu
-   verlassen — Antworten stehen dort keine. */
+/* Fullscreen = the projected mode: only the canvas. The control bar comes back
+   on hover so you can advance without leaving
+   fullscreen — no answers are shown there. */
 .pulse-mod.is-fs .mod-live { grid-template-rows: minmax(0, 1fr); }
 .pulse-mod.is-fs .mod-top, .pulse-mod.is-fs .mod-offline { display: none; }
-/* Ohne privates Panel bleibt sonst dessen 360-px-Spalte stehen — die
-   Vorschau wäre im Vollbild schmaler als der Schirm. */
+/* Without the private panel, its 360 px column would otherwise remain — the
+   preview would be narrower than the screen in fullscreen. */
 .pulse-mod.is-fs .mod-body { padding: 0; grid-template-columns: minmax(0, 1fr); }
 .pulse-mod.is-fs .mod-canvas-in { border: 0; border-radius: 0; }
 .pulse-mod.is-fs .mod-bar { position: absolute; inset-inline: 0; inset-block-end: 0; background: var(--pulse-bg); transform: translateY(100%); transition: transform 0.15s ease; }
 .pulse-mod.is-fs .mod-bar:hover, .pulse-mod.is-fs .mod-bar:focus-within { transform: none; }
 
-/* Quiz-Präsentation: Countdown + Rangliste */
-/* Transition = Tick-Intervall (1 s), damit der Balken durchgehend gleitet statt
-   pro Sekunde zu springen (0.5 s glitt nur halb und stand dann still). */
+/* Quiz presentation: countdown + leaderboard */
+/* Transition = tick interval (1 s), so the bar glides continuously instead of
+   jumping every second (0.5 s glided only halfway and then stood still). */
 
 /* Composer */
 .opt-row { display: flex; gap: 8px; margin-bottom: 10px; align-items: center; }
 .words-hint { display: inline-flex; align-items: center; gap: 8px; }
 .words-hint--col { flex-direction: column; align-items: flex-start; gap: 4px; }
-/* Bildzeile im Composer + Bild in der Präsentation */
+/* Image row in the composer + image in the presentation */
 .img-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 12px 0 4px; }
 .img-preview { position: relative; line-height: 0; }
 .img-preview img { max-height: 96px; max-width: 200px; border-radius: var(--pulse-r-el); border: 1px solid var(--pulse-border); }
@@ -2511,8 +2515,8 @@ export default {
 .composer-actions { display: flex; gap: 10px; margin-top: 20px; }
 .composer { background: var(--pulse-hover); border-radius: var(--border-radius-container, 14px); padding: 20px; border: 1px solid var(--pulse-border); }
 
-/* Typ ▸ Modus (§4): der Skala-Modus ist eine Unterwahl von „Skala" — eingerückt,
-   mit Konnektor und kleineren Chip-Schaltern (nicht ein zweites Segmented). */
+/* Type ▸ mode (§4): the scale mode is a sub-choice of "Scale" — indented,
+   with a connector and smaller chip switches (not a second segmented control). */
 .submode { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 2px 0 18px; margin-left: 8px; padding-left: 16px; border-left: 2px solid var(--pulse-border-strong); }
 .submode-arrow { color: var(--pulse-text-2); font-weight: 800; }
 .submode-key { font-size: var(--t-cap); font-weight: 700; color: var(--pulse-text-2); text-transform: uppercase; letter-spacing: 0.06em; }
@@ -2520,19 +2524,19 @@ export default {
 .submode-seg :deep(.pseg) { padding: 3px; }
 .submode-seg :deep(.pseg-item) { font-size: var(--t-cap); padding: 5px 10px; }
 
-/* Gerahmte Sektionsgruppen (§4): kräftiger Kopf auf Füllfläche + gerahmter Inhalt. */
+/* Framed section groups (§4): strong header on a fill + framed content. */
 .sgroup { border: 1px solid var(--pulse-border-strong); border-radius: var(--pulse-r-el); background: var(--pulse-bg); overflow: hidden; margin-bottom: 12px; }
 .sgroup-head { margin: 0; padding: 10px 14px; font-size: var(--t-sm); font-weight: 800; background: var(--pulse-fill); color: var(--pulse-text); border-bottom: 1px solid var(--pulse-border); }
 .sgroup-opt { font-weight: 600; color: var(--pulse-text-2); }
 .sgroup-in { padding: 14px; display: flex; flex-direction: column; gap: 12px; }
-/* Achsen sitzen randlos im Rahmen der Gruppe (die Gruppe rahmt, nicht jede Achse). */
+/* Axes sit borderless inside the group's frame (the group frames, not each axis). */
 .sgroup-in .axis-block { border: 0; padding: 0; margin: 0; }
 .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .corner-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .corner-cell { display: flex; flex-direction: column; gap: 4px; }
 .corner-lbl { font-size: var(--t-cap); font-weight: 700; color: var(--pulse-text-2); }
 
-/* Eingaben */
+/* Inputs */
 .pinput {
 	background: var(--pulse-bg) !important;
 	color: var(--pulse-text);
@@ -2543,15 +2547,15 @@ export default {
 	width: 100%;
 	box-sizing: border-box;
 }
-/* Einheitlicher, sichtbarer Fokus-Ring auf allen Eingabefeldern (§8). */
+/* Uniform, visible focus ring on all input fields (§8). */
 .pinput:focus-visible { outline: 2px solid var(--pulse-primary); outline-offset: 1px; border-color: var(--pulse-primary); }
 .pinput:focus { border-color: var(--pulse-primary); }
 .pinput--q { font-size: 20px; margin-bottom: 18px; }
-/* NC gibt <select> global eine feste Höhe -> mit unserem Padding wird die Zeile
-   unten abgeschnitten. Feste Höhe aufheben, damit die Box zum Inhalt wächst. */
+/* NC gives <select> a fixed height globally -> with our padding the line gets
+   cut off at the bottom. Lift the fixed height so the box grows with its content. */
 .pinput--sel { width: auto; height: auto !important; min-height: 40px; padding: 8px 12px !important; line-height: normal; }
 .pinput--num { width: 5.5em; height: auto !important; min-height: 40px; padding: 8px 12px !important; line-height: normal; }
-/* Spektrum-Composer: Aspekt-Zeile (Nummer · Name + Pol-Paar · Entfernen) */
+/* Spectrum composer: aspect row (number · name + pole pair · remove) */
 .aspect-row { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 10px; }
 .aspect-idx { flex: 0 0 auto; width: 24px; min-height: 40px; display: grid; place-items: center; font-weight: 800; color: var(--pulse-text-2); font-variant-numeric: tabular-nums; }
 .aspect-fields { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
@@ -2564,42 +2568,42 @@ export default {
 
 </style>
 
-<!-- Ergänzungen Schritt 4/6/7/8/10/11 — DS-nahe Bausteine + Token-Angleich.
-     Zweiter scoped-Block: neue Klassen + Overrides in Quell-Reihenfolge nach den
-     Alt-Regeln (gleiche Spezifität -> spätere gewinnt). -->
+<!-- Additions for steps 4/6/7/8/10/11 — DS-like building blocks + token alignment.
+     Second scoped block: new classes + overrides in source order after the
+     old rules (same specificity -> the later one wins). -->
 <style scoped>
-/* Start: ein CTA + Modus-Segmented (§4.1) */
+/* Start: one CTA + mode segmented control (§4.1) */
 .start-cta { display: flex; flex-direction: column; align-items: flex-start; gap: 16px; }
 .start-cta .is-lg { min-width: 240px; }
 
-/* Meine Räume: Icon-Badge + Text-Status-Chip */
+/* My rooms: icon badge + text status chip */
 .myroom { border-radius: var(--pulse-r-card); border-color: var(--pulse-border); background: var(--pulse-hover); }
 .myroom-meta { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .myroom-chip { font-size: 12px; }
 
-/* Button-Gruppen: nur noch die Zusammenfassung hat mehr als eine Handlung. */
+/* Button groups: only the summary still has more than one action. */
 .deck-head-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-inline-start: auto; }
 .btn-group { display: inline-flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .btn-group + .btn-group { margin-left: 6px; padding-left: 12px; border-left: 1px solid var(--pulse-border); }
 .export-btn { text-decoration: none; }
 
-/* Deck-Editor */
+/* Deck editor */
 .deck-item { border-radius: var(--pulse-r-card); border-color: var(--pulse-border); background: var(--pulse-hover); }
 .deck-item.is-current { border-color: var(--pulse-primary); }
 .drag-handle { color: var(--pulse-text-2); display: inline-flex; }
 .deck-current-chip { flex: 0 0 auto; font-size: 12px; }
 
-/* ── Übersichten aufgeräumt (Handoff docs/uebersicht-2026-07) ─────────────
-   Deck-Kopf: eine Zeile, drei Bedienelemente. Vorher neun Knöpfe in drei
-   Gruppen, bei jeder Breite umgebrochen (B1). */
+/* ── Overviews tidied up (overview design notes, not in the public repository) ───
+   Deck header: one row, three controls. Before, nine buttons in three
+   groups, wrapping at every width (B1). */
 .deck-head-spacer { flex: 1 1 auto; }
 .deck-back { flex: 0 0 auto; }
 .deck-mode { flex: 0 0 auto; font-size: 12px; }
 
-/* Die Frage IST der Knopf zum Bearbeiten (R5) — damit fällt der Stift je
-   Zeile weg. Nextcloud stylt native <button> global über Element-Selektoren
-   und schlägt damit jede Klasse: ohne !important kämen Rahmen, Polsterung und
-   Mindesthöhe von dort. */
+/* The question IS the edit button (R5) — so the pencil per row goes
+   away. Nextcloud styles native <button> globally via element selectors
+   and so beats every class: without !important, border, padding and
+   min-height would come from there. */
 .deck-q {
 	display: block;
 	width: 100%;
@@ -2620,8 +2624,8 @@ export default {
 .deck-q:hover { text-decoration: underline; text-underline-offset: 3px; }
 .deck-q:focus-visible { outline: 2px solid var(--pulse-primary); outline-offset: 2px; border-radius: 4px; }
 
-/* Raumkarte: die Karte selbst öffnet den Raum (R6). Ein gefülltes „Open" je
-   Karte hätte bei sieben Räumen sieben Hauptaktionen ergeben (B4). */
+/* Room card: the card itself opens the room (R6). A filled "Open" per
+   card would have meant seven primary actions for seven rooms (B4). */
 .myroom { padding: 0; gap: 0; }
 .myroom-hit {
 	flex: 1;
@@ -2646,15 +2650,15 @@ export default {
 .myroom-go { flex: 0 0 auto; color: var(--pulse-text-2); }
 .myroom .pulse-menu { margin-inline-end: 10px; }
 
-/* Erklärtext ist für den ersten Besuch (R7). Schmal stand er beim zehnten
-   Besuch genauso da und drückte die erste Raumkarte an den unteren Rand (B5). */
+/* The explanatory text is for the first visit (R7). On narrow screens it was just as
+   present on the tenth visit and pushed the first room card to the bottom edge (B5). */
 @media (max-width: 1199px) {
 	.start.has-rooms .lede,
 	.start.has-rooms .mode-note { display: none; }
 	.start.has-rooms h1 { font-size: 30px; margin-block-end: 12px; }
 }
 
-/* Empty-State (§4.11): gebrandet + ein CTA */
+/* Empty state (§4.11): branded + one CTA */
 .empty-state { text-align: center; padding: 40px 16px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
 .empty-ico { color: var(--pulse-primary); opacity: 0.85; }
 .empty-title { font-size: 20px; font-weight: 800; margin: 4px 0 0; }
@@ -2663,7 +2667,7 @@ export default {
 /* Composer */
 .composer { border-radius: var(--pulse-r-card); border-color: var(--pulse-border); background: var(--pulse-hover); }
 .composer-seg { margin: 4px 0 18px; }
-/* Korrekt-Marker (§4.6): Form (Box) + Farbe (grün) + Text („richtig") */
+/* Correct marker (§4.6): shape (box) + color (green) + text ("correct") */
 .opt-correct {
 	appearance: none !important; -webkit-appearance: none;
 	flex: 0 0 auto; display: inline-flex; align-items: center; gap: 8px;
@@ -2685,27 +2689,27 @@ export default {
 .opt-correct.is-on .opt-correct-box { background: var(--pulse-success); border-color: var(--pulse-success); }
 @media (prefers-reduced-motion: reduce) { .opt-correct { transition: none; } }
 
-/* Eingaben auf Pulse-Tokens */
+/* Inputs on Pulse tokens */
 .pinput { background: var(--pulse-bg) !important; color: var(--pulse-text); border: 2px solid var(--pulse-border-strong); border-radius: var(--pulse-r-el); }
 .pinput:focus { border-color: var(--pulse-primary); }
 .pinput::placeholder { color: var(--pulse-text-2); }
 
-/* Auto-Weiter-Chip in der Steuerleiste */
+/* Auto-advance chip in the control bar */
 .auto-next { font-variant-numeric: tabular-nums; }
 
-/* ── Quiz im eigenen Tempo: Deck (Stufe 4.2) ────────────────────────────── */
+/* ── Self-paced quiz: deck (stage 4.2) ──────────────────────────────────── */
 .deck-state { flex: 0 0 auto; font-size: 12px; font-variant-numeric: tabular-nums; }
-/* Kopf im eigenen Tempo: Titel und Aktionen oben, die Status-Chips (Modus,
-   „Open until …") in einer eigenen Zeile darunter. Mit langem Titel und
-   Frist-Chip brach sonst „Show progress" allein in die zweite Zeile. Das
-   ::after ist der Zeilenumbruch; die DOM-Reihenfolge bleibt. */
+/* Header in self-paced mode: title and actions on top, the status chips (mode,
+   "Open until …") in their own row below. With a long title and a deadline
+   chip, "Show progress" would otherwise break alone into the second row. The
+   ::after is the line break; the DOM order stays. */
 .deck-head.is-paced { row-gap: 4px; }
 .deck-head.is-paced::after { content: ''; order: 1; flex-basis: 100%; height: 0; }
 .deck-head.is-paced .deck-mode,
 .deck-head.is-paced .deck-state { order: 2; }
 .deck-lock-note { margin: 4px 0 20px; }
-/* Gesperrte Frage: bleibt voll lesbar — NC dimmt jeden deaktivierten
-   <button> auf halbe Deckkraft, das sähe aus wie gelöscht. */
+/* Locked question: stays fully readable — NC dims every disabled
+   <button> to half opacity, which would look like it was deleted. */
 .deck-q:disabled { opacity: 1 !important; cursor: default; }
 .deck-q:disabled:hover { text-decoration: none; }
 .myroom-pace { font-variant-numeric: tabular-nums; }

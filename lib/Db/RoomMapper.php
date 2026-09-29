@@ -24,8 +24,8 @@ class RoomMapper extends QBMapper {
      * @throws DoesNotExistException
      */
     public function findByCode(string $code): Room {
-        // Codes werden in Großbuchstaben gespeichert; Eingaben aus URLs
-        // (evtl. klein) hier normalisieren, damit die Suche case-insensitiv ist.
+        // Codes are stored in upper case; normalise input from URLs
+        // (possibly lower case) here so that the lookup is case-insensitive.
         $code = strtoupper($code);
         $qb = $this->db->getQueryBuilder();
         $qb->select('*')
@@ -58,8 +58,8 @@ class RoomMapper extends QBMapper {
     }
 
     /**
-     * Räume, die vor $ts (Unix-Zeit) angelegt wurden — Kandidaten für den
-     * Aufräum-Job. Wird selten (täglich) aufgerufen.
+     * Rooms created before $ts (Unix time) — candidates for the
+     * cleanup job. Called rarely (daily).
      *
      * @return Room[]
      */
@@ -72,10 +72,10 @@ class RoomMapper extends QBMapper {
     }
 
     /**
-     * Raumzeile sperren und frisch lesen (SELECT … FOR UPDATE). Nur innerhalb
-     * einer Transaktion sinnvoll (PaceService::locked). SQLite kennt kein
-     * FOR UPDATE (DBAL wirft „not supported") — dort bleibt es ein normales
-     * SELECT, die Schreibsperre der Datenbank serialisiert ohnehin.
+     * Lock the room row and read it fresh (SELECT … FOR UPDATE). Only useful inside
+     * a transaction (PaceService::locked). SQLite has no
+     * FOR UPDATE (DBAL throws "not supported") — there it stays a plain
+     * SELECT; the database's write lock serialises anyway.
      *
      * @throws DoesNotExistException
      */
@@ -91,12 +91,12 @@ class RoomMapper extends QBMapper {
     }
 
     /**
-     * Fenster öffnen, nur aus dem Entwurf eines self-Raums. Läuft unter
-     * lockForUpdate; das Compare-and-set (opened_at = 0, pace = 'self') ist
-     * der zweite Gurt gegen einen parallelen Tab.
+     * Open the window, only from the draft state of a self-paced room. Runs under
+     * lockForUpdate; the compare-and-set (opened_at = 0, pace = 'self') is
+     * the second safety belt against a parallel tab.
      *
-     * @param string $orderJson eingefrorene Reihenfolge, JSON-Liste der Poll-IDs
-     * @return bool true genau dann, wenn diese Anfrage das Fenster geöffnet hat
+     * @param string $orderJson frozen order, JSON list of poll IDs
+     * @return bool true exactly when this request opened the window
      */
     public function openIfDraft(int $roomId, string $orderJson, int $now, int $closesAt, bool $timed, string $feedback): bool {
         $qb = $this->db->getQueryBuilder();
@@ -116,8 +116,8 @@ class RoomMapper extends QBMapper {
     }
 
     /**
-     * Besuch des Besitzers vermerken (Aufbewahrung), höchstens stündlich —
-     * sonst schriebe jeder Fortschritts-Poll der Lehrkraft die Raumzeile.
+     * Record the owner's visit (retention), at most hourly —
+     * otherwise every progress poll of the teacher would write the room row.
      */
     public function touch(int $roomId, int $now): void {
         $qb = $this->db->getQueryBuilder();

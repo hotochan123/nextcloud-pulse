@@ -27,17 +27,17 @@ use PHPUnit\Framework\TestCase;
 use ReflectionProperty;
 
 /**
- * Freigabe-Schranken der öffentlichen Sichten, zweite Runde.
+ * Release gates of the public views, second round.
  *
- * - Rangliste der Gesamtauswertung ohne die laufende, noch verdeckte Frage
- *   (sonst zeigt der Punktestand nach dem Antippen, ob es richtig war).
- * - „Quiz vorbei" gilt nur, solange nichts Neues läuft: eine liegengebliebene
- *   'ended'-Frage aus einem früheren Lauf löst nichts mehr auf.
- * - Alte Umfrage-Räume (vor dem Startzeitpunkt): Stimmen belegen „gezeigt".
- * - Verdeckte Quizfragen: der Status bleibt echt ('locked' bleibt 'locked'),
- *   ob aufgelöst ist, sagt allein `revealed`. Die Folge von Rangfolge-Optionen
- *   und Zuordnungs-Zielen hängt nur an Geheimnis + Frage + Option — nicht an
- *   der gespeicherten Folge, also nicht an der Lösung.
+ * - Leaderboard of the overall summary without the running, still hidden question
+ *   (otherwise the score shows right after the tap whether it was correct).
+ * - "Quiz over" only applies while nothing new is running: a leftover
+ *   'ended' question from an earlier run no longer reveals anything.
+ * - Old poll rooms (from before the start timestamp): votes prove "shown".
+ * - Hidden quiz questions: the status stays genuine ('locked' stays 'locked'),
+ *   whether it is revealed is told by `revealed` alone. The order of ranking options
+ *   and matching targets depends only on secret + question + option — not on
+ *   the stored order, and therefore not on the solution.
  */
 #[CoversClass(StateService::class)]
 class PublicRevealGateTest extends TestCase {
@@ -45,11 +45,11 @@ class PublicRevealGateTest extends TestCase {
     private PollMapper&MockObject $polls;
     private VoteService&MockObject $voteService;
     private StateService $service;
-    /** Die Frage, die publicState über find() bekommt. */
+    /** The question publicState gets via find(). */
     private ?Poll $current = null;
-    /** @var array<int,int> Stimmen je Frage (countByPoll) */
+    /** @var array<int,int> votes per question (countByPoll) */
     private array $voteCounts = [];
-    /** @var array<string,Vote> eigene Stimme je Token (findByPollAndToken) */
+    /** @var array<string,Vote> own vote per token (findByPollAndToken) */
     private array $myVotes = [];
 
     protected function setUp(): void {
@@ -95,10 +95,10 @@ class PublicRevealGateTest extends TestCase {
         }
     }
 
-    // ── S2: Rangliste ohne die laufende, verdeckte Frage ───────────────────
+    // ── S2: leaderboard without the running, hidden question ──────────────
 
     public function testSummaryRanglisteLaesstLaufendeVerdeckteFrageAus(): void {
-        // Je Frage: 1 aufgelöst, 2 läuft (noch nicht aufgelöst).
+        // Per question: 1 revealed, 2 running (not revealed yet).
         $room = $this->room('quiz', active: 2);
         $this->deck(
             $this->poll(1, 'choice', 'locked', 900),
@@ -125,8 +125,8 @@ class PublicRevealGateTest extends TestCase {
     }
 
     public function testSummaryRanglisteInDerLobbyOhneUebersprungeneFrage(): void {
-        // Frage 2 lief, wurde aber nie aufgelöst (übersprungen), dann Lobby:
-        // ihre Punkte verrieten sonst richtig/falsch.
+        // Question 2 ran but was never revealed (skipped), then lobby:
+        // its points would otherwise give away right/wrong.
         $room = $this->room('quiz', active: 0);
         $this->deck(
             $this->poll(1, 'choice', 'locked', 900),
@@ -140,8 +140,8 @@ class PublicRevealGateTest extends TestCase {
     }
 
     public function testSummaryRanglisteUebersprungeneFrageNebenLaufenderFrage(): void {
-        // Frage 2 übersprungen (nie aufgelöst), Frage 3 läuft aufgelöst:
-        // beide verdeckten Fragen fehlen, nicht nur die laufende.
+        // Question 2 skipped (never revealed), question 3 running and revealed:
+        // both hidden questions are missing, not just the running one.
         $room = $this->room('quiz', active: 3);
         $this->deck(
             $this->poll(1, 'choice', 'locked', 900),
@@ -156,9 +156,9 @@ class PublicRevealGateTest extends TestCase {
     }
 
     public function testSummaryRanglisteNachEndeJeFrageZaehltAlles(): void {
-        // Endstand je Frage: die letzte Frage ist beendet, der Cursor steht in
-        // der Lobby. Auch eine übersprungene Frage zählt jetzt — wie beim
-        // Moderator und auf dem Beamer.
+        // Final standings per question: the last question has ended, the cursor is in
+        // the lobby. Even a skipped question counts now — as for the
+        // moderator and on the projector.
         $room = $this->room('quiz', active: 0);
         $this->deck(
             $this->poll(1, 'choice', 'locked', 900),
@@ -173,8 +173,8 @@ class PublicRevealGateTest extends TestCase {
     }
 
     public function testSummaryRanglisteAmEndeVollstaendig(): void {
-        // „Auflösung am Ende" nach /end: die laufende Frage ist die beendete,
-        // alles ist aufgelöst — nichts auszulassen.
+        // "Reveal at the end" after /end: the running question is the ended one,
+        // everything is revealed — nothing to leave out.
         $room = $this->room('quiz', active: 2, revealAtEnd: true);
         $this->deck(
             $this->poll(1, 'choice', 'locked', 900),
@@ -198,12 +198,12 @@ class PublicRevealGateTest extends TestCase {
         $this->assertNull($summary['leaderboard']);
     }
 
-    // ── S2: liegengebliebenes 'ended' ──────────────────────────────────────
+    // ── S2: leftover 'ended' ───────────────────────────────────────────────
 
     public function testLiegengebliebenesEndeLoestBeiNeuemLaufNichtsAuf(): void {
-        // Erster Lauf endete auf Frage 1 ('ended'); der zweite Lauf steht auf
-        // Frage 2. Die Gesamtauswertung darf deshalb NICHT das ganze Deck samt
-        // Lösungen freigeben.
+        // The first run ended on question 1 ('ended'); the second run is on
+        // question 2. The overall summary must therefore NOT release the whole deck
+        // including the solutions.
         $room = $this->room('quiz', active: 2, revealAtEnd: true);
         $this->deck(
             $this->poll(1, 'choice', 'ended', 900, [['id' => 'AA', 'label' => 'A'], ['id' => 'BB', 'label' => 'B']]),
@@ -225,7 +225,7 @@ class PublicRevealGateTest extends TestCase {
     }
 
     public function testEndeGiltInDerLobby(): void {
-        // Nach /end und „Zurück ins Deck" (Cursor 0) bleibt der Endstand sichtbar.
+        // After /end and "Back to the deck" (cursor 0) the final standings stay visible.
         $room = $this->room('quiz', active: 0, revealAtEnd: true);
         $this->deck(
             $this->poll(1, 'choice', 'locked', 900),
@@ -239,12 +239,12 @@ class PublicRevealGateTest extends TestCase {
         $this->assertSame([true, true], array_column($summary['items'], 'revealed'));
     }
 
-    // ── S3: alte Umfrage-Räume ─────────────────────────────────────────────
+    // ── S3: old poll rooms ─────────────────────────────────────────────────
 
     public function testUmfrageFrageMitStimmenOhneStartzeitpunktIstGezeigt(): void {
-        // Vor v0.18.x setzte die Umfrage keinen Startzeitpunkt. Stimmen gibt es
-        // nur auf einer gezeigten Frage — also gehört Frage 1 hinein, Frage 3
-        // (ohne Stimmen, nie dran) nicht.
+        // Before v0.18.x the poll set no start timestamp. Votes only exist
+        // on a question that was shown — so question 1 belongs in, question 3
+        // (without votes, never on) does not.
         $room = $this->room('poll', active: 2);
         $this->deck(
             $this->poll(1, 'choice', 'active', 0),
@@ -259,8 +259,8 @@ class PublicRevealGateTest extends TestCase {
     }
 
     public function testQuizFrageMitStimmenOhneStartzeitpunktBleibtDraussen(): void {
-        // Im Quiz setzt setCurrent den Zeitpunkt schon immer — dort sind Stimmen
-        // kein Beleg (und werden gar nicht erst gezählt).
+        // In a quiz, setCurrent has always set the timestamp — there votes are
+        // no proof (and are not even counted).
         $room = $this->room('quiz', active: 2);
         $this->deck(
             $this->poll(1, 'choice', 'active', 0),
@@ -274,13 +274,13 @@ class PublicRevealGateTest extends TestCase {
         $this->assertSame([2], array_map(static fn (array $i): int => $i['poll']['id'], $summary['items']));
     }
 
-    // ── S4: verdeckt heißt verdeckt ────────────────────────────────────────
+    // ── S4: hidden means hidden ────────────────────────────────────────────
 
     public function testRangfolgeHaengtNichtVonDerLoesungAb(): void {
-        // Dieselbe Frage (ID 7, dieselben Options-IDs) mit drei verschiedenen
-        // Lösungen gespeichert: ausgeliefert wird jedes Mal dieselbe Folge. Die
-        // Anzeige trägt also keine Information über die Lösung — auch dann
-        // nicht, wenn sie (wie bei der dritten) zufällig die Lösung trifft.
+        // The same question (ID 7, the same option IDs) stored with three different
+        // solutions: the same order is served every time. So the display
+        // carries no information about the solution — not even when
+        // it happens to match the solution (as with the third one).
         $room = $this->room('quiz', active: 7);
         $erster = ['id' => 'AA01', 'label' => 'Erster'];
         $zweiter = ['id' => 'BB02', 'label' => 'Zweiter'];
@@ -297,9 +297,9 @@ class PublicRevealGateTest extends TestCase {
     }
 
     public function testZweiOptionenVerratenNichts(): void {
-        // Früher kam bei zwei Optionen immer genau die Umkehrung heraus — die
-        // Lösung stand damit fest. Jetzt ist die Anzeige für beide möglichen
-        // Lösungen dieselbe: eine von beiden wird in Lösungsfolge gezeigt.
+        // Previously two options always came out exactly reversed — which
+        // gave the solution away. Now the display is the same for both possible
+        // solutions: one of the two is shown in solution order.
         $room = $this->room('quiz', active: 7);
         $a = ['id' => 'AA01', 'label' => 'Erster'];
         $b = ['id' => 'BB02', 'label' => 'Zweiter'];
@@ -312,8 +312,8 @@ class PublicRevealGateTest extends TestCase {
     }
 
     public function testZuordnungZieleHaengenNichtVonDerLoesungAb(): void {
-        // Zwei Lösungen für dieselben Items/Ziele (Ziel i gehört zu Item i):
-        // die Ziele kommen gleich heraus, die Items behalten jeweils ihre Folge.
+        // Two solutions for the same items/targets (target i belongs to item i):
+        // the targets come out the same, the items each keep their order.
         $room = $this->room('quiz', active: 7);
         $items = [['id' => 'IT01', 'label' => 'Hund'], ['id' => 'IT02', 'label' => 'Katze'], ['id' => 'IT03', 'label' => 'Kuh']];
         $bellt = ['id' => 'TA01', 'label' => 'bellt'];
@@ -339,8 +339,8 @@ class PublicRevealGateTest extends TestCase {
 
     #[DataProvider('aufgeloesteStaende')]
     public function testAufgeloestKommtInGespeicherterFolge(bool $revealAtEnd, string $status): void {
-        // Gewählt so, dass die gemischte Folge NICHT die gespeicherte ist —
-        // sonst bewiese der Test nichts.
+        // Chosen so that the shuffled order is NOT the stored one —
+        // otherwise the test would prove nothing.
         $this->voteService->method('leaderboardFor')->willReturn([]);
         $room = $this->room('quiz', active: 7, revealAtEnd: $revealAtEnd);
 
@@ -360,7 +360,7 @@ class PublicRevealGateTest extends TestCase {
     }
 
     public function testAmEndeGesperrtBleibtGemischt(): void {
-        // Gegenstück: dieselben Fragen, „Auflösung am Ende", nur gesperrt.
+        // Counterpart: the same questions, "Reveal at the end", only locked.
         $room = $this->room('quiz', active: 7, revealAtEnd: true);
 
         $rank = $this->stateFor($room, $this->poll(7, 'rank', 'locked', 900, [
@@ -389,10 +389,10 @@ class PublicRevealGateTest extends TestCase {
     }
 
     public function testAufloesungAmEndeLockedBleibtLockedAberVerdeckt(): void {
-        // „Auflösung am Ende": 'locked' heißt nur „nach dem Umlegen des
-        // Schalters liegengeblieben". Der Status bleibt echt, aufgelöst ist
-        // trotzdem nichts — das sagt `revealed`, danach richten sich Handy
-        // und Beamer.
+        // "Reveal at the end": 'locked' only means "left over after flipping
+        // the switch". The status stays genuine, yet nothing is
+        // revealed — that is what `revealed` says, and phone and
+        // projector go by it.
         $this->myVotes['tok-a'] = $this->vote(7, 'tok-a', ['value' => 'AA', 'correct' => true, 'points' => 950]);
         $this->current = $this->poll(7, 'choice', 'locked', 900);
 
@@ -418,7 +418,7 @@ class PublicRevealGateTest extends TestCase {
     }
 
     public function testJeFrageLockedBleibtLocked(): void {
-        // Je-Frage-Auflösung: 'locked' IST aufgelöst — der Status bleibt echt.
+        // Per-question reveal: 'locked' IS revealed — the status stays genuine.
         $this->voteService->method('leaderboardFor')->willReturn([]);
         $state = $this->stateFor($this->room('quiz', active: 7), $this->poll(7, 'choice', 'locked', 900));
 
@@ -435,15 +435,15 @@ class PublicRevealGateTest extends TestCase {
     }
 
     public function testUmfrageLockedBleibtLocked(): void {
-        // Umfrage: 'locked' = pausiert, keine Lösung zu verstecken.
+        // Poll: 'locked' = paused, no solution to hide.
         $state = $this->stateFor($this->room('poll', active: 7, revealAtEnd: true), $this->poll(7, 'choice', 'locked', 900));
 
         $this->assertSame('locked', $state['poll']['status']);
     }
 
     public function testSummaryVerdecktesLockedBleibtLocked(): void {
-        // Dieselbe Regel in der Gesamtauswertung: Status echt, `revealed` false,
-        // keine Lösung.
+        // The same rule in the overall summary: status genuine, `revealed` false,
+        // no solution.
         $room = $this->room('quiz', active: 2, revealAtEnd: true);
         $this->deck(
             $this->poll(1, 'choice', 'locked', 900),
@@ -460,7 +460,7 @@ class PublicRevealGateTest extends TestCase {
         }
     }
 
-    // ── Hilfen ─────────────────────────────────────────────────────────────
+    // ── Helpers ────────────────────────────────────────────────────────────
 
     private function deck(Poll ...$polls): void {
         $this->polls->method('findByRoom')->willReturn($polls);

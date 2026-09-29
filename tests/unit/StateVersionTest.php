@@ -20,14 +20,14 @@ use PHPUnit\Framework\TestCase;
 use ReflectionProperty;
 
 /**
- * Der öffentliche Versions-Fingerabdruck (StateService::stateVersion).
+ * The public version fingerprint (StateService::stateVersion).
  *
- * Er geht an jedes Handy und an den Beamer. Roh enthielt er crc32(answerKey)
- * und den Stimmen-Stempel (CRC über alle Payloads samt correct/points) — beides
- * ließ sich bei bekannten Options-IDs durchprobieren, also lag die Lösung offen.
- * Jetzt ist er ein Schlüssel-Hash: 24 Hex-Zeichen, nur auf Gleichheit
- * vergleichbar. Er muss trotzdem genau dann springen, wenn sich etwas ändert —
- * sonst quittiert der 204-Cache neue Stimmen weg.
+ * It goes to every phone and to the projector. In raw form it contained
+ * crc32(answerKey) and the vote stamp (CRC over all payloads including
+ * correct/points) — with known option IDs both could be brute-forced, so the
+ * solution was exposed. Now it is a keyed hash: 24 hex characters, only
+ * comparable for equality. It must still change exactly when something
+ * changes — otherwise the 204 cache swallows new votes.
  */
 #[CoversClass(StateService::class)]
 class StateVersionTest extends TestCase {
@@ -93,7 +93,7 @@ class StateVersionTest extends TestCase {
     }
 
     public function testGeaenderteStimmeAendertDieVersion(): void {
-        // Upsert: Anzahl gleich, Payload anders -> anderer Stempel.
+        // Upsert: same count, different payload -> different stamp.
         $before = $this->version();
         $this->stamp = '987654321';
 
@@ -144,8 +144,8 @@ class StateVersionTest extends TestCase {
     }
 
     public function testVersionHaengtAmInstanzGeheimnis(): void {
-        // Wer den Schlüssel nicht kennt, kann Kandidaten-Lösungen nicht gegen
-        // die Version prüfen.
+        // Whoever does not know the key cannot check candidate solutions
+        // against the version.
         $before = $this->version();
         $this->secret = 'anderes-geheimnis';
 
@@ -153,8 +153,8 @@ class StateVersionTest extends TestCase {
     }
 
     public function testAufloesungAmEndeUmschaltenAendertDieVersion(): void {
-        // Gesperrte Frage, danach „Auflösung am Ende" ein: kein Status ändert
-        // sich, aber Handy und Beamer dürfen die Auflösung nicht mehr zeigen.
+        // Locked question, then "Reveal at the end" switched on: no status
+        // changes, but phone and projector must no longer show the reveal.
         $this->poll->setStatus('locked');
         $shown = $this->version();
         $hidden = $this->version(revealAtEnd: true);
@@ -165,7 +165,7 @@ class StateVersionTest extends TestCase {
     }
 
     public function testAufloesungAmEndeBeiLaufenderFrageAendertNichts(): void {
-        // Laufende Frage: verdeckt so oder so — kein Anlass für volle Polls.
+        // Running question: hidden either way — no reason for full polls.
         $this->assertSame($this->version(), $this->version(revealAtEnd: true));
     }
 
@@ -176,8 +176,8 @@ class StateVersionTest extends TestCase {
     }
 
     public function testLobbySiehtZuruecksetzenProbelaufUndTitel(): void {
-        // Zurücksetzen/Probelauf-Schalter löschen alle Spielenden; der eigene
-        // Heartbeat bringt die Anwesenheit sofort wieder auf den alten Wert.
+        // Reset and the practice-run toggle delete all players; their own
+        // heartbeat immediately brings presence back to its old value.
         $base = $this->version(active: 0);
 
         $this->players = 0;
@@ -193,7 +193,7 @@ class StateVersionTest extends TestCase {
     }
 
     public function testBearbeiteteFrageOhneStimmenAendertDieVersion(): void {
-        // Umfrage: Bearbeiten ändert weder Status noch Startzeit noch Stempel.
+        // Poll: editing changes neither status nor start time nor stamp.
         $before = $this->version();
         $this->poll->setQuestion('Neu formuliert?');
 

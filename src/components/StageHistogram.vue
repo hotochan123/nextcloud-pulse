@@ -4,16 +4,16 @@
 -->
 <template>
 	<div class="shist">
-		<!-- Band 1: der Median steht ÜBER den Säulen … -->
+		<!-- Band 1: the median sits ABOVE the columns … -->
 		<div class="shist-med">
 			<span v-if="medPct !== null" class="shist-med-lbl" :data-flip="medPct > 88 ? '' : null" :style="{ left: medPct + '%' }">
 				{{ t('pulse', 'median {value}', { value: num(median) }) }}
 			</span>
 		</div>
 
-		<!-- Zwei Rasterzeilen statt einer Spalte je Wert: nur so hat der
-		     Auftragsbereich eine feste Höhe, gegen die die Prozenthöhe der Säule
-		     rechnen kann. In einer inhaltshohen Spalte bliebe sie bei 0. -->
+		<!-- Two grid rows instead of one column per value: only then does the
+		     plot area have a fixed height that the column's percentage height can
+		     resolve against. In a content-sized column it would stay at 0. -->
 		<div class="shist-cols" :style="gridStyle">
 			<span v-if="medPct !== null" class="shist-med-line" :style="{ left: medPct + '%' }" aria-hidden="true" />
 			<span v-for="row in rows" :key="'c' + row.value" class="shist-cnt" :data-zero="row.count ? null : ''">{{ row.count }}</span>
@@ -26,9 +26,9 @@
 			<span v-for="row in rows" :key="row.value">{{ row.value }}</span>
 		</div>
 
-		<!-- … und der Mittelwert UNTER ihnen, auf der Achse. Zwei Bänder heißt:
-		     die beiden können sich nicht überlagern, egal wie nah die Werte
-		     beieinanderliegen (§7.2, löst N2). -->
+		<!-- … and the mean BELOW them, on the axis. Two bands means:
+		     the two cannot overlap, no matter how close the values
+		     are to each other (§7.2, resolves N2). -->
 		<div class="shist-avg">
 			<span v-if="avgPct !== null" class="shist-avg-mark" :style="{ left: avgPct + '%' }">
 				<span class="shist-tri" aria-hidden="true" />
@@ -45,19 +45,19 @@
 
 <script>
 /*
- * Skala einzel am Beamer (Redesign §7.2).
+ * Single scale question on the projector (redesign notes §7.2, not in the public repository).
  *
- * Die Säulen füllen die Bühne statt bei 44 % ihrer Höhe zu enden, und die
- * beiden Kennwerte liegen in getrennten Bändern — Median über den Säulen,
- * Mittelwert auf der Achse darunter. Vorher lagen beide als Plaketten über
- * derselben Säule und überdeckten sich, sobald die Werte nah beieinanderlagen.
+ * The columns fill the stage instead of ending at 44 % of its height, and the
+ * two statistics sit in separate bands — median above the columns, mean on
+ * the axis below. Before, both sat as badges above the same column and
+ * covered each other as soon as the values were close together.
  */
 import { fmtNum } from '../util/format.js'
 
 export default {
 	name: 'StageHistogram',
 	props: {
-		// [{ value, count }] — vollständige Skala, auch Werte ohne Stimmen.
+		// [{ value, count }] — the complete scale, including values without votes.
 		rows: { type: Array, default: () => [] },
 		average: { type: Number, default: null },
 		median: { type: Number, default: null },
@@ -82,7 +82,7 @@ export default {
 		num(v) {
 			return fmtNum(v)
 		},
-		// Wert -> Mitte seiner Säule in Prozent der Bühnenbreite.
+		// Value -> centre of its column as a percentage of the stage width.
 		pos(v) {
 			if (v === null || v === undefined || !this.rows.length) return null
 			const min = Number(this.rows[0].value)
@@ -97,10 +97,10 @@ export default {
 </script>
 
 <style scoped>
-/* Alles in em der Bühne — die Schrumpf-Schleife nimmt das Diagramm mit (§2.3). */
+/* Everything in em of the stage — the shrink loop takes the chart along (§2.3). */
 .shist { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; gap: 0.3em; }
 
-/* Band des Medians: eigene Zeile, damit die Beschriftung nie in die Säulen ragt. */
+/* Median band: a row of its own, so the label never reaches into the columns. */
 .shist-med { position: relative; height: 1.3em; flex: 0 0 auto; }
 .shist-med-lbl {
 	position: absolute; top: 0; transform: translateX(-50%);
@@ -108,8 +108,8 @@ export default {
 	background: var(--pulse-screen-bg); padding-inline: 0.25em;
 	font-variant-numeric: tabular-nums;
 }
-/* Am rechten Rand kippt die Beschriftung auf die andere Seite der Linie —
-   der einzige Sonderfall (§7.2). */
+/* At the right edge the label flips to the other side of the line —
+   the only special case (§7.2). */
 .shist-med-lbl[data-flip] { transform: translateX(-100%); }
 
 .shist-cols {
@@ -122,11 +122,11 @@ export default {
 }
 .shist-cnt { text-align: center; font-weight: 700; font-variant-numeric: tabular-nums; padding-block: 0.14em; }
 .shist-cnt[data-zero] { color: var(--pulse-meta); }
-/* Eigener Auftragsbereich: die Prozenthöhe bezieht sich auf ihn, nicht auf die
-   Spalte samt Zahl — sonst schöbe ein 100-%-Balken die Zahl aus dem Bild. */
+/* A plot area of its own: the percentage height refers to it, not to the
+   column including the number — otherwise a 100 % bar would push the number out of view. */
 .shist-plot { min-height: 0; display: flex; align-items: flex-end; }
 .shist-bar { width: 100%; border-radius: 0.12em 0.12em 0 0; background: var(--pulse-primary); transition: height 0.7s cubic-bezier(.22, 1, .36, 1); }
-/* Nullwerte als Stummel: ohne ihn liest sich der leere Wert als Achsenstück. */
+/* Zero values as stubs: without one, the empty value reads as a piece of axis. */
 .shist-plot[data-zero] .shist-bar { height: 0.12em !important; background: var(--pulse-bar-track); }
 
 .shist-axis { flex: 0 0 auto; display: grid; gap: 0.5em; border-top: 0.06em solid var(--pulse-border); padding-top: 0.2em; }

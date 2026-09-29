@@ -31,18 +31,18 @@ use PHPUnit\Framework\TestCase;
 use ReflectionProperty;
 
 /**
- * /vote im eigenen Tempo (VoteService::recordSelfVote).
+ * /vote in self-paced mode (VoteService::recordSelfVote).
  *
- * Statt des Cursors zählt die offene Fortschrittszeile der Person, statt
- * poll.startedAt ihre persönliche Uhr. Der Payload trägt `limit` und das
- * Korrekturfenster `fw` der ERSTEN Antwort — damit ist der Korrektur-Exploit
- * zu (erst tippen, Urteil nach 3 s ansehen, dann per keyboard:true mit 6 s
- * korrigieren). Freitext, den weder die Akzeptanz- noch die Ablehnliste
- * kennt, ist `pending` und bringt 0 Punkte, bis der Moderator bewertet.
- * Nach dem Speichern wird der Spieler nachgeprüft (mitten in der Anfrage
- * entfernt?) und bei Freitext der Schlüssel sperrend nachgelesen (mitten in
- * einer Bewertung gerechnet?); eine Freitext-Korrektur läuft wie das Bewerten
- * unter der Raumsperre. Der moderierte Pfad fasst die neuen Abhängigkeiten nie an.
+ * Instead of the cursor, the person's open progress row counts; instead of
+ * poll.startedAt, their personal clock. The payload carries `limit` and the
+ * correction window `fw` of the FIRST answer — which closes the correction
+ * exploit (tap first, look at the verdict after 3 s, then correct via
+ * keyboard:true with 6 s). Free text that neither the accept list nor the
+ * reject list knows is `pending` and scores 0 points until the moderator grades it.
+ * After saving, the player is checked again (removed in the middle of the
+ * request?) and for free text the key is re-read under lock (scored in the middle
+ * of a grading?); a free-text correction runs under the room lock, just like
+ * grading. The moderated path never touches the new dependencies.
  */
 #[CoversClass(VoteService::class)]
 class SelfVoteTest extends TestCase {
@@ -55,18 +55,18 @@ class SelfVoteTest extends TestCase {
     private PaceService&MockObject $pace;
     private int $now = self::NOW;
 
-    /** Offene Zeile der Person, wie PaceService::openRow sie liefert. */
+    /** The person's open row, as PaceService::openRow returns it. */
     private ?Progress $open = null;
     /** @var array<int, Poll> */
     private array $polls = [];
     private bool $hasPlayer = true;
-    /** Vorhandene Stimme — dann scheitert insert() am Unique-Index. */
+    /** Existing vote — then insert() fails on the unique index. */
     private ?Vote $existing = null;
     private ?Vote $inserted = null;
     private ?Vote $updated = null;
     /**
-     * Antwortschlüssel, den eine Bewertung direkt nach dem ersten Lesen der
-     * Frage committet — spätere Lesezugriffe sehen ihn, das erste nicht.
+     * Answer key that a grading commits right after the first read of the
+     * question — later reads see it, the first one does not.
      */
     private ?string $keyAfterRead = null;
     private int $locks = 0;
@@ -141,10 +141,10 @@ class SelfVoteTest extends TestCase {
         }
     }
 
-    // ── Welche Frage, welche Uhr ───────────────────────────────────────────
+    // ── Which question, which clock ────────────────────────────────────────
 
     public function testOhnePollIdBitteNeuLaden(): void {
-        // Altes Bundle: ohne Cursor wüsste der Server nicht, welche Frage gemeint ist.
+        // Old bundle: without the cursor the server would not know which question is meant.
         $this->open = $this->row(11, self::NOW - 5);
 
         $this->assertRejected('Please reload the page.', fn () => $this->vote('BB', pollId: null));
@@ -157,7 +157,7 @@ class SelfVoteTest extends TestCase {
     }
 
     public function testOhneOffeneZeileIstDieFrageZu(): void {
-        // Die Person hat die Frage schon verlassen (/next) oder nie erreicht.
+        // The person has already left the question (/next) or never reached it.
         $this->assertRejected('This question is closed.', fn () => $this->vote('BB', pollId: 11));
     }
 
@@ -168,7 +168,7 @@ class SelfVoteTest extends TestCase {
     }
 
     public function testZeitLaeuftAbDemPersoenlichenStart(): void {
-        // poll.startedAt ist im eigenen Tempo bedeutungslos (moderiert wäre die Zeit längst um).
+        // poll.startedAt is meaningless in self-paced mode (moderated, the time would long be up).
         $this->polls[11]->setStartedAt(self::NOW - 1000);
         $this->open = $this->row(11, self::NOW - 5);
 
@@ -187,7 +187,7 @@ class SelfVoteTest extends TestCase {
     }
 
     public function testGenauAmLimitGehtEsNoch(): void {
-        // Dieselbe Grenze wie moderiert: elapsed > limit.
+        // Same boundary as moderated: elapsed > limit.
         $this->open = $this->row(11, self::NOW - 20);
 
         $this->vote('BB');
@@ -196,7 +196,7 @@ class SelfVoteTest extends TestCase {
     }
 
     public function testOhneTimerKeinLimitUndFlachePunkte(): void {
-        // Hausaufgabe: zwischen /next und Antwort kann eine Nacht liegen.
+        // Homework: a whole night can pass between /next and the answer.
         $this->open = $this->row(11, self::NOW - 50_000);
 
         $this->vote('BB', room: $this->room(timed: false));
@@ -233,11 +233,11 @@ class SelfVoteTest extends TestCase {
         $this->assertRejected('No such option.', fn () => $this->vote('ZZ'));
     }
 
-    // ── Korrektur ──────────────────────────────────────────────────────────
+    // ── Correction ─────────────────────────────────────────────────────────
 
     public function testExploitKorrekturMitTastaturflagNachDemErstenFenster(): void {
-        // Erste Antwort per Tipp (fw 3), Urteil nach 3 s gesehen, dann mit
-        // keyboard:true (6 s) „korrigieren" — das Fenster der ERSTEN Antwort zählt.
+        // First answer by tap (fw 3), verdict seen after 3 s, then "correct" it
+        // with keyboard:true (6 s) — the window of the FIRST answer counts.
         $this->now = self::NOW + 4;
         $this->open = $this->row(11, self::NOW - 5);
         $this->existing = $this->vote11(['value' => 'AA', 'points' => 0, 'correct' => false, 'elapsed' => 5, 'limit' => 20, 'fw' => 3], self::NOW);
@@ -306,11 +306,11 @@ class SelfVoteTest extends TestCase {
         $this->vote('BB');
     }
 
-    // ── Freitext ───────────────────────────────────────────────────────────
+    // ── Free text ──────────────────────────────────────────────────────────
 
     public static function freitexte(): array {
         return [
-            // Antwort, correct, pending, Punkte > 0
+            // answer, correct, pending, points > 0
             'unbekannt: wird geprüft' => ['Saturn', false, true, false],
             'abgelehnt: falsch, nicht offen' => [' MARS ', false, false, false],
             'angenommen: richtig' => [' jupiter ', true, false, true],
@@ -330,7 +330,7 @@ class SelfVoteTest extends TestCase {
         $this->assertSame($points, $payload['points'] > 0);
     }
 
-    // ── Freitext gegen gleichzeitiges Bewerten ─────────────────────────────
+    // ── Free text vs. simultaneous grading ─────────────────────────────────
 
     public function testFreitextOhneBewertungDazwischenOhneSperre(): void {
         $this->open = $this->row(13, self::NOW - 5);
@@ -343,8 +343,8 @@ class SelfVoteTest extends TestCase {
     }
 
     public function testFreitextMitAltemSchluesselWirdNachgezogen(): void {
-        // Gerechnet vor, gespeichert nach dem Durchgang der Bewertung: ohne
-        // Nachlesen bliebe „Saturn" auf „wird geprüft" mit 0 Punkten.
+        // Scored before, saved after the grading pass: without re-reading,
+        // "Saturn" would stay at "Being checked" with 0 points.
         $this->open = $this->row(13, self::NOW - 5);
         $this->keyAfterRead = json_encode(['accepted' => ['Jupiter', 'Saturn'], 'rejected' => ['Mars']]);
 
@@ -371,8 +371,8 @@ class SelfVoteTest extends TestCase {
     }
 
     public function testFreitextKorrekturUnterDerSperreMitFrischemSchluessel(): void {
-        // Die Bewertung von „Venus" committet, während die Korrektur unterwegs
-        // ist: die Korrektur rechnet unter der Sperre mit dem neuen Schlüssel.
+        // The grading of "Venus" commits while the correction is in flight:
+        // the correction scores under the lock with the new key.
         $this->now = self::NOW + 1;
         $this->open = $this->row(13, self::NOW - 5);
         $this->existing = $this->vote11(['value' => 'Saturn', 'points' => 0, 'correct' => false, 'elapsed' => 5, 'norm' => 'saturn', 'pending' => true, 'limit' => 20, 'fw' => 3], self::NOW);
@@ -398,11 +398,11 @@ class SelfVoteTest extends TestCase {
         $this->assertTrue($this->payload($this->updated)['fixed']);
     }
 
-    // ── Fenster und Spieler ────────────────────────────────────────────────
+    // ── Window and player ──────────────────────────────────────────────────
 
     public static function fensterZu(): array {
         return [
-            // openedAt, closesAt, closedAt, releasedAt, Meldung
+            // openedAt, closesAt, closedAt, releasedAt, message
             'Entwurf' => [0, 0, 0, 0, 'The quiz has not started yet.'],
             'manuell geschlossen' => [self::NOW - 100, 0, self::NOW - 1, 0, 'The quiz is closed.'],
             'Frist abgelaufen (Grenzsekunde)' => [self::NOW - 100, self::NOW, 0, 0, 'The quiz is closed.'],
@@ -442,8 +442,8 @@ class SelfVoteTest extends TestCase {
     }
 
     public function testMittenInDerStimmeEntferntIstSieWiederWeg(): void {
-        // assertStillJoined hat geräumt und meldet dasselbe wie eine Entfernung
-        // Millisekunden früher.
+        // assertStillJoined has cleaned up and reports the same as a removal
+        // milliseconds earlier.
         $this->open = $this->row(11, self::NOW - 5);
         $this->pace->method('assertStillJoined')
             ->willThrowException(new \InvalidArgumentException('Please choose a name first.'));
@@ -460,7 +460,7 @@ class SelfVoteTest extends TestCase {
         $this->assertRejected('Please choose a name first.', fn () => $this->vote('BB'));
     }
 
-    // ── Moderiert unverändert ──────────────────────────────────────────────
+    // ── Moderated, unchanged ───────────────────────────────────────────────
 
     public function testModeriertFasstDieNeuenAbhaengigkeitenNieAn(): void {
         $pace = $this->createMock(PaceService::class);
@@ -480,14 +480,14 @@ class SelfVoteTest extends TestCase {
 
         $this->service->recordVote($room, self::TOK, 'BB', false, 11);
 
-        // Moderierter Payload wie bisher: ohne limit/fw.
+        // Moderated payload as before: without limit/fw.
         $this->assertSame(
             ['value' => 'BB', 'points' => (new QuizService())->points(5, 20), 'correct' => true, 'elapsed' => 5],
             $this->payload($this->inserted),
         );
     }
 
-    // ── Helfer ─────────────────────────────────────────────────────────────
+    // ── Helpers ────────────────────────────────────────────────────────────
 
     private function vote(mixed $value, ?int $pollId = 11, bool $keyboard = false, ?Room $room = null): void {
         $this->service->recordVote($room ?? $this->room(), self::TOK, $value, $keyboard, $pollId);
@@ -563,7 +563,7 @@ class SelfVoteTest extends TestCase {
         return $vote;
     }
 
-    /** Der UNIQUE-Verstoß, mit dem die Datenbank die zweite Antwort ablehnt. */
+    /** The UNIQUE violation with which the database rejects the second answer. */
     private function uniqueViolation(): Exception {
         $e = $this->createMock(Exception::class);
         $e->method('getReason')->willReturn(Exception::REASON_UNIQUE_CONSTRAINT_VIOLATION);

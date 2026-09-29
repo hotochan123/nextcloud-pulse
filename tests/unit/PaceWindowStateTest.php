@@ -13,9 +13,9 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Fensterzustand im eigenen Tempo: steht nirgends, sondern folgt aus den
- * Zeitstempeln. Kritisch ist die Grenze der Frist — in der Sekunde closes_at
- * ist das Fenster ZU, überall gleich (Zustand, Stimmen, Versionen).
+ * Self-paced window state: it is not stored anywhere but follows from the
+ * timestamps. The critical part is the deadline boundary — in the second of
+ * closes_at the window is CLOSED, the same everywhere (state, votes, versions).
  */
 #[CoversClass(PaceService::class)]
 class PaceWindowStateTest extends TestCase {
@@ -48,17 +48,17 @@ class PaceWindowStateTest extends TestCase {
     }
 
     public function testFreigabeSchlaegtAlles(): void {
-        // Offen gelassene Frist, kein closed_at — freigegeben ist freigegeben.
+        // Deadline left open, no closed_at — released is released.
         $room = $this->room(openedAt: self::NOW - 100, closesAt: self::NOW + 3600, releasedAt: self::NOW - 1);
         $this->assertSame('released', PaceService::deriveState($room, self::NOW));
-        // Auch ein Raum, der nach Zeitstempeln wie ein Entwurf aussieht.
+        // Even a room that looks like a draft by its timestamps.
         $this->assertSame('released', PaceService::deriveState($this->room(releasedAt: self::NOW), self::NOW));
     }
 
     // ── effectiveClosedAt ──────────────────────────────────────────────────
 
     public function testSchlussManuellGeschlossen(): void {
-        // closed_at gewinnt, auch wenn die Frist danach abgelaufen ist.
+        // closed_at wins, even if the deadline expired afterwards.
         $room = $this->room(openedAt: self::NOW - 100, closesAt: self::NOW - 10, closedAt: self::NOW - 50);
         $this->assertSame(self::NOW - 50, PaceService::effectiveClosedAt($room, self::NOW));
     }
@@ -128,7 +128,7 @@ class PaceWindowStateTest extends TestCase {
         $this->assertFalse(PaceService::isSelf($poll));
     }
 
-    // ── Helfer ─────────────────────────────────────────────────────────────
+    // ── Helpers ────────────────────────────────────────────────────────────
 
     private function room(int $openedAt = 0, int $closesAt = 0, int $closedAt = 0, int $releasedAt = 0): Room {
         $room = new Room();

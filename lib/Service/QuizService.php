@@ -10,19 +10,19 @@ namespace OCA\Pulse\Service;
 use OCA\Pulse\Db\Player;
 
 /**
- * Quiz-Wertung (Kahoot-artig): richtige Antwort bringt Punkte, schneller mehr.
- * Reine Rechenlogik ohne DB — testbar, und leicht zu justieren.
+ * Quiz scoring (Kahoot-like): a correct answer earns points, a faster one more.
+ * Pure computation without a DB — testable and easy to tune.
  */
 class QuizService {
-    /** Volle Punktzahl für eine sofort-richtige Antwort. */
+    /** Full score for an immediately correct answer. */
     public const BASE_POINTS = 1000;
 
     /**
-     * Tempo-Punkte für eine RICHTIGE Antwort (Korrektheit prüft der Aufrufer je
-     * Fragetyp). Sofort → BASE, am Zeitlimit → BASE/2. Ohne Zeitlimit flache BASE.
+     * Speed points for a CORRECT answer (the caller checks correctness per
+     * question type). Immediately → BASE, at the time limit → BASE/2. Without a time limit, a flat BASE.
      *
-     * @param int $elapsed    vergangene Sekunden seit Fragestart
-     * @param int $timeLimit  Zeitlimit der Frage (0 = keins)
+     * @param int $elapsed    seconds elapsed since the question started
+     * @param int $timeLimit  time limit of the question (0 = none)
      */
     public function points(int $elapsed, int $timeLimit): int {
         if ($timeLimit <= 0) {
@@ -33,17 +33,17 @@ class QuizService {
     }
 
     /**
-     * Rangliste bauen. Tie-Break bei Punktgleichstand über die kürzere Gesamt-
-     * Antwortzeit (summiertes elapsed) -> echte Gleichstände selten. Nur wenn
-     * Punkte UND Zeit exakt gleich sind, wird der Rang geteilt (1,2,2,4 …); der
-     * nächste Rang springt entsprechend. Restsortierung alphabetisch. Jede Zeile
-     * trägt intern Token + Zeit mit; vor dem Ausliefern MUSS das Token entfernt
-     * werden (fremdes Cookie-Geheimnis), die Zeit ist rein intern.
+     * Build the leaderboard. Ties on points are broken by the shorter total
+     * answer time (summed elapsed) -> real ties are rare. Only when
+     * points AND time are exactly equal is the rank shared (1,2,2,4 …); the
+     * next rank skips accordingly. The rest is sorted alphabetically. Every row
+     * internally carries token + time; the token MUST be removed before it is
+     * sent out (someone else's cookie secret), the time is purely internal.
      *
      * @param Player[]            $players
-     * @param array<string,int>   $pointsByToken  Punktsumme je Token
-     * @param array<string,int>   $correctByToken Anzahl richtiger Antworten je Token
-     * @param array<string,int>   $timeByToken    Summierte Antwortzeit (elapsed) je Token
+     * @param array<string,int>   $pointsByToken  point total per token
+     * @param array<string,int>   $correctByToken number of correct answers per token
+     * @param array<string,int>   $timeByToken    summed answer time (elapsed) per token
      * @return list<array{token:string, rank:int, nickname:string, score:int, correct:int, time:int}>
      */
     public function leaderboard(array $players, array $pointsByToken, array $correctByToken, array $timeByToken = []): array {
@@ -58,10 +58,10 @@ class QuizService {
                 'time' => $timeByToken[$token] ?? 0,
             ];
         }
-        // Punkte absteigend, dann kürzere Gesamtzeit, dann Name. Die Zeit zählt NUR
-        // bei Punkten > 0: sonst stünde, wer nie geantwortet hat (Zeit 0), vor
-        // jemandem, der falsch — aber schnell — geantwortet hat. Alle Punktlosen
-        // teilen sich daher einen Rang.
+        // Points descending, then shorter total time, then name. The time counts ONLY
+        // with points > 0: otherwise someone who never answered (time 0) would rank
+        // ahead of someone who answered wrongly — but quickly. All players without
+        // points therefore share one rank.
         usort($rows, static function (array $a, array $b): int {
             $ta = $a['score'] > 0 ? $a['time'] : 0;
             $tb = $b['score'] > 0 ? $b['time'] : 0;
@@ -69,7 +69,7 @@ class QuizService {
                 ?: ($ta <=> $tb)
                 ?: strcasecmp($a['nickname'], $b['nickname']);
         });
-        // Geteilter Rang NUR bei exakt gleichem (Punkte, Zeit) -> nächster springt.
+        // Shared rank ONLY for exactly equal (points, time) -> the next one skips.
         $rank = 0;
         $prevKey = null;
         foreach ($rows as $i => &$row) {

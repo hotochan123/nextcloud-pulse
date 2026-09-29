@@ -14,9 +14,9 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Eingefrorene Reihenfolge: die einzige Quelle für „Frage k von n" und die
- * nächste Frage. `seq` ist immer der Index in der VOLLEN Reihenfolge — auch
- * wenn eine Frage fehlt (Abwehr), damit k/n auf allen Sichten übereinstimmen.
+ * Frozen order: the single source for "Question k of n" and the
+ * next question. `seq` is always the index in the FULL order — even
+ * when a question is missing (defensive), so that k/n agree across all views.
  */
 #[CoversClass(PaceService::class)]
 class PaceOrderTest extends TestCase {
@@ -61,13 +61,13 @@ class PaceOrderTest extends TestCase {
     public function testFehlendeFrageWirdUebersprungenSeqBleibtVoll(): void {
         $room = $this->room('[11,12,13]');
         $this->assertSame(['pollId' => 13, 'seq' => 2], PaceService::nextAfter($room, 11, [11, 13]));
-        // Die gelöschte Frage selbst bleibt ein gültiges $after (offene Zeile einer gelöschten Frage).
+        // The deleted question itself stays a valid $after (open row of a deleted question).
         $this->assertSame(['pollId' => 13, 'seq' => 2], PaceService::nextAfter($room, 12, [11, 13]));
-        // Fehlt die erste Frage, beginnt es bei der zweiten mit seq 1.
+        // If the first question is missing, it starts at the second one with seq 1.
         $this->assertSame(['pollId' => 12, 'seq' => 1], PaceService::nextAfter($room, 0, [12, 13]));
-        // Ohne Filter zählt die volle Reihenfolge.
+        // Without a filter, the full order counts.
         $this->assertSame(['pollId' => 12, 'seq' => 1], PaceService::nextAfter($room, 11));
-        // Nichts mehr übrig.
+        // Nothing left.
         $this->assertNull(PaceService::nextAfter($room, 12, [11, 12]));
     }
 

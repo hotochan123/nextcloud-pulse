@@ -3,23 +3,23 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 /*
- * Pulse — CSV-Downloads des Moderators mit Requesttoken.
+ * Pulse — the moderator's CSV downloads with a request token.
  *
- * Die Export-Route hat nur #[NoAdminRequired]; die SecurityMiddleware von
- * Nextcloud verlangt deshalb einen Requesttoken. Ein <a href download> oder
- * location.href schickt keinen Header mit -> 412 (derselbe Fehler, den
- * CHANGELOG 0.17 für die Bildroute behoben hat). Request::passesCSRFCheck
- * liest `requesttoken` aber auch aus der Query, also hängt er dort.
+ * The export route only has #[NoAdminRequired]; Nextcloud's SecurityMiddleware
+ * therefore requires a request token. An <a href download> or
+ * location.href sends no header -> 412 (the same error that
+ * CHANGELOG 0.17 fixed for the image route). Request::passesCSRFCheck
+ * also reads `requesttoken` from the query, though, so that is where it goes.
  */
 import { generateUrl } from '@nextcloud/router'
 import { getRequestToken } from '@nextcloud/auth'
 
 /**
- * Adresse des CSV-Exports. Den Token beim Aufruf lesen, nicht einmal merken:
- * Nextcloud kann ihn im Lauf einer Sitzung tauschen.
- * @param {string} code Raum-Code
- * @param {string} [view] '' (Ergebnisse je Frage) | 'players' | 'answers' (nur eigenes Tempo)
- * @return {string} URL mit Requesttoken
+ * URL of the CSV export. Read the token at call time, do not keep it:
+ * Nextcloud can swap it during a session.
+ * @param {string} code room code
+ * @param {string} [view] '' (results per question) | 'players' | 'answers' (self-paced only)
+ * @return {string} URL with request token
  */
 export function csvUrl(code, view = '') {
 	const q = (view ? 'view=' + encodeURIComponent(view) + '&' : '')
@@ -28,10 +28,10 @@ export function csvUrl(code, view = '') {
 }
 
 /**
- * CSV herunterladen (Knöpfe ohne <a>). Die Antwort ist ein Download
- * (Content-Disposition), die Seite bleibt also stehen.
- * @param {string} code Raum-Code
- * @param {string} [view] s. csvUrl
+ * Download a CSV (buttons without <a>). The response is a download
+ * (Content-Disposition), so the page stays where it is.
+ * @param {string} code room code
+ * @param {string} [view] see csvUrl
  */
 export function downloadCsv(code, view = '') {
 	window.location.assign(csvUrl(code, view))

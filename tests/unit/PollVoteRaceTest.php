@@ -22,11 +22,11 @@ use PHPUnit\Framework\TestCase;
 use ReflectionProperty;
 
 /**
- * Umfrage-Stimme (VoteService::recordVote, moderiert, kein Quiz): Upsert auf
- * (poll_id, voter_token). Zwei erste Stimmen desselben Tokens zugleich
- * (Doppeltipp, Wiederholung nach Netzfehler) finden beide keine Stimme, und
- * die zweite Einfügung scheitert am UNIQUE-Index. Das war eine 500; jetzt wird
- * sie zur Änderung der gerade eingefügten Stimme (last-write-wins wie sonst).
+ * Poll vote (VoteService::recordVote, moderated, no quiz): upsert on
+ * (poll_id, voter_token). Two first votes of the same token at the same time
+ * (double tap, retry after a network error) both find no vote, and
+ * the second insert fails on the UNIQUE index. That used to be a 500; now it
+ * becomes an update of the vote that was just inserted (last-write-wins as usual).
  */
 #[CoversClass(VoteService::class)]
 class PollVoteRaceTest extends TestCase {
@@ -70,7 +70,7 @@ class PollVoteRaceTest extends TestCase {
         $other->setVoterToken('tok');
         $other->setPayload(json_encode(['value' => 'AA']));
         $other->setCreatedAt(999);
-        // Erst keine Stimme, nach dem gescheiterten Einfügen die der anderen Anfrage.
+        // No vote at first; after the failed insert, the one from the other request.
         $this->votes->method('findByPollAndToken')->willReturnOnConsecutiveCalls(
             $this->throwException(new DoesNotExistException('keine Stimme')),
             $other,

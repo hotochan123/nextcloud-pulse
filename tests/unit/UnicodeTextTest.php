@@ -22,29 +22,29 @@ use PHPUnit\Framework\TestCase;
 use ReflectionProperty;
 
 /**
- * Unsichtbares in Wörtern und Namen (TallyService::cleanText).
+ * Invisible characters in words and names (TallyService::cleanText).
  *
- * Handys schicken gern Nullbreiten-Leerzeichen, NBSP oder ein „é" in zwei
- * Zeichen (macOS, NFD). Ohne Bereinigung wären „Kaffee" und „Kaffee\u{200B}"
- * zwei Wörter der Wolke und „Anna" stünde zweimal in der Rangliste — optisch
- * gleich, technisch verschieden.
+ * Phones like to send zero-width spaces, NBSP or an "é" as two
+ * characters (macOS, NFD). Without cleaning, "Kaffee" and "Kaffee\u{200B}"
+ * would be two words in the cloud and "Anna" would appear twice in the leaderboard —
+ * visually identical, technically different.
  *
- * Entfernt wird eine feste Liste (weiches Trennzeichen, Nullbreiten-Leerzeichen,
- * Richtungs-Steuerzeichen, Wortverbinder, BOM), NICHT alles aus \p{Cf}. Im
- * Wortinneren bleiben: U+200C (ZWNJ, Persisch „می‌خواهم"), U+200D (ZWJ, hält
- * Emoji wie 👩‍💻 zusammen) und die Tag-Zeichen U+E0020–E007F (Regionsflaggen
- * wie Schottland/England — ohne sie wären beide nur die schwarze Flagge 🏴).
- * An den Rändern fallen ZWNJ/ZWJ wie Leerraum.
+ * What gets removed is a fixed list (soft hyphen, zero-width space,
+ * direction control characters, word joiner, BOM), NOT everything in \p{Cf}. Inside
+ * a word these stay: U+200C (ZWNJ, Persian "می‌خواهم"), U+200D (ZWJ, holds
+ * emoji such as 👩‍💻 together) and the tag characters U+E0020–E007F (regional flags
+ * such as Scotland/England — without them both would just be the black flag 🏴).
+ * At the edges, ZWNJ/ZWJ are dropped like whitespace.
  */
 #[CoversClass(TallyService::class)]
 #[CoversClass(VoteService::class)]
 class UnicodeTextTest extends TestCase {
 
-    /** Persisch „ich will": ZWNJ zwischen Präfix und Stamm. */
+    /** Persian "I want": ZWNJ between prefix and stem. */
     private const PERSISCH = "\u{0645}\u{06CC}\u{200C}\u{062E}\u{0648}\u{0627}\u{0647}\u{0645}";
-    /** 🏴 + Tag-Folge „gbsct" + Abschluss. */
+    /** 🏴 + tag sequence "gbsct" + terminator. */
     private const SCHOTTLAND = "\u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}";
-    /** 🏴 + Tag-Folge „gbeng" + Abschluss. */
+    /** 🏴 + tag sequence "gbeng" + terminator. */
     private const ENGLAND = "\u{1F3F4}\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}";
 
     private PlayerMapper&MockObject $players;
@@ -114,7 +114,7 @@ class UnicodeTextTest extends TestCase {
         $this->assertSame('kaffee', TallyService::normalizeWord("\u{3000}KAFFEE\u{00A0}\u{200B}"));
     }
 
-    // ── Wortwolke: Stimmprüfung ────────────────────────────────────────────
+    // ── Word cloud: vote validation ────────────────────────────────────────
 
     public function testNurUnsichtbaresIstKeinWort(): void {
         $this->expectException(\InvalidArgumentException::class);
@@ -141,7 +141,7 @@ class UnicodeTextTest extends TestCase {
     }
 
     public function testPersischesWortMitZwnjBleibtEinWort(): void {
-        // Ohne ZWNJ wäre es ein anderes (falsch geschriebenes) Wort.
+        // Without the ZWNJ it would be a different (misspelled) word.
         $words = $this->service->normalizeValue($this->wordsPoll(3), [self::PERSISCH, "\u{200B}" . self::PERSISCH]);
 
         $this->assertSame([self::PERSISCH], $words);
@@ -155,7 +155,7 @@ class UnicodeTextTest extends TestCase {
     }
 
     public function testEnglandUndSchottlandSindZweiWoerter(): void {
-        // Mit \p{Cf} blieb von beiden nur 🏴 — die Wolke hätte sie vereint.
+        // With \p{Cf}, only 🏴 was left of both — the cloud would have merged them.
         $this->assertNotSame(TallyService::normalizeWord(self::ENGLAND), TallyService::normalizeWord(self::SCHOTTLAND));
 
         $words = $this->service->normalizeValue($this->wordsPoll(3), [self::ENGLAND, self::SCHOTTLAND]);
@@ -170,7 +170,7 @@ class UnicodeTextTest extends TestCase {
     }
 
     public function testKuerzungEndetNichtAufLeerraum(): void {
-        // Zeichen 40 ist ein Leerzeichen — nach dem Schnitt wird erneut bereinigt.
+        // Character 40 is a space — cleaning runs again after the cut.
         $word = str_repeat('x', 39) . ' Rest';
         $words = $this->service->normalizeValue($this->wordsPoll(3), [$word]);
 
@@ -184,7 +184,7 @@ class UnicodeTextTest extends TestCase {
         $this->assertSame([str_repeat('x', 39)], $words);
     }
 
-    // ── Spielernamen ───────────────────────────────────────────────────────
+    // ── Player names ───────────────────────────────────────────────────────
 
     public static function vergebeneNamenMitUnsichtbarem(): array {
         return [
@@ -211,7 +211,7 @@ class UnicodeTextTest extends TestCase {
     }
 
     public function testAltbestandMitUnsichtbaremNamenKollidiert(): void {
-        // Ein Name von vor der Bereinigung („Ben\u{200B}") belegt „Ben".
+        // A name from before the cleanup ("Ben\u{200B}") takes "Ben".
         $players = $this->createMock(PlayerMapper::class);
         $players->method('findByRoom')->willReturn([$this->player('tok-ben', "Ben\u{200B}")]);
         $players->expects($this->never())->method('register');
@@ -222,8 +222,8 @@ class UnicodeTextTest extends TestCase {
     }
 
     public function testNullbreiteZwischenLeerzeichenGibtEinLeerzeichen(): void {
-        // Erst Unsichtbares raus, dann Leerraum zusammenfassen — sonst bliebe
-        // ein doppeltes Leerzeichen, das im Browser wie eines aussieht.
+        // Invisible characters go first, then whitespace is collapsed — otherwise
+        // a double space would remain that looks like a single one in the browser.
         $this->players->expects($this->once())->method('register')
             ->with(1, 'tok-neu', 'Anna Lena', 1000)
             ->willReturn($this->player('tok-neu', 'Anna Lena'));
@@ -242,7 +242,7 @@ class UnicodeTextTest extends TestCase {
     }
 
     public function testVerbinderVorAkzentGibtDenselbenNamen(): void {
-        // Der Verbinder blockiert NFC; ohne ihn muss „René" herauskommen.
+        // The joiner blocks NFC; without it, "René" must come out.
         $this->assertSame(TallyService::nameKey("Ren\u{00E9}"), TallyService::nameKey("Rene\u{034F}\u{0301}"));
         $this->assertSame(TallyService::wordKey("Caf\u{00E9}"), TallyService::wordKey("Cafe\u{FE0F}\u{0301}"));
     }
@@ -291,7 +291,7 @@ class UnicodeTextTest extends TestCase {
     }
 
     public function testKuerzungAuf24ZeichenEndetNichtAufLeerzeichen(): void {
-        // Zeichen 24 ist das Leerzeichen vor dem Nachnamen.
+        // Character 24 is the space before the surname.
         $first = str_repeat('a', 23);
         $this->players->expects($this->once())->method('register')
             ->with(1, 'tok-neu', $first, 1000)

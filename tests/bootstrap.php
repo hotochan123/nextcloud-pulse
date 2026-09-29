@@ -6,21 +6,21 @@
 declare(strict_types=1);
 
 /**
- * Test-Bootstrap — bewusst OHNE `lib/base.php`.
+ * Test bootstrap — deliberately WITHOUT `lib/base.php`.
  *
- * Die Unit-Tests fassen nur reine Rechenlogik an (Wertung, Auszählung,
- * Textnormalisierung, Code-Erzeugung). Dafür genügt der Composer-Autoloader des
- * Servers (liefert OCP\…, u. a. die Entity-Basisklasse) plus ein PSR-4-Loader
- * für die App selbst. Vorteile: schnell, kein Session-/Config-Setup — und die
- * Tests können die Live-Instanz und ihre Datenbank gar nicht anfassen.
+ * The unit tests only touch pure computation (scoring, tallying,
+ * text normalisation, code generation). For that the server's Composer
+ * autoloader (provides OCP\…, including the Entity base class) plus a PSR-4 loader
+ * for the app itself is enough. Benefits: fast, no session/config setup — and the
+ * tests cannot touch the live instance or its database at all.
  *
- * Läuft im Nextcloud-Container (PHP-Erweiterungen tokenizer/xmlwriter fehlen
- * auf dem Host):
+ * Runs in the Nextcloud container (the PHP extensions tokenizer/xmlwriter are
+ * missing on the host):
  *   docker exec -u www-data nextcloud-nextcloud-1 \
  *     php /var/www/html/apps/pulse/tools/phpunit.phar \
  *     -c /var/www/html/apps/pulse/phpunit.xml
  *
- * NEXTCLOUD_ROOT überschreibt den Server-Pfad, falls die App woanders liegt.
+ * NEXTCLOUD_ROOT overrides the server path if the app lives somewhere else.
  */
 
 $ncRoot = getenv('NEXTCLOUD_ROOT') ?: dirname(__DIR__, 3);
@@ -34,19 +34,19 @@ if (!is_file($autoload)) {
 
 require $autoload;
 
-// Der Server-Autoloader kennt die PSR-Pakete unter 3rdparty/ nicht; ITimeFactory
-// erbt aber von Psr\Clock\ClockInterface, und ohne die Datei lässt sich die
-// Zeitquelle nicht mocken.
+// The server autoloader does not know the PSR packages under 3rdparty/; but
+// ITimeFactory extends Psr\Clock\ClockInterface, and without that file the
+// time source cannot be mocked.
 $psrClock = $ncRoot . '/3rdparty/psr/clock/src/ClockInterface.php';
 if (!interface_exists(\Psr\Clock\ClockInterface::class, false) && is_file($psrClock)) {
     require $psrClock;
 }
 
-// Ebenso Doctrine\DBAL: IDBConnection::quote() hat IQueryBuilder::PARAM_STR als
-// Vorgabewert, PHPUnit wertet ihn beim Mocken aus, und IQueryBuilder zieht
-// DBAL-Konstanten nach. Und Symfony String + HttpFoundation: DataDownloadResponse
-// (CSV-Export, ControllerInputTest) baut damit den Dateinamen im Header. Nur
-// diese Namensräume, nicht der ganze 3rdparty-Autoloader.
+// Likewise Doctrine\DBAL: IDBConnection::quote() has IQueryBuilder::PARAM_STR as
+// its default value, PHPUnit evaluates it when mocking, and IQueryBuilder pulls in
+// DBAL constants. And Symfony String + HttpFoundation: DataDownloadResponse
+// (CSV export, ControllerInputTest) uses them to build the file name in the header.
+// Only these namespaces, not the whole 3rdparty autoloader.
 spl_autoload_register(static function (string $class) use ($ncRoot): void {
     foreach ([
         'Doctrine\\DBAL\\' => '/3rdparty/doctrine/dbal/src/',
@@ -75,8 +75,8 @@ spl_autoload_register(static function (string $class): void {
     }
 });
 
-// Gemeinsame Test-Bausteine (z. B. PaceStateTestCase): OCA\Pulse\Tests\Unit\X
-// -> tests/unit/X.php. PHPUnit selbst lädt nur Dateien auf „Test.php".
+// Shared test building blocks (e.g. PaceStateTestCase): OCA\Pulse\Tests\Unit\X
+// -> tests/unit/X.php. PHPUnit itself only loads files ending in "Test.php".
 spl_autoload_register(static function (string $class): void {
     $prefix = 'OCA\\Pulse\\Tests\\Unit\\';
     if (!str_starts_with($class, $prefix)) {

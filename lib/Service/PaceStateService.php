@@ -25,29 +25,29 @@ use OCP\IDateTimeFormatter;
 use OCP\IL10N;
 
 /**
- * Lesesichten des Quiz im eigenen Tempo an einer Stelle: Handy- und
- * Beamer-Zustand, die Gesamtauswertung fürs Handy, die Bildfreigabe, die
- * Moderator-Ergebnisse, der Fortschritt je Person und Frage und die beiden
- * CSV-Sichten. StateService delegiert in der ersten Zeile hierher (über
- * PaceService::isSelf) — dessen moderierter Code bleibt so unberührt.
- * Schreibt nichts.
+ * Read views of the self-paced quiz in one place: phone and projector
+ * state, the overall summary for the phone, image access, the moderator
+ * results, the progress per person and question, and the two CSV views.
+ * StateService delegates here in its first line (via
+ * PaceService::isSelf) — so its moderated code stays untouched.
+ * Writes nothing.
  *
- * Regeln für alles, was öffentlich rausgeht:
- * - Urteil, Punkte und Rangliste nur aus endgültigen Stimmen
- *   (PaceService::isFinal mit correctable je Zeile). Nie eine Lösung und nie
- *   eine Verteilung vor der Freigabe, nie die Reihenfolge des Decks.
- * - Die Version ist ein Schlüssel-Hash über den fertig gebauten Zustand ohne
- *   serverNow. Alles Zeitgetriebene (Frist, Endgültigkeit, Zeitablauf) steht
- *   als Zustand im Payload — die Version springt also genau dann, ohne Job
- *   und ohne zweite Rechenvorschrift, die auseinanderlaufen könnte. Dafür
- *   darf außer serverNow nichts im Sekundentakt wechseln (keine Restzeit).
- * - Die teuren Raum-Aggregate (Beamer, öffentliche Rangliste) liegen 2 s im
- *   lokalen Cache; das Handy liest nur eigene Zeilen und Stimmen.
+ * Rules for everything that goes out publicly:
+ * - Verdict, points and leaderboard only from final votes
+ *   (PaceService::isFinal with correctable per row). Never a solution and never
+ *   a distribution before the release, never the order of the deck.
+ * - The version is a keyed hash over the fully built state without
+ *   serverNow. Everything time-driven (deadline, finality, time running out) is
+ *   in the payload as state — so the version jumps exactly then, without a job
+ *   and without a second computation rule that could drift apart. In return,
+ *   nothing except serverNow may change every second (no remaining time).
+ * - The expensive room aggregates (projector, public leaderboard) stay 2 s in
+ *   the local cache; the phone only reads its own rows and votes.
  */
 class PaceStateService {
-    /** Beamer-Zustand: fertiger Payload so viele Sekunden je Eimer im lokalen Cache. */
+    /** Projector state: the finished payload stays this many seconds per bucket in the local cache. */
     private const BEAMER_BUCKET = 2;
-    /** Beamer während des Rennens: höchstens so viele Ranglistenzeilen. */
+    /** Projector during the race: at most this many leaderboard rows. */
     private const BEAMER_TOP = 8;
 
     public function __construct(
@@ -63,26 +63,26 @@ class PaceStateService {
         private PresenceMapper $presenceMapper,
         private ITimeFactory $timeFactory,
         private IDateTimeFormatter $dateTimeFormatter,
-        private IConfig $config,                 // Geheimnis für PublicView
-        private ICacheFactory $cacheFactory,     // Beamer-Zustand 2 s
+        private IConfig $config,                 // secret for PublicView
+        private ICacheFactory $cacheFactory,     // projector state 2 s
         private IL10N $l10n,
     ) {
     }
 
-    // ── Öffentlicher Zustand (/state) ───────────────────────────────────────
+    // ── Public state (/state) ───────────────────────────────────────────────
 
     /**
-     * Zustand fürs Handy bzw. (spectate) für den Beamer. `results` ist im
-     * eigenen Tempo immer null — Verteilungen gibt es nur in /summary nach der
-     * Freigabe.
+     * State for the phone or (spectate) for the projector. `results` is
+     * always null when self-paced — distributions only exist in /summary after
+     * the release.
      *
-     * Der Beamer-Zustand darf von jedem abgerufen werden und liest das ganze
-     * Raum-Aggregat; der fertige Payload liegt deshalb je Raum und 2-s-Eimer
-     * im lokalen Cache. Fensterwechsel stehen im Schlüssel und greifen sofort
-     * (auch die ablaufende Frist, über den effektiven Schluss), Stimmen und
-     * Fortschritt erscheinen höchstens 2 s später. serverNow wird erst nach
-     * dem Cache eingesetzt; die Version (ohne serverNow) bleibt im Eimer
-     * gleich, 204 wirkt weiter. Ohne APCu wird jedes Mal gebaut.
+     * Anyone may fetch the projector state, and it reads the whole room
+     * aggregate; the finished payload is therefore kept in the local cache per
+     * room and 2-s bucket. Window changes are part of the key and take effect
+     * immediately (including the expiring deadline, via the effective close),
+     * votes and progress appear at most 2 s later. serverNow is only filled in
+     * after the cache; the version (without serverNow) stays the same within
+     * the bucket, so 204 keeps working. Without APCu it is built every time.
      */
     public function publicState(Room $room, ?string $voterToken, bool $spectate): array {
         $now = $this->timeFactory->getTime();
@@ -103,11 +103,11 @@ class PaceStateService {
     }
 
     /**
-     * Version eines fertig gebauten Payloads (Handy, Beamer, Moderator-
-     * Ergebnisse, Fortschritt): undurchsichtiger Schlüssel-Hash ohne serverNow.
-     * Im Fortschritt bleibt außerdem „zuletzt gesehen" draußen — das wechselt
-     * mit jedem Handy-Heartbeat (~1,3 s), und der Moderator bekäme im Rennen
-     * nie ein 204. Im Hash steht nur `online`.
+     * Version of a fully built payload (phone, projector, moderator
+     * results, progress): opaque keyed hash without serverNow.
+     * In the progress, "last seen" is also left out — it changes
+     * with every phone heartbeat (~1.3 s), and the moderator would never get
+     * a 204 during the race. Only `online` goes into the hash.
      */
     public function version(array $payload): string {
         unset($payload['serverNow'], $payload['version']);
@@ -123,17 +123,17 @@ class PaceStateService {
     }
 
     /**
-     * Handy: eigene Frage mit persönlicher Uhr, eigener Fortschritt, eigenes
-     * Urteil. Nach der Freigabe bekommt jedes Cookie den Endstand (auch ohne
-     * Spieler — mehr als den gibt es für Nicht-Teilnehmende nicht).
+     * Phone: own question with a personal clock, own progress, own
+     * verdict. After the release every cookie gets the final standings (even
+     * without a player — non-participants get nothing more than that).
      */
     private function phoneState(Room $room, ?string $voterToken, int $now): array {
         $state = PaceService::deriveState($room, $now);
         $released = $state === PaceService::STATE_RELEASED;
         $out = $this->head($room, $now);
         if ($state === PaceService::STATE_DRAFT) {
-            // Wartezustand: „N dabei" wie in der moderierten Lobby. Nur hier —
-            // danach triebe jeder Heartbeat die Version aller Handys hoch.
+            // Waiting state: "N here" as in the moderated lobby. Only here —
+            // afterwards every heartbeat would push up the version of all phones.
             $out['present'] = $this->roomService->presentCount($room);
         }
         $out['nickname'] = $this->voteService->playerNickname($room, $voterToken);
@@ -152,8 +152,8 @@ class PaceStateService {
         $open = PaceService::openOf($rows);
         $last = PaceService::lastOf($rows);
         $n = count(PaceService::order($room));
-        // Abwehr: die Frage der offenen Zeile gibt es nicht mehr -> kein poll,
-        // aber `after` zeigt weiter darauf, und /next geht mit ihr weiter.
+        // Defensive: the open row's question no longer exists -> no poll,
+        // but `after` still points to it, and /next moves on with it.
         $poll = null;
         if ($open !== null) {
             try {
@@ -169,11 +169,11 @@ class PaceStateService {
             'n' => $n,
             'started' => $rows !== [],
             'finished' => PaceService::isFinished($n, $last, $last !== null && isset($votes[$last->getPollId()]), $state),
-            // Kippt genau einmal (keine Restzeit im Payload, sonst gäbe es nie 204).
+            // Flips exactly once (no remaining time in the payload, otherwise there would never be a 204).
             'timeUp' => $open !== null && $limit > 0 && $now - $open->getStartedAt() > $limit,
             'currentPollId' => $open?->getPollId() ?? 0,
-            // Der Wert für /next {after}: ohne ihn fände ein neu geladenes Handy
-            // nach einem Abbruch zwischen Schließen und Starten nie weiter.
+            // The value for /next {after}: without it a reloaded phone would never
+            // get any further after an abort between closing and starting.
             'after' => PaceService::afterFor($rows),
         ];
         if ($released || PaceService::effectiveFeedback($room) === PaceService::FEEDBACK_EACH) {
@@ -192,20 +192,20 @@ class PaceStateService {
     }
 
     /**
-     * Beamer: das Rennen als Zahlen (wer ist auf welcher Frage, wer ist
-     * durch) und die Rangliste — nie Fragen, Optionen oder Verteilungen.
+     * Projector: the race as numbers (who is on which question, who is
+     * done) and the leaderboard — never questions, options or distributions.
      *
-     * Jede gestartete Person zählt genau einmal: fertig (PaceService::isFinished —
-     * auch wer die letzte Frage beantwortet, aber „Fertig“ nicht getippt hat, und
-     * nach Schluss jede auf der letzten Frage) oder auf ihrer Frage k (kOf: offene
-     * Zeile, sonst die zuletzt erreichte — dieselbe Zahl wie am Handy und in der
-     * Laufansicht). Nicht gestartet (joined − started) + je Frage + fertig =
-     * beigetreten; der Beamer bezieht jeden Balken darauf.
+     * Every person who started counts exactly once: finished (PaceService::isFinished —
+     * including anyone who answered the last question but did not tap "I’m done", and
+     * after closing everyone on the last question) or on their question k (kOf: open
+     * row, otherwise the last one reached — the same number as on the phone and in the
+     * progress view). Not started (joined − started) + per question + finished =
+     * joined; the projector bases every bar on that.
      */
     private function beamerState(Room $room, int $now): array {
         $state = PaceService::deriveState($room, $now);
         $out = $this->head($room, $now);
-        // Zuschauer zählen mit, wer gerade da ist (Eingangs-Anzeige), in jedem Zustand.
+        // Spectators count who is currently here (entrance display), in every state.
         $out['present'] = $this->roomService->presentCount($room);
 
         $order = PaceService::order($room);
@@ -219,8 +219,8 @@ class PaceStateService {
                 $lastPolls[$row->getPollId()] = true;
             }
         }
-        // Nur wer offen auf der letzten Frage steht, braucht für isFinished die
-        // Stimme — eine Abfrage über diese eine Frage statt über das ganze Deck.
+        // Only those standing open on the last question need the vote for isFinished
+        // — one query over this one question instead of over the whole deck.
         $answeredLast = [];
         if ($state === PaceService::STATE_OPEN && $lastPolls !== []) {
             foreach ($this->voteMapper->findByPolls(array_keys($lastPolls)) as $vote) {
@@ -234,13 +234,13 @@ class PaceStateService {
             $answered = $last !== null && isset($answeredLast[$last->getPollId() . ':' . $token]);
             if (PaceService::isFinished($n, $last, $answered, $state)) {
                 $finished++;
-                continue; // durch — nicht zugleich auf der letzten Frage
+                continue; // done — not also on the last question
             }
-            // Offene Zeile, sonst die zuletzt erreichte (Abbruch zwischen Schließen
-            // und Starten in /next) — nie in keinem Balken.
+            // Open row, otherwise the last one reached (abort between closing
+            // and starting in /next) — never in no bar at all.
             $k = self::kOf(PaceService::openOf($rows), $last);
             if ($k >= 1 && $k <= $n) {
-                $onQuestion[$k - 1]++; // Abwehr: seq außerhalb der Reihenfolge zählt nirgends
+                $onQuestion[$k - 1]++; // defensive: a seq outside the order counts nowhere
             }
         }
         $out['race'] = [
@@ -251,8 +251,8 @@ class PaceStateService {
             'onQuestion' => $onQuestion,
         ];
 
-        // Probelauf: nie eine Rangliste. Nach der Freigabe der volle Endstand;
-        // während des Rennens (nur mit Rückmeldung je Frage) die Spitze.
+        // Practice run: never a leaderboard. After the release the full final standings;
+        // during the race (only with feedback after each question) the top.
         if ($room->getPractice()) {
             $out['leaderboard'] = null;
         } elseif ($state === PaceService::STATE_RELEASED) {
@@ -264,7 +264,7 @@ class PaceStateService {
         return $out;
     }
 
-    /** Gemeinsamer Kopf von Handy- und Beamer-Zustand. */
+    /** Common head of phone and projector state. */
     private function head(Room $room, int $now): array {
         return [
             'room' => [
@@ -273,7 +273,7 @@ class PaceStateService {
                 'mode' => $room->getMode(),
                 'pace' => $room->getPace(),
             ],
-            // Passt das Bundle im Tab nicht mehr zum Server, lädt es sich einmal neu.
+            // If the bundle in the tab no longer matches the server, it reloads once.
             'protocol' => Application::PROTOCOL,
             'serverNow' => $now,
             'practice' => $room->getPractice(),
@@ -288,15 +288,15 @@ class PaceStateService {
         ];
     }
 
-    // ── Gesamtauswertung fürs Handy (/summary) ──────────────────────────────
+    // ── Overall summary for the phone (/summary) ────────────────────────────
 
     /**
-     * Rückblick fürs Handy. Ohne Cookie oder ohne erreichte Frage höchstens der
-     * Endstand — /summary ist so nie ein Lösungsschlüssel. Mit Zeilen vor der
-     * Freigabe nur die eigenen Fragen (im offenen Fenster nur die verlassenen;
-     * die offene steht auf dem Hauptbildschirm), gemischt und ohne Lösung.
-     * Nach der Freigabe genau die erreichten Fragen mit Lösung und Auszählung —
-     * nur die: sonst reichte ein Tipp auf „Start" für den ganzen Schlüssel.
+     * Review for the phone. Without a cookie or without a reached question, at most
+     * the final standings — so /summary is never an answer key. With rows before
+     * the release, only one's own questions (in the open window only the ones left;
+     * the open one is on the main screen), shuffled and without a solution.
+     * After the release exactly the reached questions with solution and tally —
+     * only those: otherwise one tap on "Start quiz" would be enough for the whole key.
      *
      * @return array{available:bool, mode:string, pace:string, practice:bool, title:string, window:array, myScore:?int, leaderboard:?list<array>, items:list<array{poll:array, revealed:bool, results:?array, mine:?array}>}
      */
@@ -335,8 +335,8 @@ class PaceStateService {
         foreach ($this->pollMapper->findByRoom($room->getId()) as $poll) {
             $polls[$poll->getId()] = $poll;
         }
-        // Nach der Freigabe die Auszählung aller Stimmen — in EINER Abfrage für
-        // die erreichten Fragen.
+        // After the release the tally of all votes — in ONE query for
+        // the reached questions.
         $all = [];
         if ($released) {
             $ids = array_map(static fn (Progress $r): int => $r->getPollId(), $shown);
@@ -347,7 +347,7 @@ class PaceStateService {
         foreach ($shown as $row) {
             $poll = $polls[$row->getPollId()] ?? null;
             if ($poll === null) {
-                continue; // Abwehr: gelöschte Frage
+                continue; // defensive: deleted question
             }
             $vote = $votes[$poll->getId()] ?? null;
             $out['items'][] = [
@@ -366,8 +366,8 @@ class PaceStateService {
     }
 
     /**
-     * Bild einer Frage nur für Personen, die sie erreicht haben — in jedem
-     * Fensterzustand, also auch nach der Freigabe nur für erreichte Fragen.
+     * Image of a question only for people who have reached it — in every
+     * window state, so even after the release only for reached questions.
      */
     public function imageVisible(Room $room, Poll $poll, ?string $voterToken): bool {
         return $voterToken !== null && $voterToken !== ''
@@ -377,11 +377,11 @@ class PaceStateService {
     // ── Moderator ───────────────────────────────────────────────────────────
 
     /**
-     * Ergebnisse einer Frage für den Moderator: Auszählung aller Stimmen,
-     * dazu Fenster und Rangliste. Es gibt keine gemeinsame Uhr (startedAt 0),
-     * die Frage läuft für jede Person ab ihrem /next.
+     * Results of a question for the moderator: tally of all votes,
+     * plus window and leaderboard. There is no shared clock (startedAt 0),
+     * the question runs for each person from their /next.
      *
-     * @throws \InvalidArgumentException Frage gehört nicht zum Raum
+     * @throws \InvalidArgumentException question does not belong to the room
      */
     public function results(Room $room, int $pollId): array {
         $poll = $this->deckService->requirePollInRoom($room, $pollId);
@@ -400,14 +400,14 @@ class PaceStateService {
     }
 
     /**
-     * Fortschritt je Person und Frage (Rennen/Hausaufgabe) für den Moderator,
-     * ohne Version (die setzt der Controller über version()).
+     * Progress per person and question (race/homework) for the moderator,
+     * without a version (the controller sets it via version()).
      *
-     * Bei „Rückmeldung am Ende" sind Punkte, Treffer und Rangliste bis zur
-     * Freigabe verdeckt, außer mit $scores (ausdrücklicher Schalter): der
-     * Laptop hängt oft am Beamer, und sähe Anna ihr `correct` springen, wäre
-     * die Rückmeldung am Ende für alle Zuschauenden aufgehoben. Punkte zählen
-     * nur aus endgültigen Stimmen; `pendingAnswers` trägt nie eine Lösung.
+     * With feedback "At the end", points, hits and leaderboard stay hidden until
+     * the release, except with $scores (explicit switch): the laptop is often
+     * connected to the projector, and if Anna saw her `correct` jump, feedback
+     * at the end would be void for everyone watching. Points only count
+     * from final votes; `pendingAnswers` never carries a solution.
      */
     public function progress(Room $room, bool $scores = false): array {
         $now = $this->timeFactory->getTime();
@@ -416,7 +416,7 @@ class PaceStateService {
         $hidden = !$scores && !$released && PaceService::effectiveFeedback($room) === PaceService::FEEDBACK_END;
         $order = PaceService::order($room);
         $n = count($order);
-        $kOf = array_flip($order); // pollId -> Index in der Reihenfolge
+        $kOf = array_flip($order); // pollId -> index in the order
 
         $polls = [];
         foreach ($this->pollMapper->findByRoom($room->getId()) as $poll) {
@@ -466,7 +466,7 @@ class PaceStateService {
         foreach ($order as $i => $pid) {
             $poll = $polls[$pid] ?? null;
             if ($poll === null) {
-                continue; // Abwehr: gelöschte Frage
+                continue; // defensive: deleted question
             }
             $q = $perQuestion[$pid] ?? ['answered' => 0, 'correct' => 0, 'pending' => 0];
             $questions[] = [
@@ -502,7 +502,7 @@ class PaceStateService {
                 'currentPollId' => $open?->getPollId() ?? 0,
                 'currentStartedAt' => $open?->getStartedAt() ?? 0,
                 'answered' => $s['answered'],
-                // Verlassen ohne Antwort: Signal für Wegwerf-Spieler, die nur durchblättern.
+                // Left without an answer: a signal for throwaway players who just flip through.
                 'skipped' => count(array_filter(
                     $rows,
                     static fn (Progress $r): bool => $r->getLeftAt() > 0 && !isset($s['voted'][$r->getPollId()]),
@@ -537,7 +537,7 @@ class PaceStateService {
             'players' => $players,
             'scoresHidden' => $hidden,
             'pendingAnswers' => $pendingAnswers,
-            // Probelauf: keine Wertung. Frisch gerechnet (nur ein Moderator).
+            // Practice run: no scoring. Computed freshly (only one moderator).
             'leaderboard' => $room->getPractice() ? [] : ($hidden ? null : $this->voteService->selfLeaderboard($room, null)),
         ];
     }
@@ -545,11 +545,11 @@ class PaceStateService {
     // ── CSV ─────────────────────────────────────────────────────────────────
 
     /**
-     * CSV-Sicht für die Lehrkraft: `players` (eine Zeile je Person, Reihenfolge
-     * der Rangliste) oder `answers` (eine Zeile je Stimme, nach Frage, dann
-     * Name). `;`-getrennt + UTF-8-BOM wie der moderierte Export.
+     * CSV view for the teacher: `players` (one row per person, in leaderboard
+     * order) or `answers` (one row per vote, by question, then
+     * name). `;`-separated + UTF-8 BOM like the moderated export.
      *
-     * @throws \InvalidArgumentException unbekannte Sicht
+     * @throws \InvalidArgumentException unknown view
      */
     public function exportCsv(Room $room, string $view): string {
         $lines = match ($view) {
@@ -559,20 +559,20 @@ class PaceStateService {
         };
         $fh = fopen('php://temp', 'r+');
         foreach ($lines as $line) {
-            // Ohne Backslash-Escape (RFC 4180, wie Excel liest).
+            // Without backslash escaping (RFC 4180, the way Excel reads it).
             fputcsv($fh, $line, ';', '"', '');
         }
         rewind($fh);
         $csv = stream_get_contents($fh);
         fclose($fh);
-        return "\xEF\xBB\xBF" . $csv; // UTF-8-BOM
+        return "\xEF\xBB\xBF" . $csv; // UTF-8 BOM
     }
 
     /**
-     * Rang, Punkte und Treffer kommen aus der Rangliste (frisch, nur
-     * endgültige Stimmen). „Zeit" summiert nur Stimmen mit Timer — ohne Timer
-     * enthält elapsed den ganzen Leerlauf zwischen /next und Antwort, bei
-     * Hausaufgaben Stunden; hat keine Stimme ein Limit, bleibt die Zelle leer.
+     * Rank, points and hits come from the leaderboard (fresh, final votes
+     * only). "Time (s)" only sums votes with a timer — without a timer,
+     * elapsed contains the whole idle time between /next and the answer, hours
+     * for homework; if no vote has a limit, the cell stays empty.
      *
      * @return list<list<int|string>>
      */
@@ -623,7 +623,7 @@ class PaceStateService {
                 $lb['score'],
                 $lb['correct'],
                 $s['answered'],
-                // Mit Leerzeichen: „3/7" läse Excel als Datum.
+                // With spaces: Excel would read "3/7" as a date.
                 self::kOf(PaceService::openOf($rows), $last) . ' / ' . $n,
                 $finished ? $this->l10n->t('yes') : $this->l10n->t('no'),
                 $this->date(self::firstStart($rows)),
@@ -635,8 +635,8 @@ class PaceStateService {
     }
 
     /**
-     * Eine Zeile je Stimme. Punkte und Ergebnis nur für endgültige Stimmen
-     * („—" sonst); die Zeit bleibt leer, wenn die Stimme ohne Timer kam.
+     * One row per vote. Points and result only for final votes
+     * ("—" otherwise); the time stays empty if the vote came without a timer.
      *
      * @return list<list<int|string>>
      */
@@ -658,7 +658,7 @@ class PaceStateService {
         foreach ($this->voteMapper->findByPolls($order) as $vote) {
             $poll = $polls[$vote->getPollId()] ?? null;
             if ($poll === null) {
-                continue; // Abwehr: gelöschte Frage
+                continue; // defensive: deleted question
             }
             $d = self::payload($vote);
             $t = $vote->getVoterToken();
@@ -703,7 +703,7 @@ class PaceStateService {
         return $lines;
     }
 
-    /** Antwort lesbar: Optionstexte statt IDs, Zahl in der Sprache des Exports. */
+    /** Answer in readable form: option texts instead of IDs, number in the export's language. */
     private function answerText(Poll $poll, mixed $value): string {
         $labels = [];
         foreach ($poll->getOptionsArray() as $option) {
@@ -735,20 +735,20 @@ class PaceStateService {
             case 'number':
                 return is_numeric($value) ? CsvFormat::number($value, $this->l10n->getLocaleCode()) : '';
             default:
-                // Freitext roh (nur gegen Formeln entschärft, s. CsvFormat::cell()).
+                // Free text raw (only defused against formulas, see CsvFormat::cell()).
                 return is_string($value) ? CsvFormat::cell($value) : '';
         }
     }
 
-    // ── Bausteine ───────────────────────────────────────────────────────────
+    // ── Building blocks ─────────────────────────────────────────────────────
 
     /**
-     * Urteil über eine eigene Stimme — EINE Funktion für Zustand und
-     * Zusammenfassung. Nie Lösung, nie Verteilung, nur das eigene Urteil:
-     * nicht endgültig -> noch keins; „Rückmeldung am Ende" vor der Freigabe ->
-     * nur „gespeichert"; Freitext ohne Bewertung -> „wird geprüft".
+     * Verdict on one's own vote — ONE function for state and
+     * summary. Never a solution, never a distribution, only one's own verdict:
+     * not final -> none yet; feedback "At the end" before the release ->
+     * only "Answer saved"; free text without grading -> "Being checked".
      *
-     * @param ?Progress $row Zeile der Person zu dieser Frage (für correctable)
+     * @param ?Progress $row the person's row for this question (for correctable)
      * @return array{answered:bool, final:bool, verdict:?string, correct:?bool, points:?int}
      */
     private function verdict(Room $room, Vote $vote, ?Progress $row, int $now, bool $released): array {
@@ -775,11 +775,11 @@ class PaceStateService {
     }
 
     /**
-     * Eigene Punkte: Summe der endgültigen Stimmen (Freitext „wird geprüft"
-     * zählt 0).
+     * Own points: sum of the final votes (free text "Being checked"
+     * counts 0).
      *
-     * @param Progress[] $rows eigene Zeilen
-     * @param array<int, Vote> $votes eigene Stimmen je pollId
+     * @param Progress[] $rows own rows
+     * @param array<int, Vote> $votes own votes per pollId
      */
     private function scoreOf(Room $room, array $rows, array $votes, int $now): int {
         $rowFor = [];
@@ -798,10 +798,10 @@ class PaceStateService {
     }
 
     /**
-     * Frage für die öffentliche Sicht aus Sicht dieser Person: vor der
-     * Freigabe gemischt und ohne Lösung (PublicView::poll), eigene Uhr statt
-     * der des Cursors, ohne Timer Limit 0 (kein Countdown), Position = eigene
-     * Stelle in der eingefrorenen Reihenfolge.
+     * Question for the public view from this person's perspective: before the
+     * release shuffled and without a solution (PublicView::poll), their own clock
+     * instead of the cursor's, without a timer limit 0 (no countdown), position =
+     * their own place in the frozen order.
      */
     private function selfPoll(Room $room, Poll $poll, Progress $row, bool $revealed): array {
         $data = PublicView::poll($room, $poll, $revealed, $this->secret());
@@ -817,22 +817,22 @@ class PaceStateService {
         return $data;
     }
 
-    /** Fenster für Zustand und Auswertung; die Deckgröße braucht es nur im Entwurf. */
+    /** Window for state and summary; the deck size is only needed in draft. */
     private function window(Room $room, int $now): array {
         $deckCount = $room->getOpenedAt() > 0 ? 0 : $this->pollMapper->countByRoom($room->getId());
         return PaceService::windowView($room, $now, $deckCount);
     }
 
-    /** Zeitlimit im Fenster: ohne Timer 0 (kein Limit, flache Punkte). */
+    /** Time limit in the window: without a timer 0 (no limit, flat points). */
     private function limitFor(Room $room, Poll $poll): int {
         return $room->getTimed() ? $poll->getTimeLimit() : 0;
     }
 
     /**
-     * Eigene Stimmen zu den erreichten Fragen, in EINER Abfrage.
+     * Own votes for the reached questions, in ONE query.
      *
      * @param Progress[] $rows
-     * @return array<int, Vote> je pollId
+     * @return array<int, Vote> per pollId
      */
     private function votesByPoll(array $rows, string $voterToken): array {
         $ids = array_map(static fn (Progress $r): int => $r->getPollId(), $rows);
@@ -844,7 +844,7 @@ class PaceStateService {
     }
 
     /**
-     * Fortschrittszeilen eines Raums je Token und je „pollId:token".
+     * Progress rows of a room per token and per "pollId:token".
      *
      * @param Progress[] $rows
      * @return array{0: array<string, Progress[]>, 1: array<string, Progress>}
@@ -859,7 +859,7 @@ class PaceStateService {
         return [$byToken, $rowAt];
     }
 
-    /** „Frage k von n": die offene, sonst die zuletzt erreichte, sonst 0. */
+    /** "Question k of n": the open one, otherwise the last one reached, otherwise 0. */
     private static function kOf(?Progress $open, ?Progress $last): int {
         if ($open !== null) {
             return $open->getSeq() + 1;
@@ -888,7 +888,7 @@ class PaceStateService {
         return is_array($d) ? $d : [];
     }
 
-    /** Zeitpunkt für die CSV, leer bei 0. */
+    /** Timestamp for the CSV, empty for 0. */
     private function date(int $ts): string {
         return $ts > 0 ? (string)$this->dateTimeFormatter->formatDateTime($ts, 'short', 'medium') : '';
     }

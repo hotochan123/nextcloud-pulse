@@ -20,13 +20,13 @@ use OCP\DB\Exception;
 use OCP\IL10N;
 
 /**
- * Demo-/Testmodus (nur mit ?demo=1 sichtbar): synthetische Stimmen für die
- * aktive Frage, damit sich jeder Fragetyp ohne ein Dutzend Geräte prüfen lässt.
- * Sie laufen durch dieselbe Normalisierung und Wertung wie echte Stimmen und
- * tragen nur ein "demo:"-Präfix im Token, damit sie gezielt wieder verschwinden.
+ * Demo/test mode (only visible with ?demo=1): synthetic votes for the
+ * active question, so that every question type can be checked without a dozen devices.
+ * They go through the same normalisation and scoring as real votes and
+ * only carry a "demo:" prefix in the token so that they can be removed selectively.
  */
 class DemoService {
-    /** Präfix der Voter-Token synthetischer Stimmen, Obergrenze je Lauf. */
+    /** Prefix of the voter tokens of synthetic votes, upper limit per run. */
     private const DEMO_PREFIX = 'demo:';
     private const DEMO_MAX = 200;
 
@@ -42,19 +42,19 @@ class DemoService {
     ) {
     }
 
-    // ── Demo-/Testmodus ───────────────────────────────────────────────────────
+    // ── Demo/test mode ────────────────────────────────────────────────────────
 
     /**
-     * Erzeugt synthetische Stimmen für die AKTIVE Frage, damit sich jeder
-     * Fragetyp gegen eine realistische Teilnehmerzahl prüfen lässt, ohne von Hand
-     * zig Geräte zu bedienen. Die Stimmen durchlaufen dieselbe Normalisierung und
-     * Auszählung wie echte — nur ihr Token trägt das Präfix „demo:", damit
-     * clearDemoVotes() sie gezielt wieder entfernen kann. Status-/Zeitschranken
-     * werden bewusst übergangen (auch eine pausierte oder abgelaufene Frage lässt
-     * sich befüllen); echte Stimmen bleiben unberührt.
+     * Creates synthetic votes for the ACTIVE question so that every
+     * question type can be checked against a realistic number of participants without
+     * operating dozens of devices by hand. The votes go through the same normalisation and
+     * tallying as real ones — only their token carries the prefix "demo:" so that
+     * clearDemoVotes() can remove them selectively. Status/time barriers
+     * are bypassed on purpose (even a paused or expired question can be
+     * filled); real votes stay untouched.
      *
      * @return array{seeded:int, total:int}
-     * @throws \InvalidArgumentException wenn gerade keine Frage aktiv ist
+     * @throws \InvalidArgumentException if no question is active right now
      */
     public function seedDemoVotes(Room $room, int $count): array {
         $count = max(1, min(self::DEMO_MAX, $count));
@@ -75,9 +75,9 @@ class DemoService {
             try {
                 $normalized = $this->voteService->normalizeValue($poll, $this->randomDemoValue($poll));
             } catch (\InvalidArgumentException) {
-                continue; // ein einzelner Ausreißer soll den Lauf nicht abbrechen
+                continue; // a single outlier should not abort the run
             }
-            // voter_token ist varchar(32): Präfix + gekürzter Zufallsteil = genau 32.
+            // voter_token is varchar(32): prefix + shortened random part = exactly 32.
             $token = self::DEMO_PREFIX . substr($this->codeGenerator->voterToken(), 0, 32 - strlen(self::DEMO_PREFIX));
             if ($isQuiz) {
                 $this->playerMapper->register($room->getId(), $token, $this->demoNickname($i), $now);
@@ -91,12 +91,12 @@ class DemoService {
             $vote->setPollId($poll->getId());
             $vote->setVoterToken($token);
             $vote->setPayload($payload);
-            $vote->setCreatedAt($now + $i); // leicht gestaffelt -> stabile Sortierung
+            $vote->setCreatedAt($now + $i); // slightly staggered -> stable sort order
             try {
                 $this->voteMapper->insert($vote);
                 $seeded++;
             } catch (Exception $e) {
-                // seltene Token-Kollision (UNIQUE) -> diese eine Stimme überspringen
+                // rare token collision (UNIQUE) -> skip this one vote
                 if ($e->getReason() !== Exception::REASON_UNIQUE_CONSTRAINT_VIOLATION) {
                     throw $e;
                 }
@@ -107,9 +107,9 @@ class DemoService {
     }
 
     /**
-     * Entfernt alle Demo-Stimmen (und Demo-Spieler samt ihrem Fortschritt im
-     * eigenen Tempo) des Raums wieder; echte Stimmen und Teilnehmende bleiben
-     * erhalten.
+     * Removes all demo votes (and demo players along with their self-paced
+     * progress) of the room again; real votes and participants are
+     * kept.
      *
      * @return array{removed:int}
      */
@@ -123,7 +123,7 @@ class DemoService {
         return ['removed' => $removed];
     }
 
-    /** Ein plausibler Zufallswert für den Typ dieser Frage (nur Demo/Test). */
+    /** A plausible random value for this question's type (demo/test only). */
     private function randomDemoValue(Poll $poll): mixed {
         $type = $poll->getType();
 
@@ -143,8 +143,8 @@ class DemoService {
             return $ids;
         }
         if ($type === 'match') {
-            // Meist richtig zuordnen, ab und zu daneben — sonst stünde in jeder
-            // Zeile ein einziger Balken und die Darstellung wäre nicht prüfbar.
+            // Mostly assign correctly, now and then wrongly — otherwise every row
+            // would hold a single bar and the display could not be checked.
             $cfg = $poll->getMatchConfig();
             $targetIds = array_column($cfg['targets'], 'id');
             $solution = $poll->getAnswerKeyArray()['map'] ?? [];
@@ -162,7 +162,7 @@ class DemoService {
             if (isset($key['target'])) {
                 $target = (float)$key['target'];
                 $tol = max(1.0, (float)($key['tolerance'] ?? 0));
-                // meist nah am Ziel, gelegentlich klar daneben -> anschauliche Verteilung
+                // mostly close to the target, occasionally clearly off -> a telling distribution
                 $spread = $tol * (random_int(0, 99) < 70 ? 1.0 : 4.0);
                 return (int)round($target + $this->demoGauss() * $spread);
             }
@@ -170,7 +170,7 @@ class DemoService {
         }
         if ($type === 'text') {
             $accepted = $poll->getAnswerKeyArray()['accepted'] ?? [];
-            // Quiz-Freitext: mal eine akzeptierte Antwort, mal eine Streuung.
+            // Quiz free text: sometimes an accepted answer, sometimes a scatter.
             if ($accepted && random_int(0, 99) < 60) {
                 return (string)$accepted[array_rand($accepted)];
             }
@@ -194,19 +194,19 @@ class DemoService {
             return $this->demoBell((int)$cfg['min'], (int)$cfg['max']);
         }
 
-        // words: 1..min(maxWords,3) verschiedene Begriffe
+        // words: 1..min(maxWords,3) distinct terms
         $n = random_int(1, max(1, min($poll->getMaxWords(), 3)));
         $pool = $this->demoWords();
         shuffle($pool);
         return array_slice($pool, 0, $n);
     }
 
-    /** Grobe Standardnormalverteilung (~N(0,1)) über die Summe dreier Uniformen. */
+    /** Rough standard normal distribution (~N(0,1)) from the sum of three uniforms. */
     private function demoGauss(): float {
         return (random_int(0, 1000) + random_int(0, 1000) + random_int(0, 1000)) / 1000.0 - 1.5;
     }
 
-    /** Ganzzahl aus [min..max], zur Mitte hin verdichtet (ergibt eine schöne Glocke). */
+    /** Integer from [min..max], concentrated towards the middle (gives a nice bell curve). */
     private function demoBell(int $min, int $max): int {
         if ($max <= $min) {
             return $min;
@@ -218,15 +218,15 @@ class DemoService {
     }
 
     /**
-     * Wortvorrat für Demo-Wortwolken/Freitext und Anzeigenamen für Demo-Spieler
-     * (Quiz-Rangliste, verwechslungsarm). Methoden statt Konstanten, weil beide
-     * auf dem Beamer landen und daher durch die Übersetzung müssen.
+     * Word pool for demo word clouds/free text and display names for demo players
+     * (quiz leaderboard, hard to mix up). Methods instead of constants, because both
+     * end up on the projector and therefore have to go through translation.
      *
-     * Die Wörter beschreiben einen Eindruck von etwas Neuem — gemischt, nicht
-     * nur Lob. Vorher standen hier Werte-Begriffe („Vertrauen", „Zukunft",
-     * „Solidarität"); die lasen sich auf dem Beamer wie ein Leitbild und nicht
-     * wie eine Rückmeldung, und die Demo soll zeigen, wofür man die Wortwolke
-     * benutzt.
+     * The words describe an impression of something new — mixed, not
+     * just praise. Previously this held value terms ("Trust", "Future",
+     * "Solidarity"); on the projector they read like a mission statement rather
+     * than feedback, and the demo is meant to show what the word cloud is
+     * used for.
      *
      * @return list<string>
      */
@@ -254,7 +254,7 @@ class DemoService {
         ];
     }
 
-    /** Eindeutiger, freundlicher Anzeigename für den i-ten Demo-Spieler. */
+    /** Unique, friendly display name for the i-th demo player. */
     private function demoNickname(int $i): string {
         $names = $this->demoNames();
         $count = count($names);

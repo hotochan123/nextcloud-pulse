@@ -22,27 +22,27 @@ use PHPUnit\Framework\TestCase;
 use ReflectionProperty;
 
 /**
- * Rangliste ohne eine Frage (VoteService::leaderboardFor, $skipPollIds).
+ * Leaderboard without one question (VoteService::leaderboardFor, $skipPollIds).
  *
- * Die öffentliche Gesamtauswertung lässt die laufende, noch verdeckte Frage
- * aus der Wertung — sonst zeigte der Punktestand direkt nach dem Antippen, ob
- * die Antwort richtig war. Die Punkte stehen in den Stimmen (payload.points);
- * die Rangliste rechnet echt (QuizService), nur die Mapper sind gedoubelt.
+ * The public overall results leave the running, still hidden question out of
+ * the scoring; otherwise the score would reveal right after tapping whether
+ * the answer was correct. The points live in the votes (payload.points);
+ * the leaderboard computes for real (QuizService), only the mappers are doubles.
  */
 #[CoversClass(VoteService::class)]
 class LeaderboardSkipTest extends TestCase {
 
     private VoteMapper&MockObject $votes;
     private VoteService $service;
-    /** @var list<int> Fragen, deren Stimmen gelesen wurden */
+    /** @var list<int> Questions whose votes were read */
     private array $read = [];
 
     protected function setUp(): void {
         $polls = $this->createMock(PollMapper::class);
         $polls->method('findByRoom')->willReturn([$this->poll(1), $this->poll(2)]);
 
-        // Frage 1: Anna richtig (800), Ben falsch. Frage 2 (läuft, verdeckt):
-        // Ben richtig (900), Anna falsch.
+        // Question 1: Anna correct (800), Ben wrong. Question 2 (running, hidden):
+        // Ben correct (900), Anna wrong.
         $byPoll = [
             1 => [$this->vote('tok-anna', 800, true, 3), $this->vote('tok-ben', 0, false, 2)],
             2 => [$this->vote('tok-anna', 0, false, 4), $this->vote('tok-ben', 900, true, 1)],

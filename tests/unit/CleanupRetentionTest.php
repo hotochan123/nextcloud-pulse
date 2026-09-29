@@ -23,15 +23,16 @@ use PHPUnit\Framework\TestCase;
 use ReflectionProperty;
 
 /**
- * Aufbewahrung (RoomService::cleanupStaleRooms): ein Raum bleibt, solange sein
- * jüngstes Lebenszeichen nicht älter als die Frist ist — Teilnehmer-Heartbeat,
- * im eigenen Tempo auch Öffnen, Frist, Schließen, Freigabe und Besitzerbesuch.
+ * Retention (RoomService::cleanupStaleRooms): a room stays as long as its
+ * latest sign of life is no older than the retention period — participant
+ * heartbeat, and for self-paced rooms also opening, deadline, closing, release
+ * and owner visit.
  *
- * Der Fall, um den es geht: eine Hausaufgabe mit Frist, die die Lehrkraft erst
- * Wochen später auswertet, darf nicht samt Ergebnissen verschwinden. Und für
- * moderierte Räume (alle Fensterfelder 0) muss die Entscheidung genau die alte
- * bleiben: behalten ⇔ ein Heartbeat seit dem Stichtag (früher
- * countActive(id, cutoff) > 0, also last_seen >= cutoff).
+ * The case this is about: a homework with a deadline that the teacher only
+ * grades weeks later must not vanish together with its results. And for
+ * moderated rooms (all window fields 0) the decision must stay exactly the
+ * old one: keep ⇔ a heartbeat since the cutoff date (formerly
+ * countActive(id, cutoff) > 0, i.e. last_seen >= cutoff).
  */
 #[CoversClass(RoomService::class)]
 class CleanupRetentionTest extends TestCase {
@@ -42,13 +43,13 @@ class CleanupRetentionTest extends TestCase {
     private const CUTOFF = self::NOW - self::MAX_AGE;
 
     private RoomService $service;
-    /** @var list<Room> Kandidaten, die findOlderThan liefert */
+    /** @var list<Room> candidates that findOlderThan returns */
     private array $rooms = [];
-    /** @var array<int,int> Raum-ID -> MAX(last_seen), 0 = keine Präsenz */
+    /** @var array<int,int> room ID -> MAX(last_seen), 0 = no presence */
     private array $lastSeen = [];
-    /** @var list<int> IDs, die roomMapper->delete bekam */
+    /** @var list<int> IDs that roomMapper->delete received */
     private array $deletedRooms = [];
-    /** @var list<int> IDs, deren Fortschritt gelöscht wurde */
+    /** @var list<int> IDs whose progress was deleted */
     private array $deletedProgress = [];
 
     protected function setUp(): void {
@@ -91,11 +92,11 @@ class CleanupRetentionTest extends TestCase {
         }
     }
 
-    // ── eigenes Tempo ──────────────────────────────────────────────────────
+    // ── self-paced ─────────────────────────────────────────────────────────
 
     public function testHausaufgabeMitFristInZwanzigTagenBleibt(): void {
-        // Vor 60 Tagen angelegt und geöffnet, seither niemand da — aber die
-        // Frist liegt noch in der Zukunft.
+        // Created and opened 60 days ago, nobody there since — but the
+        // deadline is still in the future.
         $this->selfRoom(1, opened: -59, closes: +20);
         $this->lastSeen[1] = $this->ago(59);
 
@@ -104,7 +105,7 @@ class CleanupRetentionTest extends TestCase {
     }
 
     public function testVorVierzigTagenGeschlossenOhneNeuerePraesenzWirdGeloescht(): void {
-        // Rennen: Schließen ohne Frist = Freigeben (beides vor 40 Tagen).
+        // Race: closing without a deadline = releasing (both 40 days ago).
         $this->selfRoom(2, opened: -41, closed: -40, released: -40);
         $this->lastSeen[2] = $this->ago(40);
 
@@ -114,8 +115,8 @@ class CleanupRetentionTest extends TestCase {
     }
 
     public function testSpaeteFreigabeHaeltDenRaum(): void {
-        // Frist vor 40 Tagen abgelaufen, erst vor 5 Tagen freigegeben
-        // (releaseWindow schreibt dabei closed_at = closes_at fest).
+        // Deadline expired 40 days ago, released only 5 days ago
+        // (releaseWindow pins closed_at = closes_at in the process).
         $this->selfRoom(3, opened: -50, closes: -40, closed: -40, released: -5);
         $this->lastSeen[3] = $this->ago(40);
 
@@ -123,8 +124,8 @@ class CleanupRetentionTest extends TestCase {
     }
 
     public function testBesitzerbesuchHaeltDenRaum(): void {
-        // Frist vor 40 Tagen, nie freigegeben — aber die Lehrkraft hat vor
-        // 5 Tagen noch in den Fortschritt geschaut.
+        // Deadline 40 days ago, never released — but the teacher looked at
+        // the progress just 5 days ago.
         $this->selfRoom(4, opened: -50, closes: -40, touched: -5);
         $this->lastSeen[4] = $this->ago(41);
 
@@ -132,14 +133,14 @@ class CleanupRetentionTest extends TestCase {
     }
 
     public function testEntwurfOhneJedesLebenszeichenWirdGeloescht(): void {
-        // Auf „eigenes Tempo" umgestellt, nie geöffnet, nie besucht.
+        // Switched to "Self-paced", never opened, never visited.
         $this->selfRoom(5);
 
         $this->assertSame(1, $this->cleanup());
         $this->assertSame([5], $this->deletedRooms);
     }
 
-    // ── moderiert: Äquivalenz zur alten Regel ──────────────────────────────
+    // ── moderated: equivalence to the old rule ─────────────────────────────
 
     public function testModerierterRaumMitPraesenzVorZehnTagenBleibt(): void {
         $this->liveRoom(10);
@@ -170,7 +171,7 @@ class CleanupRetentionTest extends TestCase {
         $this->liveRoom(12);
         $this->lastSeen[12] = $lastSeen;
 
-        // Alte Regel: countActive(id, cutoff) > 0 ⇔ ein last_seen >= cutoff.
+        // Old rule: countActive(id, cutoff) > 0 ⇔ a last_seen >= cutoff.
         $keptBefore = $lastSeen > 0 && $lastSeen >= self::CUTOFF;
 
         $this->cleanup();
@@ -188,7 +189,7 @@ class CleanupRetentionTest extends TestCase {
         $this->assertSame([21, 22], $this->deletedRooms);
     }
 
-    // ── Helfer ─────────────────────────────────────────────────────────────
+    // ── Helpers ────────────────────────────────────────────────────────────
 
     private function cleanup(): int {
         return $this->service->cleanupStaleRooms(self::MAX_AGE);
@@ -207,7 +208,7 @@ class CleanupRetentionTest extends TestCase {
         return $room;
     }
 
-    /** Tagesangaben relativ zu NOW (negativ = vergangen), 0 = Feld nicht gesetzt. */
+    /** Days relative to NOW (negative = past), 0 = field not set. */
     private function selfRoom(int $id, int $opened = 0, int $closes = 0, int $closed = 0, int $released = 0, int $touched = 0): Room {
         $room = $this->liveRoom($id);
         $room->setPace('self');

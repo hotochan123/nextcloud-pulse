@@ -35,14 +35,14 @@
 
 <script>
 /*
- * PulseConfirm — themebarer Bestätigungsdialog, ersetzt window.confirm().
- * Wird i.d.R. nicht direkt im Template genutzt, sondern imperativ über
+ * PulseConfirm — themeable confirmation dialog, replaces window.confirm().
+ * Usually not used directly in a template but imperatively via
  * util/confirm.js -> pulseConfirm({...}): Promise<boolean>.
- * Destruktive Variante (danger): Warn-Icon, "Abbrechen" links, rote Aktion rechts.
- * altLabel: dritter, zurückhaltender Knopf zwischen Abbrechen und Bestätigen
- * (z. B. „Stop without releasing" neben „Close and release") — pulseConfirm
- * löst dann mit 'alt' auf.
- * Eigenes fixed-Overlay + Fokusfang (kein NcModal, volle Kontrolle über Optik).
+ * Destructive variant (danger): warning icon, "Cancel" on the left, red action on the right.
+ * altLabel: a third, understated button between Cancel and Confirm
+ * (e.g. "Stop without releasing" next to "Close and release") — pulseConfirm
+ * then resolves with 'alt'.
+ * Own fixed overlay + focus trap (no NcModal, full control over the look).
  */
 import { t } from '../../util/l10n.js'
 import PulseIcon from './PulseIcon.vue'
@@ -63,7 +63,7 @@ export default {
 			if (e.key === 'Escape') { e.preventDefault(); this.onCancel() }
 		}
 		document.addEventListener('keydown', this._onKey)
-		// Sicherer Default bei Destruktivem: Fokus auf "Abbrechen".
+		// Safe default for destructive actions: focus on "Cancel".
 		this.$nextTick(() => { (this.$refs.cancel || this.$refs.dialog).focus() })
 	},
 	beforeDestroy() {
@@ -116,7 +116,7 @@ export default {
 	gap: 10px;
 	justify-content: flex-end;
 }
-/* Drei Knöpfe passen nicht in 360 px: breiter und bei Bedarf umbrechen. */
+/* Three buttons do not fit into 360 px: make it wider and wrap if needed. */
 .pconfirm.has-alt { max-width: 480px; }
 .pconfirm.has-alt .pconfirm-row { flex-wrap: wrap; }
 </style>

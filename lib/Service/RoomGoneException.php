@@ -8,10 +8,10 @@ declare(strict_types=1);
 namespace OCA\Pulse\Service;
 
 /**
- * Der Raum wurde gelöscht, während die Anfrage unterwegs war (anderer Tab,
- * Aufräum-Job): geladen war er noch, beim Sperren (PaceService::locked) gibt
- * es die Zeile nicht mehr. Von den Controllern auf HTTP 404 „Room not found."
- * abgebildet — dieselbe Antwort wie ein paar Millisekunden später.
+ * The room was deleted while the request was in flight (another tab, a
+ * cleanup job): it was still loaded, but by the time it is locked
+ * (PaceService::locked) its row is gone. The controllers map this to
+ * HTTP 404 "Room not found." — the same answer as a few milliseconds later.
  */
 class RoomGoneException extends \RuntimeException {
 }

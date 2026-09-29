@@ -21,10 +21,10 @@ class VoteMapper extends QBMapper {
     }
 
     /**
-     * Nach id sortiert, also in der Reihenfolge des Eingangs — die Auszählung
-     * zeigt je Wort die erste Schreibweise (TallyService). Ohne ORDER BY
-     * lieferte PostgreSQL die Zeilen in Speicherreihenfolge, und die weicht ab,
-     * sobald neue Stimmen in frei gewordene Plätze gelöschter fallen.
+     * Sorted by id, i.e. in the order of arrival — the tally
+     * shows the first spelling of each word (TallyService). Without ORDER BY
+     * PostgreSQL returned the rows in storage order, and that differs
+     * as soon as new votes land in slots freed by deleted ones.
      *
      * @return Vote[]
      */
@@ -38,11 +38,11 @@ class VoteMapper extends QBMapper {
     }
 
     /**
-     * Stimmen mehrerer Fragen in EINER Abfrage (Rangliste/Fortschritt im
-     * eigenen Tempo statt einer Abfrage je Frage), optional nur eines Tokens.
-     * Leere Liste -> [] ohne Abfrage. Über 1000 IDs wird gestückelt (Oracle
-     * erlaubt nicht mehr Einträge in einer IN-Liste), das Ergebnis bleibt nach
-     * id sortiert.
+     * Votes of several questions in ONE query (leaderboard/progress in
+     * self-paced mode instead of one query per question), optionally for one token only.
+     * Empty list -> [] without a query. Above 1000 IDs the list is split (Oracle
+     * allows no more entries in an IN list), the result stays sorted by
+     * id.
      *
      * @param list<int> $pollIds
      * @return Vote[]
@@ -79,12 +79,12 @@ class VoteMapper extends QBMapper {
     }
 
     /**
-     * Inhalts-Fingerabdruck der Stimmen einer Frage: crc32 über alle
-     * (id:payload)-Paare (nach id sortiert). Ändert sich bei neuer Stimme,
-     * geänderter Stimme (Upsert lässt die Anzahl gleich!) und gelöschter Stimme
-     * — zeit-unabhängig, anders als ein created_at-Stempel. Nötig, damit der
-     * Versions-Fingerabdruck eine geänderte Umfrage-Antwort erkennt (sonst 204
-     * „unverändert" → Beamer/Live-Sicht aktualisiert nicht). '0', wenn leer.
+     * Content fingerprint of a question's votes: crc32 over all
+     * (id:payload) pairs (sorted by id). Changes on a new vote,
+     * a changed vote (an upsert leaves the count unchanged!) and a deleted vote
+     * — independent of time, unlike a created_at stamp. Needed so that the
+     * version fingerprint recognises a changed poll answer (otherwise 204
+     * "unchanged" → projector/live view does not update). '0' when empty.
      */
     public function changeStamp(int $pollId): string {
         $qb = $this->db->getQueryBuilder();
@@ -102,7 +102,7 @@ class VoteMapper extends QBMapper {
     }
 
     /**
-     * @throws DoesNotExistException wenn diese Person noch nicht abgestimmt hat
+     * @throws DoesNotExistException if this person has not voted yet
      */
     public function findByPollAndToken(int $pollId, string $voterToken): Vote {
         $qb = $this->db->getQueryBuilder();
@@ -121,8 +121,8 @@ class VoteMapper extends QBMapper {
     }
 
     /**
-     * Eine Person aus dem Raum entfernen: ihre Stimmen in diesen Fragen löschen.
-     * Leere Liste -> nichts.
+     * Remove a person from the room: delete their votes in these questions.
+     * Empty list -> nothing.
      *
      * @param list<int> $pollIds
      */
@@ -138,9 +138,9 @@ class VoteMapper extends QBMapper {
     }
 
     /**
-     * Nur Demo-/Test-Stimmen einer Frage löschen. Erkennbar am Token-Präfix
-     * „demo:" — echte Voter-Token sind 32 alphanumerische Zeichen ohne Doppelpunkt,
-     * können also nie mitgetroffen werden. Gibt die Anzahl gelöschter Zeilen zurück.
+     * Delete only the demo/test votes of a question. Recognisable by the token prefix
+     * "demo:" — real voter tokens are 32 alphanumeric characters without a colon,
+     * so they can never be hit as well. Returns the number of deleted rows.
      */
     public function deleteDemoByPoll(int $pollId): int {
         $qb = $this->db->getQueryBuilder();

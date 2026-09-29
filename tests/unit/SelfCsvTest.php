@@ -11,12 +11,12 @@ use OCA\Pulse\Service\PaceStateService;
 use PHPUnit\Framework\Attributes\CoversClass;
 
 /**
- * CSV-Sichten im eigenen Tempo (PaceStateService::exportCsv).
+ * Self-paced CSV views (PaceStateService::exportCsv).
  *
- * Ohne Timer enthält elapsed den ganzen Leerlauf zwischen /next und Antwort —
- * bei Hausaufgaben Stunden. Die Zeitspalte bleibt dort leer, statt Unsinn
- * zu summieren. „Fertig" folgt PaceService::isFinished: wer die letzte Frage
- * beantwortet, aber „Fertig" nie getippt hat, ist nach dem Schluss fertig.
+ * Without a timer, elapsed holds the whole idle time between /next and the answer —
+ * hours for homework. The time column stays empty there instead of summing up
+ * nonsense. "Finished" follows PaceService::isFinished: anyone who answered the last
+ * question but never tapped "I’m done" counts as finished once the quiz is closed.
  */
 #[CoversClass(PaceStateService::class)]
 class SelfCsvTest extends PaceStateTestCase {
@@ -39,7 +39,7 @@ class SelfCsvTest extends PaceStateTestCase {
         $this->row(11, 'tok-cem', self::NOW - 90);
         $this->vote(11, 'tok-cem', 'BB', 0, false, self::NOW - 80);
         $this->row(11, 'tok-anna', self::NOW - 90);
-        $this->vote(11, 'tok-anna', 'AA', 900, true, self::NOW - 2); // noch im Korrekturfenster
+        $this->vote(11, 'tok-anna', 'AA', 900, true, self::NOW - 2); // still within the correction window
         $this->row(13, 'tok-ben', self::NOW - 30);
         $this->vote(13, 'tok-ben', 'Saturn', 0, false, self::NOW - 20, pending: true);
 
@@ -87,7 +87,7 @@ class SelfCsvTest extends PaceStateTestCase {
         $this->row(11, 'tok-anna', self::NOW - 90, self::NOW - 60);
         $this->vote(11, 'tok-anna', 'AA', 900, true, self::NOW - 80, elapsed: 10);
         $this->row(12, 'tok-anna', self::NOW - 60);
-        $this->vote(12, 'tok-anna', ['JU01', 'SA02', 'NE03'], 800, true, self::NOW - 2, elapsed: 7); // noch nicht endgültig
+        $this->vote(12, 'tok-anna', ['JU01', 'SA02', 'NE03'], 800, true, self::NOW - 2, elapsed: 7); // not final yet
 
         $anna = $this->playerLine('Anna');
 
@@ -95,12 +95,12 @@ class SelfCsvTest extends PaceStateTestCase {
     }
 
     public function testFertigNachIsFinished(): void {
-        // Letzte Frage beantwortet, „Fertig" nie getippt, Fenster zu -> fertig.
+        // Answered the last question, never tapped "I’m done", window closed -> finished.
         $this->row(11, 'tok-anna', self::NOW - 90, self::NOW - 60);
         $this->row(12, 'tok-anna', self::NOW - 60, self::NOW - 30);
         $this->row(13, 'tok-anna', self::NOW - 30);
         $this->vote(13, 'tok-anna', 'Jupiter', 1000, true, self::NOW - 20);
-        // Ben hat die letzte Frage erreicht, aber nicht beantwortet.
+        // Ben reached the last question but did not answer it.
         $this->row(11, 'tok-ben', self::NOW - 90, self::NOW - 60);
         $this->row(12, 'tok-ben', self::NOW - 60, self::NOW - 30);
         $this->row(13, 'tok-ben', self::NOW - 30);

@@ -28,13 +28,13 @@ use PHPUnit\Framework\TestCase;
 use ReflectionProperty;
 
 /**
- * Gegenmittel gegen Wegwerf-Spieler und Namensbesetzer: Beitritt sperren und
- * eine Person entfernen. Entfernen räumt alles, was an ihrem Token hängt —
- * zuerst den Spieler selbst (der Name wird frei, seine Zeile bleibt bis zum
- * Commit gesperrt: ein gleichzeitiges /vote oder /next wartet in
- * assertStillJoined darauf), dann Stimmen im eingefrorenen Deck, Fortschritt,
- * Präsenz. Auch nach der Freigabe erlaubt: ein Besetzer soll nicht im Endstand
- * stehen bleiben.
+ * Countermeasures against throwaway players and name squatters: locking joins and
+ * removing a person. Removing clears everything attached to their token:
+ * first the player itself (the name becomes free, its row stays locked until
+ * the commit: a concurrent /vote or /next waits for it in
+ * assertStillJoined), then votes in the frozen deck, progress,
+ * presence. Also allowed after the release: a squatter should not remain in the
+ * final standings.
  */
 #[CoversClass(PaceService::class)]
 class PacePlayerAdminTest extends TestCase {
@@ -48,9 +48,9 @@ class PacePlayerAdminTest extends TestCase {
     private PresenceMapper&MockObject $presence;
     private PlayerMapper&MockObject $players;
     private Room $locked;
-    /** @var list<string> Aufrufreihenfolge beim Entfernen */
+    /** @var list<string> Call order when removing */
     private array $calls = [];
-    /** @var list<string> Transaktionsfolge */
+    /** @var list<string> Transaction sequence */
     private array $tx = [];
 
     protected function setUp(): void {
@@ -104,7 +104,7 @@ class PacePlayerAdminTest extends TestCase {
         }
     }
 
-    // ── Beitritt sperren ───────────────────────────────────────────────────
+    // ── Lock joins ─────────────────────────────────────────────────────────
 
     public function testBeitrittSperrenNurImEigenenTempo(): void {
         $this->locked->setPace('live');
@@ -137,10 +137,10 @@ class PacePlayerAdminTest extends TestCase {
         $this->assertFalse($this->service->setJoinsLocked($this->room(), false)->getJoinsLocked());
     }
 
-    // ── Person entfernen ───────────────────────────────────────────────────
+    // ── Remove person ──────────────────────────────────────────────────────
 
     public function testUnbekannteOderFremdeIdIstEinEingabefehler(): void {
-        // Eine Player-ID aus einem anderen Raum taucht in findByRoom nicht auf.
+        // A player ID from another room does not show up in findByRoom.
         $this->players->expects($this->never())->method('delete');
         $this->votes->expects($this->never())->method('deleteByPollsAndToken');
 
@@ -196,9 +196,9 @@ class PacePlayerAdminTest extends TestCase {
         $this->service->removePlayer($this->room(), 31);
     }
 
-    // ── Helfer ─────────────────────────────────────────────────────────────
+    // ── Helpers ────────────────────────────────────────────────────────────
 
-    /** Alle Löschaufrufe in $this->calls mitschreiben. */
+    /** Record all delete calls in $this->calls. */
     private function recordRemoval(?array $order): void {
         if ($order !== null) {
             $this->locked->setDeckOrder('[' . implode(',', $order) . ']');

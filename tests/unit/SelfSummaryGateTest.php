@@ -12,13 +12,13 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
- * Gesamtauswertung fürs Handy im eigenen Tempo (PaceStateService::publicSummary).
+ * Self-paced overall results for the phone (PaceStateService::publicSummary).
  *
- * /summary darf nie ein Lösungsschlüssel sein: ohne Cookie oder ohne erreichte
- * Frage höchstens der Endstand. Vor der Freigabe nur die eigenen Fragen ohne
- * Lösung (im offenen Fenster nur die verlassenen), nach der Freigabe genau die
- * erreichten — mit Lösung und Auszählung. Ein Tipp auf „Start" darf nicht für
- * das ganze Deck reichen. Im Probelauf gibt es nie eine Rangliste.
+ * /summary must never be an answer key: without a cookie or without a reached
+ * question, at most the final standings. Before the release only one's own
+ * questions without the solution (in the open window only those already left),
+ * after the release exactly the reached ones — with solution and tally. A tap
+ * on "Start" must not unlock the whole deck. A practice run never has a leaderboard.
  */
 #[CoversClass(PaceStateService::class)]
 class SelfSummaryGateTest extends PaceStateTestCase {
@@ -136,7 +136,7 @@ class SelfSummaryGateTest extends PaceStateTestCase {
         $this->assertSame('open', $summary['window']['state']);
     }
 
-    /** Anna: Q1 richtig beantwortet und verlassen, steht auf Q2. Ben: Q1 falsch. */
+    /** Anna: answered Q1 correctly and left it, now on Q2. Ben: Q1 wrong. */
     private function annaReachedTwo(): void {
         $this->row(11, 'tok-anna', self::NOW - 60, self::NOW - 40);
         $this->vote(11, 'tok-anna', 'AA', 900, true, self::NOW - 50);

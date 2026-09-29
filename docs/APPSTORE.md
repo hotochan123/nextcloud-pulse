@@ -1,137 +1,138 @@
-# Pulse im Nextcloud App Store veröffentlichen
+# Publishing Pulse in the Nextcloud App Store
 
-Was der Store verlangt, was im Repo schon dafür vorbereitet ist und was von Hand
-passieren muss. Reihenfolge einhalten — ohne Zertifikat nimmt der Store nichts an.
+What the store requires, what the repository already has in place for it, and
+what has to be done by hand. Keep to the order — without a certificate the
+store accepts nothing.
 
-Öffentliches Repository ist `hotochan123/hotochan123-nextcloud-pulse`; die vollständige
-Entwicklungsgeschichte liegt im privaten Archiv `hotochan123/pulse`.
+The public repository is `hotochan123/hotochan123-nextcloud-pulse`; the complete
+development history is in the private archive `hotochan123/pulse`.
 
-## Stand
+## Status
 
-| Anforderung | Status |
+| Requirement | Status |
 |---|---|
-| `appinfo/info.xml` gültig gegen das Store-Schema | erledigt (`xmllint`, auch in CI) |
-| Lizenz im Repo + SPDX-Kopf in jeder Quelldatei | erledigt (`LICENSE`, AGPL-3.0-or-later) |
-| `CHANGELOG.md` (Release-Notizen des Stores) | erledigt |
-| Release-Archiv ohne Quellen/Wegwerf-Dateien | erledigt (`build/package.sh`) |
-| CI: Bundle, Tests, Übersetzungen, Schema | erledigt (`.github/workflows/ci.yml`) |
-| App-ID `pulse` frei | ja (Stand 26.07.2026 kein Eintrag im Store) |
-| Signatur-Zertifikat von Nextcloud | Schlüssel erzeugt, `.csr` im Fork (14.08.2026) — **Pull Request noch nicht geöffnet** (Stand 29.09.2026) |
-| Screenshots für die Store-Seite | erledigt — sechs Bilder in `screenshots/`, in `info.xml` verlinkt (**wirksam erst nach `git push`**) |
-| Getestet auf den beworbenen Serverversionen | erledigt — `info.xml` bewirbt nur noch 34, und nur 34 ist geprüft |
+| `appinfo/info.xml` valid against the store schema | done (`xmllint`, also in CI) |
+| Licence in the repository + SPDX header in every source file | done (`LICENSE`, AGPL-3.0-or-later) |
+| `CHANGELOG.md` (the store's release notes) | done |
+| Release archive without sources/throwaway files | done (`build/package.sh`) |
+| CI: bundle, tests, translations, schema | done (`.github/workflows/ci.yml`) |
+| App ID `pulse` available | yes (no entry in the store as of 26 Jul 2026) |
+| Signing certificate from Nextcloud | key generated, `.csr` in the fork (14 Aug 2026) — **pull request not opened yet** (as of 29 Sep 2026) |
+| Screenshots for the store page | done — six images in `screenshots/`, linked in `info.xml` (**they only show once they are on `main` of the public repository and it is publicly visible**) |
+| Tested on the advertised server versions | done — `info.xml` now advertises only 34, and only 34 has been tested |
 
-## Einmalig
+## Once
 
-### 1. Konto und App-ID
+### 1. Account and app ID
 
-Konto auf <https://apps.nextcloud.com> anlegen. Die App-ID (`pulse`) wird beim
-ersten Upload an dieses Konto gebunden und ist danach reserviert.
+Create an account on <https://apps.nextcloud.com>. The app ID (`pulse`) is bound
+to that account with the first upload and is reserved from then on.
 
-### 2. Zertifikat beantragen
+### 2. Request the certificate
 
 ```sh
-build/certificate.sh          # erzeugt ~/.nextcloud/certificates/pulse.{key,csr}
+build/certificate.sh          # creates ~/.nextcloud/certificates/pulse.{key,csr}
 ```
 
-**Bereits geschehen** (14.08.2026, RSA 4096, `CN=pulse`). Der Schlüssel liegt
-**nicht** am Standardort unter `~/.nextcloud/`, sondern auf dauerhaftem
-Speicher, weil `/root` auf diesem Host im RAM liegt (siehe unten). Der genaue
-Pfad steht bewusst nicht im Repo; im Folgenden `$PULSE_SECRETS`:
+**Already done** (14 Aug 2026, RSA 4096, `CN=pulse`). The key is **not** in the
+default location under `~/.nextcloud/` but on persistent storage, because on
+this host `/root` lives in RAM (see below). The exact path is deliberately not
+in the repository; below it is called `$PULSE_SECRETS`:
 
 ```sh
-PULSE_SECRETS=/pfad/zum/secrets-ordner/pulse    # einmal pro Sitzung setzen
+PULSE_SECRETS=/path/to/secrets-folder/pulse     # set once per session
 ls "$PULSE_SECRETS"                             # pulse.key (600), pulse.csr
 ```
 
-**Vorsicht:** `build/certificate.sh` ohne `OUT=` legt einen **zweiten**
-Schlüssel am Standardort an, statt den vorhandenen zu finden — es prüft nur den
-Ordner, den es selbst benutzt. Überschreiben tut es nichts, aber signiert wird
-dann mit dem falschen Schlüssel. Immer `OUT="$PULSE_SECRETS"` mitgeben.
+**Careful:** `build/certificate.sh` without `OUT=` creates a **second** key in
+the default location instead of finding the existing one — it only checks the
+folder it uses itself. It overwrites nothing, but you would then sign with the
+wrong key. Always pass `OUT="$PULSE_SECRETS"`.
 
-Der Common Name der Anfrage **muss** die App-ID sein — das Skript setzt
-`/CN=pulse`. Danach <https://github.com/nextcloud/app-certificate-requests>
-forken, die `pulse.csr` als `pulse/pulse.csr` hinzufügen und einen Pull Request
-aufmachen. Das geht komplett über die GitHub-Oberfläche, aber **der Fork muss
-zuerst von Hand angelegt werden** — der Auto-Fork beim „Create new file" greift
-bei diesem Repo nicht („you need to fork it and propose your changes from
-there"). Nach dem Merge liegt dort `pulse/pulse.crt`; die Datei neben den
-Schlüssel legen.
+The common name of the request **must** be the app ID — the script sets
+`/CN=pulse`. Then fork <https://github.com/nextcloud/app-certificate-requests>,
+add `pulse.csr` as `pulse/pulse.csr` and open a pull request. This works
+entirely through the GitHub web interface, but **the fork has to be created by
+hand first** — the automatic fork on "Create new file" does not kick in for
+this repository ("you need to fork it and propose your changes from there").
+After the merge, `pulse/pulse.crt` is there; put that file next to the key.
 
-Vorbereitet am 14.08.2026 im Fork `hotochan123/app-certificate-requests`,
-Branch `pulse-cert` (nur `pulse/pulse.csr`). **Der Pull Request selbst wurde
-nie geöffnet** — am 29.09.2026 über die GitHub-API geprüft: kein PR aus diesem
-Branch, keiner von diesem Konto. Nachholen über
+Prepared on 14 Aug 2026 in the fork `hotochan123/app-certificate-requests`,
+branch `pulse-cert` (only `pulse/pulse.csr`). **The pull request itself was
+never opened** — checked through the GitHub API on 29 Sep 2026: no PR from this
+branch, none from this account. To catch up, use
 <https://github.com/nextcloud/app-certificate-requests/compare/master...hotochan123:app-certificate-requests:pulse-cert>
-(„Create pull request“); dort wird zurzeit binnen ein bis vier Tagen gemergt.
-Danach nachsehen, ob der PR wirklich da ist. Gegengeprüft: die hochgeladene
-`.csr` ist Byte für Byte die lokale, `CN=pulse`, und ihr öffentlicher
-Schlüssel gehört zu `pulse.key` (SHA-256 des Pubkeys auf beiden Seiten gleich).
+("Create pull request"); requests there are currently merged within one to four
+days. Afterwards, check that the PR really exists. Cross-checked: the uploaded
+`.csr` is byte for byte the local one, `CN=pulse`, and its public key belongs to
+`pulse.key` (SHA-256 of the public key is the same on both sides).
 
-Der private Schlüssel bleibt außerhalb des Repos (`.gitignore` sperrt
-`*.key`/`*.csr`/`*.crt` zusätzlich ab). Geht er verloren, ist jedes bisher
-signierte Release ungültig und es braucht ein neues Zertifikat.
+The private key stays outside the repository (`.gitignore` additionally blocks
+`*.key`/`*.csr`/`*.crt`). If it is lost, every release signed so far becomes
+invalid and a new certificate is needed.
 
-Ablageort prüfen: auf Appliances wie Unraid liegt `/root` im RAM und ist nach
-einem Neustart leer. Der Schlüssel gehört dann auf dauerhaften Speicher
-(`OUT=/pfad/auf/platte build/certificate.sh`), Verzeichnis `700`, Datei `600`.
+Check where it is stored: on appliances such as Unraid, `/root` lives in RAM
+and is empty after a reboot. The key then belongs on persistent storage
+(`OUT=/path/on/disk build/certificate.sh`), directory `700`, file `600`.
 
 ### 3. Screenshots
 
-Sechs Bilder liegen in `screenshots/` und stehen in `info.xml` hinter
+Six images are in `screenshots/` and are listed in `info.xml` after
 `<repository>`:
 
 ```xml
 <screenshot>https://raw.githubusercontent.com/hotochan123/hotochan123-nextcloud-pulse/main/screenshots/01-projector-live.png</screenshot>
 ```
 
-**Der Store lädt diese URLs selbst.** Solange die Dateien nicht auf `main`
-liegen, laufen sie ins Leere und die Store-Seite bleibt bilderlos — Bilder also
-mit pushen, bevor ein Release angemeldet wird. Ins Release-Archiv gehören sie
-nicht, `build/package.sh` stellt nur die Laufzeit-Dateien zusammen.
+**The store fetches these URLs itself.** As long as the files are not on `main`
+of the public repository, or the repository is not publicly visible, the URLs
+lead nowhere and the store page stays without images — so push the images
+before registering a release. They do not belong in the release archive;
+`build/package.sh` only collects the runtime files.
 
-Aufgenommen werden sie vom Prüfstand:
+They are taken by the screenshot harness:
 
 ```sh
 dev/design-shots/run.sh store        # -> dev/design-shots/out-store/
 ```
 
-Die Strecke unterscheidet sich in vier Punkten vom übrigen Prüfstand, und jeder
-davon war vorher eine Falle:
+This run differs from the rest of the harness in four ways, and each of them
+used to be a trap:
 
-- **Eigene Räume** (`probe.php store`). Der Demo-Weg vergibt je Stimme ein neues
-  Token, registriert also je Frage neue Spielende: auf dem Podest stand zweimal
-  derselbe Name mit „shared" daneben, und ab mehr Stimmen als Namen hing eine
-  „2" hinten dran. Im Store-Fixture beantworten zwölf Personen mit festem Token
-  jede Frage, nach einem festen Muster — jede Frage hat eine Verteilung, und die
-  Rangliste hat eindeutige Plätze.
-- **Öffentlicher Hostname** (`PULSE_HOST` oder eine Zeile in
-  `dev/design-shots/.store-host`, nicht im Repo; die Store-Bilder zeigen
-  `https://nextcloud.mitung.de`). Der Beitritts-Link kommt aus
-  `window.location.host` und steht sowohl als Text als auch im QR-Code auf dem
-  Bild. Ein interner Name gehört nicht auf eine öffentliche Store-Seite.
-- **Doppelte Pixeldichte** (`layout.css.devPixelsPerPx`), 1200 × 675 CSS-Pixel
-  ergeben also ein 2400 × 1350-Bild. Auf die Fensterhöhe wird der Browser-Rand
-  aufgeschlagen, sonst wäre das Bild 2:1 statt 16:9.
-- **Mehr Anwesende als Antworten** (24 von 30). Sonst steht auf jedem Bild
-  „vollständig", und eine laufende Frage sieht aus wie eine abgeschlossene.
+- **Rooms of its own** (`probe.php store`). The demo route hands out a new token
+  for every vote, so it registers new players for every question: the podium
+  showed the same name twice with "shared" next to it, and once there were more
+  votes than names a "2" was appended. In the store fixture, twelve people with
+  fixed tokens answer every question in a fixed pattern — every question has a
+  distribution, and the leaderboard has distinct places.
+- **Public host name** (`PULSE_HOST` or one line in
+  `dev/design-shots/.store-host`, not in the repository; the store images show
+  `https://nextcloud.mitung.de`). The join link comes from
+  `window.location.host` and appears on the image both as text and in the QR
+  code. An internal name does not belong on a public store page.
+- **Double pixel density** (`layout.css.devPixelsPerPx`), so 1200 × 675 CSS
+  pixels give a 2400 × 1350 image. The browser chrome is added to the window
+  height, otherwise the image would be 2:1 instead of 16:9.
+- **More people present than answers** (24 of 30). Otherwise every image says
+  "complete", and a running question looks like a finished one.
 
-Englische Oberfläche kommt aus der Spracheinstellung des Wegwerf-Nutzers
-(`occ user:setting pulse-shots core lang en`) und aus
-`intl.accept_languages` für die öffentlichen Seiten.
+The English interface comes from the language setting of the throwaway user
+(`occ user:setting pulse-shots core lang en`) and from
+`intl.accept_languages` for the public pages.
 
-Der Store nimmt bis zu zehn Bilder. Die Reihenfolge in `info.xml` ist die
-Reihenfolge auf der Seite; das erste ist das Vorschaubild.
+The store takes up to ten images. The order in `info.xml` is the order on the
+page; the first one is the preview image.
 
-## Je Release
+## For every release
 
-1. **Version hochziehen** in `appinfo/info.xml` **und** `package.json`
-   (gleiche Zahl). Achtung: der Versionsbump löst auf der lokalen Instanz einen
-   `occ upgrade` aus, sonst antworten die App-Routen mit 503.
-2. **`CHANGELOG.md`** — Abschnitt `[Unreleased]` in die neue Version umbenennen,
-   Datum setzen. Der Store zeigt diesen Text als Release-Notiz.
-3. **`max-version`** in `info.xml` prüfen: bewirbt die App eine Serverversion,
-   auf der sie nie lief, kommen die Fehlerberichte von dort.
-4. **Bauen, prüfen, signieren, packen:**
+1. **Bump the version** in `appinfo/info.xml` **and** `package.json`
+   (same number). Note: on the local instance the version bump requires an
+   `occ upgrade`; until then the app routes answer with 503.
+2. **`CHANGELOG.md`** — rename the `[Unreleased]` section to the new version
+   and set the date. The store shows this text as the release notes.
+3. Check **`max-version`** in `info.xml`: if the app advertises a server version
+   it never ran on, the bug reports will come from there.
+4. **Build, check, sign, pack:**
 
    ```sh
    PULSE_KEY="$PULSE_SECRETS/pulse.key" \
@@ -139,71 +140,72 @@ Reihenfolge auf der Seite; das erste ist das Vorschaubild.
    build/package.sh
    ```
 
-   Das Skript baut das Bundle, prüft Übersetzungen und `info.xml`, stellt nur
-   die Auslieferungsdateien zusammen, ruft `occ integrity:sign-app` im
-   Nextcloud-Container auf (schreibt `appinfo/signature.json`) und packt
-   `build/pulse-<version>.tar.gz`. Am Ende gibt es die Base64-Signatur des
-   Archivs aus — die braucht der Store gleich.
+   The script builds the bundle, checks translations and `info.xml`, collects
+   only the files that ship, runs `occ integrity:sign-app` in the Nextcloud
+   container (which writes `appinfo/signature.json`) and packs
+   `build/pulse-<version>.tar.gz`. At the end it prints the Base64 signature of
+   the archive — the store needs it in a moment.
 
-5. **Gegenprobe:** `tar -tzf build/pulse-<version>.tar.gz` — oberster Ordner
-   heißt `pulse/`, `appinfo/signature.json` ist drin, `src/`, `node_modules/`,
-   `docs/`, `tests/` sind es nicht.
+5. **Cross-check:** `tar -tzf build/pulse-<version>.tar.gz` — the top folder is
+   called `pulse/`, `appinfo/signature.json` is included, `src/`,
+   `node_modules/`, `docs/` and `tests/` are not.
 
-6. **Tag und GitHub-Release:**
+6. **Tag and GitHub release:**
 
    ```sh
-   git tag -a v0.16.0 -m "Pulse 0.16.0" && git push origin v0.16.0
+   git tag -a v<version> -m "Pulse <version>" && git push origin v<version>
    ```
 
-   Release auf GitHub anlegen und das Archiv als Asset anhängen. Der Store lädt
-   die Datei selbst herunter, die URL muss also öffentlich und HTTPS sein.
+   Create a release on GitHub and attach the archive as an asset. The store
+   downloads the file itself, so the URL has to be public and HTTPS.
 
-7. **Beim Store anmelden:**
+7. **Register with the store:**
 
    ```sh
    curl -X POST https://apps.nextcloud.com/api/v1/apps/releases \
-     -u "STORE-KONTO:PASSWORT" \
+     -u "STORE-ACCOUNT:PASSWORD" \
      -H "Content-Type: application/json" \
      -d '{
-           "download": "https://github.com/hotochan123/hotochan123-nextcloud-pulse/releases/download/v0.16.0/pulse-0.16.0.tar.gz",
-           "signature": "<Base64 aus Schritt 4>",
+           "download": "https://github.com/hotochan123/hotochan123-nextcloud-pulse/releases/download/v<version>/pulse-<version>.tar.gz",
+           "signature": "<Base64 from step 4>",
            "nightly": false
          }'
    ```
 
-   Statt `-u` geht auch ein API-Token des Kontos:
-   `-H "Authorization: Token <token>"`. Der Store lädt das Archiv, prüft die
-   Signatur gegen das Zertifikat, liest `info.xml` und `CHANGELOG.md` und
-   veröffentlicht. Antwortet er mit 4xx, steht der Grund im Rumpf — meist
-   Signatur, Schema oder eine App-ID, die nicht zum Zertifikat passt.
+   Instead of `-u`, an API token of the account works too:
+   `-H "Authorization: Token <token>"`. The store downloads the archive, checks
+   the signature against the certificate, reads `info.xml` and `CHANGELOG.md`
+   and publishes. If it answers with 4xx, the reason is in the body — usually
+   the signature, the schema, or an app ID that does not match the certificate.
 
-   Vorabversionen: eine Version nach Semver-Regel mit Suffix (`0.17.0-beta.1`)
-   landet im Vorab-Kanal, `"nightly": true` im Nightly-Kanal.
+   Pre-releases: a version with a suffix under semver rules (`0.17.0-beta.1`)
+   ends up in the pre-release channel, `"nightly": true` in the nightly channel.
 
-8. **Nachsehen:** `https://apps.nextcloud.com/apps/pulse`, und einmal auf einer
-   frischen Instanz über die Oberfläche installieren. Die Integritätsprüfung
-   des Servers vergleicht dabei `appinfo/signature.json` mit dem Zertifikat —
-   passt sie nicht, meldet die Instanz „Some files have not passed the
-   integrity check".
+8. **Check:** `https://apps.nextcloud.com/apps/pulse`, and install it once
+   through the web interface on a fresh instance. The server's integrity check
+   compares `appinfo/signature.json` with the certificate — if it does not
+   match, the instance reports "Some files have not passed the integrity
+   check".
 
-## Was noch fehlt, um ehrlich zu bleiben
+## What is still missing, to stay honest
 
-- **Serverversionen:** `info.xml` bewirbt **nur 34** (`min-version="34"
-  max-version="34"`), und genau darauf läuft die App auch. Bewusst so gewählt:
-  ein breiterer Bereich wäre eine Behauptung über Server, die nie jemand
-  gestartet hat, und die Fehlerberichte kämen von dort. Preis: ältere Instanzen
-  bekommen die App nicht angeboten, und mit NC 35 verschwindet sie aus dem
-  Store, bis `max-version` steigt.
+- **Server versions:** `info.xml` advertises **only 34** (`min-version="34"
+  max-version="34"`), and that is exactly what the app runs on. Chosen on
+  purpose: a wider range would be a claim about servers nobody has ever
+  started, and the bug reports would come from there. The price: older
+  instances are not offered the app, and with NC 35 it disappears from the
+  store until `max-version` goes up.
 
-  Den Bereich später ehrlich aufmachen: `nextcloud/ocp` in der jeweiligen
-  Version als Dev-Abhängigkeit plus Psalm belegt die PHP-Seite statisch (die
-  Stubs tragen genau die OCP-Symbole dieser Serverversion), dazu ein echter
-  Durchlauf auf der untersten beworbenen Version — die deckt PHP-Untergrenze,
-  Migrationen und Theme-Variablen ab, die eine reine Symbolprüfung nicht sieht.
-  `occ app:check-code` hilft nicht mehr, das Kommando gibt es in 34 nicht mehr.
-- **Übersetzungen:** Englisch und Deutsch kommen aus dem Repo. Weitere Sprachen
-  liefe über Transifex; dafür muss die App in Nextclouds Transifex-Projekt
-  aufgenommen werden (Anfrage bei Nextcloud), Alleingang lohnt nicht.
-- **Signatur in CI:** bewusst nicht. `occ integrity:sign-app` braucht eine
-  laufende Nextcloud-Instanz, und der private Schlüssel hat in einem
-  CI-Geheimnis nichts verloren, solange lokal signieren genügt.
+  To open the range honestly later: `nextcloud/ocp` in the respective version
+  as a dev dependency plus Psalm covers the PHP side statically (the stubs
+  carry exactly the OCP symbols of that server version), plus a real run on the
+  lowest advertised version — that covers the PHP minimum, migrations and theme
+  variables, which a pure symbol check does not see. `occ app:check-code` no
+  longer helps; the command no longer exists in 34.
+- **Translations:** English and German come from the repository. Further
+  languages would go through Transifex; for that the app has to be added to
+  Nextcloud's Transifex project (a request to Nextcloud), going it alone is not
+  worth it.
+- **Signing in CI:** deliberately not. `occ integrity:sign-app` needs a running
+  Nextcloud instance, and the private key has no business in a CI secret as
+  long as signing locally is enough.

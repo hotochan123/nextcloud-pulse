@@ -27,11 +27,11 @@ use PHPUnit\Framework\TestCase;
 use ReflectionProperty;
 
 /**
- * Wächter der bestehenden Moderator-Routen im eigenen Tempo und das
- * Umschalten des Tempos.
+ * Guards of the existing moderator routes in self-paced mode, and
+ * switching the pace.
  *
- * Die Gegenrichtung ist genauso wichtig: bei `pace='live'` ist jeder Wächter
- * ein No-op — der moderierte Betrieb bleibt verhaltensgleich.
+ * The opposite direction matters just as much: with `pace='live'` every guard
+ * is a no-op — moderated operation behaves exactly as before.
  */
 #[CoversClass(PaceService::class)]
 class PaceGuardTest extends TestCase {
@@ -43,7 +43,7 @@ class PaceGuardTest extends TestCase {
     private RoomService&MockObject $roomService;
     private Room $locked;
     private int $locks = 0;
-    /** @var list<string> Transaktionsfolge */
+    /** @var list<string> transaction sequence */
     private array $tx = [];
 
     protected function setUp(): void {
@@ -88,7 +88,7 @@ class PaceGuardTest extends TestCase {
         }
     }
 
-    /** Fensterzustände: [openedAt, closesAt, closedAt, releasedAt] */
+    /** Window states: [openedAt, closesAt, closedAt, releasedAt] */
     public static function zustaende(): array {
         return [
             'Entwurf' => ['draft', [0, 0, 0, 0]],
@@ -123,7 +123,7 @@ class PaceGuardTest extends TestCase {
         $this->service->assertDeckEditable($room);
         $this->service->assertLiveControl($room);
         $this->service->assertNotOpen($room);
-        // Kein Raum wird dafür gesperrt — die Wächter laufen in der Sperre des Aufrufers.
+        // No room gets locked for this — the guards run inside the caller's lock.
         $this->assertSame(0, $this->locks);
     }
 
@@ -177,7 +177,7 @@ class PaceGuardTest extends TestCase {
                 $calls[] = 'reset';
             });
 
-        // Der übergebene Raum ist veraltet (noch „live") — maßgeblich ist die gesperrte Zeile.
+        // The room passed in is stale (still "live") — the locked row is what counts.
         $stale = $this->room();
         $stale->setPace('live');
         $this->service->setPace($stale, 'live');
@@ -227,7 +227,8 @@ class PaceGuardTest extends TestCase {
 
     #[DataProvider('zielTempo')]
     public function testBeiOffenemFensterKeinUmschalten(string $pace): void {
-        // Auch derselbe Wert: der Zustand „offen" entscheidet (Tabelle §3.3), nicht der Wert.
+        // The same value too: the "open" state decides (table §3.3 in the design notes, not in
+        // the public repository), not the value.
         $this->locked = $this->room(self::NOW - 100);
         $this->roomService->expects($this->never())->method('resetRoom');
         $this->rooms->expects($this->never())->method('update');
@@ -241,7 +242,7 @@ class PaceGuardTest extends TestCase {
         $this->assertSame(['beginTransaction', 'rollBack'], $this->tx);
     }
 
-    // ── Helfer ─────────────────────────────────────────────────────────────
+    // ── Helpers ────────────────────────────────────────────────────────────
 
     private function room(int $openedAt = 0, int $closesAt = 0, int $closedAt = 0, int $releasedAt = 0): Room {
         $room = new Room();

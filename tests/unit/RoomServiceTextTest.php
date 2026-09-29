@@ -14,14 +14,14 @@ use PHPUnit\Framework\TestCase;
 use ReflectionMethod;
 
 /**
- * Die textverarbeitenden Teile von RoomService — Raumtitel und Kopie-Suffix.
- * Beides ist privat und DB-frei; die Instanz entsteht daher ohne Konstruktor
- * (newInstanceWithoutConstructor), damit kein Mapper/keine Verbindung nötig ist.
- * Nur die Übersetzung wird nachgereicht: copyTitle hängt ein übersetztes Suffix
- * an, und die Quellsprache der App ist Englisch — der Doppel-Stub liefert daher
- * den Ausgangstext zurück.
- * Alles, was wirklich in die Datenbank greift (duplicateRoom, createRoom …),
- * bleibt den Integrations-Harnessen vorbehalten — siehe tests/README.md.
+ * The text-processing parts of RoomService — room title and copy suffix.
+ * Both are private and DB-free; the instance is therefore created without a constructor
+ * (newInstanceWithoutConstructor), so that no mapper/connection is needed.
+ * Only the translation is injected afterwards: copyTitle appends a translated suffix,
+ * and the app's source language is English — so the stub double returns
+ * the source text.
+ * Everything that really touches the database (duplicateRoom, createRoom …)
+ * is left to the integration harnesses — see tests/README.md.
  */
 #[CoversClass(RoomService::class)]
 class RoomServiceTextTest extends TestCase {
@@ -57,7 +57,7 @@ class RoomServiceTextTest extends TestCase {
     }
 
     public function testKuerzungZaehltZeichenNichtBytes(): void {
-        // Spalte ist varchar(80) -> 80 ZEICHEN, Umlaute dürfen nicht doppelt zählen.
+        // The column is varchar(80) -> 80 CHARACTERS, umlauts must not count twice.
         $this->assertSame(str_repeat('ä', 80), $this->sanitize(str_repeat('ä', 100)));
     }
 
@@ -76,7 +76,7 @@ class RoomServiceTextTest extends TestCase {
     }
 
     public function testLangerTitelBehaeltDenVollstaendigenSuffix(): void {
-        // Nicht der Suffix wird abgeschnitten, sondern der Name davor.
+        // It is not the suffix that gets cut off, but the name before it.
         $copy = $this->copyTitle(str_repeat('a', 80));
         $this->assertSame(80, mb_strlen($copy));
         $this->assertSame(' (copy)', mb_substr($copy, -7));
@@ -88,7 +88,7 @@ class RoomServiceTextTest extends TestCase {
         $this->assertSame(' (copy)', mb_substr($copy, -7));
     }
 
-    // ── Helfer ─────────────────────────────────────────────────────────────
+    // ── Helpers ────────────────────────────────────────────────────────────
 
     private function sanitize(string $title): string {
         return $this->call('sanitizeTitle', $title);

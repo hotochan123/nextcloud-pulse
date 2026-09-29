@@ -20,15 +20,15 @@ use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\IL10N;
 
 /**
- * Räume: anlegen, benennen, kopieren, leeren, löschen — plus Präsenz
- * („N dabei") und die „Meine Räume"-Liste. Alles, was den Raum als Ganzes
- * betrifft; die Fragen darin gehören dem DeckService.
+ * Rooms: create, rename, copy, empty, delete — plus presence
+ * ("N here") and the "My rooms" list. Everything that concerns the room as a
+ * whole; the questions in it belong to the DeckService.
  */
 class RoomService {
     private const MODES = ['poll', 'quiz'];
     /**
-     * Als "gerade dabei" zählt, wessen Heartbeat höchstens so viele Sekunden alt ist.
-     * Öffentlich: „online" im Fortschritt (PaceStateService) nimmt dasselbe Fenster.
+     * Whoever's heartbeat is at most this many seconds old counts as "currently here".
+     * Public so that "online" in the progress view (PaceStateService) uses the same window.
      */
     public const PRESENCE_WINDOW = 15;
 
@@ -46,7 +46,7 @@ class RoomService {
     ) {
     }
 
-    // ── Räume ───────────────────────────────────────────────────────────────
+    // ── Rooms ───────────────────────────────────────────────────────────────
 
     public function createRoom(string $uid, string $mode = 'poll', string $title = ''): Room {
         if (!in_array($mode, self::MODES, true)) {
@@ -63,10 +63,10 @@ class RoomService {
     }
 
     /**
-     * Raum per Code laden und Eigentümerschaft erzwingen.
+     * Load a room by code and enforce ownership.
      *
-     * @throws DoesNotExistException Raum unbekannt
-     * @throws NotOwnerException     Raum gehört einer anderen Person
+     * @throws DoesNotExistException room unknown
+     * @throws NotOwnerException     room belongs to someone else
      */
     public function getOwnedRoom(string $code, string $uid): Room {
         $room = $this->roomMapper->findByCode($code);
@@ -77,8 +77,8 @@ class RoomService {
     }
 
     /**
-     * Raum umbenennen. Leerer Titel ist erlaubt und bedeutet „kein Titel" —
-     * die Oberfläche zeigt dann wieder nur den Code.
+     * Rename a room. An empty title is allowed and means "no title" —
+     * the UI then shows only the code again.
      */
     public function setTitle(Room $room, string $title): void {
         $room->setTitle($this->sanitizeTitle($title));
@@ -86,8 +86,8 @@ class RoomService {
     }
 
     /**
-     * Titel säubern: Steuerzeichen (auch Zeilenumbrüche) raus, Rand-Leerraum weg,
-     * auf 80 Zeichen kürzen — passend zur Spaltenbreite, mehrbyte-sicher.
+     * Clean up a title: control characters (including line breaks) out, surrounding
+     * whitespace gone, cut to 80 characters — matching the column width, multibyte-safe.
      */
     private function sanitizeTitle(string $title): string {
         $clean = preg_replace('/[\p{C}]+/u', ' ', $title) ?? '';
@@ -96,21 +96,21 @@ class RoomService {
     }
 
     /**
-     * Raum als Vorlage kopieren: neuer Code, dieselben Fragen in derselben
-     * Reihenfolge (inklusive Lösungen, Zeitlimits und der beim Freitext-Bewerten
-     * gelernten accepted/rejected-Listen) — aber KEINE Stimmen, Teilnehmenden
-     * oder Präsenz. Der Cursor der Kopie ruht, jede Frage startet neutral.
+     * Copy a room as a template: new code, the same questions in the same
+     * order (including solutions, time limits and the accepted/rejected lists
+     * learned while grading free text) — but NO votes, participants
+     * or presence. The copy's cursor is idle, every question starts neutral.
      *
-     * `reveal_at_end` wandert mit (Ablauf-Entscheidung des Decks); `practice`
-     * bewusst nicht — die Kopie ist der echte Durchlauf, nicht der Probelauf.
-     * Ebenso das Format des eigenen Tempos (`pace`, `timed`, `feedback`) — es
-     * beschreibt den nächsten Durchgang. Fenster, eingefrorene Reihenfolge,
-     * Beitrittssperre und Besitzerbesuch nicht: die Kopie ist ein frischer Entwurf.
+     * `reveal_at_end` moves along (a flow decision of the deck); `practice`
+     * deliberately not — the copy is the real run, not the practice run.
+     * Likewise the self-paced format (`pace`, `timed`, `feedback`) — it
+     * describes the next run. Window, frozen order, join lock and owner
+     * visit do not: the copy is a fresh draft.
      */
     public function duplicateRoom(Room $src, string $uid): Room {
         $copy = $this->createRoom($uid, $src->getMode(), $this->copyTitle($src->titleOrEmpty()));
-        // Nur schreiben, wenn etwas vom Default abweicht — ein moderierter Raum
-        // mit Standard-Ablauf bekommt so kein zusätzliches UPDATE.
+        // Only write if something differs from the default — this way a moderated
+        // room with the standard flow gets no extra UPDATE.
         $changed = false;
         if ($src->getRevealAtEnd()) {
             $copy->setRevealAtEnd(true);
@@ -138,22 +138,22 @@ class RoomService {
             $new->setCorrectOption($poll->getCorrectOption());
             $new->setAnswerKey($poll->getAnswerKey());
             $new->setTimeLimit($poll->getTimeLimit());
-            // Frisch: nichts läuft, nichts ist aufgelöst, Positionen lückenlos.
+            // Fresh: nothing running, nothing revealed, positions without gaps.
             $new->setStatus('active');
             $new->setStartedAt(0);
             $new->setPosition($i);
             $new->setCreatedAt($now);
             $new = $this->pollMapper->insert($new);
-            // Bild bekommt eine eigene Datei — sonst nähme das Löschen des einen
-            // Raums der Kopie das Bild weg.
+            // The image gets its own file — otherwise deleting one room
+            // would take the image away from the copy.
             $this->imageService->copy($poll, $new);
         }
         return $copy;
     }
 
     /**
-     * Titel der Kopie: „… (Kopie)". Der Suffix muss in die 80 Zeichen passen,
-     * sonst schnitte sanitizeTitle ihn selbst an.
+     * Title of the copy: "… (copy)". The suffix has to fit into the 80 characters,
+     * otherwise sanitizeTitle would cut it off itself.
      */
     private function copyTitle(string $title): string {
         if ($title === '') {
@@ -165,18 +165,18 @@ class RoomService {
     }
 
     /**
-     * Raum samt allem löschen. Die Reihenfolge schließt Wettläufe mit dem
-     * eigenen Tempo, wo /join, /vote und /next ohne Transaktion um diesen
-     * Aufruf herum schreiben:
-     * - die Raumzeile zuerst: ein Beitritt, der sie gerade gesperrt hält
-     *   (PaceService::locked), wird erst fertig und dann mitgelöscht; ein
-     *   späterer findet keinen Raum mehr (404);
-     * - Spieler vor Stimmen und Fortschritt: /vote und /next prüfen nach dem
-     *   Schreiben, ob es den Spieler noch gibt (PaceService::assertStillJoined).
-     *   Sieht die Prüfung ihn noch, trifft das Löschen danach das Geschriebene
-     *   mit, sonst räumt sie selbst;
-     * - die Bilddateien zuletzt: ein Speicherfehler lässt so keine Zeilen ohne
-     *   Raum zurück, die niemand mehr fände.
+     * Delete a room with everything in it. The order closes races with the
+     * self-paced mode, where /join, /vote and /next write without a
+     * transaction around this call:
+     * - the room row first: a join that is currently holding its lock
+     *   (PaceService::locked) finishes first and is then deleted along with it; a
+     *   later one no longer finds a room (404);
+     * - players before votes and progress: /vote and /next check after
+     *   writing whether the player still exists (PaceService::assertStillJoined).
+     *   If the check still sees them, the deletion afterwards takes what was
+     *   written with it; otherwise the check cleans up itself;
+     * - the image files last: that way a storage error leaves no rows behind
+     *   without a room that nobody would ever find again.
      */
     public function deleteRoom(Room $room): void {
         $this->roomMapper->delete($room);
@@ -194,18 +194,17 @@ class RoomService {
     }
 
     /**
-     * Raum für einen frischen Durchlauf leeren: alle Stimmen (aller Fragen),
-     * Teilnehmer/Nicknames, Präsenz und damit die Rangliste (leitet sich aus den
-     * Stimmen ab) verwerfen. Die Fragen bleiben; der Cursor geht auf „ruht" und
-     * jede Frage bekommt Timer/Status neutralisiert, damit nichts als „aufgelöst"
-     * oder mit abgelaufener Zeit hängenbleibt.
+     * Empty a room for a fresh run: discard all votes (of all questions),
+     * participants/nicknames, presence and with them the leaderboard (derived
+     * from the votes). The questions stay; the cursor goes to "idle" and
+     * every question gets its timer/status neutralised, so that nothing is
+     * left hanging as "revealed" or with expired time.
      *
-     * Im eigenen Tempo zusätzlich: Fortschritt aller Personen, Fenster,
-     * eingefrorene Reihenfolge und Beitrittssperre — der Raum ist danach wieder
-     * Entwurf. Das Format (`pace`, `timed`, `feedback`) und `touched_at`
-     * (Aufbewahrung) bleiben. Den Fortschritt leert der Reset immer, auch bei
-     * `pace='live'`: beim Umschalten self → live ist `pace` schon live, wenn
-     * der Reset läuft.
+     * Self-paced additionally: everyone's progress, window, frozen order and
+     * join lock — afterwards the room is a draft again. The format (`pace`,
+     * `timed`, `feedback`) and `touched_at` (retention) stay. The reset always
+     * empties the progress, even with `pace='live'`: when switching
+     * self → live, `pace` is already live by the time the reset runs.
      */
     public function resetRoom(Room $room): void {
         foreach ($this->pollMapper->findByRoom($room->getId()) as $poll) {
@@ -219,9 +218,9 @@ class RoomService {
         $this->presenceMapper->deleteByRoom($room->getId());
         $this->playerMapper->deleteByRoom($room->getId());
         $this->progressMapper->deleteByRoom($room->getId());
-        // Die Raumzeile nur schreiben, wenn wirklich etwas zurückzusetzen ist.
-        // Ein moderierter Raum hat nie ein Fenster und bekommt so kein
-        // zusätzliches UPDATE (wie bisher nur beim laufenden Cursor).
+        // Only write the room row if there really is something to reset.
+        // A moderated room never has a window and so gets no extra
+        // UPDATE (as before, only when the cursor is running).
         $changed = false;
         if ($room->getActivePollId() !== 0) {
             $room->setActivePollId(0);
@@ -244,25 +243,25 @@ class RoomService {
     }
 
     /**
-     * Probelauf ein-/ausschalten. Das Umschalten leert den Raum in beide
-     * Richtungen (frischer Probelauf bzw. sauberer Echt-Start) — so kann man
-     * beliebig oft testen, ohne dass Test-Stimmen in den echten Durchlauf lecken.
-     * Solange Probelauf an ist, blendet der Server die Rangliste aus (siehe
+     * Switch the practice run on/off. Switching empties the room in both
+     * directions (fresh practice run or clean real start) — so you can test
+     * as often as you like without test votes leaking into the real run.
+     * As long as the practice run is on, the server hides the leaderboard (see
      * results()/publicState()).
      */
     public function setPractice(Room $room, bool $on): void {
         $room->setPractice($on);
-        // resetRoom persistiert den Raum (roomMapper->update) mit — auch wenn
-        // gerade keine aktive Frage läuft, muss das practice-Flag geschrieben werden.
+        // resetRoom persists the room (roomMapper->update) as well — but even
+        // when no question is currently active, the practice flag must be written.
         $this->roomMapper->update($room);
         $this->resetRoom($room);
     }
 
     /**
-     * Auflösung erst am Ende (statt je Frage) ein-/ausschalten. Reines Ablauf-/
-     * Anzeige-Flag — leert NICHTS (anders als Probelauf), die Fragen laufen nur
-     * ohne Zwischen-Auflösung durch. Wirkt in publicState()/results() (Reveal
-     * unterdrücken) und im Presenter (kein „Auflösen", Timer-Ende schließt nur).
+     * Switch revealing only at the end (instead of per question) on/off. A pure
+     * flow/display flag — empties NOTHING (unlike the practice run), the questions
+     * just run without intermediate reveals. Takes effect in publicState()/results()
+     * (suppress the reveal) and in the presenter (no "Reveal", timer end only closes).
      */
     public function setRevealAtEnd(Room $room, bool $on): void {
         $room->setRevealAtEnd($on);
@@ -270,9 +269,9 @@ class RoomService {
     }
 
     /**
-     * Quiz beenden: die gerade laufende Frage als „ended" markieren (Cursor
-     * bleibt). Erst dieser Zustand gibt im „Auflösung am Ende"-Modus die
-     * Ergebnisse + Rangliste für die Teilnehmer frei (siehe publicState()).
+     * End the quiz: mark the currently running question as "ended" (the cursor
+     * stays). Only this state releases results + leaderboard to the participants
+     * in "Reveal at the end" mode (see publicState()).
      */
     public function endQuiz(Room $room): void {
         $activeId = $room->getActivePollId();
@@ -282,20 +281,20 @@ class RoomService {
     }
 
     /**
-     * Alte Räume samt Fragen/Stimmen/Spielern löschen. „Alt" = vor mehr als
-     * $maxAgeSeconds angelegt UND seither kein Lebenszeichen im selben Fenster
-     * (ein Raum, der gestern noch bespielt wurde, überlebt also, auch wenn er
-     * vor Wochen angelegt wurde). Hält die Brute-Force-Angriffsfläche klein und
-     * räumt die DB auf. Wird vom täglichen Hintergrund-Job gerufen.
+     * Delete old rooms including questions/votes/players. "Old" = created more than
+     * $maxAgeSeconds ago AND no sign of life since then within the same window
+     * (so a room that was still in use yesterday survives, even if it was
+     * created weeks ago). Keeps the brute-force attack surface small and
+     * tidies up the DB. Called by the daily background job.
      *
-     * @return int Anzahl gelöschter Räume
+     * @return int number of deleted rooms
      */
     public function cleanupStaleRooms(int $maxAgeSeconds): int {
         $cutoff = $this->timeFactory->getTime() - $maxAgeSeconds;
         $deleted = 0;
         foreach ($this->roomMapper->findOlderThan($cutoff) as $room) {
             if ($this->lastActivity($room) >= $cutoff) {
-                continue; // kürzlich noch genutzt -> behalten
+                continue; // recently used -> keep
             }
             $this->deleteRoom($room);
             $deleted++;
@@ -304,13 +303,13 @@ class RoomService {
     }
 
     /**
-     * Jüngstes Lebenszeichen eines Raums für die Aufbewahrung: der letzte
-     * Teilnehmer-Heartbeat, im eigenen Tempo außerdem Öffnen, Frist, Schließen,
-     * Freigabe und der letzte Besuch des Besitzers (`touched_at`). Die Frist
-     * zählt, damit eine lange Hausaufgabe nicht vor ihrem Ende verschwindet;
-     * Freigabe und Besitzerbesuch, damit die Lehrkraft auch Wochen nach der
-     * Frist noch auswerten kann. Moderierte Räume haben all diese Felder auf 0 —
-     * dort entscheidet wie bisher allein die Präsenz.
+     * A room's latest sign of life for retention: the last participant
+     * heartbeat, and for self-paced rooms also opening, deadline, closing,
+     * release and the owner's last visit (`touched_at`). The deadline
+     * counts so that a long homework does not vanish before it ends;
+     * release and owner visit so that the teacher can still grade weeks after
+     * the deadline. Moderated rooms have all these fields at 0 —
+     * there presence alone decides, as before.
      */
     private function lastActivity(Room $room): int {
         return max(
@@ -323,26 +322,26 @@ class RoomService {
         );
     }
 
-    // ── Präsenz ───────────────────────────────────────────────────────────────
+    // ── Presence ──────────────────────────────────────────────────────────────
 
     /**
-     * Heartbeat eines anonymen Teilnehmers. Wird bei jedem Teilnehmer-Poll
-     * aufgerufen (auch ohne Stimme), damit "gerade dabei" auch Zuschauer zählt.
+     * Heartbeat of an anonymous participant. Called on every participant poll
+     * (even without a vote), so that "currently here" also counts spectators.
      */
     public function heartbeat(Room $room, string $voterToken): void {
         $this->presenceMapper->touch($room->getId(), $voterToken, $this->timeFactory->getTime());
     }
 
-    /** Anzahl gerade aktiver Teilnehmer (Heartbeat innerhalb des Fensters). */
+    /** Number of currently active participants (heartbeat within the window). */
     public function presentCount(Room $room): int {
         $since = $this->timeFactory->getTime() - self::PRESENCE_WINDOW;
         return $this->presenceMapper->countActive($room->getId(), $since);
     }
 
     /**
-     * Räume der vortragenden Person (neueste zuerst), je mit Fragenzahl und
-     * ob gerade eine Frage aktiv ist — für die „Meine Räume"-Liste. Im eigenen
-     * Tempo zusätzlich das Fenster (offen, Frist, freigegeben …), sonst
+     * Rooms of the presenting person (newest first), each with its question count and
+     * whether a question is currently active — for the "My rooms" list. For
+     * self-paced rooms also the window (open, deadline, released …), otherwise
      * `window: null`.
      *
      * @return list<array{code:string, title:string, mode:string, createdAt:int, activePollId:int, pollCount:int, pace:string, window:?array}>

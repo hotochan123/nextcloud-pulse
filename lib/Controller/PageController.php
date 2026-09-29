@@ -21,13 +21,13 @@ class PageController extends Controller {
     }
 
     /**
-     * Einstieg der Moderator-SPA. Jede angemeldete Person darf Räume anlegen.
+     * Entry point of the moderator SPA. Any signed-in user may create rooms.
      */
     #[NoAdminRequired]
     #[NoCSRFRequired]
     public function index(): TemplateResponse {
         $response = new TemplateResponse(Application::APP_ID, 'index');
-        // Standard-CSP reicht: die App spricht nur same-origin mit der eigenen API.
+        // The default CSP is enough: the app only talks same-origin to its own API.
         $response->setContentSecurityPolicy(new ContentSecurityPolicy());
         return $response;
     }

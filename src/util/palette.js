@@ -3,19 +3,23 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 /*
- * Kanonische Antwort-Palette A–H — die EINE Quelle für Optionsfarben.
- * Ersetzt das hartkodierte OPT_COLORS-Array (bisher Screen.vue) und reicht die
- * Farbe von der Live-Kachel bis in den Ergebnis-Balken durch: `cls` auf das
- * Options-Element setzen -> Buchstaben-Badge und Balken-Fill erben --opt-fill
- * /--opt-ink (siehe pulse-ds.css, Klassen .pulse-opt-*).
+ * Canonical answer palette A–H — the ONE source for option colors.
+ * Replaces the hard-coded OPT_COLORS array (formerly in Screen.vue) and carries the
+ * color all the way from the live tile to the result bar: set `cls` on the
+ * option element -> letter badge and bar fill inherit --opt-fill
+ * /--opt-ink (see pulse-ds.css, classes .pulse-opt-*).
  *
- * Die Farbwerte selbst leben theme-unabhängig in pulse-tokens.css (--opt-*).
+ * The color values themselves live theme-independently in pulse-tokens.css (--opt-*).
+ *
+ * Section references (§…) point to the design notes of the redesign, which are
+ * not in the public repository (see "References in code comments" in the
+ * README).
  */
 
 const KEYS = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
 
 /**
- * @param {number} index 0-basierter Optionsindex
+ * @param {number} index 0-based option index
  * @return {{letter:string, cls:string, isInk:boolean}}
  */
 export function option(index) {
@@ -23,36 +27,36 @@ export function option(index) {
 	const key = KEYS[i]
 	return {
 		letter: String.fromCharCode(65 + i), // A … H
-		cls: 'pulse-opt-' + key,             // setzt --opt-fill/--opt-ink
-		isInk: key === 'd',                  // Amber: dunkler Text auf heller Kachel
+		cls: 'pulse-opt-' + key,             // sets --opt-fill/--opt-ink
+		isInk: key === 'd',                  // amber: dark text on a light tile
 	}
 }
 
 /**
- * Liste (Optionen/Ergebniszeilen) mit stabiler Palette-Zuordnung je Index —
- * derselbe Index -> dieselbe Farbe auf Handy, Beamer und im Ergebnis-Balken.
- * @param {Array} list Optionen bzw. Ergebniszeilen (null/undefined -> [])
- * @return {Array} dieselben Objekte, jeweils um `pal` (siehe option()) ergänzt
+ * List (options/result rows) with a stable palette assignment per index —
+ * same index -> same color on the phone, the projector and in the result bar.
+ * @param {Array} list options or result rows (null/undefined -> [])
+ * @return {Array} the same objects, each extended with `pal` (see option())
  */
 export function withPalette(list) {
 	return (list || []).map((item, i) => ({ ...item, pal: option(i) }))
 }
 
 /*
- * Helligkeitsstaffel für GEORDNETE Kategorien (§7.0): Plätze, Ränge, Stufen.
- * Die Palette A–H behauptet Gleichrang und ist hier falsch — die Staffel
- * entsteht aus einem Ton, nicht aus acht neuen Farben.
+ * Lightness ramp for ORDERED categories (§7.0): places, ranks, levels.
+ * The A–H palette implies equal standing and is wrong here — the ramp
+ * is built from one hue, not from eight new colors.
  *
- * @param {number} k 1-basierte Stufe (1 = dunkelste)
- * @param {number} n Anzahl Stufen
- * @return {{fill:string, ink:string}} CSS-Werte für --seg-fill/--seg-ink
+ * @param {number} k 1-based step (1 = darkest)
+ * @param {number} n number of steps
+ * @return {{fill:string, ink:string}} CSS values for --seg-fill/--seg-ink
  */
 export function rampStep(k, n) {
 	const lift = n > 1 ? ((k - 1) / (n - 1)) * 70 : 0
 	return {
 		fill: `color-mix(in oklab, var(--pulse-primary), var(--pulse-screen-bg) ${Math.round(lift)}%)`,
-		// Ab der halben Aufhellung trägt der helle Kontrastpartner nicht mehr;
-		// gemessen, nicht geschätzt (§3.1/§7.0).
+		// From half the lightening on, the light contrast partner no longer holds up;
+		// measured, not estimated (§3.1/§7.0).
 		ink: lift >= 50 ? 'var(--pulse-text)' : 'var(--pulse-on-primary)',
 	}
 }

@@ -24,15 +24,15 @@ use PHPUnit\Framework\TestCase;
 use ReflectionProperty;
 
 /**
- * Beitritt im eigenen Tempo (VoteService::quizJoin -> selfJoin).
+ * Self-paced join (VoteService::quizJoin -> selfJoin).
  *
- * Läuft unter der Raumsperre (PaceService::locked) und prüft an der frisch
- * gesperrten Zeile: nach dem Schluss kein Beitritt mehr (die nächste Gruppe
- * käme sonst an Endstand und Lösungen), „Beitritt sperren" und der Deckel von
- * 300 treffen nur neue Tokens, und nach dem Start ist der Name fest — sonst
- * schlüpfte ein Token nach dem Antworten in einen frei gewordenen Namen.
- * Ein neues Token beginnt leer: Reste eines entfernten Spielers mit demselben
- * Cookie erbt es nicht. Der moderierte Beitritt fasst PaceService nie an.
+ * Runs under the room lock (PaceService::locked) and checks against the freshly
+ * locked row: no joining after closing (the next group would otherwise get
+ * at the final standings and solutions), "Lock joining" and the cap of
+ * 300 only affect new tokens, and after starting the name is fixed — otherwise
+ * a token could slip into a freed-up name after answering.
+ * A new token starts empty: it does not inherit leftovers of a removed player
+ * with the same cookie. The moderated join never touches PaceService.
  */
 #[CoversClass(VoteService::class)]
 class SelfJoinTest extends TestCase {
@@ -43,11 +43,11 @@ class SelfJoinTest extends TestCase {
     private PlayerMapper&MockObject $players;
     private PaceService&MockObject $pace;
 
-    /** Was PaceService::locked an den Rückruf gibt — die maßgebliche Zeile. */
+    /** What PaceService::locked passes to the callback — the authoritative row. */
     private Room $locked;
     /** @var Player[] */
     private array $roster = [];
-    /** @var array<string, Progress[]> Fortschritt je Token */
+    /** @var array<string, Progress[]> progress per token */
     private array $progress = [];
     private int $lockCalls = 0;
 
@@ -88,7 +88,7 @@ class SelfJoinTest extends TestCase {
         }
     }
 
-    // ── Fensterzustand ─────────────────────────────────────────────────────
+    // ── Window state ───────────────────────────────────────────────────────
 
     public static function zu(): array {
         return [
@@ -126,7 +126,7 @@ class SelfJoinTest extends TestCase {
     }
 
     public function testZustandZaehltAnDerGesperrtenZeile(): void {
-        // Der übergebene Raum ist veraltet (offen); gesperrt gelesen ist er schon zu.
+        // The room passed in is stale (open); read with the lock it is already closed.
         $this->locked = $this->room(self::NOW - 100, 0, self::NOW - 1);
         $this->players->expects($this->never())->method('register');
 
@@ -147,7 +147,7 @@ class SelfJoinTest extends TestCase {
         $this->assertSame(1, $this->lockCalls);
     }
 
-    // ── Beitritt sperren, Deckel ───────────────────────────────────────────
+    // ── Lock joining, cap ──────────────────────────────────────────────────
 
     public function testGesperrtNeuesTokenWirdAbgewiesen(): void {
         $this->locked->setJoinsLocked(true);
@@ -156,7 +156,7 @@ class SelfJoinTest extends TestCase {
     }
 
     public function testGesperrtBekanntesTokenKommtWeiterRein(): void {
-        // Handy neu geladen, Name erneut bestätigt.
+        // Phone reloaded, name confirmed again.
         $this->locked->setJoinsLocked(true);
         $this->expectRegister('tok-anna', 'Anna');
 
@@ -164,7 +164,7 @@ class SelfJoinTest extends TestCase {
     }
 
     public function testGesperrtVorDerNamenspruefung(): void {
-        // Ein Wegwerf-Token erfährt nicht einmal, welche Namen vergeben sind.
+        // A throwaway token does not even learn which names are taken.
         $this->locked->setJoinsLocked(true);
 
         $this->assertRejected('Joining is closed for this quiz.', 'tok-neu', 'anna');
@@ -190,7 +190,7 @@ class SelfJoinTest extends TestCase {
         $this->join('tok-7', 'P7');
     }
 
-    // ── Name nach dem Start ────────────────────────────────────────────────
+    // ── Name after starting ────────────────────────────────────────────────
 
     public function testUmbenennenNachDemStartWirdAbgelehnt(): void {
         $this->progress['tok-anna'] = [$this->progressRow('tok-anna')];
@@ -223,11 +223,11 @@ class SelfJoinTest extends TestCase {
         $this->assertRejected('Please enter a name.', 'tok-neu', "\u{200B} ");
     }
 
-    // ── Neue Identität beginnt leer ────────────────────────────────────────
+    // ── A new identity starts empty ────────────────────────────────────────
 
     public function testNeuesTokenImOffenenFensterBeginntLeer(): void {
-        // Etwa das Cookie einer entfernten Person: was von ihr noch liegt, weg —
-        // unter der Sperre und vor dem Eintragen, Frage 1 mit neuer Uhr.
+        // Say, the cookie of a removed person: whatever of theirs is left goes away —
+        // under the lock and before registering, question 1 with a new clock.
         $calls = [];
         $this->pace->expects($this->once())->method('forgetToken')
             ->with($this->identicalTo($this->locked), 'tok-neu')
@@ -267,7 +267,7 @@ class SelfJoinTest extends TestCase {
         $this->assertRejected('Joining is closed for this quiz.', 'tok-neu', 'Cem');
     }
 
-    // ── Moderiert unverändert ──────────────────────────────────────────────
+    // ── Moderated mode unchanged ───────────────────────────────────────────
 
     public function testModeriertFasstPaceServiceNieAn(): void {
         $pace = $this->createMock(PaceService::class);
@@ -276,7 +276,7 @@ class SelfJoinTest extends TestCase {
         $progress->expects($this->never())->method($this->anything());
         (new ReflectionProperty(VoteService::class, 'paceService'))->setValue($this->service, $pace);
         (new ReflectionProperty(VoteService::class, 'progressMapper'))->setValue($this->service, $progress);
-        // Moderiert gibt es weder Deckel noch Sperre: auch 300 Spieler + Flag lassen neue rein.
+        // Moderated there is neither a cap nor a lock: even 300 players + the flag let new ones in.
         $this->roster = $this->manyPlayers(PaceService::MAX_PLAYERS);
         $room = $this->room(0);
         $room->setPace('live');
@@ -286,7 +286,7 @@ class SelfJoinTest extends TestCase {
         $this->service->quizJoin($room, 'tok-neu', 'Cem');
     }
 
-    // ── Helfer ─────────────────────────────────────────────────────────────
+    // ── Helpers ────────────────────────────────────────────────────────────
 
     private function join(string $token, string $nickname): Player {
         return $this->service->quizJoin($this->room(self::NOW - 100), $token, $nickname);

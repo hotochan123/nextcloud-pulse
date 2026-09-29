@@ -36,21 +36,21 @@ use PHPUnit\Framework\TestCase;
 use ReflectionProperty;
 
 /**
- * Gemeinsame Welt für die Tests der Lesesichten im eigenen Tempo
- * (PaceStateService): ein Raum mit drei Fragen im Speicher, Mapper als
- * Doubles über diese Listen, eine stellbare Uhr und ein lokaler Cache im
- * Speicher. PaceService, VoteService (Rangliste), TallyService und
- * DeckService sind echt — so rechnen Handy, Beamer, Fortschritt und
- * Rangliste in den Tests mit derselben Vorschrift wie auf dem Server.
+ * Shared world for the tests of the self-paced read views
+ * (PaceStateService): one room with three questions in memory, mappers as
+ * doubles over these lists, an adjustable clock and a local in-memory
+ * cache. PaceService, VoteService (leaderboard), TallyService and
+ * DeckService are real — so phone, projector, progress and leaderboard
+ * are computed in the tests by the same rules as on the server.
  *
- * Deck (eingefrorene Reihenfolge 11, 12, 13):
- * - 11 Auswahl „Hauptstadt von Frankreich?" (Paris AA richtig, Berlin BB), Limit 20
- * - 12 Reihenfolge „Planeten nach Größe" (Jupiter, Saturn, Neptun), Limit 20
- * - 13 Freitext „Größter Planet?" (angenommen: Jupiter), Limit 20
+ * Deck (frozen order 11, 12, 13):
+ * - 11 choice 'Hauptstadt von Frankreich?' (capital of France; Paris AA correct, Berlin BB), limit 20
+ * - 12 ranking 'Planeten nach Größe' (planets by size: Jupiter, Saturn, Neptun), limit 20
+ * - 13 free text 'Größter Planet?' (largest planet; accepted: Jupiter), limit 20
  */
 abstract class PaceStateTestCase extends TestCase {
 
-    protected const NOW = 1_800_000_000; // gerade: NOW und NOW+1 liegen im selben 2-s-Eimer
+    protected const NOW = 1_800_000_000; // even: NOW and NOW+1 fall into the same 2-s bucket
     protected const SECRET = 'test-secret';
 
     protected PaceStateService $service;
@@ -68,9 +68,9 @@ abstract class PaceStateTestCase extends TestCase {
     protected array $players = [];
     /** @var array<string, int> Token -> last_seen */
     protected array $seen = [];
-    /** @var array<string, mixed> Inhalt des lokalen Caches */
+    /** @var array<string, mixed> contents of the local cache */
     protected array $cacheStore = [];
-    /** @var array<string, int> Aufrufzähler je Mapper-Methode */
+    /** @var array<string, int> call counter per mapper method */
     protected array $calls = [];
 
     protected function setUp(): void {
@@ -216,8 +216,8 @@ abstract class PaceStateTestCase extends TestCase {
     }
 
     /**
-     * Dienst ohne Konstruktor bauen und die genannten Abhängigkeiten setzen
-     * (wie in den übrigen Reflection-Tests).
+     * Build a service without its constructor and set the given dependencies
+     * (as in the other reflection tests).
      *
      * @template T of object
      * @param class-string<T> $class
@@ -235,7 +235,7 @@ abstract class PaceStateTestCase extends TestCase {
         $this->calls[$what] = ($this->calls[$what] ?? 0) + 1;
     }
 
-    // ── Aufrufe ────────────────────────────────────────────────────────────
+    // ── Calls ──────────────────────────────────────────────────────────────
 
     protected function phone(string $token = 'tok-anna'): array {
         return $this->service->publicState($this->room, $token, false);
@@ -245,9 +245,9 @@ abstract class PaceStateTestCase extends TestCase {
         return $this->service->publicState($this->room, null, true);
     }
 
-    // ── Welt ───────────────────────────────────────────────────────────────
+    // ── World ──────────────────────────────────────────────────────────────
 
-    /** Offenes Rennen: geöffnet vor 100 s, ohne Frist, mit Timer, Urteil je Frage. */
+    /** Open race: opened 100 s ago, no deadline, with timer, verdict per question. */
     protected function room(): Room {
         $room = new Room();
         $room->setId(5);
@@ -262,7 +262,7 @@ abstract class PaceStateTestCase extends TestCase {
         return $room;
     }
 
-    /** Fenster zu (manuell, mit Frist — also nicht zugleich freigegeben). */
+    /** Window closed (manually, with a deadline — so not released at the same time). */
     protected function close(): void {
         $this->room->setClosesAt(self::NOW + 3600);
         $this->room->setClosedAt(self::NOW - 1);
@@ -318,7 +318,7 @@ abstract class PaceStateTestCase extends TestCase {
         return $player;
     }
 
-    /** Fortschrittszeile; seq folgt der Reihenfolge 11, 12, 13. */
+    /** Progress row; seq follows the order 11, 12, 13. */
     protected function row(int $pollId, string $token, int $startedAt, int $leftAt = 0): Progress {
         $row = new Progress();
         $row->setRoomId(5);
@@ -331,7 +331,7 @@ abstract class PaceStateTestCase extends TestCase {
         return $row;
     }
 
-    /** Stimme mit Payload wie recordSelfVote sie schreibt. */
+    /** Vote with a payload as recordSelfVote writes it. */
     protected function vote(
         int $pollId,
         string $token,
@@ -367,7 +367,7 @@ abstract class PaceStateTestCase extends TestCase {
         return $vote;
     }
 
-    /** Nickname -> Wert einer Ranglisten-Spalte. */
+    /** Nickname -> value of a leaderboard column. */
     protected static function column(?array $leaderboard, string $field): array {
         return array_column($leaderboard ?? [], $field, 'nickname');
     }

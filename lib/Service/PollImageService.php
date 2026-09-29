@@ -16,27 +16,27 @@ use OCP\IL10N;
 use OCP\Security\ISecureRandom;
 
 /**
- * Bilder zu Fragen. Liegen im AppData-Bereich der App (nicht im Web-Root, nicht
- * in den Dateien einer Person) und werden über eigene Endpunkte ausgeliefert.
+ * Images for questions. They live in the app's AppData area (not in the web root,
+ * not in anyone's files) and are served through dedicated endpoints.
  *
- * Hochgeladene Bilder werden IMMER neu kodiert statt durchgereicht: das wirft
- * EXIF-Daten, eingebettete Nutzlasten und Polyglot-Dateien weg und deckelt
- * nebenbei die Kantenlänge. Was hier herauskommt, ist ein frisch von GD
- * geschriebenes PNG oder JPEG — sonst nichts.
+ * Uploaded images are ALWAYS re-encoded instead of passed through: that drops
+ * EXIF data, embedded payloads and polyglot files and, as a side effect, caps
+ * the edge length. What comes out here is a PNG or JPEG freshly written by
+ * GD — nothing else.
  */
 class PollImageService {
-    /** Obergrenze für den Upload (Bytes). PHP selbst erlaubt hier viel mehr. */
+    /** Upload limit (bytes). PHP itself allows much more here. */
     public const MAX_BYTES = 5 * 1024 * 1024;
-    /** Längste Kante nach dem Verkleinern — reicht für jeden Beamer. */
+    /** Longest edge after downscaling — enough for any projector. */
     private const MAX_EDGE = 1600;
-    /** Grenze gegen „Dekompressionsbomben": Pixel vor dem Verkleinern. */
+    /** Guard against "decompression bombs": pixels before downscaling. */
     private const MAX_PIXELS = 50_000_000;
     private const FOLDER = 'polls';
 
     private const ACCEPTED = [
         IMAGETYPE_JPEG => 'jpg',
         IMAGETYPE_PNG => 'png',
-        IMAGETYPE_GIF => 'png',   // wird als PNG gespeichert (Animation geht verloren)
+        IMAGETYPE_GIF => 'png',   // stored as PNG (animation is lost)
         IMAGETYPE_WEBP => 'png',
     ];
 
@@ -49,17 +49,17 @@ class PollImageService {
     }
 
     /**
-     * Hochgeladenes Bild prüfen, neu kodieren, ablegen und an der Frage
-     * vermerken. Ein vorheriges Bild derselben Frage wird ersetzt.
+     * Validate an uploaded image, re-encode it, store it and record it on the
+     * question. A previous image of the same question is replaced.
      *
-     * @param array{tmp_name?:string, size?:int, error?:int} $upload $_FILES-Eintrag
-     * @return Poll die aktualisierte Frage
-     * @throws \InvalidArgumentException bei fehlerhaftem/zu großem/keinem Bild
+     * @param array{tmp_name?:string, size?:int, error?:int} $upload $_FILES entry
+     * @return Poll the updated question
+     * @throws \InvalidArgumentException for a broken/too large/missing image
      */
     public function store(Poll $poll, array $upload): Poll {
-        // `image[]=…` (oder image[a]) liefert je Feld eine Liste statt eines
-        // Werts — das ist kein Bild (ohne die Probe hieße (int) darauf 1 =
-        // UPLOAD_ERR_INI_SIZE, also „zu groß“).
+        // `image[]=…` (or image[a]) yields a list per field instead of a
+        // value — that is not an image (without this check, (int) on it would be 1 =
+        // UPLOAD_ERR_INI_SIZE, i.e. "too large").
         if (!is_int($upload['error'] ?? UPLOAD_ERR_NO_FILE) || !is_string($upload['tmp_name'] ?? '')) {
             throw new \InvalidArgumentException($this->l10n->t('No image received.'));
         }
@@ -80,7 +80,7 @@ class PollImageService {
         if ($raw === false || $raw === '') {
             throw new \InvalidArgumentException($this->l10n->t('No image received.'));
         }
-        // Nicht dem Content-Type des Clients trauen — die Datei selbst befragen.
+        // Do not trust the client's Content-Type — ask the file itself.
         $info = @getimagesizefromstring($raw);
         if ($info === false || !isset(self::ACCEPTED[$info[2]])) {
             throw new \InvalidArgumentException($this->l10n->t('Only PNG, JPEG, GIF or WebP.'));
@@ -91,8 +91,8 @@ class PollImageService {
 
         [$data, $ext] = $this->reencode($raw, (int)$info[2]);
 
-        // Erst schreiben, dann die alte Datei entfernen: geht das Schreiben schief,
-        // bleibt das bisherige Bild erhalten.
+        // Write first, then remove the old file: if writing fails,
+        // the previous image is kept.
         $old = $this->fileName($poll);
         $name = $this->secureRandom->generate(16, ISecureRandom::CHAR_LOWER . ISecureRandom::CHAR_DIGITS) . '.' . $ext;
         $this->folder()->newFile($this->storedName($poll->getId(), $name), $data);
@@ -104,7 +104,7 @@ class PollImageService {
         return $poll;
     }
 
-    /** Bild entfernen (Datei + Vermerk an der Frage). Ohne Bild ein No-op. */
+    /** Remove the image (file + record on the question). A no-op without an image. */
     public function remove(Poll $poll): Poll {
         $name = $this->fileName($poll);
         if ($name === '') {
@@ -116,7 +116,7 @@ class PollImageService {
     }
 
     /**
-     * Bild einer Frage lesen (zum Ausliefern).
+     * Read a question's image (for serving).
      *
      * @return ?array{content:string, mime:string, name:string}
      */
@@ -138,8 +138,8 @@ class PollImageService {
     }
 
     /**
-     * Bild beim Duplizieren mitkopieren — die Kopie bekommt eine eigene Datei,
-     * damit das Löschen des einen Raums das Bild des anderen nicht mitnimmt.
+     * Copy the image along when duplicating — the copy gets its own file,
+     * so deleting one room does not take the other room's image with it.
      */
     public function copy(Poll $src, Poll $dst): void {
         $data = $this->read($src);
@@ -154,8 +154,8 @@ class PollImageService {
     }
 
     /**
-     * Aufräumen, wenn eine Frage (oder ein ganzer Raum) verschwindet. Die Frage
-     * wird hier NICHT mehr geschrieben — sie ist ohnehin gleich gelöscht.
+     * Clean up when a question (or a whole room) goes away. The question is
+     * NOT written here any more — it is about to be deleted anyway.
      */
     public function discard(Poll $poll): void {
         $name = $this->fileName($poll);
@@ -164,13 +164,13 @@ class PollImageService {
         }
     }
 
-    // ── intern ──────────────────────────────────────────────────────────────
+    // ── internal ────────────────────────────────────────────────────────────
 
     /**
-     * Neu kodieren + auf MAX_EDGE verkleinern. JPEG bleibt JPEG (Fotos), alles
-     * andere wird PNG (Transparenz bleibt erhalten).
+     * Re-encode + downscale to MAX_EDGE. JPEG stays JPEG (photos), everything
+     * else becomes PNG (transparency is preserved).
      *
-     * @return array{0:string, 1:string} Rohdaten + Dateiendung
+     * @return array{0:string, 1:string} raw data + file extension
      */
     private function reencode(string $raw, int $type): array {
         $img = @imagecreatefromstring($raw);
@@ -205,7 +205,7 @@ class PollImageService {
 
     private function fileName(Poll $poll): string {
         $name = (string)($poll->getImage() ?? '');
-        // Nur das erwartete Muster akzeptieren — der Wert fließt in einen Dateinamen.
+        // Accept only the expected pattern — the value ends up in a file name.
         return preg_match('/^[a-z0-9]{16}\.(png|jpg)$/', $name) === 1 ? $name : '';
     }
 
@@ -217,7 +217,7 @@ class PollImageService {
         try {
             $this->folder()->getFile($this->storedName($pollId, $name))->delete();
         } catch (NotFoundException) {
-            // schon weg — nichts zu tun
+            // already gone — nothing to do
         }
     }
 

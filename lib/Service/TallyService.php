@@ -11,8 +11,12 @@ use OCA\Pulse\Db\Poll;
 use OCA\Pulse\Db\Vote;
 
 /**
- * Zählt Stimmen aus. Reine Rechenlogik, 1:1 aus dem Artefakt übernommen —
- * keine DB-Zugriffe (bekommt Poll + Vote[] herein), damit leicht testbar.
+ * Counts votes. Pure calculation logic, taken over 1:1 from the prototype artifact —
+ * no DB access (it is handed Poll + Vote[]), so that it is easy to test.
+ *
+ * Section references (§…) point to the design notes of the redesign, which are
+ * not in the public repository (see "References in code comments" in the
+ * README).
  */
 class TallyService {
 
@@ -34,9 +38,9 @@ class TallyService {
     }
 
     /**
-     * Freitext-Normalform für den Abgleich: Whitespace zusammengezogen,
-     * getrimmt, kleingeschrieben. EINE Quelle — auch der VoteService nutzt sie,
-     * damit Bewertung und Auszählung dieselbe Gruppierung sehen.
+     * Free-text normal form for matching: whitespace collapsed,
+     * trimmed, lower-cased. ONE source — VoteService uses it too,
+     * so that grading and tallying see the same grouping.
      */
     public static function normalizeText(string $s): string {
         $s = preg_replace('/\s+/u', ' ', $s) ?? '';
@@ -44,19 +48,19 @@ class TallyService {
     }
 
     /**
-     * Sichtbarer Text ohne Unsichtbares: Unicode-NFC (ein „é" aus macOS ist
-     * sonst zwei Zeichen), unsichtbare Zeichen raus (weiches Trennzeichen,
-     * Nullbreiten-Leerzeichen, Richtungs-Steuerzeichen, Wortverbinder, BOM) und
-     * an den Rändern alles Leere, auch NBSP und U+3000, die PHPs trim() stehen
-     * lässt. Bewusst eine Liste statt \p{Cf}: ZWNJ/ZWJ (U+200C/D) braucht
-     * Persisch bzw. Emoji, die Tag-Zeichen U+E0020–E007F die Regionsflaggen —
-     * aber nur dort: außerhalb einer Flagge (🏴 … U+E007F) fliegen sie raus.
-     * Hangul-Füllzeichen, die arabische Richtungsmarke, das leere
-     * Braille-Feld (U+2800, der übliche „unsichtbare Name"), die veralteten
-     * Formatzeichen U+206A–206F, die Anmerkungszeichen U+FFF9–FFFB und das
-     * Sprach-Tag U+E0001 sind ebenfalls unsichtbar und stehen auf der Liste.
-     * Sonst sind „Kaffee" und „Kaffee\u{200B}" zwei Wörter und „Anna" zweimal
-     * in der Rangliste.
+     * Visible text without the invisible: Unicode NFC (an "é" from macOS is
+     * otherwise two characters), invisible characters removed (soft hyphen,
+     * zero-width space, direction control characters, word joiner, BOM) and
+     * everything blank at the edges, including NBSP and U+3000, which PHP's trim()
+     * leaves in place. Deliberately a list instead of \p{Cf}: ZWNJ/ZWJ (U+200C/D) are needed
+     * by Persian and by emoji respectively, the tag characters U+E0020–E007F by the regional flags —
+     * but only there: outside a flag (🏴 … U+E007F) they are removed.
+     * Hangul fillers, the Arabic letter mark, the blank
+     * Braille pattern (U+2800, the usual "invisible name"), the deprecated
+     * format characters U+206A–206F, the annotation characters U+FFF9–FFFB and the
+     * language tag U+E0001 are invisible as well and are on the list.
+     * Otherwise "coffee" and "coffee\u{200B}" are two words and "Anna" appears twice
+     * in the leaderboard.
      */
     public static function cleanText(string $s): string {
         if (class_exists(\Normalizer::class)) {
@@ -72,19 +76,19 @@ class TallyService {
     }
 
     /**
-     * Wortwolken-Anzeigeform: bereinigt (cleanText), Leerraum im Inneren zu
-     * einem Leerzeichen, kleingeschrieben.
+     * Word-cloud display form: cleaned (cleanText), inner whitespace collapsed to
+     * one space, lower-cased.
      */
     public static function normalizeWord(string $s): string {
         return mb_strtolower(self::squash(self::cleanText($s)));
     }
 
     /**
-     * Wortwolken-Schlüssel: die Anzeigeform ohne Zeichen, die nur die Darstellung
-     * wählen (Variantenwähler wie das Emoji-U+FE0F, Graphem-Verbinder U+034F und
-     * Verwandte). Gespeichert und angezeigt werden sie weiter — „❤️" soll bunt
-     * bleiben —, aber „❤️" und „❤" sind ein Wort. EINE Quelle für Auszählung und
-     * Stimmprüfung — sonst zählt „Kaffee“ + „KAFFEE“ einer Person doppelt.
+     * Word-cloud key: the display form without characters that only select the
+     * presentation (variation selectors such as the emoji U+FE0F, the combining grapheme joiner U+034F and
+     * relatives). They are still stored and displayed — "❤️" should stay
+     * colourful — but "❤️" and "❤" are one word. ONE source for tallying and
+     * vote validation — otherwise "coffee" + "COFFEE" from one person counts twice.
      */
     public static function wordKey(string $s): string {
         return self::squash(self::nfc(preg_replace(
@@ -95,18 +99,18 @@ class TallyService {
     }
 
     /**
-     * Vergleichsform für Namen: wie wordKey, zusätzlich ohne ZWNJ/ZWJ.
-     * Die bleiben im gespeicherten Namen (Persisch, Emoji), dürfen aber nicht
-     * aus „Anna" einen zweiten, gleich aussehenden Namen machen.
+     * Comparison form for names: like wordKey, additionally without ZWNJ/ZWJ.
+     * They stay in the stored name (Persian, emoji), but must not turn
+     * "Anna" into a second, identical-looking name.
      */
     public static function nameKey(string $s): string {
         return self::squash(self::nfc(preg_replace('/[\x{200C}\x{200D}]/u', '', self::wordKey($s)) ?? ''));
     }
 
     /**
-     * Noch einmal NFC nach dem Entfernen: ein Verbinder zwischen Buchstabe und
-     * Akzent blockiert die Zusammensetzung — ohne ihn wäre „Rene" + U+0301
-     * sonst ein anderer Schlüssel als „René".
+     * NFC once more after the removal: a joiner between letter and
+     * accent blocks the composition — without this, "Rene" + U+0301 would
+     * otherwise be a different key from "René".
      */
     private static function nfc(string $s): string {
         if (class_exists(\Normalizer::class)) {
@@ -115,13 +119,13 @@ class TallyService {
         return $s;
     }
 
-    /** Leerraum-Folgen zu einem Leerzeichen, Ränder weg. */
+    /** Runs of whitespace to one space, edges removed. */
     private static function squash(string $s): string {
         return trim(preg_replace('/[\s\p{Z}]+/u', ' ', $s) ?? '', ' ');
     }
 
     /**
-     * Skala: Verteilung je Wert + Durchschnitt.
+     * Scale: distribution per value + average.
      *
      * @param Vote[] $votes
      * @return array{type:string, total:int, average:float, min:int, max:int, minLabel:string, maxLabel:string, results:list<array{value:int,count:int}>}
@@ -170,11 +174,11 @@ class TallyService {
     }
 
     /**
-     * Spektrum: je Aspekt Ø, min, max und n über alle Stimmen. Eine Stimme ist
-     * eine Map aspectId -> Wert (0..max). Fehlt ein Aspekt, zählt er für diese
-     * Stimme nicht mit.
+     * Spectrum: per aspect the mean, min, max and n over all votes. A vote is
+     * a map aspectId -> value (0..max). If an aspect is missing, it does not count for
+     * that vote.
      *
-     * @param array $cfg getScaleConfig() (mode=spectrum, mit aspects[])
+     * @param array $cfg getScaleConfig() (mode=spectrum, with aspects[])
      * @param Vote[] $votes
      * @return array{type:string, mode:string, total:int, min:int, max:int, results:list<array{id:string,label:string,average:float,min:int,max:int,n:int}>}
      */
@@ -228,8 +232,8 @@ class TallyService {
     }
 
     /**
-     * Kompass: alle Punkte {x,y} (für Scatter/Heatmap) + Schwerpunkt (Centroid).
-     * Der Client entscheidet Scatter vs. Heatmap anhand total >= heatmapThreshold.
+     * Compass: all points {x,y} (for scatter/heatmap) + centre of gravity (centroid).
+     * The client decides scatter vs. heatmap based on total >= heatmapThreshold.
      *
      * @param array $cfg getScaleConfig() (mode=compass, range/axisX/axisY/…)
      * @param Vote[] $votes
@@ -303,8 +307,8 @@ class TallyService {
     }
 
     /**
-     * Wortwolke: alle Wörter aller Stimmen einsammeln, kleinschreiben,
-     * nach Häufigkeit absteigend. total = Zahl der abstimmenden Personen.
+     * Word cloud: collect all words of all votes, lower-case them,
+     * in descending order of frequency. total = number of people who voted.
      *
      * @param Vote[] $votes
      * @return array{type:string, total:int, results:list<array{word:string,count:int}>}
@@ -317,8 +321,8 @@ class TallyService {
             if (!is_array($value)) {
                 continue;
             }
-            // Je Person zählt ein Wort höchstens einmal — auch für Stimmen, die
-            // vor der Prüfung ohne Groß/Klein gespeichert wurden.
+            // A word counts at most once per person — also for votes that were
+            // stored case-sensitively before this check existed.
             $seen = [];
             foreach ($value as $raw) {
                 if (!is_string($raw)) {
@@ -330,7 +334,7 @@ class TallyService {
                 }
                 $seen[$key] = true;
                 $freq[$key] = ($freq[$key] ?? 0) + 1;
-                // Angezeigt wird die erste Schreibweise (mit Variantenwähler).
+                // The first spelling is displayed (with variation selector).
                 $label[$key] ??= self::normalizeWord($raw);
             }
         }
@@ -347,8 +351,8 @@ class TallyService {
     }
 
     /**
-     * Mehrfachauswahl: wie Choice, aber je Stimme können mehrere IDs gezählt
-     * werden (Wert ist eine Liste). total = Zahl der Personen.
+     * Multiple choice: like choice, but several IDs can be counted per vote
+     * (the value is a list). total = number of people.
      *
      * @param Vote[] $votes
      * @return array{type:string, total:int, results:list<array{id:string,label:string,count:int}>}
@@ -377,17 +381,17 @@ class TallyService {
     }
 
     /**
-     * Reihenfolge: Konsens-Ranking. Je Option der Durchschnitt der vergebenen
-     * Plätze (1 = ganz oben, kleiner ist besser) und wie oft sie auf Platz 1
-     * stand. Sortiert nach Durchschnitt — das ist die Reihenfolge, auf die sich
-     * das Publikum geeinigt hat. Optionen ohne Stimmen behalten ihre Editor-
-     * Position und stehen mit average 0 am Ende.
+     * Ranking: consensus ranking. Per option the average of the places given
+     * (1 = top, smaller is better) and how often it was in first place.
+     * Sorted by average — that is the order the audience has agreed
+     * on. Options without votes keep their editor
+     * position and come last with average 0.
      *
-     * `places` trägt zusätzlich die volle Verteilung (Index k = Platz k+1). Der
-     * Durchschnitt allein verschweigt, ob ein Element unstrittig ist oder
-     * polarisiert: 2,4 kann „alle sagen Platz 2 oder 3" heißen oder „die Hälfte
-     * Platz 1, die Hälfte Platz 4". Erst die Verteilung macht das lesbar (§7.5).
-     * Sortierung, Durchschnitt und `first` bleiben unverändert.
+     * `places` additionally carries the full distribution (index k = place k+1). The
+     * average alone hides whether an item is uncontroversial or
+     * polarising: 2.4 can mean "everyone says place 2 or 3" or "half say
+     * place 1, half place 4". Only the distribution makes that readable (§7.5).
+     * Sorting, average and `first` stay unchanged.
      *
      * @param Vote[] $votes
      * @return array{type:string, total:int, results:list<array{id:string,label:string,average:float,first:int,n:int,places:list<int>}>}
@@ -407,7 +411,7 @@ class TallyService {
                 if (!is_string($id) || !isset($acc[$id])) {
                     continue;
                 }
-                $acc[$id]['sum'] += $pos + 1; // 1-basierte Plätze
+                $acc[$id]['sum'] += $pos + 1; // 1-based places
                 $acc[$id]['n']++;
                 if ($pos === 0) {
                     $acc[$id]['first']++;
@@ -427,10 +431,10 @@ class TallyService {
                 'first' => $a['first'],
                 'n' => $a['n'],
                 'places' => $a['places'],
-                'pos' => $i, // Editor-Position, nur als stabiler Tiebreaker
+                'pos' => $i, // editor position, only as a stable tiebreaker
             ];
         }
-        // Kleinerer Durchschnitt zuerst; ohne Stimmen (average 0) ans Ende.
+        // Smaller average first; without votes (average 0) to the end.
         usort($results, static function (array $x, array $y): int {
             if ($x['n'] === 0 || $y['n'] === 0) {
                 return ($y['n'] <=> $x['n']) ?: ($x['pos'] <=> $y['pos']);
@@ -447,11 +451,11 @@ class TallyService {
     }
 
     /**
-     * Zuordnung: je Item die Verteilung über die Ziele. Das Publikum einigt
-     * sich pro Zeile — deshalb bleibt die Item-Reihenfolge des Editors stehen
-     * (sie ist die Leserichtung), und nur die Ziele werden gezählt. `top` ist
-     * das meistgewählte Ziel der Zeile (leer bei Gleichstand oder ohne Stimmen)
-     * und trägt die Konsens-Markierung in der Umfrage.
+     * Matching: per item the distribution over the targets. The audience agrees
+     * row by row — which is why the editor's item order stays as it is
+     * (it is the reading direction), and only the targets are counted. `top` is
+     * the most chosen target of the row (empty on a tie or without votes)
+     * and carries the consensus marker in the poll.
      *
      * @param Vote[] $votes
      * @return array{type:string, total:int, targets:list<array{id:string,label:string}>, results:list<array{id:string,label:string,n:int,top:string,targets:list<array{id:string,label:string,count:int}>}>}
@@ -489,7 +493,7 @@ class TallyService {
                     $best = $c;
                     $top = $target['id'];
                 } elseif ($c === $best && $c > 0) {
-                    $top = ''; // Gleichstand ist kein Konsens
+                    $top = ''; // a tie is no consensus
                 }
             }
             $results[] = [
@@ -504,8 +508,8 @@ class TallyService {
     }
 
     /**
-     * Schätzfrage: Verteilung der Zahlen + wie viele im Toleranzband lagen.
-     * Die Zielzahl selbst steckt NICHT im Tally (kommt beim Auflösen via answerKey).
+     * Estimation question: distribution of the numbers + how many were within the tolerance band.
+     * The target number itself is NOT in the tally (it arrives with the reveal via answerKey).
      *
      * @param Vote[] $votes
      * @return array{type:string, total:int, correct:int, results:list<array{value:int|float,count:int}>}
@@ -537,9 +541,9 @@ class TallyService {
     }
 
     /**
-     * Freitext: Antworten nach Normalform gruppieren (Häufigkeit absteigend),
-     * je Gruppe ein roher Beispieltext + Status (accepted/rejected/pending) aus
-     * der Akzeptanzliste. Grundlage für die Moderator-Bewertung.
+     * Free text: group answers by normal form (descending frequency),
+     * one raw sample text per group + status (accepted/rejected/pending) from
+     * the acceptance list. The basis for the moderator's grading.
      *
      * @param Vote[] $votes
      * @return array{type:string, total:int, answers:list<array{norm:string,sample:string,count:int,status:string}>, accepted:list<string>}

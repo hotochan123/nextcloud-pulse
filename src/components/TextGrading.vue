@@ -14,12 +14,12 @@
 				<span class="tg-count">{{ a.count }}×</span>
 				<span class="tg-text">{{ a.sample }}</span>
 
-				<!-- interaktiv: bewerten (richtig/falsch), 44 px, Form+Farbe+Text -->
+				<!-- interactive: grade (correct/wrong), 44 px, shape+colour+text -->
 				<span v-if="!readonly" class="tg-actions">
 					<button class="tg-btn tg-ok" :class="{ 'is-on': a.status === 'accepted' }" :disabled="busy" :title="t('pulse', 'Mark as correct')" :aria-label="t('pulse', 'Mark as correct')" @click="$emit('grade', a.sample, true)"><PulseIcon name="check" size="1.15em" /></button>
 					<button class="tg-btn tg-no" :class="{ 'is-on': a.status === 'rejected' }" :disabled="busy" :title="t('pulse', 'Mark as wrong')" :aria-label="t('pulse', 'Mark as wrong')" @click="$emit('grade', a.sample, false)"><PulseIcon name="close" size="1.15em" /></button>
 				</span>
-				<!-- read-only: Status als Marke (Form+Farbe+Text), offen sichtbar -->
+				<!-- read-only: status as a badge (shape+colour+text), openly visible -->
 				<span v-else class="tg-status" :class="'is-' + a.status">
 					<template v-if="a.status === 'accepted'"><PulseIcon name="check" size="1em" /> {{ t('pulse', 'correct') }}</template>
 					<template v-else-if="a.status === 'rejected'"><PulseIcon name="close" size="1em" /> {{ t('pulse', 'wrong') }}</template>
@@ -33,6 +33,11 @@
 </template>
 
 <script>
+/*
+ * Section references (§…) point to the design notes of the redesign and of the
+ * self-paced quiz, which are not in the public repository (see "References in
+ * code comments" in the README).
+ */
 import PulseIcon from './ui/PulseIcon.vue'
 
 export default {
@@ -40,14 +45,14 @@ export default {
 	components: { PulseIcon },
 	props: {
 		results: { type: Object, required: true },
-		// read-only: dieselbe Optik, aber ohne Bewerten-Buttons — so teilen sich
-		// ResultsView (Anzeige) und die Präsentation EINEN Freitext-Baustein (§5).
+		// read-only: same look, but without the grading buttons — this way
+		// ResultsView (display) and the presentation share ONE free-text building block (§5).
 		readonly: { type: Boolean, default: false },
-		// Ohne Lösungsschlüssel: blendet nur „Akzeptiert:" aus. Für die Bewertung
-		// im eigenen Tempo, während das Quiz offen ist — der Laptop hängt oft am
-		// Beamer, und die Liste wäre dort die Lösung.
+		// Without the answer key: only hides "Accepted:". For grading
+		// the self-paced quiz while it is open — the laptop is often connected to the
+		// projector, and the list there would give away the solution.
 		keyless: { type: Boolean, default: false },
-		// Eine Bewertung läuft: beide Knöpfe aus, kein Doppel-Tipp.
+		// A grading request is running: both buttons off, no double tap.
 		busy: { type: Boolean, default: false },
 	},
 	computed: {
@@ -59,7 +64,7 @@ export default {
 </script>
 
 <style scoped>
-/* em -> skaliert über Container-font-size (Handy/Moderator klein, Beamer groß). */
+/* em -> scales with the container font-size (phone/moderator small, projector large). */
 .text-grading { width: 100%; font-size: inherit; }
 .tg-accepted { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5em; margin-bottom: 0.7em; }
 .tg-accepted-label { font-size: 0.85em; color: var(--pulse-text-2); }
@@ -79,11 +84,11 @@ export default {
 	display: inline-flex; align-items: center; justify-content: center; padding: 0;
 }
 .tg-btn:focus-visible { outline: 2px solid var(--pulse-primary); outline-offset: 2px; }
-/* busy: Nextcloud graut deaktivierte <button> ein — die Optik bleibt, nur gedämpft. */
+/* busy: Nextcloud greys out disabled <button>s — the look stays, just dimmed. */
 .tg-btn:disabled { opacity: 0.55; cursor: default; background: var(--pulse-bg); color: var(--pulse-text-2); border-color: var(--pulse-border-strong); }
 .tg-ok.is-on { background: var(--pulse-success); border-color: var(--pulse-success); color: #fff; }
 .tg-no.is-on { background: var(--pulse-error); border-color: var(--pulse-error); color: #fff; }
-/* read-only Status-Marke */
+/* read-only status badge */
 .tg-status { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 0.25em; font-weight: 800; font-size: 0.85em; }
 .tg-status.is-accepted { color: var(--pulse-success); }
 .tg-status.is-rejected { color: var(--pulse-error); }

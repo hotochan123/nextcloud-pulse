@@ -24,12 +24,13 @@ use PHPUnit\Framework\TestCase;
 use ReflectionProperty;
 
 /**
- * Korrekturfenster der Quiz-Antwort (§8.0 der Redesign-Übergabe).
+ * Correction window for the quiz answer (§8.0 of the redesign handoff;
+ * design notes, not in the public repository).
  *
- * Die Regel ist serverseitig, nicht im Browser: der Abstimmungs-Endpunkt ist
- * öffentlich, ein Client könnte also beliebig oft „korrigieren". Geprüft wird
- * deshalb hier — genau eine Korrektur, nur innerhalb des Fensters, und mit
- * neuem Zeitstempel, damit die gewonnene Zeit verfällt.
+ * The rule lives on the server, not in the browser: the voting endpoint is
+ * public, so a client could "correct" as often as it likes. That is why it is
+ * tested here — exactly one correction, only within the window, and with a
+ * new timestamp, so the time gained is forfeited.
  */
 #[CoversClass(VoteService::class)]
 class QuizFixWindowTest extends TestCase {
@@ -83,7 +84,7 @@ class QuizFixWindowTest extends TestCase {
         $this->assertSame('BB', $payload['value'], 'die korrigierte Antwort zählt');
         $this->assertTrue($payload['fixed'], 'die Korrektur ist als solche vermerkt');
         $this->assertSame($this->now, $saved->getCreatedAt(), 'der Zeitstempel wird neu gesetzt');
-        // Zeitstempel neu heißt: die zwei Sekunden Vorsprung sind weg.
+        // A new timestamp means: the two-second head start is gone.
         $this->assertSame(10, $payload['elapsed']);
     }
 
@@ -108,7 +109,7 @@ class QuizFixWindowTest extends TestCase {
     }
 
     public function testTastaturbedienungHatDasLaengereFenster(): void {
-        // Dieselben fünf Sekunden wie im Test darüber — per Tastatur erlaubt.
+        // The same five seconds as in the test above — allowed via keyboard.
         $old = $this->existingVote(['value' => 'AA', 'points' => 0, 'correct' => false, 'elapsed' => 1], at: 995);
         $this->votes->method('insert')->willThrowException($this->uniqueViolation());
         $this->votes->method('findByPollAndToken')->willReturn($old);
@@ -146,7 +147,7 @@ class QuizFixWindowTest extends TestCase {
         return $vote;
     }
 
-    /** Der UNIQUE-Verstoß, mit dem die Datenbank die zweite Antwort ablehnt. */
+    /** The UNIQUE violation with which the database rejects the second answer. */
     private function uniqueViolation(): Exception {
         $e = $this->createMock(Exception::class);
         $e->method('getReason')->willReturn(Exception::REASON_UNIQUE_CONSTRAINT_VIOLATION);

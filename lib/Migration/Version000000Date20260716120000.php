@@ -14,8 +14,8 @@ use OCP\Migration\IOutput;
 use OCP\Migration\SimpleMigrationStep;
 
 /**
- * Deck-Feature: Umfragen bekommen eine Position (geordnete Fragenliste pro Raum).
- * Der Cursor bleibt room.active_poll_id.
+ * Deck feature: polls get a position (ordered list of questions per room).
+ * The cursor stays room.active_poll_id.
  */
 class Version000000Date20260716120000 extends SimpleMigrationStep {
 

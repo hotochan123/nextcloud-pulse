@@ -8,30 +8,30 @@ declare(strict_types=1);
 namespace OCA\Pulse\Service;
 
 /**
- * Baut das Office-Manifest des PowerPoint-Add-ins aus den Adressen DIESER Instanz.
+ * Builds the Office manifest of the PowerPoint add-in from the addresses of THIS instance.
  *
- * Warum erzeugt statt als Datei im Repo: ein Office-Manifest kennt keine
- * Variablen — <AppDomain> und <SourceLocation> müssen absolute URLs sein. Eine
- * mitgelieferte Vorlage müsste also jede Person an zwei Stellen von Hand
- * ändern; vergisst sie es, lädt das Add-in stumm eine fremde Adresse und der
- * Kasten auf der Folie bleibt leer. Hier gibt jede Instanz ihr eigenes,
- * fertiges Manifest heraus.
+ * Why generated instead of shipped as a file in the repo: an Office manifest has no
+ * variables — <AppDomain> and <SourceLocation> must be absolute URLs. A
+ * bundled template would have to be edited by hand in two places by
+ * everyone; forget it and the add-in silently loads someone else's address and the
+ * box on the slide stays empty. Here every instance hands out its own,
+ * ready-to-use manifest.
  */
 class AddinManifest {
     /**
-     * Kennung des Add-ins, NICHT der Installation: daran erkennt Office, dass
-     * ein Manifest die neue Fassung eines schon eingefügten Add-ins ist. Pro
-     * Instanz eine eigene GUID würde Aktualisierungen an Ort und Stelle
-     * zerstören — der Wert bleibt deshalb fest.
+     * Identifier of the add-in, NOT of the installation: it is how Office
+     * recognizes a manifest as the new version of an add-in that is already
+     * inserted. A separate GUID per instance would break in-place
+     * updates — so the value stays fixed.
      */
     public const ADDIN_ID = 'c941db89-f0ae-45c6-b685-e94eecc47c91';
 
     public const SUPPORT_URL = 'https://github.com/hotochan123/hotochan123-nextcloud-pulse';
 
     /**
-     * @param string $origin    Schema+Host der Instanz, z. B. https://cloud.example.com
-     * @param string $embedUrl  absolute URL der Einbett-Shell (/apps/pulse/embed)
-     * @param string $version   Version der App aus info.xml, z. B. 0.18.0
+     * @param string $origin    scheme+host of the instance, e.g. https://cloud.example.com
+     * @param string $embedUrl  absolute URL of the embed shell (/apps/pulse/embed)
+     * @param string $version   app version from info.xml, e.g. 0.18.0
      */
     public function build(string $origin, string $embedUrl, string $version): string {
         $id = self::ADDIN_ID;
@@ -40,11 +40,11 @@ class AddinManifest {
         $source = $this->xml($embedUrl);
         $support = $this->xml(self::SUPPORT_URL);
 
-        // Die Reihenfolge der Elemente ist im Office-Schema festgelegt; wird sie
-        // getauscht, lehnt PowerPoint das Manifest ohne brauchbare Meldung ab.
-        // Quellsprache ist Englisch (wie in der App), Deutsch kommt als Override
-        // daneben — Office wählt nach der Sprache des vortragenden Rechners aus,
-        // nicht nach der Sprache, in der jemand hier das Manifest herunterlädt.
+        // The order of the elements is fixed by the Office schema; swap it and
+        // PowerPoint rejects the manifest without a useful message.
+        // The source language is English (as in the app), German sits next to it as an
+        // override — Office picks by the language of the presenting computer,
+        // not by the language in which someone downloads the manifest here.
         return <<<XML
         <?xml version="1.0" encoding="UTF-8"?>
         <!--
@@ -90,7 +90,7 @@ class AddinManifest {
     }
 
     /**
-     * Nur Schema, Host und Port: <AppDomain> darf keinen Pfad tragen.
+     * Only scheme, host and port: <AppDomain> must not carry a path.
      */
     public function origin(string $absoluteUrl): string {
         $parts = parse_url($absoluteUrl);
@@ -102,10 +102,10 @@ class AddinManifest {
     }
 
     /**
-     * Office verlangt in <Version> genau vier Zahlen. Aus „0.18.0" wird
-     * „0.18.0.0", aus „0.19.0-beta.1" wird „0.19.0.0" — eine Vorabversion hat
-     * in dem Feld keinen Platz, und ein Buchstabe darin lässt PowerPoint das
-     * Manifest ablehnen.
+     * Office requires exactly four numbers in <Version>. "0.18.0" becomes
+     * "0.18.0.0", "0.19.0-beta.1" becomes "0.19.0.0" — a pre-release has
+     * no room in that field, and a letter in it makes PowerPoint reject the
+     * manifest.
      */
     public function officeVersion(string $version): string {
         $numeric = preg_split('/[^0-9.]/', $version, 2)[0];

@@ -35,9 +35,9 @@ jobs:
           curl -sSL -o /tmp/info.xsd https://apps.nextcloud.com/schema/apps/info.xsd
           xmllint --noout --schema /tmp/info.xsd appinfo/info.xml
 
-      # Packt aus dem eben gebauten Stand ein Release-Archiv. Fängt fehlende
-      # Dateien und versehentlich mitgepackte Quellen ab, bevor sie im Store
-      # landen. Signiert wird nur lokal (braucht den privaten Schlüssel).
+      # Packs a release archive from the state just built. Catches missing
+      # files and sources packed by mistake before they end up in the
+      # store. Signing happens only locally (it needs the private key).
       - name: Release-Archiv testweise packen
         run: SKIP_BUILD=1 sh build/package.sh
 
@@ -55,9 +55,9 @@ jobs:
       matrix:
         php: ['8.2', '8.3']
     steps:
-      # Die Tests fassen keine Datenbank an, brauchen aber die OCP-Klassen des
-      # Servers — deshalb der Server-Checkout, in dem die App wie im echten
-      # Leben unter apps/ liegt.
+      # The tests don't touch a database, but they do need the server's OCP
+      # classes — hence the server checkout, in which the app lives under
+      # apps/ just like in real life.
       - name: Nextcloud-Server auschecken
         uses: actions/checkout@v4
         with:
