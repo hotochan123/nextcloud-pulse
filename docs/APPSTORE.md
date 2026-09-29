@@ -27,36 +27,23 @@ As of 29 September 2026:
 | Screenshots for the store page | done — six images in `screenshots/`, linked in `info.xml` (**they only show once the repository is public**) |
 | Databases | fresh installations of Nextcloud 34.0.1 tested with SQLite, MariaDB 11.8, PostgreSQL 17 and MySQL 8.4 (MySQL after the fix for new questions, see `CHANGELOG.md`) |
 | Server versions | 34 only, tested on 34.0.1 — **Nextcloud 35 is out (15 Sep 2026), decision open**, see [below](#what-is-still-missing-to-stay-honest) |
-| Public e-mail address | **decide before step 1** — the maintainer's personal address is in `<author mail>` in `info.xml`, in the SPDX header of the source files and in the history of the public repository, so it becomes public with [step 1](#1-make-the-repository-public). The GitHub profile shows none; the store's developer guide asks for one there with the certificate request ([step 2](#2-request-the-certificate)) |
+| Public e-mail address | decided: **none**. Commits carry the GitHub no-reply address, the SPDX headers name only `hotochan123`, and `info.xml` gives the GitHub profile as `<author homepage>`; contact goes through the issue tracker. The store's developer guide asks for an address on the GitHub profile with the certificate request, see [step 2](#2-request-the-certificate) |
 
 ## Once
 
-In this order: decide on the public e-mail address and make the repository
-public → request the certificate and save it → store account → register the
-app ID → first release. The screenshots (step 3) only need a check once the
-repository is public.
+In this order: make the repository public → request the certificate and save
+it → store account → register the app ID → first release. The screenshots
+(step 3) only need a check once the repository is public.
 
 ### 1. Make the repository public
 
-**First decide which e-mail address may be public.** The maintainer's personal
-address is in `<author mail>` in `appinfo/info.xml`, in the
-`SPDX-FileCopyrightText` header of more than 160 files (source files, tests,
-scripts — new files copy it from their neighbours), and both in the files and
-as author and committer of every commit of the public repository. Switching
-the repository to public publishes it, and so does the first release on the
-store page; taking it back afterwards means rewriting history that others may
-already have cloned.
-
-- The personal address may be public: nothing to change. Show the same one on
-  the GitHub profile for the certificate request (step 2).
-- Another address, for example a dedicated one: replace the personal one in
-  `info.xml` and in every SPDX header (`git grep -l` with the old address
-  lists the files), then recreate the history of
-  `hotochan123/hotochan123-nextcloud-pulse` as a fresh root commit whose
-  author and committer carry the new address (`git config user.email`), and
-  force-push it while the repository is still private. Only then switch it to
-  public. The private archive `hotochan123/pulse` keeps the old address and
-  stays private.
+**No personal e-mail address in the repository.** Commits are made with the
+GitHub no-reply address (`git config user.email` in this clone), the
+`SPDX-FileCopyrightText` headers name only `hotochan123`, and `info.xml` has
+`<author homepage="https://github.com/hotochan123">` instead of `mail`. New
+files copy their header from a neighbour, so they stay that way. Check before
+switching to public, and before every push, that `git grep -n "@"` over the
+source files and `git log --format="%ae %ce"` show no personal address.
 
 Switch `hotochan123/hotochan123-nextcloud-pulse` to public — only this one; the
 archive `hotochan123/pulse` stays private (early screenshots in its history
@@ -134,10 +121,9 @@ Reviewer questions are answered personally as well; one to expect is why
 
 Before opening it: the store's developer guide asks to show an e-mail address
 on the GitHub profile along with the request, and Nextcloud may ask for more to
-confirm who owns the app. The profile shows none today; without one, expect a
-question about ownership in the PR. Show the address chosen in step 1 — a
-dedicated one only if it has already replaced the personal one in the
-repository, because otherwise the personal one is public there anyway.
+confirm who owns the app. The profile shows none, and the personal address is
+not meant to be public (step 1). Either show a dedicated address there, or open
+the request without one and expect a question about ownership in the PR.
 
 Requests there have recently been merged within one to four days, but at the
 end of September 2026 about 15 had been waiting since 24 September.
