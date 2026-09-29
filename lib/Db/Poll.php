@@ -65,6 +65,14 @@ class Poll extends Entity implements \JsonSerializable {
         $this->addType('timeLimit', 'integer');
         $this->addType('startedAt', 'integer');
         $this->addType('createdAt', 'integer');
+        // Every INSERT carries `options`. The migration declares it TEXT NOT NULL
+        // DEFAULT '[]', but Doctrine drops defaults of TEXT columns on MySQL
+        // (MariaDB, PostgreSQL and SQLite keep it). The generic setter skips a
+        // value equal to the current one, so setOptions('[]') on a new poll is a
+        // no-op: a word cloud, number or free-text question left the column out
+        // of its INSERT and strict MySQL refused it (error 1364). fromRow()
+        // clears this mark again, so loaded polls UPDATE only what changed.
+        $this->markFieldUpdated('options');
     }
 
     /** Never expose the image file name as NULL (the column is nullable). */

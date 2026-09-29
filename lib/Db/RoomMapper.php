@@ -16,6 +16,9 @@ use OCP\IDBConnection;
  * @extends QBMapper<Room>
  */
 class RoomMapper extends QBMapper {
+    /** touch() writes `touched_at` at most once per this many seconds. */
+    public const TOUCH_INTERVAL = 3600;
+
     public function __construct(IDBConnection $db) {
         parent::__construct($db, 'pulse_rooms', Room::class);
     }
@@ -116,15 +119,17 @@ class RoomMapper extends QBMapper {
     }
 
     /**
-     * Record the owner's visit (retention), at most hourly —
-     * otherwise every progress poll of the teacher would write the room row.
+     * Record owner activity on the room (retention, any room mode), at most
+     * once per TOUCH_INTERVAL — otherwise every results or progress poll of
+     * the presenter would write the room row. The WHERE keeps the throttle
+     * race-safe between parallel tabs.
      */
     public function touch(int $roomId, int $now): void {
         $qb = $this->db->getQueryBuilder();
         $qb->update($this->getTableName())
             ->set('touched_at', $qb->createNamedParameter($now, IQueryBuilder::PARAM_INT))
             ->where($qb->expr()->eq('id', $qb->createNamedParameter($roomId, IQueryBuilder::PARAM_INT)))
-            ->andWhere($qb->expr()->lt('touched_at', $qb->createNamedParameter($now - 3600, IQueryBuilder::PARAM_INT)));
+            ->andWhere($qb->expr()->lt('touched_at', $qb->createNamedParameter($now - self::TOUCH_INTERVAL, IQueryBuilder::PARAM_INT)));
         $qb->executeStatement();
     }
 }

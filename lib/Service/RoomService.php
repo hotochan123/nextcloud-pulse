@@ -16,7 +16,9 @@ use OCA\Pulse\Db\Room;
 use OCA\Pulse\Db\RoomMapper;
 use OCA\Pulse\Db\VoteMapper;
 use OCP\AppFramework\Db\DoesNotExistException;
+use OCP\AppFramework\Db\TTransactional;
 use OCP\AppFramework\Utility\ITimeFactory;
+use OCP\IDBConnection;
 use OCP\IL10N;
 
 /**
@@ -25,6 +27,8 @@ use OCP\IL10N;
  * whole; the questions in it belong to the DeckService.
  */
 class RoomService {
+    use TTransactional;
+
     private const MODES = ['poll', 'quiz'];
     /**
      * Whoever's heartbeat is at most this many seconds old counts as "currently here".
@@ -43,6 +47,7 @@ class RoomService {
         private PollImageService $imageService,
         private ITimeFactory $timeFactory,
         private IL10N $l10n,
+        private IDBConnection $db,
     ) {
     }
 
@@ -165,29 +170,40 @@ class RoomService {
     }
 
     /**
-     * Delete a room with everything in it. The order closes races with the
-     * self-paced mode, where /join, /vote and /next write without a
-     * transaction around this call:
+     * Delete a room with everything in it. The rows go in one transaction,
+     * retried on a deadlock or lock timeout (atomicRetry): if a statement
+     * fails, the room stays complete and can be deleted again. Without it the
+     * room row would be gone and the questions, votes, players and progress
+     * after the failed statement would stay behind for good — the cleanup job,
+     * the delete button and the account deletion all start from the room.
+     *
+     * The order closes races with the self-paced mode, where /join, /vote and
+     * /next write without a transaction around this call:
      * - the room row first: a join that is currently holding its lock
      *   (PaceService::locked) finishes first and is then deleted along with it; a
-     *   later one no longer finds a room (404);
+     *   later one waits for the commit and then no longer finds a room (404);
      * - players before votes and progress: /vote and /next check after
-     *   writing whether the player still exists (PaceService::assertStillJoined).
-     *   If the check still sees them, the deletion afterwards takes what was
-     *   written with it; otherwise the check cleans up itself;
-     * - the image files last: that way a storage error leaves no rows behind
-     *   without a room that nobody would ever find again.
+     *   writing, with a locking read, whether the player still exists
+     *   (PaceService::assertStillJoined); that read waits for this
+     *   transaction. If the check still sees them, the deletion afterwards
+     *   takes what was written with it; otherwise the check cleans up itself;
+     * - the image files last, after the commit: a storage error then leaves
+     *   no rows behind without a room that nobody would ever find again, and
+     *   a rolled-back deletion leaves no question without its image.
      */
     public function deleteRoom(Room $room): void {
-        $this->roomMapper->delete($room);
-        $this->presenceMapper->deleteByRoom($room->getId());
-        $this->playerMapper->deleteByRoom($room->getId());
-        $polls = $this->pollMapper->findByRoom($room->getId());
-        foreach ($polls as $poll) {
-            $this->voteMapper->deleteByPoll($poll->getId());
-            $this->pollMapper->delete($poll);
-        }
-        $this->progressMapper->deleteByRoom($room->getId());
+        $polls = $this->atomicRetry(function () use ($room): array {
+            $this->roomMapper->delete($room);
+            $this->presenceMapper->deleteByRoom($room->getId());
+            $this->playerMapper->deleteByRoom($room->getId());
+            $polls = $this->pollMapper->findByRoom($room->getId());
+            foreach ($polls as $poll) {
+                $this->voteMapper->deleteByPoll($poll->getId());
+                $this->pollMapper->delete($poll);
+            }
+            $this->progressMapper->deleteByRoom($room->getId());
+            return $polls;
+        }, $this->db);
         foreach ($polls as $poll) {
             $this->imageService->discard($poll);
         }
@@ -282,7 +298,7 @@ class RoomService {
 
     /**
      * Delete old rooms including questions/votes/players. "Old" = created more than
-     * $maxAgeSeconds ago AND no sign of life since then within the same window
+     * $maxAgeSeconds ago AND no sign of life (lastActivity) within the same window
      * (so a room that was still in use yesterday survives, even if it was
      * created weeks ago). Keeps the brute-force attack surface small and
      * tidies up the DB. Called by the daily background job.
@@ -304,12 +320,21 @@ class RoomService {
 
     /**
      * A room's latest sign of life for retention: the last participant
-     * heartbeat, and for self-paced rooms also opening, deadline, closing,
-     * release and the owner's last visit (`touched_at`). The deadline
-     * counts so that a long homework does not vanish before it ends;
-     * release and owner visit so that the teacher can still grade weeks after
-     * the deadline. Moderated rooms have all these fields at 0 —
-     * there presence alone decides, as before.
+     * heartbeat, the owner's last activity on the room (`touched_at`, any
+     * room mode) and, for self-paced rooms, also opening, deadline, closing
+     * and release. Owner activity is every request of the owner that names
+     * the room — opening it, reading results, editing the deck or its
+     * settings, presenting, running the window (RoomApiController::touch,
+     * written at most hourly). Duplicating touches the source; the copy is a
+     * new room with its own `created_at`, so the job does not even consider
+     * it within the retention period. A deck prepared weeks ahead thus
+     * survives even though no audience has joined yet. The deadline counts
+     * so that a long homework does not vanish before it ends; release so that
+     * the teacher can still grade weeks after the deadline. Moderated rooms
+     * have the window fields at 0 — there presence and owner activity decide.
+     * Owner activity from before this was recorded in every room mode is
+     * unknown (`touched_at` = 0); Version000000Date20260929120000 covers the
+     * installs where that matters.
      */
     private function lastActivity(Room $room): int {
         return max(

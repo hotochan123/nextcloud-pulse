@@ -16,10 +16,18 @@ use Psr\Log\LoggerInterface;
  * Deletes, once a day, rooms that nobody has used for more than RETENTION_DAYS.
  * Rooms are session artefacts (one talk, one meeting) and should not live
  * forever: that would keep old codes valid (brute-force surface) and fill the DB.
- * "Used" means: a participant heartbeat, in self-paced mode also opening, deadline,
- * closing, release, or a visit by the owner; so a homework assignment with a
- * deadline on day 0 that is only evaluated on day 32 survives.
+ * "Used" means: a participant heartbeat, any request of the owner on the room
+ * (opening it, editing the deck, presenting — in every room mode), and in
+ * self-paced mode also opening, deadline, closing and release; so a deck
+ * prepared weeks ahead survives, and so does a homework assignment with a
+ * deadline on day 0 that is only evaluated on day 32.
  * The actual logic lives in RoomService::cleanupStaleRooms (testable).
+ *
+ * Registered through <background-jobs> in appinfo/info.xml (fresh installs
+ * and every app update); migration Version000000Date20260717000000 adds it
+ * as well, for installs that predate that entry. On an install where it has
+ * never run, Version000000Date20260929120000 lets the existing rooms count
+ * as used on the day of the update, so its first run deletes none of them.
  */
 class CleanupStaleRoomsJob extends TimedJob {
     /** Rooms unused for this many days are removed. */

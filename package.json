@@ -1,7 +1,8 @@
 {
   "name": "pulse",
   "version": "0.18.0",
-  "description": "Live-Umfragen für Präsentationen in Nextcloud",
+  "description": "Live polls and quizzes for presentations in Nextcloud",
+  "license": "AGPL-3.0-or-later",
   "scripts": {
     "build": "webpack --node-env production --config webpack.config.js",
     "l10n": "node build/l10n-build.js",

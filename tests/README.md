@@ -18,9 +18,11 @@ the PHP CLI on the host lacks the `tokenizer` and `xmlwriter` extensions.
 Pure unit tests without the Nextcloud bootstrap: `tests/bootstrap.php` loads
 only the server's Composer autoloader (for `OCP\…`, including the Entity base
 class), a few selected namespaces from the server's `3rdparty/` directory
-(`Psr\Clock`, `Doctrine\DBAL`, `Symfony\Component\String`,
-`Symfony\Component\HttpFoundation` — needed to mock the time source and the
-database connection and to build CSV downloads), a PSR-4 loader for
+(`Psr\Clock`, `Psr\Log`, `Psr\EventDispatcher`, `Doctrine\DBAL`,
+`Doctrine\Deprecations`, `Symfony\Component\String`,
+`Symfony\Component\HttpFoundation` — needed to mock the time source, the
+logger and the database connection, to build OCP events, to replay the
+migrations offline and to build CSV downloads), a PSR-4 loader for
 `OCA\Pulse\…` and one for shared test building blocks
 (`OCA\Pulse\Tests\Unit\…` → `tests/unit/`). **No `lib/base.php`, no database,
 no session** — the tests cannot touch the live instance and run in
@@ -33,7 +35,7 @@ warning fails a test.
 | File | Covers |
 | --- | --- |
 | `unit/AddinManifestTest.php` | The instance generates the Office add-in manifest (a manifest has no variables); if that breaks, PowerPoint reports nothing useful and the box on the slide just stays empty |
-| `unit/CleanupRetentionTest.php` | Retention (`RoomService::cleanupStaleRooms`): a room stays as long as its latest sign of life is within the retention period — participant heartbeat and, for self-paced rooms, also opening, deadline, closing, release and owner visit; a homework with a deadline that is evaluated weeks later must not vanish with its results; moderated rooms keep exactly the old rule |
+| `unit/CleanupRetentionTest.php` | Retention (`RoomService::cleanupStaleRooms`): a room stays as long as its latest sign of life is within the retention period — participant heartbeat, owner activity (`touched_at`, every room mode) and, for self-paced rooms, also opening, deadline, closing and release; a homework with a deadline that is evaluated weeks later must not vanish with its results, nor a moderated deck its owner edited yesterday; without owner activity moderated rooms keep exactly the old rule |
 | `unit/CodeGeneratorTest.php` | Room code alphabet without I/O/0/1, collisions are re-rolled, token lengths |
 | `unit/ControllerInputTest.php` | Every parameter of every controller action sent as a list, broken `pulse_vt` cookies: no 500, no warning; a source-code guard against raw casts on request values; `close {release}`: missing = old rule, booleans pass, anything else is 400 without closing; the free-text answer used for grading keeps NUL like the stored vote |
 | `unit/DeckSetCurrentTest.php` | Setting the cursor (`DeckService::setCurrent`): in a quiz every jump restarts the timer and opens the question; in a poll the FIRST jump records "was shown" so the public summary can leave out questions never shown |
@@ -41,8 +43,10 @@ warning fails a test.
 | `unit/HostileInputTest.php` | `DeckService`, `VoteService::normalizeValue` and image upload with nested lists and objects, `true`, 1e300, INF, "1e999", twenty digits, broken UTF-8 and NUL: a storable result or `InvalidArgumentException` (400), never a warning, `TypeError` or a value `json_encode` chokes on |
 | `unit/ImageRouteTest.php` | Image routes carry `#[NoCSRFRequired]` — without it an `<img src>` gets a 412 |
 | `unit/InputTest.php` | Raw client values: lists, 1e999, NAN, broken UTF-8 and NUL become "not sent" instead of a PHP warning; `rawStr` keeps NUL (grading free text) |
+| `unit/InsertColumnsTest.php` | MySQL has no default for some NOT NULL columns (Doctrine drops the declared default of TEXT columns there), so every INSERT must carry them: the migrations are replayed offline and MySQL 8.4's DBAL platform decides; a new entity marks exactly the columns whose declared default MySQL drops (`pulse_polls.options`); `addPoll` for every question type and `duplicateRoom` carry every column without a MySQL default; a loaded poll still updates only what changed |
 | `unit/LeaderboardSkipTest.php` | Leaderboard without one question (`VoteService::leaderboardFor`, `$skipPollIds`): the public summary leaves the running, still hidden question out of the scoring |
 | `unit/MatchGradingTest.php` | Matching in a quiz: all-or-nothing, row order does not matter, speed points |
+| `unit/OwnerActivityTest.php` | Retention, controller side: every moderator request that names a room records owner activity exactly once, moderated rooms included; the room list and creating a room record nothing; at most one write per hour; a source-code guard that rooms are only looked up through `ownedRoom()` |
 | `unit/PaceFinalRuleTest.php` | Self-paced: ONE rule for "final", "correctable", "finished" and the `/next` value, used by phone, projector, progress, leaderboard and CSV alike |
 | `unit/PaceGuardTest.php` | Self-paced guards on the existing moderator routes and switching the pace; with `pace='live'` every guard is a no-op |
 | `unit/PaceNextTest.php` | Self-paced `/next`, the only place a clock starts: double taps, parallel tabs and aborts (stale `after`, compare-and-set, healing), the preview lock on timed questions, removal while `/next` is in flight |
@@ -62,7 +66,8 @@ warning fails a test.
 | `unit/QuizJoinNameTest.php` | Quiz join: names are unique per room, case-insensitive; your own token may keep or rewrite its name |
 | `unit/QuizServiceTest.php` | Speed points, leaderboard including ties (1-2-2-4) and time tie-break |
 | `unit/RoomGoneTest.php` | Room deleted while the request was in flight (`PaceService::locked`): 404 "Room not found.", publicly like an unknown code (throttled), not 500 |
-| `unit/RoomPaceLifecycleTest.php` | Reset, copy, delete and demo rooms know about self-paced mode (progress, window, frozen order, join lock); a moderated room gets no additional write to the room row |
+| `unit/RetentionGraceMigrationTest.php` | Migration `Version000000Date20260929120000`: where the cleanup job has never run, existing rooms without owner activity (`touched_at` = 0) count as used on the day of the update; where it already ran, no query at all |
+| `unit/RoomPaceLifecycleTest.php` | Reset, copy, delete and demo rooms know about self-paced mode (progress, window, frozen order, join lock); a moderated room gets no additional write to the room row; `deleteRoom` removes the rows in one transaction (a failure rolls back and leaves the room complete, a deadlock is retried) and the image files only after the commit |
 | `unit/RoomServiceTextTest.php` | Cleaning/shortening room titles and the copy suffix (private methods via reflection) |
 | `unit/SelfCsvTest.php` | Self-paced CSV views (`PaceStateService::exportCsv`): the time column stays empty without a timer; "finished" follows `PaceService::isFinished` |
 | `unit/SelfGradeTest.php` | Self-paced grading of free text (`VoteService::gradeTextAnswer`): speed points use the limit that applied when answering, `pending` is dropped, moderated payloads come out byte-identical, grading runs as one transaction under the room lock |
@@ -77,6 +82,7 @@ warning fails a test.
 | `unit/StateVersionTest.php` | The public version fingerprint (`StateService::stateVersion`): a keyed hash (24 hex characters) instead of guessable CRCs of the solution, and it still jumps exactly when something changes |
 | `unit/TallyServiceTest.php` | Tallying of every question type: choice, words, scale (single/spectrum/compass), multi, number, text, rank, match |
 | `unit/UnicodeTextTest.php` | Invisible characters in words and names (`TallyService::cleanText`): a fixed list is removed (soft hyphen, zero-width space, directional control characters, word joiner, BOM), while ZWNJ, ZWJ and tag characters inside a word stay |
+| `unit/UserDeletedListenerTest.php` | Deleting a Nextcloud account deletes its rooms through `RoomService::deleteRoom` (questions, votes, players, presence, progress, images) and nobody else's, inside `deleteRoom`'s transaction; a room that fails is logged and skipped, and no exception reaches Nextcloud's own account clean-up; the listener is registered in `Application::register` |
 | `unit/WordCloudDedupeTest.php` | Word cloud: `Kaffee` and `KAFFEE` (test data) from one person are ONE word — vote validation and tallying use the same normal form (`TallyService::normalizeWord`) |
 
 ## What does NOT run here

@@ -23,8 +23,9 @@ use OCP\Migration\SimpleMigrationStep;
  * `opened_at` (0 = draft), `closes_at` (deadline, 0 = open until closed
  * manually), `closed_at` (closed manually), `released_at` (solutions
  * released). Plus the settings chosen when opening (`timed`, `feedback`),
- * the join lock `joins_locked` and `touched_at` (the owner's last visit,
- * so that the cleanup job does not delete a running homework assignment).
+ * the join lock `joins_locked` and `touched_at` (the owner's last activity
+ * on the room, in every room mode — so that the cleanup job deletes neither
+ * a running homework assignment nor a deck prepared ahead).
  *
  * `deck_order` freezes the order when the window opens (JSON list of
  * poll IDs): "question k of n" and "next question" come only from it, never
@@ -87,7 +88,7 @@ class Version000000Date20260927120000 extends SimpleMigrationStep {
             $rooms->addColumn('joins_locked', Types::BOOLEAN, ['notnull' => true, 'default' => false]);
         }
         if (!$rooms->hasColumn('touched_at')) {
-            // owner's last visit (self only, throttled to hourly)
+            // owner's last activity, any room mode (throttled to hourly)
             $rooms->addColumn('touched_at', Types::BIGINT, ['notnull' => true, 'default' => 0]);
         }
 

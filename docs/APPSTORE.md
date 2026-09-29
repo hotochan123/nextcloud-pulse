@@ -1,34 +1,81 @@
 # Publishing Pulse in the Nextcloud App Store
 
 What the store requires, what the repository already has in place for it, and
-what has to be done by hand. Keep to the order — without a certificate the
-store accepts nothing.
+what has to be done by hand. Keep to the order — every step needs the one
+before it, and the store accepts no release for an app ID that has not been
+registered with a certificate.
 
 The public repository is `hotochan123/hotochan123-nextcloud-pulse`; the complete
 development history is in the private archive `hotochan123/pulse`.
 
 ## Status
 
+As of 29 September 2026:
+
 | Requirement | Status |
 |---|---|
-| `appinfo/info.xml` valid against the store schema | done (`xmllint`, also in CI) |
-| Licence in the repository + SPDX header in every source file | done (`LICENSE`, AGPL-3.0-or-later) |
-| `CHANGELOG.md` (the store's release notes) | done |
-| Release archive without sources/throwaway files | done (`build/package.sh`) |
-| CI: bundle, tests, translations, schema | done (`.github/workflows/ci.yml`) |
-| App ID `pulse` available | yes (no entry in the store as of 26 Jul 2026) |
-| Signing certificate from Nextcloud | key generated, `.csr` in the fork (14 Aug 2026) — **pull request not opened yet** (as of 29 Sep 2026) |
-| Screenshots for the store page | done — six images in `screenshots/`, linked in `info.xml` (**they only show once they are on `main` of the public repository and it is publicly visible**) |
-| Tested on the advertised server versions | done — `info.xml` now advertises only 34, and only 34 has been tested |
+| Public repository | **not yet** — `hotochan123/hotochan123-nextcloud-pulse` is still private (404). `info.xml` points there for the website, the issue tracker and the screenshots |
+| App ID `pulse` available | yes — not in the store, no `pulse/` folder in the certificate repository |
+| Signing certificate from Nextcloud | key and `.csr` since 14 Aug 2026, `.csr` in the fork — **pull request not opened** (checked through the GitHub API) |
+| Store account, app ID registered | not yet — needs the certificate |
+| `appinfo/info.xml` valid against the store schema | done — validates against the store's current schema (`xmllint`, also in CI and in `build/package.sh`) |
+| Licence | done — `LICENSE` (AGPL-3.0-or-later), SPDX header in every source file, `<licence>AGPL-3.0-or-later</licence>` in `info.xml` |
+| `CHANGELOG.md` (the store's release notes) | format done; `[Unreleased]` still has to become the first release's section |
+| Release archive without sources/throwaway files | done (`build/package.sh`); signing tested with a throwaway certificate |
+| First release | not yet — no tag, no GitHub release, no signed archive; version number still to be chosen ([step 6](#6-first-release)) |
+| CI: bundle, tests, translations, schema | workflow in `.github/workflows/ci.yml`; its runs only become visible once the repository is public — check them before tagging |
+| Screenshots for the store page | done — six images in `screenshots/`, linked in `info.xml` (**they only show once the repository is public**) |
+| Databases | fresh installations of Nextcloud 34.0.1 tested with SQLite, MariaDB 11.8, PostgreSQL 17 and MySQL 8.4 (MySQL after the fix for new questions, see `CHANGELOG.md`) |
+| Server versions | 34 only, tested on 34.0.1 — **Nextcloud 35 is out (15 Sep 2026), decision open**, see [below](#what-is-still-missing-to-stay-honest) |
+| Public e-mail address | **decide before step 1** — the maintainer's personal address is in `<author mail>` in `info.xml`, in the SPDX header of the source files and in the history of the public repository, so it becomes public with [step 1](#1-make-the-repository-public). The GitHub profile shows none; the store's developer guide asks for one there with the certificate request ([step 2](#2-request-the-certificate)) |
 
 ## Once
 
-### 1. Account and app ID
+In this order: decide on the public e-mail address and make the repository
+public → request the certificate and save it → store account → register the
+app ID → first release. The screenshots (step 3) only need a check once the
+repository is public.
 
-Create an account on <https://apps.nextcloud.com>. The app ID (`pulse`) is bound
-to that account with the first upload and is reserved from then on.
+### 1. Make the repository public
+
+**First decide which e-mail address may be public.** The maintainer's personal
+address is in `<author mail>` in `appinfo/info.xml`, in the
+`SPDX-FileCopyrightText` header of more than 160 files (source files, tests,
+scripts — new files copy it from their neighbours), and both in the files and
+as author and committer of every commit of the public repository. Switching
+the repository to public publishes it, and so does the first release on the
+store page; taking it back afterwards means rewriting history that others may
+already have cloned.
+
+- The personal address may be public: nothing to change. Show the same one on
+  the GitHub profile for the certificate request (step 2).
+- Another address, for example a dedicated one: replace the personal one in
+  `info.xml` and in every SPDX header (`git grep -l` with the old address
+  lists the files), then recreate the history of
+  `hotochan123/hotochan123-nextcloud-pulse` as a fresh root commit whose
+  author and committer carry the new address (`git config user.email`), and
+  force-push it while the repository is still private. Only then switch it to
+  public. The private archive `hotochan123/pulse` keeps the old address and
+  stays private.
+
+Switch `hotochan123/hotochan123-nextcloud-pulse` to public — only this one; the
+archive `hotochan123/pulse` stays private (early screenshots in its history
+show an internal host name). Everything else depends on this step: the
+certificate request has to link a public repository, the store fetches the
+screenshots from it, and every instance downloads the release archive from it.
+Keep it public for as long as any release is in the store.
+
+Then:
+
+- enable Issues — the store requires a way to contact the author, and `<bugs>`
+  in `info.xml` points at the issue tracker;
+- check that the six screenshot URLs in `info.xml` answer with 200 and
+  `image/png`;
+- check that CI is green for the current `main` (Actions tab).
 
 ### 2. Request the certificate
+
+#### Key and request (done)
 
 ```sh
 build/certificate.sh          # creates ~/.nextcloud/certificates/pulse.{key,csr}
@@ -50,26 +97,73 @@ folder it uses itself. It overwrites nothing, but you would then sign with the
 wrong key. Always pass `OUT="$PULSE_SECRETS"`.
 
 The common name of the request **must** be the app ID — the script sets
-`/CN=pulse`. Then fork <https://github.com/nextcloud/app-certificate-requests>,
-add `pulse.csr` as `pulse/pulse.csr` and open a pull request. This works
-entirely through the GitHub web interface, but **the fork has to be created by
-hand first** — the automatic fork on "Create new file" does not kick in for
-this repository ("you need to fork it and propose your changes from there").
-After the merge, `pulse/pulse.crt` is there; put that file next to the key.
+`/CN=pulse`.
 
-Prepared on 14 Aug 2026 in the fork `hotochan123/app-certificate-requests`,
-branch `pulse-cert` (only `pulse/pulse.csr`). **The pull request itself was
-never opened** — checked through the GitHub API on 29 Sep 2026: no PR from this
-branch, none from this account. To catch up, use
+#### Open the pull request — personally
+
+The request goes into <https://github.com/nextcloud/app-certificate-requests>
+as `pulse/pulse.csr`. It is prepared in the fork
+`hotochan123/app-certificate-requests`, branch `pulse-cert` (only
+`pulse/pulse.csr`, committed through the GitHub web interface on 14 Aug 2026).
+Cross-checked: the uploaded `.csr` is byte for byte the local one, `CN=pulse`,
+and its public key belongs to `pulse.key` (SHA-256 of the public key is the same
+on both sides). **The pull request itself was never opened** — checked through
+the GitHub API on 29 Sep 2026: no PR from this branch. Open it from
 <https://github.com/nextcloud/app-certificate-requests/compare/master...hotochan123:app-certificate-requests:pulse-cert>
-("Create pull request"); requests there are currently merged within one to four
-days. Afterwards, check that the PR really exists. Cross-checked: the uploaded
-`.csr` is byte for byte the local one, `CN=pulse`, and its public key belongs to
-`pulse.key` (SHA-256 of the public key is the same on both sides).
+("Create pull request") and check afterwards that it really exists. Should the
+fork ever have to be made again: create it by hand first — the automatic fork
+on "Create new file" does not kick in for this repository.
+
+**Open it yourself, and write it yourself.** Nextcloud's
+[AI contribution policy](https://github.com/nextcloud/.github/blob/master/AI_POLICY.md)
+applies to every repository of the Nextcloud organisation, this one included:
+AI agents must not open pull requests on their own, descriptions have to be in
+the contributor's own words, and a pull request with AI-assisted work has to
+say so. This one only adds the request file, but it links an app written by AI
+agents. So no agent opens this PR, and its description is not pasted from one.
+It should say, in your own words:
+
+- what the certificate is for — the app `pulse`, live polls and quizzes — and
+  the link to the public repository (Nextcloud's code-signing guide asks for
+  it);
+- that Pulse was written by AI coding agents and has had no independent code
+  review or security audit, with a link to the README's AI disclosure section.
+
+Reviewer questions are answered personally as well; one to expect is why
+`/screen` and `/embed` may be framed by any origin (the PowerPoint add-in).
+
+Before opening it: the store's developer guide asks to show an e-mail address
+on the GitHub profile along with the request, and Nextcloud may ask for more to
+confirm who owns the app. The profile shows none today; without one, expect a
+question about ownership in the PR. Show the address chosen in step 1 — a
+dedicated one only if it has already replaced the personal one in the
+repository, because otherwise the personal one is public there anyway.
+
+Requests there have recently been merged within one to four days, but at the
+end of September 2026 about 15 had been waiting since 24 September.
+
+#### After the merge: save and check the certificate
+
+The merge adds `pulse/pulse.crt` to the certificate repository. Save it as
+`$PULSE_SECRETS/pulse.crt`, next to the key, without blank lines before or
+after the certificate, and check that it is issued for the app ID and belongs
+to the key:
+
+```sh
+openssl x509 -in "$PULSE_SECRETS/pulse.crt" -noout -subject     # subject=CN=pulse
+[ "$(openssl x509 -in "$PULSE_SECRETS/pulse.crt" -noout -pubkey)" = \
+  "$(openssl pkey -in "$PULSE_SECRETS/pulse.key" -pubout)" ] && echo "certificate matches the key"
+```
+
+`build/package.sh` repeats both checks before every signing: `occ` signs with
+any certificate, and a wrong one would only show up when an instance refuses
+the release.
 
 The private key stays outside the repository (`.gitignore` additionally blocks
 `*.key`/`*.csr`/`*.crt`). If it is lost, every release signed so far becomes
-invalid and a new certificate is needed.
+invalid: a new request goes into the same repository (overwriting
+`pulse/pulse.csr`, mentioning the lost key), and registering the new
+certificate with the store deletes every release there.
 
 Check where it is stored: on appliances such as Unraid, `/root` lives in RAM
 and is empty after a reboot. The key then belongs on persistent storage
@@ -86,9 +180,11 @@ Six images are in `screenshots/` and are listed in `info.xml` after
 
 **The store fetches these URLs itself.** As long as the files are not on `main`
 of the public repository, or the repository is not publicly visible, the URLs
-lead nowhere and the store page stays without images — so push the images
-before registering a release. They do not belong in the release archive;
-`build/package.sh` only collects the runtime files.
+lead nowhere and the store page stays without images — so check them (step 1)
+before publishing a release. They do not belong in the release archive;
+`build/package.sh` only collects the runtime files. The join code on the images
+belongs to a store fixture room from 14 Aug 2026; make sure it no longer opens
+a room, or take the images again.
 
 They are taken by the screenshot harness:
 
@@ -123,13 +219,84 @@ The English interface comes from the language setting of the throwaway user
 The store takes up to ten images. The order in `info.xml` is the order on the
 page; the first one is the preview image.
 
+### 4. Store account
+
+Create an account on <https://apps.nextcloud.com>, with e-mail and password or
+through the GitHub login. Then fetch the account's API token from
+<https://apps.nextcloud.com/account/token>: an account created through GitHub
+has no password the API could check and works with the token only, so the
+examples below use the token throughout. Keep it like the key, outside the
+repository:
+
+```sh
+STORE_TOKEN="$(cat "$PULSE_SECRETS/store.token")"    # file 600, never in the repository
+```
+
+### 5. Register the app ID
+
+The registration — not the first upload — binds the ID `pulse` to the account
+and makes it the app's owner; the store refuses every release before it. It
+needs the certificate and a signature over the app ID made with the private
+key:
+
+```sh
+SIG="$(echo -n "pulse" | openssl dgst -sha512 -sign "$PULSE_SECRETS/pulse.key" | openssl base64 -A)"
+```
+
+Either in the web form <https://apps.nextcloud.com/developer/apps/new> (paste
+the content of `pulse.crt` and the value of `$SIG`), or through the API:
+
+```sh
+node -e 'const fs = require("fs"); process.stdout.write(JSON.stringify({
+    certificate: fs.readFileSync(process.argv[1], "utf8").trim(),
+    signature: process.argv[2],
+    is_enterprise_only: false,
+}))' "$PULSE_SECRETS/pulse.crt" "$SIG" \
+| curl -X POST https://apps.nextcloud.com/api/v1/apps \
+    -H "Authorization: Token $STORE_TOKEN" \
+    -H "Content-Type: application/json" \
+    --data-binary @-
+```
+
+**Leave "enterprise only" off** (`is_enterprise_only: false`) — it cannot be
+changed after the registration. 201 means registered; 400 means the signature
+does not match the certificate, or the certificate is not signed by Nextcloud
+or has been revoked.
+
+### 6. First release
+
+- **Version:** not 0.18.0. `[Unreleased]` holds everything since 0.18.0
+  (14 Aug 2026) — the self-paced quiz, a database migration and the fixes of
+  September — and a tag `v0.18.0` with different code exists in the private
+  archive. The first store release is 0.19.0 (or 1.0.0). On the local instance
+  the bump needs an `occ upgrade` (step 1 of
+  [For every release](#for-every-release)), so plan the moment.
+- **Nextcloud 35:** decide first whether the release claims it
+  ([below](#what-is-still-missing-to-stay-honest)).
+- **CI** green on the public repository.
+- Then follow [For every release](#for-every-release).
+- Afterwards switch the README's installation section to the store and bring
+  the status table above up to date.
+
 ## For every release
 
 1. **Bump the version** in `appinfo/info.xml` **and** `package.json`
-   (same number). Note: on the local instance the version bump requires an
-   `occ upgrade`; until then the app routes answer with 503.
-2. **`CHANGELOG.md`** — rename the `[Unreleased]` section to the new version
-   and set the date. The store shows this text as the release notes.
+   (same number). Note: on the local instance, where this working copy is the
+   installed app, the version bump requires an `occ upgrade`; until then the
+   app routes answer with 503.
+2. **`CHANGELOG.md`** — the store shows the section of this version as the
+   release notes:
+   - **Release:** rename the `[Unreleased]` section to
+     `## [<version>] - <YYYY-MM-DD>` (a new, empty `[Unreleased]` can go above
+     it). The store takes the section whose heading carries exactly the version
+     from `info.xml`; without one the release has no notes.
+   - **Pre-release** (a version with a semver pre-release suffix, such as
+     `0.19.0-beta.1`, which the store puts into the beta channel) and nightly:
+     the store takes the notes from `## [Unreleased]`, so leave that heading as
+     it is and add no `## [0.19.0-beta.1]` heading — the store would not read
+     it for the beta, but would file it under `0.19.0` and show it again with
+     the final release's notes. `build/package.sh` knows this rule: for a
+     version with a pre-release suffix it asks for `## [Unreleased]`.
 3. Check **`max-version`** in `info.xml`: if the app advertises a server version
    it never ran on, the bug reports will come from there.
 4. **Build, check, sign, pack:**
@@ -140,15 +307,45 @@ page; the first one is the preview image.
    build/package.sh
    ```
 
-   The script builds the bundle, checks translations and `info.xml`, collects
-   only the files that ship, runs `occ integrity:sign-app` in the Nextcloud
-   container (which writes `appinfo/signature.json`) and packs
-   `build/pulse-<version>.tar.gz`. At the end it prints the Base64 signature of
-   the archive — the store needs it in a moment.
+   What the script does, in this order:
 
-5. **Cross-check:** `tar -tzf build/pulse-<version>.tar.gz` — the top folder is
-   called `pulse/`, `appinfo/signature.json` is included, `src/`,
-   `node_modules/`, `docs/` and `tests/` are not.
+   - **Release state:** it stops unless `info.xml` and `package.json` carry the
+     same version and `CHANGELOG.md` has a `## [<version>]` section — for a
+     pre-release a `## [Unreleased]` section (step 2).
+     `ALLOW_UNRELEASED=1` turns this into a warning for a test archive — CI
+     uses it; never upload such an archive.
+   - **Checks:** it builds the bundle (`SKIP_BUILD=1` leaves `js/` as it is),
+     checks the translations and validates `info.xml` against the schema it
+     downloads from the store on every run; if the download fails, it falls
+     back to the last good copy in `build/info.xsd` with a warning.
+   - **Staging:** in a temporary directory outside the repository, with only
+     the runtime files; it aborts on symlinks, keys, certificates, source maps,
+     `_*.php` and `node_modules`. Directories and executables get mode 755,
+     everything else 644, owner 0:0 — whatever the umask of the machine.
+   - **Signing:** on the host it first checks that certificate and key belong
+     together and that the certificate is issued for `CN=pulse`. Then it copies
+     the staged app into a private temporary directory in the Nextcloud
+     container (`CONTAINER`, default `nextcloud-nextcloud-1`), streams key and
+     certificate in (mode 600), runs `occ integrity:sign-app` on that copy —
+     never on the installed app — and takes only `appinfo/signature.json` back.
+     The directory, key and certificate included, is removed right after
+     signing and on every error or interrupt — the script traps HUP, INT,
+     QUIT (Ctrl-\), USR1, USR2, PIPE, ALRM and TERM, in bash as in dash. If
+     that removal fails, the script says so and names the path. Only SIGKILL
+     (`kill -9`), a crash of the shell or a rarely sent signal outside that
+     list gets past it silently, and then `/tmp/pulse-sign.*` has to be
+     removed from the container by hand.
+     While `occ` runs — a few seconds — the key is readable for the web server
+     user inside that container; `CONTAINER=` can point at any other container
+     with an installed Nextcloud, for example a throwaway one.
+   - **Packing:** `build/pulse-<version>.tar.gz`. At the end it prints the
+     archive's SHA-256 and the Base64 signature over the archive — the store
+     needs it in step 7.
+
+5. **Cross-check:** `tar -tvzf build/pulse-<version>.tar.gz` — the top folder
+   is called `pulse/`, `appinfo/signature.json` is included, the entries read
+   `-rw-r--r-- 0/0` or `drwxr-xr-x 0/0`, and `src/`, `node_modules/`, `docs/`
+   and `tests/` are not there.
 
 6. **Tag and GitHub release:**
 
@@ -157,13 +354,20 @@ page; the first one is the preview image.
    ```
 
    Create a release on GitHub and attach the archive as an asset. The store
-   downloads the file itself, so the URL has to be public and HTTPS.
+   downloads the file itself, so the URL has to be public and HTTPS (at most
+   20 MB).
+
+   **Keep the asset online for good.** The store deletes its own copy after
+   the check and only keeps the link: every instance downloads the archive
+   from this URL when it installs or updates Pulse. Deleting the release,
+   replacing the asset with another file or making the repository private
+   breaks the installation of that version.
 
 7. **Register with the store:**
 
    ```sh
    curl -X POST https://apps.nextcloud.com/api/v1/apps/releases \
-     -u "STORE-ACCOUNT:PASSWORD" \
+     -H "Authorization: Token $STORE_TOKEN" \
      -H "Content-Type: application/json" \
      -d '{
            "download": "https://github.com/hotochan123/hotochan123-nextcloud-pulse/releases/download/v<version>/pulse-<version>.tar.gz",
@@ -172,14 +376,17 @@ page; the first one is the preview image.
          }'
    ```
 
-   Instead of `-u`, an API token of the account works too:
-   `-H "Authorization: Token <token>"`. The store downloads the archive, checks
-   the signature against the certificate, reads `info.xml` and `CHANGELOG.md`
-   and publishes. If it answers with 4xx, the reason is in the body — usually
-   the signature, the schema, or an app ID that does not match the certificate.
+   An account with a password can use `-u "STORE-ACCOUNT:PASSWORD"` instead of
+   the token; one created through GitHub cannot. The store downloads the
+   archive, checks the signature against the registered certificate, reads
+   `info.xml` and `CHANGELOG.md` and publishes (201; 200 when the version
+   already existed). If it answers with 4xx, the reason is in the body —
+   usually the signature, the schema, an app ID that is not registered, or a
+   download that failed.
 
-   Pre-releases: a version with a suffix under semver rules (`0.17.0-beta.1`)
-   ends up in the pre-release channel, `"nightly": true` in the nightly channel.
+   Pre-releases: a version with a pre-release suffix (`0.19.0-beta.1`) ends up
+   in the beta channel, `"nightly": true` in the nightly channel (a new nightly
+   replaces all earlier ones).
 
 8. **Check:** `https://apps.nextcloud.com/apps/pulse`, and install it once
    through the web interface on a fresh instance. The server's integrity check
@@ -189,19 +396,28 @@ page; the first one is the preview image.
 
 ## What is still missing, to stay honest
 
-- **Server versions:** `info.xml` advertises **only 34** (`min-version="34"
-  max-version="34"`), and that is exactly what the app runs on. Chosen on
-  purpose: a wider range would be a claim about servers nobody has ever
-  started, and the bug reports would come from there. The price: older
-  instances are not offered the app, and with NC 35 it disappears from the
-  store until `max-version` goes up.
+- **Nextcloud 35 — open decision before the first release.** Nextcloud 35.0.0
+  came out on 15 September 2026 (35.0.1 on 24 September). `info.xml`
+  advertises **only 34** (`min-version="34" max-version="34"`), and Pulse has
+  only run on 34.0.1. As long as it stays that way, the store does not offer
+  Pulse to Nextcloud 35, and an instance that updates to 35 disables it. Two
+  honest ways out:
+  - test a fresh Nextcloud 35 installation (and the newest 34.0.x, currently
+    34.0.4) on the databases above, with the HTTP simulation and the
+    screenshot harness, and then raise `max-version` to 35 (the store allows
+    at most the newest server release plus one);
+  - or release for 34 only on purpose and say so in the release notes.
 
-  To open the range honestly later: `nextcloud/ocp` in the respective version
-  as a dev dependency plus Psalm covers the PHP side statically (the stubs
-  carry exactly the OCP symbols of that server version), plus a real run on the
-  lowest advertised version — that covers the PHP minimum, migrations and theme
-  variables, which a pure symbol check does not see. `occ app:check-code` no
-  longer helps; the command no longer exists in 34.
+  To open the range downwards honestly later: `nextcloud/ocp` in the
+  respective version as a dev dependency plus Psalm covers the PHP side
+  statically (the stubs carry exactly the OCP symbols of that server version),
+  plus a real run on the lowest advertised version — that covers the PHP
+  minimum, migrations and theme variables, which a pure symbol check does not
+  see. `occ app:check-code` no longer helps; the command no longer exists in
+  34.
+- **Security contact:** there is no `SECURITY.md` yet. The store expects
+  authors to respond to security concerns in time; once the repository is
+  public, GitHub's private vulnerability reporting can be switched on for it.
 - **Translations:** English and German come from the repository. Further
   languages would go through Transifex; for that the app has to be added to
   Nextcloud's Transifex project (a request to Nextcloud), going it alone is not

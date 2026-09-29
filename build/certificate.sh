@@ -15,6 +15,7 @@
 # gone after the next reboot — and with it every signed release. In that case
 # point OUT at persistent storage: OUT=/path/on/disk build/certificate.sh
 set -eu
+umask 077
 
 APP_ID=pulse
 OUT="${OUT:-$HOME/.nextcloud/certificates}"
@@ -23,9 +24,9 @@ mkdir -p "$OUT"
 chmod 700 "$OUT"
 
 if [ -f "$OUT/$APP_ID.key" ]; then
-	echo "Es gibt schon einen Schlüssel: $OUT/$APP_ID.key"
-	echo "Nicht überschreiben — mit einem neuen Schlüssel wird jedes bisher"
-	echo "signierte Release ungültig. Zum Neuanfang die Datei bewusst wegräumen."
+	echo "A key already exists: $OUT/$APP_ID.key"
+	echo "Not overwriting it — a new key invalidates every release signed so far."
+	echo "To start over, move the file away deliberately."
 	exit 1
 fi
 
@@ -35,18 +36,22 @@ chmod 600 "$OUT/$APP_ID.key"
 
 cat <<EOF
 
-Schlüssel:  $OUT/$APP_ID.key   (geheim, nur lokal, kein Backup in ein Repo)
-Anfrage:    $OUT/$APP_ID.csr   (die kommt in den Pull Request)
+Key:      $OUT/$APP_ID.key   (secret, local only, never backed up into a repository)
+Request:  $OUT/$APP_ID.csr   (this goes into the pull request)
 
-Weiter:
-  1. Konto auf https://apps.nextcloud.com anlegen (die App-ID wird daran gebunden).
-  2. https://github.com/nextcloud/app-certificate-requests forken,
-     Datei nach $APP_ID/$APP_ID.csr legen, Pull Request aufmachen.
-  3. Nach dem Merge liegt dort $APP_ID/$APP_ID.crt — herunterladen nach
-     $OUT/$APP_ID.crt.
-  4. Signieren und packen:
+Next:
+  1. Make the source repository public — the certificate request links to it.
+  2. Fork https://github.com/nextcloud/app-certificate-requests, add the
+     request as $APP_ID/$APP_ID.csr and open a pull request.
+  3. Once it is merged, the repository has $APP_ID/$APP_ID.crt — download it
+     to $OUT/$APP_ID.crt.
+  4. Register the app ID: create an account on https://apps.nextcloud.com and
+     register the app with the certificate and a signature over the app ID:
+       printf '%s' $APP_ID | openssl dgst -sha512 -sign $OUT/$APP_ID.key | openssl base64
+     The registration reserves the ID; the store accepts no release before it.
+  5. Sign and pack:
      PULSE_KEY=$OUT/$APP_ID.key PULSE_CRT=$OUT/$APP_ID.crt build/package.sh
 
-Prüfen, dass CSR und App-ID zusammenpassen:
+Check that the request carries the app ID:
   openssl req -in $OUT/$APP_ID.csr -noout -subject
 EOF

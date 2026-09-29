@@ -7,6 +7,9 @@ declare(strict_types=1);
 
 namespace OCA\Pulse\Tests\Unit;
 
+use Doctrine\DBAL\Driver\AbstractException;
+use Doctrine\DBAL\Exception\DeadlockException;
+use OC\DB\Exceptions\DbalException;
 use OCA\Pulse\Db\PlayerMapper;
 use OCA\Pulse\Db\Poll;
 use OCA\Pulse\Db\PollMapper;
@@ -20,6 +23,8 @@ use OCA\Pulse\Service\DemoService;
 use OCA\Pulse\Service\PollImageService;
 use OCA\Pulse\Service\RoomService;
 use OCP\AppFramework\Utility\ITimeFactory;
+use OCP\DB\Exception as DbException;
+use OCP\IDBConnection;
 use OCP\IL10N;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -44,6 +49,8 @@ class RoomPaceLifecycleTest extends TestCase {
     private RoomService $service;
     private RoomMapper&MockObject $rooms;
     private ProgressMapper&MockObject $progress;
+    /** @var list<string> begin/commit/rollBack of deleteRoom's transaction, in order */
+    private array $tx = [];
 
     protected function setUp(): void {
         $this->rooms = $this->createMock(RoomMapper::class);
@@ -65,6 +72,14 @@ class RoomPaceLifecycleTest extends TestCase {
         $l10n = $this->createMock(IL10N::class);
         $l10n->method('t')->willReturnArgument(0);
 
+        $db = $this->createMock(IDBConnection::class);
+        foreach (['beginTransaction' => 'begin', 'commit' => 'commit', 'rollBack' => 'rollBack'] as $method => $what) {
+            $db->method($method)->willReturnCallback(function () use ($what): bool {
+                $this->tx[] = $what;
+                return true;
+            });
+        }
+
         $this->service = (new \ReflectionClass(RoomService::class))->newInstanceWithoutConstructor();
         foreach ([
             'roomMapper' => $this->rooms,
@@ -77,6 +92,7 @@ class RoomPaceLifecycleTest extends TestCase {
             'imageService' => $this->createMock(PollImageService::class),
             'timeFactory' => $time,
             'l10n' => $l10n,
+            'db' => $db,
         ] as $name => $value) {
             (new ReflectionProperty(RoomService::class, $name))->setValue($this->service, $value);
         }
@@ -227,39 +243,59 @@ class RoomPaceLifecycleTest extends TestCase {
         // Room row first (a self-paced join under the room lock finishes first
         // and is then deleted along with it, a later one gets 404), players before
         // votes and progress (/vote and /next re-check with a lock afterwards,
-        // see PaceService::assertStillJoined), image files last.
-        $calls = [];
-        $log = function (string $what) use (&$calls): \Closure {
-            return function (...$args) use ($what, &$calls) {
-                $calls[] = $what;
-                return $args[0] ?? null;
-            };
-        };
-        $poll = new Poll();
-        $poll->setId(41);
-        $polls = $this->createMock(PollMapper::class);
-        $polls->method('findByRoom')->willReturnCallback(function () use (&$calls, $poll): array {
-            $calls[] = 'findPolls';
-            return [$poll];
-        });
-        $polls->method('delete')->willReturnCallback($log('poll'));
-        $votes = $this->createMock(VoteMapper::class);
-        $votes->method('deleteByPoll')->willReturnCallback($log('votes'));
-        $presence = $this->createMock(PresenceMapper::class);
-        $presence->method('deleteByRoom')->willReturnCallback($log('presence'));
-        $players = $this->createMock(PlayerMapper::class);
-        $players->method('deleteByRoom')->willReturnCallback($log('players'));
-        $images = $this->createMock(PollImageService::class);
-        $images->method('discard')->willReturnCallback($log('image'));
-        $this->progress->method('deleteByRoom')->willReturnCallback($log('progress'));
-        $this->rooms->method('delete')->willReturnCallback($log('room'));
-        foreach (['pollMapper' => $polls, 'voteMapper' => $votes, 'presenceMapper' => $presence, 'playerMapper' => $players, 'imageService' => $images] as $name => $value) {
-            (new ReflectionProperty(RoomService::class, $name))->setValue($this->service, $value);
-        }
+        // see PaceService::assertStillJoined), all rows in one transaction,
+        // image files last — after the commit.
+        $this->wireDelete();
 
         $this->service->deleteRoom($this->room());
 
-        $this->assertSame(['room', 'presence', 'players', 'findPolls', 'votes', 'poll', 'progress', 'image'], $calls);
+        $this->assertSame(
+            ['begin', 'room', 'presence', 'players', 'findPolls', 'votes', 'poll', 'progress', 'commit', 'image'],
+            $this->tx,
+        );
+    }
+
+    public function testFehlschlagMittendrinLaesstDenRaumGanz(): void {
+        // A statement after the room row fails: everything is rolled back, so
+        // the room is still complete and can be deleted again — instead of the
+        // room row being gone and questions, votes and progress staying behind
+        // for good. No image file goes either.
+        $this->wireDelete(function (): void {
+            throw new DbException('disk full');
+        });
+
+        try {
+            $this->service->deleteRoom($this->room());
+            $this->fail('the error must reach the caller');
+        } catch (DbException $e) {
+            $this->assertSame('disk full', $e->getMessage());
+        }
+
+        $this->assertSame(['begin', 'room', 'presence', 'players', 'findPolls', 'votes', 'rollBack'], $this->tx);
+    }
+
+    public function testDeadlockWirdWiederholt(): void {
+        // A participant votes while the room is deleted, and the database
+        // resolves a deadlock by aborting the deletion: rolled back and tried
+        // again, the second attempt deletes the room completely.
+        $attempts = 0;
+        $this->wireDelete(function () use (&$attempts): void {
+            if (++$attempts === 1) {
+                throw DbalException::wrap(new DeadlockException(
+                    new class('Deadlock found when trying to get lock') extends AbstractException {
+                    },
+                    null,
+                ));
+            }
+        });
+
+        $this->service->deleteRoom($this->room());
+
+        $this->assertSame([
+            'begin', 'room', 'presence', 'players', 'findPolls', 'votes', 'rollBack',
+            'begin', 'room', 'presence', 'players', 'findPolls', 'votes', 'poll', 'progress', 'commit',
+            'image',
+        ], $this->tx);
     }
 
     // ── DemoService::clearDemoVotes ────────────────────────────────────────
@@ -290,6 +326,46 @@ class RoomPaceLifecycleTest extends TestCase {
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────
+
+    /**
+     * Mappers and image service for deleteRoom that append to $this->tx, next
+     * to the transaction calls. The room holds one question (41) with an image.
+     * $onVotes runs inside VoteMapper::deleteByPoll (to make it fail).
+     */
+    private function wireDelete(?\Closure $onVotes = null): void {
+        $log = function (string $what): \Closure {
+            return function (...$args) use ($what) {
+                $this->tx[] = $what;
+                return $args[0] ?? null;
+            };
+        };
+        $poll = new Poll();
+        $poll->setId(41);
+        $polls = $this->createMock(PollMapper::class);
+        $polls->method('findByRoom')->willReturnCallback(function () use ($poll): array {
+            $this->tx[] = 'findPolls';
+            return [$poll];
+        });
+        $polls->method('delete')->willReturnCallback($log('poll'));
+        $votes = $this->createMock(VoteMapper::class);
+        $votes->method('deleteByPoll')->willReturnCallback(function (int $pollId) use ($onVotes): void {
+            $this->tx[] = 'votes';
+            if ($onVotes !== null) {
+                $onVotes();
+            }
+        });
+        $presence = $this->createMock(PresenceMapper::class);
+        $presence->method('deleteByRoom')->willReturnCallback($log('presence'));
+        $players = $this->createMock(PlayerMapper::class);
+        $players->method('deleteByRoom')->willReturnCallback($log('players'));
+        $images = $this->createMock(PollImageService::class);
+        $images->method('discard')->willReturnCallback($log('image'));
+        $this->progress->method('deleteByRoom')->willReturnCallback($log('progress'));
+        $this->rooms->method('delete')->willReturnCallback($log('room'));
+        foreach (['pollMapper' => $polls, 'voteMapper' => $votes, 'presenceMapper' => $presence, 'playerMapper' => $players, 'imageService' => $images] as $name => $value) {
+            (new ReflectionProperty(RoomService::class, $name))->setValue($this->service, $value);
+        }
+    }
 
     private function room(): Room {
         $room = new Room();

@@ -83,19 +83,20 @@ this file, so every published version needs an entry here.
 ### Changed
 - Documentation and code comments are in English now. The READMEs, the App
   Store guide and the comments in PHP, JavaScript, Vue, CSS, shell and
-  configuration files used to be mostly German. The German translation of the
-  interface (`l10n/`) and the German store description stay German on purpose.
-  Still German, for a later round: German inside the code itself — test data
-  and test method names, messages of the development and release scripts, the
-  CI step names, the `package.json` description, the seed words of the demo
-  mode, the comments inside the add-in manifest template and inside the browser
+  configuration files used to be mostly German, and so were the messages of
+  the release scripts, the CI step names and the `package.json` description.
+  The German translation of the interface (`l10n/`) and the German store
+  description stay German on purpose. Still German, for a later round: German
+  inside the code itself — test data and test method names, messages of the
+  test, translation and development scripts, the seed words of the demo mode,
+  the comments inside the add-in manifest template and inside the browser
   scripts of the screenshot harness.
 - The README was brought up to date for a public audience: installation from
   the repository, a section on security notes, the adaptive polling intervals
-  instead of a fixed 2.5 s, and the App Store status (the screenshots exist; the
-  pull request for the signing certificate has not been opened yet). It no
-  longer says that `info.xml` advertises Nextcloud 29 and later — it has
-  declared 34 only since 0.18.0.
+  instead of a fixed 2.5 s, the databases Pulse was tested on, and the App
+  Store status (the screenshots exist; the pull request for the signing
+  certificate has not been opened yet). It no longer says that `info.xml`
+  advertises Nextcloud 29 and later — it has declared 34 only since 0.18.0.
 - The add-in manifest is no longer German-only: source locale `en-US` with a
   German override, like the rest of the app. Its `<Version>` now comes from
   `info.xml`, so PowerPoint recognises an updated add-in.
@@ -124,6 +125,10 @@ this file, so every published version needs an entry here.
   longer shows two identical rows. Players can still keep or change their own
   name. Invisible characters are stripped from names, and a name made only of
   them is refused.
+- `info.xml` gives the licence as `AGPL-3.0-or-later` instead of `agpl`. The
+  store schema still accepts the short form but lists it as deprecated, and
+  for apps targeting Nextcloud 31 and later the store's guide asks for an SPDX
+  identifier. `package.json` names the licence now as well.
 
 ### Fixed
 - The join panel no longer reopens by itself while presenting. It used to open
@@ -244,6 +249,55 @@ this file, so every published version needs an entry here.
 - Two votes sent at the same moment from the same phone in a poll — a double
   tap, or a retry after a network hiccup — no longer end in an internal server
   error. The later one counts, as when a vote is changed.
+- The daily clean-up no longer deletes decks their owner is still working on.
+  A moderated room created more than 30 days ago that no audience had joined
+  in those 30 days was deleted, even if the owner had edited it the day
+  before: only participants kept such a room alive. Now whatever the owner
+  does with a room counts as well, in every room mode — opening it, editing
+  the deck or its settings, presenting, looking at the results or the
+  progress — so a room goes only after 30 days in which neither the owner nor
+  a participant used it. The owner's activity is recorded at most once an hour
+  and changes nothing anyone sees. It is recorded from this version on: on an
+  installation where the clean-up already ran, a room its owner has not
+  opened since the update is still judged by its participants alone, as
+  before.
+- Rooms of a deleted Nextcloud account no longer stay behind. They were left
+  with nobody to manage them, still reachable under their public codes, and a
+  room the audience kept using was never cleaned up at all. Deleting an
+  account now deletes its rooms together with their questions, votes,
+  players, progress and images, and their codes stop working.
+- New installations now register the clean-up job. It was only added by a
+  migration step, and Nextcloud skips those steps when it installs an app for
+  the first time, so rooms there were never deleted. The job is now declared
+  in `info.xml`, which Nextcloud reads on every install and update. An
+  installation that started out on an earlier version without the job gets
+  it with this update. Its existing rooms count as used on the day of the
+  update, so the job deletes none of them in the first 30 days — not even a
+  deck its owner edited just before the update, which the job has no record
+  of.
+- Deleting a room — with the delete button, by the daily clean-up or with its
+  owner's account — no longer leaves its questions, votes, players or
+  progress behind when the database fails halfway, for example on a deadlock
+  with a vote arriving at the same moment. The rows now go in one
+  transaction, which is retried after a deadlock; a deletion that still fails
+  leaves the room complete instead of half deleted.
+- On MySQL, adding a word cloud, a number question or a free-text question no
+  longer fails with an internal server error, and neither does duplicating a
+  room that contains one. MySQL cannot keep the default value of a text
+  column, so a new question has to write its empty option list itself, and
+  these three types left it out. A duplicate that failed this way left an
+  incomplete "(copy)" room behind, which can simply be deleted. MariaDB,
+  PostgreSQL and SQLite were not affected. No migration is needed: existing
+  MySQL installations work as soon as they run this version.
+- Release packaging (`build/package.sh`, for developers): signing works. It
+  failed every time and then left the private key in the Nextcloud
+  container's `/tmp`; it now signs a copy in a private temporary folder that
+  is removed on every exit. Archive entries are 755/644 and owned by 0:0
+  instead of world-writable, `info.xml` is checked against the store's
+  current schema, and packing stops when `info.xml`, `package.json` and
+  `CHANGELOG.md` disagree about the version (`ALLOW_UNRELEASED=1` packs a
+  test archive, as CI does). A pre-release such as `0.19.0-beta.1` needs its
+  notes under `[Unreleased]`, where the store looks for them.
 
 ### Removed
 - `office-addin/manifest.xml`. It is generated now, and a second editable copy

@@ -9,9 +9,11 @@ namespace OCA\Pulse\Tests\Unit;
 
 use OCA\Pulse\Controller\RoomApiController;
 use OCA\Pulse\Db\Room;
+use OCA\Pulse\Db\RoomMapper;
 use OCA\Pulse\Service\DeckService;
 use OCA\Pulse\Service\PaceService;
 use OCA\Pulse\Service\RoomService;
+use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\IRequest;
 use OCP\IUserSession;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -82,6 +84,9 @@ class PollParamsTest extends TestCase {
         // Deck changes go through the pace guard (under the room lock only when
         // self-paced); this is a moderated room, the mock stays silent.
         $this->inject($controller, 'paceService', $this->createMock(PaceService::class));
+        // Every room lookup records owner activity (retention); silent here.
+        $this->inject($controller, 'roomMapper', $this->createMock(RoomMapper::class));
+        $this->inject($controller, 'timeFactory', $this->createMock(ITimeFactory::class));
 
         $method === 'addPoll'
             ? $controller->addPoll('ABC123')

@@ -47,6 +47,10 @@ use OCP\IUserSession;
  * locked row — not the room that withRoom read earlier. That way there is
  * no check-then-act between two tabs or between add-in and browser.
  * Moderated rooms still run without a transaction, as before.
+ *
+ * Retention: every request that names one of the owner's rooms loads it
+ * through ownedRoom() and thereby records owner activity (touch) — reading
+ * and writing alike, in every room mode. See RoomService::lastActivity.
  */
 class RoomApiController extends Controller {
     public function __construct(
@@ -62,7 +66,7 @@ class RoomApiController extends Controller {
         // only touched in self-paced mode:
         private PaceService $paceService,
         private PaceStateService $paceState,
-        private RoomMapper $roomMapper,          // touch (owner's visit)
+        private RoomMapper $roomMapper,          // touch (owner activity, any room)
         private ITimeFactory $timeFactory,
     ) {
         parent::__construct(Application::APP_ID, $request);
@@ -90,7 +94,7 @@ class RoomApiController extends Controller {
     #[NoAdminRequired]
     public function exportCsv(string $code): Response {
         try {
-            $room = $this->roomService->getOwnedRoom($code, $this->uid());
+            $room = $this->ownedRoom($code);
         } catch (DoesNotExistException) {
             return new JSONResponse(['message' => $this->l10n->t('Room not found.')], Http::STATUS_NOT_FOUND);
         } catch (NotOwnerException) {
@@ -154,7 +158,6 @@ class RoomApiController extends Controller {
     #[NoAdminRequired]
     public function show(string $code): JSONResponse {
         return $this->withRoom($code, function ($room) {
-            $this->touch($room);
             return new JSONResponse($this->deckService->roomView($room));
         });
     }
@@ -253,7 +256,6 @@ class RoomApiController extends Controller {
             } catch (\InvalidArgumentException $e) {
                 return new JSONResponse(['message' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
             }
-            $this->touch($room);
             return new JSONResponse($this->deckService->roomView($room));
         });
     }
@@ -267,7 +269,7 @@ class RoomApiController extends Controller {
     #[NoAdminRequired]
     public function progress(string $code): Response {
         try {
-            $room = $this->roomService->getOwnedRoom($code, $this->uid());
+            $room = $this->ownedRoom($code);
         } catch (DoesNotExistException) {
             return new JSONResponse(['message' => $this->l10n->t('Room not found.')], Http::STATUS_NOT_FOUND);
         } catch (NotOwnerException) {
@@ -276,7 +278,6 @@ class RoomApiController extends Controller {
         if (!PaceService::isSelf($room)) {
             return new JSONResponse(['message' => $this->l10n->t('This room is not self-paced.')], Http::STATUS_CONFLICT);
         }
-        $this->touch($room);
         $scores = Input::flag($this->request->getParam('scores')) ?? false;
         $data = $this->paceState->progress($room, $scores);
         // Version from the finished payload — without serverNow and "last
@@ -412,7 +413,7 @@ class RoomApiController extends Controller {
     #[NoAdminRequired]
     public function results(string $code, int $pollId): Response {
         try {
-            $room = $this->roomService->getOwnedRoom($code, $this->uid());
+            $room = $this->ownedRoom($code);
         } catch (DoesNotExistException) {
             return new JSONResponse(['message' => $this->l10n->t('Room not found.')], Http::STATUS_NOT_FOUND);
         } catch (NotOwnerException) {
@@ -518,7 +519,7 @@ class RoomApiController extends Controller {
     #[NoCSRFRequired]
     public function showImage(string $code, int $pollId): Response {
         try {
-            $room = $this->roomService->getOwnedRoom($code, $this->uid());
+            $room = $this->ownedRoom($code);
             $poll = $this->deckService->requirePollInRoom($room, $pollId);
         } catch (DoesNotExistException | \InvalidArgumentException) {
             return new JSONResponse(['message' => $this->l10n->t('Not found.')], Http::STATUS_NOT_FOUND);
@@ -626,7 +627,7 @@ class RoomApiController extends Controller {
      */
     private function withRoom(string $code, callable $fn): JSONResponse {
         try {
-            $room = $this->roomService->getOwnedRoom($code, $this->uid());
+            $room = $this->ownedRoom($code);
         } catch (DoesNotExistException) {
             return new JSONResponse(['message' => $this->l10n->t('Room not found.')], Http::STATUS_NOT_FOUND);
         } catch (NotOwnerException) {
@@ -680,14 +681,40 @@ class RoomApiController extends Controller {
     }
 
     /**
-     * Record the owner's visit (show, /progress, /pace) — only in self-paced
-     * mode. Otherwise the owner of a homework quiz never gives a sign of life,
-     * and the cleanup job would delete it together with its results while they
-     * are still evaluating it. Throttled in the mapper (at most hourly).
+     * The only place where this controller looks up a room by its code:
+     * enforce ownership and record the owner's activity (touch). Every action
+     * that names a room goes through here exactly once, so each request
+     * counts once — never per question it writes. The room list (index)
+     * touches nothing: merely opening the app must not keep every room alive.
+     *
+     * @throws DoesNotExistException room unknown
+     * @throws NotOwnerException     room belongs to someone else
+     */
+    private function ownedRoom(string $code): Room {
+        $room = $this->roomService->getOwnedRoom($code, $this->uid());
+        $this->touch($room);
+        return $room;
+    }
+
+    /**
+     * Record owner activity for retention (RoomService::lastActivity), for
+     * moderated and self-paced rooms alike: opening the room, reading its
+     * results, editing the deck, presenting, running the self-paced window.
+     * Without it a deck prepared weeks ahead, or a homework quiz whose owner
+     * is still grading, would be deleted by the cleanup job as soon as no
+     * participant had shown up for 30 days.
+     *
+     * At most one write per hour: skipped here when the row just read is
+     * fresh enough (so the presenter's polls of results or progress cost no
+     * write), and throttled once more in the mapper's WHERE against a
+     * parallel tab. `touched_at` is in no payload and no version hash, so a
+     * touch changes nothing a client sees.
      */
     private function touch(Room $room): void {
-        if (PaceService::isSelf($room)) {
-            $this->roomMapper->touch($room->getId(), $this->timeFactory->getTime());
+        $now = $this->timeFactory->getTime();
+        if ($room->getTouchedAt() >= $now - RoomMapper::TOUCH_INTERVAL) {
+            return;
         }
+        $this->roomMapper->touch($room->getId(), $now);
     }
 }

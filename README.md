@@ -31,7 +31,7 @@ repository carry the same trailers.
 **Design.** The UI design explorations (mockups, design briefs) were also
 produced with AI tools. They are not part of this repository.
 
-**Verification.** The app is checked by a PHPUnit suite (827 tests), unit tests
+**Verification.** The app is checked by a PHPUnit suite (928 tests), unit tests
 for the self-paced rules, an HTTP simulation of complete poll and quiz runs and a
 browser screenshot harness; during development it was also fuzzed with throwaway
 request-fuzzing scripts. All of them were written by the same AI agents, so they
@@ -72,7 +72,11 @@ Pulse is licensed under AGPL-3.0-or-later and comes without any warranty.
   results; the projector shows the race, never the questions. See below.
 - Protection against double voting through an anonymous voter cookie (no link to
   a person).
-- Rooms nobody has used for 30 days are deleted by a daily background job.
+- A daily background job deletes rooms after 30 days without any activity:
+  no participant was there, and the owner did nothing with the room — did not
+  open it, edit the deck, present or look at the results. A deck prepared
+  weeks ahead therefore stays. Deleting a Nextcloud account deletes that
+  account's rooms, with their questions, votes, players and images.
 
 ## Self-paced quiz
 
@@ -142,6 +146,7 @@ lib/Service/      RoomService (rooms), DeckService (questions), VoteService (vot
                   PaceService + PaceStateService (self-paced quiz: window, read views)
 lib/SetupCheck/   EmbedFraming (setup check for the PowerPoint embed)
 lib/BackgroundJob/ CleanupStaleRoomsJob (deletes rooms unused for 30 days)
+lib/Listener/     UserDeletedListener (a deleted account takes its rooms with it)
 lib/Migration/    Schema (pulse_rooms, pulse_polls, pulse_votes, … pulse_progress)
 src/              Moderator.vue (control desk), Participant.vue (phone), Screen.vue (projector),
                   components/StageRow.vue (stage row model), ResultsView.vue,
@@ -176,10 +181,14 @@ record of the self-paced UI, which is included.
 
 ## Installation
 
-Pulse is not in the Nextcloud App Store yet (see [Release](#release)) and has
-only been tested on Nextcloud 34. The built bundles in `js/` are part of the
-repository, so a checkout runs without a build step. The directory has to be
-named after the app ID, `pulse`:
+Pulse is not in the Nextcloud App Store yet: the signing certificate it needs
+has not been requested so far (as of 29 September 2026; steps and status in
+[`docs/APPSTORE.md`](docs/APPSTORE.md)). Until then it is installed from this
+repository. It has only been tested on Nextcloud 34 (34.0.1), with fresh
+installations on SQLite, MariaDB 11.8, PostgreSQL 17 and MySQL 8.4.
+
+The built bundles in `js/` are part of the repository, so a checkout runs
+without a build step. The directory has to be named after the app ID, `pulse`:
 
 ```
 git clone https://github.com/hotochan123/hotochan123-nextcloud-pulse.git <nextcloud>/apps/pulse
@@ -309,8 +318,9 @@ build/certificate.sh    # once: key + certificate request for the signature
 build/package.sh        # builds, checks, signs and packs build/pulse-<version>.tar.gz
 ```
 
-The whole way into the Nextcloud App Store — certificate, version, signature,
-upload — is described in [`docs/APPSTORE.md`](docs/APPSTORE.md).
+The whole way into the Nextcloud App Store — public repository, certificate,
+app ID registration, version, signature, upload — is described in
+[`docs/APPSTORE.md`](docs/APPSTORE.md).
 
 ## Licence
 
@@ -319,11 +329,15 @@ matching SPDX header.
 
 ## Known limits and possible extensions
 
-- App Store: the screenshots are in `screenshots/`; what is missing is the
-  signing certificate — the pull request that requests it has not been opened
-  yet (as of 29 September 2026). Checklist in `docs/APPSTORE.md`. Further
-  languages would go through Transifex and need Nextcloud's involvement.
-- Tested on Nextcloud 34 only; `info.xml` declares 34 only.
+- App Store: not published yet. The screenshots are in `screenshots/`; still
+  to do, in this order, are making this repository public, the pull request
+  for the signing certificate (not opened yet), registering the app ID and the
+  first signed release (as of 29 September 2026). Checklist in
+  `docs/APPSTORE.md`. Further languages would go through Transifex and need
+  Nextcloud's involvement.
+- Tested on Nextcloud 34 only; `info.xml` declares 34 only. Nextcloud 35
+  (September 2026) is not covered yet: updating an instance to 35 disables
+  Pulse, and it stays off until a release declares 35.
 - Question type image hotspot (tap on an image instead of choosing an answer).
 - Self-paced quiz: a rejoin code for switching devices, starting from the
   waiting state without a tap, a demo race and store images; plus small engine

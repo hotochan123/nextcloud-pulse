@@ -65,7 +65,7 @@ class Room extends Entity implements \JsonSerializable {
     protected $feedback = 'each'; // 'each' | 'end'
     protected $deckOrder = null;  // frozen order, JSON [12,15,13]; null in draft
     protected $joinsLocked = false; // "Lock joining"
-    protected $touchedAt = 0;   // the owner's last visit (retention)
+    protected $touchedAt = 0;   // owner's last activity, any room mode (retention)
     protected $createdAt = 0;
 
     public function __construct() {

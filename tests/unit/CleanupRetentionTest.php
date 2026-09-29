@@ -17,6 +17,7 @@ use OCA\Pulse\Db\VoteMapper;
 use OCA\Pulse\Service\PollImageService;
 use OCA\Pulse\Service\RoomService;
 use OCP\AppFramework\Utility\ITimeFactory;
+use OCP\IDBConnection;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -25,14 +26,15 @@ use ReflectionProperty;
 /**
  * Retention (RoomService::cleanupStaleRooms): a room stays as long as its
  * latest sign of life is no older than the retention period — participant
- * heartbeat, and for self-paced rooms also opening, deadline, closing, release
- * and owner visit.
+ * heartbeat, owner activity (`touched_at`, in every room mode), and for
+ * self-paced rooms also opening, deadline, closing and release.
  *
- * The case this is about: a homework with a deadline that the teacher only
- * grades weeks later must not vanish together with its results. And for
- * moderated rooms (all window fields 0) the decision must stay exactly the
- * old one: keep ⇔ a heartbeat since the cutoff date (formerly
- * countActive(id, cutoff) > 0, i.e. last_seen >= cutoff).
+ * The cases this is about: a homework with a deadline that the teacher only
+ * grades weeks later must not vanish together with its results, and neither
+ * must a moderated deck its owner is still preparing although no audience
+ * has joined yet. Without owner activity (`touched_at` = 0) the decision for
+ * moderated rooms stays exactly the old one: keep ⇔ a heartbeat since the
+ * cutoff date (formerly countActive(id, cutoff) > 0, i.e. last_seen >= cutoff).
  */
 #[CoversClass(RoomService::class)]
 class CleanupRetentionTest extends TestCase {
@@ -87,6 +89,7 @@ class CleanupRetentionTest extends TestCase {
             'progressMapper' => $progress,
             'imageService' => $this->createMock(PollImageService::class),
             'timeFactory' => $time,
+            'db' => $this->createMock(IDBConnection::class),
         ] as $name => $value) {
             (new ReflectionProperty(RoomService::class, $name))->setValue($this->service, $value);
         }
@@ -156,6 +159,41 @@ class CleanupRetentionTest extends TestCase {
         $this->assertSame([11], $this->deletedRooms);
     }
 
+    public function testModerierterRaumMitBesitzerbesuchVorEinemTagBleibt(): void {
+        // Created 31 days ago, no audience ever — but the owner edited the
+        // deck yesterday. This is the deck the old rule deleted.
+        $room = $this->liveRoom(13, created: 31);
+        $room->setTouchedAt($this->ago(1));
+
+        $this->assertSame(0, $this->cleanup());
+        $this->assertSame([], $this->deletedRooms);
+    }
+
+    public function testModerierterRaumOhneJedeAktivitaetWirdGeloescht(): void {
+        // Created 31 days ago, no heartbeat, no owner activity.
+        $this->liveRoom(14, created: 31);
+
+        $this->assertSame(1, $this->cleanup());
+        $this->assertSame([14], $this->deletedRooms);
+    }
+
+    public function testModerierterRaumMitBesitzerbesuchVorDemStichtagWirdGeloescht(): void {
+        // Owner activity counts like a heartbeat: one second too old is too old.
+        $room = $this->liveRoom(15, created: 31);
+        $room->setTouchedAt(self::CUTOFF - 1);
+        $this->lastSeen[15] = $this->ago(40);
+
+        $this->assertSame(1, $this->cleanup());
+        $this->assertSame([15], $this->deletedRooms);
+    }
+
+    public function testBesitzerbesuchGenauAmStichtagHaeltDenRaum(): void {
+        $room = $this->liveRoom(16, created: 31);
+        $room->setTouchedAt(self::CUTOFF);
+
+        $this->assertSame(0, $this->cleanup());
+    }
+
     public static function praesenzAlter(): array {
         return [
             'gestern' => [self::NOW - self::DAY],
@@ -199,11 +237,12 @@ class CleanupRetentionTest extends TestCase {
         return self::NOW - $days * self::DAY;
     }
 
-    private function liveRoom(int $id): Room {
+    /** Moderated quiz, created $created days ago, without any sign of life. */
+    private function liveRoom(int $id, int $created = 60): Room {
         $room = new Room();
         $room->setId($id);
         $room->setMode('quiz');
-        $room->setCreatedAt($this->ago(60));
+        $room->setCreatedAt($this->ago($created));
         $this->rooms[] = $room;
         return $room;
     }

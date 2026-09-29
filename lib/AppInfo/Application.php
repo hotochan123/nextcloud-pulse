@@ -7,11 +7,13 @@ declare(strict_types=1);
 
 namespace OCA\Pulse\AppInfo;
 
+use OCA\Pulse\Listener\UserDeletedListener;
 use OCA\Pulse\SetupCheck\EmbedFraming;
 use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IBootstrap;
 use OCP\AppFramework\Bootstrap\IRegistrationContext;
+use OCP\User\Events\UserDeletedEvent;
 
 class Application extends App implements IBootstrap {
     public const APP_ID = 'pulse';
@@ -38,6 +40,8 @@ class Application extends App implements IBootstrap {
         // All dependencies are resolved via constructor autowiring;
         // only what Nextcloud cannot find on its own is registered by hand.
         $context->registerSetupCheck(EmbedFraming::class);
+        // A deleted account takes its rooms with it.
+        $context->registerEventListener(UserDeletedEvent::class, UserDeletedListener::class);
     }
 
     public function boot(IBootContext $context): void {

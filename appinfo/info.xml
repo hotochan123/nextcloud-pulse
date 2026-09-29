@@ -61,7 +61,7 @@ Sicherheitsaudit — bitte vor dem Einsatz selbst prüfen. Details in der
 (englisch).
     ]]></description>
     <version>0.18.0</version>
-    <licence>agpl</licence>
+    <licence>AGPL-3.0-or-later</licence>
     <author homepage="https://github.com/hotochan123">hotochan123</author>
     <namespace>Pulse</namespace>
     <documentation>
@@ -80,6 +80,9 @@ Sicherheitsaudit — bitte vor dem Einsatz selbst prüfen. Details in der
     <dependencies>
         <nextcloud min-version="34" max-version="34"/>
     </dependencies>
+    <background-jobs>
+        <job>OCA\Pulse\BackgroundJob\CleanupStaleRoomsJob</job>
+    </background-jobs>
     <navigations>
         <navigation>
             <name>Pulse</name>

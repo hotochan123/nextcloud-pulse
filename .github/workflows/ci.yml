@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   frontend:
-    name: Bundle, Übersetzungen, Release-Archiv
+    name: Bundle, translations, release archive
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -24,13 +24,13 @@ jobs:
 
       - run: npm ci
 
-      - name: Bundle bauen
+      - name: Build the bundle
         run: npm run build
 
-      - name: Übersetzungen vollständig
+      - name: Translations complete
         run: npm run l10n:check
 
-      - name: info.xml gegen das App-Store-Schema prüfen
+      - name: Validate info.xml against the App Store schema
         run: |
           curl -sSL -o /tmp/info.xsd https://apps.nextcloud.com/schema/apps/info.xsd
           xmllint --noout --schema /tmp/info.xsd appinfo/info.xml
@@ -38,8 +38,10 @@ jobs:
       # Packs a release archive from the state just built. Catches missing
       # files and sources packed by mistake before they end up in the
       # store. Signing happens only locally (it needs the private key).
-      - name: Release-Archiv testweise packen
-        run: SKIP_BUILD=1 sh build/package.sh
+      # ALLOW_UNRELEASED=1: most pushes are not a release, so a missing
+      # CHANGELOG section or version bump is only a warning here.
+      - name: Pack a test release archive
+        run: SKIP_BUILD=1 ALLOW_UNRELEASED=1 sh build/package.sh
 
       - uses: actions/upload-artifact@v4
         with:
@@ -58,7 +60,7 @@ jobs:
       # The tests don't touch a database, but they do need the server's OCP
       # classes — hence the server checkout, in which the app lives under
       # apps/ just like in real life.
-      - name: Nextcloud-Server auschecken
+      - name: Check out the Nextcloud server
         uses: actions/checkout@v4
         with:
           repository: nextcloud/server
@@ -66,7 +68,7 @@ jobs:
           submodules: true
           path: server
 
-      - name: App auschecken
+      - name: Check out the app
         uses: actions/checkout@v4
         with:
           path: server/apps/pulse
@@ -78,10 +80,10 @@ jobs:
           tools: phpunit:11
           coverage: none
 
-      - name: Syntaxprüfung
+      - name: Syntax check
         working-directory: server/apps/pulse
         run: find lib tests -name '*.php' -print0 | xargs -0 -n1 php -l >/dev/null
 
-      - name: Unit-Tests
+      - name: Unit tests
         working-directory: server/apps/pulse
         run: phpunit -c phpunit.xml

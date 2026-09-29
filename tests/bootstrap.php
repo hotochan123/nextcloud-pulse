@@ -46,12 +46,19 @@ if (!interface_exists(\Psr\Clock\ClockInterface::class, false) && is_file($psrCl
 // its default value, PHPUnit evaluates it when mocking, and IQueryBuilder pulls in
 // DBAL constants. And Symfony String + HttpFoundation: DataDownloadResponse
 // (CSV export, ControllerInputTest) uses them to build the file name in the header.
+// And PSR Log + EventDispatcher: the UserDeletedEvent listener logs, and every
+// OCP event implements StoppableEventInterface (UserDeletedListenerTest).
+// And Doctrine Deprecations: DBAL's Schema classes reference it while the
+// migrations are replayed offline (InsertColumnsTest).
 // Only these namespaces, not the whole 3rdparty autoloader.
 spl_autoload_register(static function (string $class) use ($ncRoot): void {
     foreach ([
         'Doctrine\\DBAL\\' => '/3rdparty/doctrine/dbal/src/',
+        'Doctrine\\Deprecations\\' => '/3rdparty/doctrine/deprecations/src/',
         'Symfony\\Component\\String\\' => '/3rdparty/symfony/string/',
         'Symfony\\Component\\HttpFoundation\\' => '/3rdparty/symfony/http-foundation/',
+        'Psr\\Log\\' => '/3rdparty/psr/log/src/',
+        'Psr\\EventDispatcher\\' => '/3rdparty/psr/event-dispatcher/src/',
     ] as $prefix => $dir) {
         if (!str_starts_with($class, $prefix)) {
             continue;
