@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="de" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pulse — Ergebnis-Grammatik & Kleinteile (Verfeinerung §7 + §8)</title>
+<style>
+/* PULSE — §7 Ergebnis-Grammatik-Feinschliff + §8 Konsistenz-Kleinteile. NC-Tokens, Light + Dark. */
+:root, [data-theme="light"]{
+  --nc-main-bg:#ffffff; --nc-main-text:#1a1a1a; --nc-maxcontrast:#6b6b6b; --nc-readout:#33465e;
+  --nc-bg-hover:#f5f6f7; --nc-bg-dark:#ededed; --nc-border:#dcdcdc; --nc-border-dark:#c4c4c4;
+  --nc-primary:#0069c2; --nc-primary-el:#006aa3; --nc-primary-hover:#00538a; --nc-primary-light:rgba(0,105,194,.10); --nc-on-primary:#fff;
+  --nc-success:#2d7d46; --nc-success-light:rgba(45,125,70,.14); --nc-error:#b7304a; --nc-error-light:rgba(183,48,74,.10);
+  --nc-quiz:#7a3ea8; --opt-e:#8046b0;
+  --pulse-self:#c2255c;
+  --shadow-card:0 2px 8px rgba(0,0,0,.07); --shadow-pop:0 8px 28px rgba(0,0,0,.16);
+}
+[data-theme="dark"]{
+  --nc-main-bg:#1c1c1c; --nc-main-text:#ededed; --nc-maxcontrast:#a0a0a0; --nc-readout:#c3d2e4;
+  --nc-bg-hover:#262626; --nc-bg-dark:#2c2c2c; --nc-border:#3a3a3a; --nc-border-dark:#4a4a4a;
+  --nc-primary:#3ba1f0; --nc-primary-el:#3ba1f0; --nc-primary-hover:#64b6f5; --nc-primary-light:rgba(59,161,240,.16); --nc-on-primary:#06243a;
+  --nc-success:#57c06f; --nc-success-light:rgba(87,192,111,.20); --nc-error:#e2687e; --nc-error-light:rgba(226,104,126,.16);
+  --nc-quiz:#b57fe0; --opt-e:#a878d6;
+  --pulse-self:#f2699b;
+  --shadow-card:0 2px 10px rgba(0,0,0,.45); --shadow-pop:0 10px 34px rgba(0,0,0,.6);
+}
+:root{ --t-cap:12px; --t-sm:14px; --t-body:15px; --t-lead:18px;
+  --fs:-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --mono:ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace; }
+*{box-sizing:border-box;}
+body{margin:0; font-family:var(--fs); color:#1c2230; background:#eef1f5; -webkit-font-smoothing:antialiased; line-height:1.5;}
+
+.doc-head{position:sticky; top:0; z-index:40; display:flex; align-items:center; gap:16px; flex-wrap:wrap; padding:14px 28px; background:#0b1f38; color:#fff; border-bottom:3px solid #0069c2;}
+.doc-head .logo{display:flex; align-items:center; gap:10px; font-weight:800;}
+.doc-head .logo .dot{width:14px;height:14px;border-radius:50%;background:#0069c2;box-shadow:0 0 0 4px rgba(0,105,194,.3);}
+.doc-head .sub{color:#9db6d4; font-size:13px;} .doc-head .spacer{flex:1;}
+.theme-btn{cursor:pointer; border:1px solid rgba(255,255,255,.3); background:rgba(255,255,255,.08); color:#fff; font:inherit; font-size:13px; padding:6px 13px; border-radius:999px;}
+.theme-btn:hover{background:rgba(255,255,255,.18);}
+
+.wrap{max-width:1180px; margin:0 auto; padding:0 28px 120px;}
+section.block{margin-top:52px;}
+.eyebrow{font-size:12px; letter-spacing:.16em; text-transform:uppercase; color:#0069c2; font-weight:700;}
+h2.sec{font-size:26px; margin:6px 0 4px; letter-spacing:-.01em; color:#101828;}
+.sec-intro{color:#4a5568; max-width:74ch; margin:0 0 8px;}
+.why{border-left:3px solid #0069c2; background:#eaf2fb; padding:10px 14px; border-radius:0 8px 8px 0; font-size:14px; color:#20344d; margin:12px 0;}
+.why b{color:#0b3f74;}
+.dark-note{border-left:3px solid #5a4b8a; background:#efecf7; color:#2f2650;} .dark-note b{color:#4a3a86;}
+.good{border-left:3px solid #2d7d46; background:#e7f3ea; color:#1c4a2b;} .good b{color:#17512c;}
+.ba{display:grid; grid-template-columns:1fr 1fr; gap:18px; align-items:start;} @media(max-width:860px){.ba{grid-template-columns:1fr}}
+.cap{font-size:13px; font-weight:700; margin:0 0 8px; display:flex; align-items:center; gap:8px;}
+.tag{font-size:11px; font-weight:800; padding:2px 8px; border-radius:999px;}
+.tag.b{background:#fbe4e8;color:#a01248;} .tag.a{background:#e2f0e6;color:#1c6b38;}
+.panel{border:1px solid var(--nc-border); border-radius:12px; background:var(--nc-main-bg); padding:16px; color:var(--nc-main-text);}
+.panel.stage{background:var(--nc-main-bg);} .stitle{font-weight:800; font-size:var(--t-lead); margin:0 0 12px;}
+
+svg.i{width:1em;height:1em;vertical-align:-.12em;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;}
+
+/* Wahr/Falsch-Kacheln */
+.tf{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
+.tf .cell{border:2px solid var(--nc-border-dark); border-radius:12px; padding:16px 10px; text-align:center; background:var(--nc-main-bg);}
+.tf .mk{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;margin:0 auto 8px;font-size:22px;}
+.tf .lb{font-weight:800; font-size:var(--t-lead);}
+.tf .ct{font-family:var(--mono); font-weight:800; font-size:var(--t-cap); color:var(--nc-readout); margin-top:6px;}
+/* neutral (während Abstimmung) */
+.tf.neutral .mk{background:var(--nc-bg-dark); color:var(--nc-maxcontrast);}
+/* voreingefärbt (Problem) */
+.tf.pre .cell.t .mk{background:var(--nc-success); color:#fff;} .tf.pre .cell.f .mk{background:var(--nc-error); color:#fff;}
+/* Auflösung */
+.tf.reveal .cell.correct{border-color:var(--nc-success); background:var(--nc-success-light);}
+.tf.reveal .cell.correct .mk{background:var(--nc-success); color:#fff;}
+.tf.reveal .cell.wrong .mk{background:var(--nc-error); color:#fff;}
+.tf.reveal .cell.wrong{opacity:.7;}
+.state{font-size:var(--t-cap); font-weight:700; color:var(--nc-maxcontrast); margin:0 0 8px;}
+.totbar{display:flex; align-items:center; gap:10px; margin-bottom:12px;}
+.totbar .track{flex:1; height:9px; border-radius:999px; background:var(--nc-bg-dark); overflow:hidden;}
+.totbar .fill{height:100%; background:var(--nc-primary-el);}
+.totbar .n{font-family:var(--mono); font-weight:800; color:var(--nc-readout);}
+
+/* Landing-Raumzeile */
+.rooms{display:flex; flex-direction:column; gap:10px;}
+.room{display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:12px; padding:12px 14px; border:1px solid var(--nc-border); border-radius:12px; background:var(--nc-bg-hover);}
+.room .tico{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;color:#fff;}
+.room .tico.poll{background:var(--nc-primary-el);} .room .tico.quiz{background:var(--nc-quiz);}
+.room .code{font-family:var(--mono); font-weight:800; font-size:16px; letter-spacing:.06em;}
+.room .meta{font-size:var(--t-cap); color:var(--nc-maxcontrast); display:flex; align-items:center; gap:8px; margin-top:2px;}
+.room .live{font-size:11px;font-weight:800;padding:1px 8px;border-radius:999px;background:var(--nc-success-light);color:var(--nc-success);}
+.room .acts{display:flex; gap:8px; align-items:center;}
+.btn{font-family:inherit; font-size:var(--t-sm); font-weight:700; min-height:40px; padding:0 15px; border-radius:8px; border:1px solid transparent; cursor:pointer; display:inline-flex; align-items:center; gap:6px;}
+.btn.primary{background:var(--nc-primary-el); color:var(--nc-on-primary);}
+.btn.ghost{background:var(--nc-main-bg); color:var(--nc-main-text); border-color:var(--nc-border-dark);}
+.iconbtn{width:38px;height:38px;border-radius:8px;border:1px solid var(--nc-border-dark);background:var(--nc-main-bg);color:var(--nc-maxcontrast);cursor:pointer;display:grid;place-items:center;font-size:15px;}
+.iconbtn:hover{color:var(--nc-error);border-color:var(--nc-error);}
+.room.old .acts .only-trash{color:var(--nc-maxcontrast);}
+.room.old{cursor:pointer;}
+
+/* Composer-Sidebar Beitrittsadresse */
+.joincard{max-width:320px; border:1px solid var(--nc-border); border-radius:12px; padding:16px; background:var(--nc-main-bg);}
+.joincard .qr{width:120px;aspect-ratio:1;margin:0 auto 12px;border-radius:8px;background:repeating-conic-gradient(#111 0 25%,#fff 0 50%) 0 0/14% 14%,#fff;border:5px solid #fff;box-shadow:var(--shadow-card);}
+[data-theme="dark"] .joincard .qr{background:repeating-conic-gradient(#e8e8e8 0 25%,#111 0 50%) 0 0/14% 14%,#111;}
+.joincard .lead{text-align:center; font-size:var(--t-cap); font-weight:700; color:var(--nc-maxcontrast); text-transform:uppercase; letter-spacing:.06em; margin-bottom:8px;}
+.joincard .pin{text-align:center; font-family:var(--mono); font-weight:800; font-size:30px; letter-spacing:.1em; color:var(--nc-main-text);}
+.joincard .url{text-align:center; font-size:var(--t-cap); color:var(--nc-readout); font-weight:700; margin-top:8px; word-break:break-all;}
+.joincard.old .u1,.joincard.old .u2,.joincard.old .u3{font-size:var(--t-cap); margin-top:6px; word-break:break-all;}
+.joincard.old .u1{color:var(--nc-primary-el);font-weight:700;} .joincard.old .u2{color:var(--nc-maxcontrast);} .joincard.old .u3{font-family:var(--mono);font-weight:800;font-size:22px;color:var(--nc-main-text);}
+.copyrow{display:flex; align-items:center; justify-content:center; gap:8px; margin-top:6px;}
+.copyrow .copy{font-size:var(--t-cap); font-weight:700; color:var(--nc-primary-el); border:1px solid var(--nc-border-dark); background:var(--nc-main-bg); border-radius:7px; padding:5px 10px; cursor:pointer;}
+
+/* Grammatik-Tabelle */
+.gtab{width:100%; border-collapse:collapse; font-size:var(--t-sm); border:1px solid var(--nc-border); border-radius:12px; overflow:hidden;}
+.gtab th,.gtab td{text-align:left; padding:10px 14px; border-bottom:1px solid var(--nc-border);}
+.gtab th{background:var(--nc-bg-dark); font-size:var(--t-cap); text-transform:uppercase; letter-spacing:.05em; color:var(--nc-maxcontrast);}
+.gtab td.old{color:var(--nc-error); text-decoration:line-through; text-decoration-color:var(--nc-error);}
+.gtab td.new{color:var(--nc-success); font-weight:700;}
+.gtab tr:last-child td{border-bottom:0;}
+.gtab .mono{font-family:var(--mono);}
+
+/* Delta-Liste */
+.delta{display:grid; grid-template-columns:1fr 1fr; gap:14px;} @media(max-width:860px){.delta{grid-template-columns:1fr}}
+.ditem{border:1px solid var(--nc-border); border-left:3px solid var(--nc-success); border-radius:10px; background:var(--nc-main-bg); padding:12px 14px;}
+.ditem h4{margin:0 0 4px; font-size:var(--t-body); display:flex; align-items:center; gap:8px;}
+.ditem h4 .s{font-size:10px; font-weight:800; color:var(--nc-maxcontrast); background:var(--nc-bg-dark); padding:1px 7px; border-radius:999px;}
+.ditem p{margin:0; font-size:var(--t-sm); color:var(--nc-readout);}
+.ditem .fx{color:var(--nc-success); font-weight:700;}
+.swatch{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-1px;margin:0 2px;}
+
+footer.foot{margin-top:70px; padding-top:24px; border-top:1px solid #dde3ec; text-align:center; color:#7a8699; font-size:13px;}
+</style>
+</head>
+<body data-od-id="pulse-kleinteile">
+
+<header class="doc-head" data-od-id="doc-header">
+  <span class="logo"><span class="dot"></span> Pulse <span class="sub">· Ergebnis-Grammatik & Kleinteile · §7 + §8</span></span>
+  <span class="spacer"></span>
+  <button class="theme-btn" id="themeToggle" data-od-id="theme-toggle">◐ Dark-Theme</button>
+</header>
+
+<!-- SVG-Symbole -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <g id="ic-check"><path d="M5 12.5 L10 17 L19 6.5"/></g>
+  <g id="ic-cross"><path d="M7 7 L17 17 M17 7 L7 17"/></g>
+  <g id="ic-open"><path d="M8 5 L15 12 L8 19"/></g>
+  <g id="ic-trash"><path d="M5 7 H19 M9 7 V5 H15 V7 M7 7 L8 19 H16 L17 7"/></g>
+</defs></svg>
+
+<div class="wrap">
+
+  <section class="block" style="margin-top:38px" data-od-id="intro">
+    <div class="eyebrow">Übergabe 2 · §7 + §8 · Abschluss-Delta</div>
+    <h2 class="sec">Ergebnis-Grammatik &amp; die letzten Kanten</h2>
+    <p class="sec-intro">Der Schlussschliff: eine einheitliche Ergebnis-Sprache (§7) und ein Bündel kleiner
+    Konsistenz-Fixes (§8). Drei davon sind wirkungsvoll genug für ein Vorher/Nachher — die <b>Wahr/Falsch-Codierung</b>
+    (kann Antworten beeinflussen), die <b>Öffnen-Affordanz</b> auf der Landing und die <b>dreifache Beitrittsadresse</b>
+    im Composer. Der Rest ist eine aufgelöste Delta-Liste. Alles auf den bereits gesetzten Tokens.</p>
+  </section>
+
+  <!-- ══ WAHR/FALSCH ══ -->
+  <section class="block" data-od-id="truefalse">
+    <div class="eyebrow">§8 + §11 · Quiz</div>
+    <h2 class="sec">Wahr/Falsch: Grün/Rot erst bei der Auflösung</h2>
+    <div class="ba">
+      <div>
+        <p class="cap"><span class="tag b">vorher</span> während der Abstimmung</p>
+        <div class="panel stage">
+          <p class="state">„Berlin ist die Hauptstadt Frankreichs" · Abstimmung läuft</p>
+          <div class="totbar"><div class="track"><div class="fill" style="width:80%"></div></div><span class="n">83</span></div>
+          <div class="tf pre">
+            <div class="cell t"><div class="mk"><svg class="i" viewBox="0 0 24 24"><use href="#ic-check"/></svg></div><div class="lb">Wahr</div></div>
+            <div class="cell f"><div class="mk"><svg class="i" viewBox="0 0 24 24"><use href="#ic-cross"/></svg></div><div class="lb">Falsch</div></div>
+          </div>
+          <div class="why" style="margin-bottom:0"><b>Problem:</b> Grün ✓ / Rot ✗ schon <i>vor</i> der Auflösung liest wie
+          „Wahr = richtig" — hier ist die richtige Antwort aber „Falsch". Die Farbe beeinflusst.</div>
+        </div>
+      </div>
+      <div>
+        <p class="cap"><span class="tag a">nachher</span> neutral → Auflösung</p>
+        <div class="panel stage">
+          <p class="state">Abstimmung läuft — neutrale Codierung</p>
+          <div class="totbar"><div class="track"><div class="fill" style="width:80%"></div></div><span class="n" style="color:var(--nc-readout)">83</span></div>
+          <div class="tf neutral">
+            <div class="cell t"><div class="mk"><svg class="i" viewBox="0 0 24 24"><use href="#ic-check"/></svg></div><div class="lb">Wahr</div></div>
+            <div class="cell f"><div class="mk"><svg class="i" viewBox="0 0 24 24"><use href="#ic-cross"/></svg></div><div class="lb">Falsch</div></div>
+          </div>
+          <p class="state" style="margin:14px 0 8px">Aufgelöst — jetzt Grün/Rot + Stimmen</p>
+          <div class="tf reveal">
+            <div class="cell t wrong"><div class="mk"><svg class="i" viewBox="0 0 24 24"><use href="#ic-cross"/></svg></div><div class="lb">Wahr</div><div class="ct">31 Stimmen</div></div>
+            <div class="cell f correct"><div class="mk"><svg class="i" viewBox="0 0 24 24"><use href="#ic-check"/></svg></div><div class="lb">Falsch</div><div class="ct">52 · richtig</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="why"><b>Warum:</b> Während der Eingabe tragen ✓/✗ nur die <i>Bedeutung</i> „Ja/Nein" in neutralem Grau —
+    keine Wertung. Erst bei der Auflösung wird die richtige Antwort grün (Haken), die falsche rot (Kreuz), plus Stimmen.
+    So bleibt „Ja/Nein"-Semantik aus Übergabe 1 erhalten, ohne im Quiz zu beeinflussen (§11-Entscheidung: Grün/Rot erst bei der Auflösung).</div>
+    <div class="dark-note why"><b>Dark:</b> Neutral = <span style="font-family:var(--mono)">--nc-bg-dark</span>/Maxcontrast;
+    Auflösung nutzt <span style="font-family:var(--mono)">--nc-success</span>/<span style="font-family:var(--mono)">--nc-error</span> (im Dark heller). Symbol trägt immer mit — Farbe nie allein.</div>
+  </section>
+
+  <!-- ══ LANDING ÖFFNEN ══ -->
+  <section class="block" data-od-id="landing">
+    <div class="eyebrow">§8 · Landing „Meine Räume"</div>
+    <h2 class="sec">Klare Öffnen-Affordanz, deutlicher Typ</h2>
+    <div class="ba">
+      <div>
+        <p class="cap"><span class="tag b">vorher</span></p>
+        <div class="panel">
+          <div class="rooms">
+            <div class="room old">
+              <span class="tico quiz" style="width:26px;height:26px;background:transparent;color:var(--nc-quiz);border:1px solid var(--nc-border)"><svg class="i" viewBox="0 0 24 24" style="stroke:var(--nc-quiz)"><use href="#ic-check"/></svg></span>
+              <div><div class="code">B74 5HY</div><div class="meta"><span class="live">Läuft</span> 5 Fragen · vor 19 Std.</div></div>
+              <div class="acts"><button class="iconbtn only-trash" title="Löschen"><svg class="i" viewBox="0 0 24 24"><use href="#ic-trash"/></svg></button></div>
+            </div>
+          </div>
+          <div class="why" style="margin-bottom:0"><b>Problem:</b> Nur ein Papierkorb rechts — kein sichtbares „Öffnen";
+          der Einstieg hängt am unmarkierten Zeilenklick. Typ-Icon winzig/blass.</div>
+        </div>
+      </div>
+      <div>
+        <p class="cap"><span class="tag a">nachher</span></p>
+        <div class="panel">
+          <div class="rooms">
+            <div class="room">
+              <span class="tico quiz" title="Quiz"><svg class="i" viewBox="0 0 24 24"><use href="#ic-check"/></svg></span>
+              <div><div class="code">B74 5HY <span style="font-size:11px;font-weight:700;color:var(--nc-quiz);background:var(--nc-primary-light);padding:1px 8px;border-radius:999px;margin-left:6px">Quiz</span></div>
+                <div class="meta"><span class="live">Läuft</span> 5 Fragen · vor 19 Std.</div></div>
+              <div class="acts"><button class="btn primary"><svg class="i" viewBox="0 0 24 24"><use href="#ic-open"/></svg> Öffnen</button>
+                <button class="iconbtn" title="Löschen"><svg class="i" viewBox="0 0 24 24"><use href="#ic-trash"/></svg></button></div>
+            </div>
+            <div class="room">
+              <span class="tico poll" title="Umfrage"><svg class="i" viewBox="0 0 24 24" style="stroke-width:2"><path d="M6 19 V11 M12 19 V5 M18 19 V14"/></svg></span>
+              <div><div class="code">KT9 66M <span style="font-size:11px;font-weight:700;color:var(--nc-primary-el);background:var(--nc-primary-light);padding:1px 8px;border-radius:999px;margin-left:6px">Umfrage</span></div>
+                <div class="meta">0 Fragen · vor 19 Std.</div></div>
+              <div class="acts"><button class="btn primary"><svg class="i" viewBox="0 0 24 24"><use href="#ic-open"/></svg> Öffnen</button>
+                <button class="iconbtn" title="Löschen"><svg class="i" viewBox="0 0 24 24"><use href="#ic-trash"/></svg></button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="why"><b>Warum:</b> Ein klarer <b>„Öffnen"</b>-Primärbutton macht die Hauptaktion sichtbar; der Papierkorb
+    tritt als sekundäres Icon zurück (nicht mehr die einzige Affordanz). Der <b>Typ</b> steht doppelt — kräftigeres Icon
+    (Quiz-Lila vs. Umfrage-Blau) <i>und</i> Text-Chip „Quiz"/„Umfrage" — statt eines winzigen blassen Symbols.</div>
+  </section>
+
+  <!-- ══ BEITRITTSADRESSE ══ -->
+  <section class="block" data-od-id="joinaddr">
+    <div class="eyebrow">§8 · Composer-Rechtsleiste</div>
+    <h2 class="sec">Eine ruhige Beitritts-Einheit statt dreifach</h2>
+    <div class="ba">
+      <div>
+        <p class="cap"><span class="tag b">vorher</span> Adresse dreifach</p>
+        <div class="joincard old">
+          <div class="qr"></div>
+          <div class="lead">Mitmachen — scannen oder öffnen</div>
+          <div class="u1">nextcloud.example.com/apps/pulse/s/8CQTPT</div>
+          <div class="u2">oder Code auf …/apps/pulse/join:</div>
+          <div class="u3">8CQ TPT</div>
+        </div>
+        <div class="why" style="margin-bottom:0"><b>Problem:</b> Link, /join-URL und Code-Block zeigen dieselbe Adresse
+        dreimal — unruhig, verwirrend.</div>
+      </div>
+      <div>
+        <p class="cap"><span class="tag a">nachher</span> eine Einheit + Kopieren</p>
+        <div class="joincard">
+          <div class="qr"></div>
+          <div class="lead">Mitmachen — Code scannen oder eingeben</div>
+          <div class="pin">8CQ TPT</div>
+          <div class="url">pulse.app/join</div>
+          <div class="copyrow"><button class="copy">Link kopieren</button></div>
+        </div>
+      </div>
+    </div>
+    <div class="why"><b>Warum:</b> Auf der Bühne braucht das Publikum <b>Code + kurze Join-Adresse</b> — mehr nicht. Der
+    lange Deep-Link wandert hinter einen <b>„Link kopieren"</b>-Button (für Chat/Mail), statt dreimal ausgeschrieben zu
+    werden. Der PIN bleibt der starke Anker (konsistent mit der Lobby, §4).</div>
+  </section>
+
+  <!-- ══ §7 GRAMMATIK ══ -->
+  <section class="block" data-od-id="grammar">
+    <div class="eyebrow">§7 · Ergebnis-Grammatik</div>
+    <h2 class="sec">Eine Sprache für alle Ergebnisse</h2>
+    <table class="gtab" data-od-id="grammar-table">
+      <thead><tr><th>Stelle</th><th>Vorher</th><th>Nachher</th></tr></thead>
+      <tbody>
+        <tr><td>Freitext/Wortwolke Summenzeile</td><td class="old">„N Antworten" + „N Stimmen" (zwei Zeilen)</td><td class="new">Eine Zeile: „18 Nennungen · 6 verschiedene"</td></tr>
+        <tr><td>Begriff für eine Nennung</td><td class="old">mal „Stimmen", mal „Nennungen"</td><td class="new">durchgängig „Nennungen" (WordCloud + Freitext)</td></tr>
+        <tr><td>Schätzfrage-Verteilung</td><td class="old">horizontal „N×", nur Ø</td><td class="new">gleiche Micro-Notation, <b>Ø + Median</b></td></tr>
+        <tr><td>Skala-Verteilung</td><td class="old">vertikal, Ø + Median</td><td class="new">gleicher Median-Baustein wie Schätzfrage</td></tr>
+        <tr><td>Kennzahl-Format</td><td class="old mono">4.6 / 4,6 gemischt</td><td class="new mono">einheitlich „Ø 4,6 · Median 5“ (Komma, tabellenziffrig)</td></tr>
+      </tbody>
+    </table>
+    <div class="why"><b>Warum ein Median-Baustein für beide:</b> Schätzfrage und Skala sind dieselbe Gattung (eine Zahl je
+    Stimme) — sie sollten dieselbe Kennzahl-Zeile und denselben Verteilungs-Baustein teilen (Ø + Median als Marker in der
+    Verteilung, wie in der Skala-Familie §3.2). Ein Begriff, ein Format, eine Lesart.</div>
+    <div class="good"><b>Schon erledigt in §4:</b> die einzeilige „Nennungen"-Summe steht bereits in der Freitext-Verdichtung
+    (<span style="font-family:var(--mono)">pulse-beamer-flaeche.html</span>) — hier nur als Grammatik-Regel festgehalten.</div>
+  </section>
+
+  <!-- ══ §8 DELTA-LISTE ══ -->
+  <section class="block" data-od-id="delta">
+    <div class="eyebrow">§8 · restliche Kleinteile</div>
+    <h2 class="sec">Aufgelöst — als Delta</h2>
+    <div class="delta">
+      <div class="ditem"><h4>Ein Button-System <span class="s">§8</span></h4>
+        <p>„Beitreten"/„Los geht's" (~52 px) vs. Abstimm-Absender (44 px). <span class="fx">→ Eine Primär-Höhe 48 px, ein Radius, ein Hover</span> — überall.</p></div>
+      <div class="ditem"><h4>Einheitlicher Fokus-Ring <span class="s">§8</span></h4>
+        <p>Textfelder hatten keinen sichtbaren Fokus (Code-Boxen/Regler schon). <span class="fx">→ 2 px Ring <span style="font-family:var(--mono)">--nc-primary-el</span> auf allen Feldern/Buttons.</span></p></div>
+      <div class="ditem"><h4>Quiz-Lila ≠ Options-E-Lila <span class="s">§8</span></h4>
+        <p>Quiz-Akzent <span class="swatch" style="background:var(--nc-quiz)"></span> und Antwort-Option E <span class="swatch" style="background:var(--opt-e)"></span> waren fast gleich. <span class="fx">→ Option E abrücken (blau-violett), Quiz-Lila reserviert.</span></p></div>
+      <div class="ditem"><h4>Dialog-Buttons ≥ 44 px <span class="s">§8</span></h4>
+        <p>Bestätigungsdialog-Buttons waren zu klein. <span class="fx">→ auf das 48-px-Button-System heben, Trefferfläche AA.</span></p></div>
+      <div class="ditem"><h4>Zeichenzähler einheitlich <span class="s">§8</span></h4>
+        <p>Mal Overlay, mal Zeile darunter. <span class="fx">→ eine Position: rechtsbündig unter dem Feld, <span style="font-family:var(--mono)">--nc-maxcontrast</span>.</span></p></div>
+      <div class="ditem"><h4>Icon-Lücke neue Typen <span class="s">§8</span></h4>
+        <p>Composer-Segmenteds ohne Icon. <span class="fx">→ Multiple Choice/Wortwolke/Skala + Einzel/Spektrum/Kompass bekommen je ein Icon.</span></p></div>
+      <div class="ditem"><h4>Leerzustände gebrandet <span class="s">§8</span></h4>
+        <p>Endstand nur Grautext, ungleich. <span class="fx">→ einheitlicher stiller Leerzustand (Rahmen + eine Zeile) wie in der Skala-Familie §3.2.</span></p></div>
+      <div class="ditem"><h4>Microcopy „Deine" groß <span class="s">§8</span></h4>
+        <p>„deine Stimme zählt." klein, überall sonst „Deine" groß. <span class="fx">→ konsequent informelles „Du/Deine" groß (geschlechtergerecht).</span></p></div>
+    </div>
+  </section>
+
+  <section class="block" data-od-id="handoff">
+    <div class="good"><b>Übergabe 2 komplett nach §10:</b> 1 Skala-Familie · 2 Feier/Podium · 3 „Du"-Farbe ·
+    4 Beamer-Fläche · 5 Demo-Leiste &amp; Composer · 6 Kleinteile (§7 + §8, dieser Turn). Alle Vorschläge mit „Warum",
+    Dark-Abweichungen notiert, auf NC-Tokens + den neuen Rollen (<span style="font-family:var(--mono)">--pulse-self, --pulse-viz, --nc-readout</span>, Gold/Silber/Bronze).</div>
+    <div class="why"><b>Dokumente:</b> <span style="font-family:var(--mono)">pulse-skala-familie.html</span> ·
+    <span style="font-family:var(--mono)">pulse-feier-podium.html</span> · <span style="font-family:var(--mono)">pulse-beamer-flaeche.html</span> ·
+    <span style="font-family:var(--mono)">pulse-composer-demo.html</span> · <span style="font-family:var(--mono)">pulse-kleinteile.html</span>.
+    Offen erbeten: <span style="font-family:var(--mono)">?demo=1</span>-Screenshot &amp; ein Quiz-Endstand/Podium-Foto zur finalen Justage.</div>
+  </section>
+
+</div>
+
+<footer class="foot">Pulse · Ergebnis-Grammatik & Kleinteile · Verfeinerung §7 + §8 · NC-Tokens · Light + Dark · Übergabe 2 abgeschlossen</footer>
+
+<script>
+(function(){var b=document.getElementById('themeToggle'),d=document.documentElement;
+ b.addEventListener('click',function(){var k=d.getAttribute('data-theme')==='dark';d.setAttribute('data-theme',k?'light':'dark');b.textContent=k?'◐ Dark-Theme':'◑ Light-Theme';try{localStorage.setItem('pulse-doc-theme',k?'light':'dark')}catch(e){}});
+ try{var s=localStorage.getItem('pulse-doc-theme');if(s){d.setAttribute('data-theme',s);b.textContent=s==='dark'?'◑ Light-Theme':'◐ Dark-Theme'}}catch(e){}})();
+</script>
+</body>
+</html>

@@ -1,0 +1,105 @@
+<?php
+
+// SPDX-FileCopyrightText: 2026 hotochan123
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+declare(strict_types=1);
+
+namespace OCA\Pulse\Tests\Unit;
+
+use OCA\Pulse\Db\RoomMapper;
+use OCA\Pulse\Service\CodeGenerator;
+use OCP\Security\ISecureRandom;
+use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\TestCase;
+
+/**
+ * Raumcodes: Alphabet ohne I/O/0/1 (Vorlesen/Abtippen), Kollisionen werden
+ * neu gewürfelt statt durchgereicht.
+ */
+#[CoversClass(CodeGenerator::class)]
+class CodeGeneratorTest extends TestCase {
+
+    private const SAFE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+    public function testRaumcodeIstSechsstelligUndAusDemVerwechslungsarmenAlphabet(): void {
+        $random = $this->createMock(ISecureRandom::class);
+        $random->expects($this->once())
+            ->method('generate')
+            ->with(6, self::SAFE_ALPHABET)
+            ->willReturn('K9RY8M');
+        $mapper = $this->createMock(RoomMapper::class);
+        $mapper->method('codeExists')->willReturn(false);
+
+        $this->assertSame('K9RY8M', (new CodeGenerator($random, $mapper))->uniqueRoomCode());
+    }
+
+    public function testAlphabetEnthaeltKeineVerwechselbarenZeichen(): void {
+        foreach (['I', 'O', '0', '1'] as $verboten) {
+            $this->assertStringNotContainsString($verboten, self::SAFE_ALPHABET);
+        }
+    }
+
+    public function testBelegterCodeWirdNeuGewuerfelt(): void {
+        $random = $this->createMock(ISecureRandom::class);
+        $random->method('generate')->willReturnOnConsecutiveCalls('AAAAAA', 'BBBBBB');
+        $mapper = $this->createMock(RoomMapper::class);
+        // Erster Wurf kollidiert, zweiter ist frei.
+        $mapper->method('codeExists')->willReturnMap([['AAAAAA', true], ['BBBBBB', false]]);
+
+        $this->assertSame('BBBBBB', (new CodeGenerator($random, $mapper))->uniqueRoomCode());
+    }
+
+    public function testNachZwanzigKollisionenWirdAbgebrochenStattEndlosZuDrehen(): void {
+        $random = $this->createMock(ISecureRandom::class);
+        $random->expects($this->exactly(20))->method('generate')->willReturn('AAAAAA');
+        $mapper = $this->createMock(RoomMapper::class);
+        $mapper->method('codeExists')->willReturn(true);
+
+        $this->expectException(\RuntimeException::class);
+        (new CodeGenerator($random, $mapper))->uniqueRoomCode();
+    }
+
+    public function testOptionsIdIstVierstelligAusDemselbenAlphabet(): void {
+        $random = $this->createMock(ISecureRandom::class);
+        $random->expects($this->once())->method('generate')->with(4, self::SAFE_ALPHABET)->willReturn('AB12');
+
+        $this->assertSame('AB12', (new CodeGenerator($random, $this->createMock(RoomMapper::class)))->optionId());
+    }
+
+    public function testVoterTokenIstDreissigzweiStellig(): void {
+        // 32 Zeichen ist hart: alle drei Token-Spalten sind varchar(32).
+        $random = $this->createMock(ISecureRandom::class);
+        $random->expects($this->once())
+            ->method('generate')
+            ->with(32, ISecureRandom::CHAR_ALPHANUMERIC)
+            ->willReturn(str_repeat('a', 32));
+
+        $token = (new CodeGenerator($random, $this->createMock(RoomMapper::class)))->voterToken();
+        $this->assertSame(32, strlen($token));
+    }
+
+    public function testVoterTokenFormWirdErkannt(): void {
+        // Nur was voterToken() vergibt, gilt als Cookie: alles andere scheiterte
+        // an der varchar(32)-Spalte oder am UTF-8 der Datenbank.
+        $this->assertTrue(CodeGenerator::isVoterToken(str_repeat('a', 32)));
+        $this->assertTrue(CodeGenerator::isVoterToken(str_pad('AZaz09', 32, 'x')));
+
+        foreach ([
+            'zu kurz' => str_repeat('a', 31),
+            'zu lang' => str_repeat('a', 33),
+            'fremde Form' => 'tok-anna',
+            'Zeilenumbruch am Ende' => str_repeat('a', 32) . "\n",
+            'kaputtes UTF-8' => str_repeat("\xFF", 32),
+            'Umlaute' => str_repeat('ä', 32),
+            'leer' => '',
+        ] as $fall => $wert) {
+            $this->assertFalse(CodeGenerator::isVoterToken($wert), $fall);
+        }
+
+        $random = $this->createMock(ISecureRandom::class);
+        $random->method('generate')->willReturn(str_repeat('a', 32));
+        $generator = new CodeGenerator($random, $this->createMock(RoomMapper::class));
+        $this->assertTrue(CodeGenerator::isVoterToken($generator->voterToken()));
+    }
+}

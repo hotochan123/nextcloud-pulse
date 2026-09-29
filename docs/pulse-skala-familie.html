@@ -1,0 +1,690 @@
+<!doctype html>
+<html lang="de" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pulse — Skala-Familie (Verfeinerung §10.1)</title>
+<style>
+/* PULSE — Skala-Familie: Einzel · Spektrum · Kompass. Eingabe + Ergebnis, Handy + Beamer.
+   Politur-Runde (Übergabe 2, §3.1 + §3.2 + §6 + §3.2-Viz). NC-Tokens, Light + Dark.
+   Neu gegenüber Live: --pulse-self (Du) und --pulse-viz (Datenvisualisierung). */
+:root, [data-theme="light"]{
+  --nc-main-bg:#ffffff; --nc-main-text:#1a1a1a; --nc-maxcontrast:#6b6b6b;
+  --nc-bg-hover:#f2f2f2; --nc-bg-dark:#ededed; --nc-border:#dcdcdc; --nc-border-dark:#c4c4c4;
+  --nc-primary:#0069c2; --nc-primary-el:#006aa3; --nc-primary-hover:#00538a; --nc-primary-light:rgba(0,105,194,.12); --nc-on-primary:#fff;
+  --nc-quiz:#7a3ea8; --nc-quiz-light:rgba(122,62,168,.14);
+  --nc-success:#2d7d46; --nc-success-light:rgba(45,125,70,.14); --nc-error:#b7304a;
+  /* NEU §6 — „Du" / Self-Identität: getrennt von Datenblau UND Quiz-Lila */
+  --pulse-self:#c2255c; --pulse-self-soft:rgba(194,37,92,.12); --pulse-self-ink:#fff;
+  /* NEU §3.2 — Datenvisualisierung (Histogramm/Radar/Kompass), getrennt vom UI-Blau */
+  --pulse-viz:#0e7c8b; --pulse-viz-2:#7ac6d2; --pulse-viz-soft:rgba(14,124,139,.14);
+  /* NEU §5 — Podium (nur zur Referenz der Palette, hier nicht ausgebaut) */
+  --pulse-gold:#c8961e; --pulse-silver:#8b93a0; --pulse-bronze:#a56a3c;
+  --shadow-card:0 2px 8px rgba(0,0,0,.07); --shadow-pop:0 8px 28px rgba(0,0,0,.16);
+}
+[data-theme="dark"]{
+  --nc-main-bg:#171717; --nc-main-text:#ededed; --nc-maxcontrast:#a0a0a0;
+  --nc-bg-hover:#262626; --nc-bg-dark:#242424; --nc-border:#333; --nc-border-dark:#454545;
+  --nc-primary:#3ba1f0; --nc-primary-el:#3ba1f0; --nc-primary-hover:#64b6f5; --nc-primary-light:rgba(59,161,240,.18); --nc-on-primary:#06243a;
+  --nc-quiz:#b57fe0; --nc-quiz-light:rgba(181,127,224,.20);
+  --nc-success:#57c06f; --nc-success-light:rgba(87,192,111,.20); --nc-error:#e2687e;
+  --pulse-self:#f2699b; --pulse-self-soft:rgba(242,105,155,.20); --pulse-self-ink:#2a0a17;
+  --pulse-viz:#43c3d8; --pulse-viz-2:#9fe0ea; --pulse-viz-soft:rgba(67,195,216,.18);
+  --pulse-gold:#e6bd4d; --pulse-silver:#b7bfcc; --pulse-bronze:#c98a56;
+  --shadow-card:0 2px 10px rgba(0,0,0,.45); --shadow-pop:0 10px 34px rgba(0,0,0,.6);
+}
+:root{ --t-cap:12px; --t-sm:14px; --t-body:16px; --t-lead:20px; --r-el:8px; --r-card:14px;
+  --fs:-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --mono:ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace; }
+*{box-sizing:border-box;}
+body{margin:0; font-family:var(--fs); color:#1c2230; background:#eef1f5; -webkit-font-smoothing:antialiased; line-height:1.5;}
+
+.doc-head{position:sticky; top:0; z-index:40; display:flex; align-items:center; gap:16px; flex-wrap:wrap; padding:14px 28px; background:#0b1f38; color:#fff; border-bottom:3px solid #0069c2;}
+.doc-head .logo{display:flex; align-items:center; gap:10px; font-weight:800;}
+.doc-head .logo .dot{width:14px;height:14px;border-radius:50%;background:#0069c2;box-shadow:0 0 0 4px rgba(0,105,194,.3);}
+.doc-head .sub{color:#9db6d4; font-size:13px;} .doc-head .spacer{flex:1;}
+.theme-btn{cursor:pointer; border:1px solid rgba(255,255,255,.3); background:rgba(255,255,255,.08); color:#fff; font:inherit; font-size:13px; padding:6px 13px; border-radius:999px;}
+.theme-btn:hover{background:rgba(255,255,255,.18);}
+
+.wrap{max-width:1180px; margin:0 auto; padding:0 28px 120px;}
+section.block{margin-top:54px;}
+.eyebrow{font-size:12px; letter-spacing:.16em; text-transform:uppercase; color:#0069c2; font-weight:700;}
+h2.sec{font-size:28px; margin:6px 0 4px; letter-spacing:-.01em; color:#101828;}
+.sec-intro{color:#4a5568; max-width:74ch; margin:0 0 8px;}
+.why{border-left:3px solid #0069c2; background:#eaf2fb; padding:10px 14px; border-radius:0 8px 8px 0; font-size:14px; color:#20344d; margin:14px 0;}
+.why b{color:#0b3f74;}
+.dark-note{border-left:3px solid #5a4b8a; background:#efecf7; color:#2f2650;} .dark-note b{color:#4a3a86;}
+.assume{border-left:3px solid #c8961e; background:#fbf3df; color:#5a4413;} .assume b{color:#7a5a12;}
+.legend{display:flex; gap:16px; flex-wrap:wrap; font-size:13px; color:#4a5568; margin-top:10px;}
+.legend .sw{display:inline-block; width:14px; height:14px; border-radius:4px; vertical-align:-2px; margin-right:6px;}
+.two{display:grid; grid-template-columns:340px 1fr; gap:24px; align-items:start;}
+@media (max-width:920px){ .two{grid-template-columns:1fr} }
+.pill{display:inline-block; font-size:11px; font-weight:700; letter-spacing:.02em; padding:2px 9px; border-radius:999px; background:#fde2ec; color:#a01248; vertical-align:2px; margin-left:8px;}
+
+/* Token-Swatches */
+.tokens{display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:14px; margin-top:8px;}
+.tok{border:1px solid var(--nc-border); border-radius:12px; overflow:hidden; background:var(--nc-main-bg);}
+.tok .chip{height:64px; display:flex; align-items:flex-end; padding:8px 10px; color:#fff; font-family:var(--mono); font-size:12px; font-weight:700;}
+.tok .meta{padding:9px 11px;} .tok .meta .nm{font-weight:700; font-size:13px; color:var(--nc-main-text);}
+.tok .meta .ro{font-size:12px; color:var(--nc-maxcontrast);}
+
+/* Phone */
+.phone{width:340px; max-width:100%; border-radius:34px; padding:12px; background:linear-gradient(160deg,#2a2f3a,#12151c); box-shadow:var(--shadow-pop); margin:0 auto;}
+.phone .screen{background:var(--nc-main-bg); color:var(--nc-main-text); border-radius:24px; overflow:hidden; display:flex; flex-direction:column;}
+.phone .notch{height:26px; display:flex; justify-content:center;}
+.phone .notch::after{content:""; width:120px; height:22px; background:#12151c; border-radius:0 0 16px 16px;}
+.nc-topbar{background:var(--nc-primary); color:#fff; padding:10px 14px; display:flex; align-items:center; gap:8px; font-size:14px; font-weight:600;}
+.nc-topbar .rings{display:flex; gap:3px;} .nc-topbar .rings i{width:11px;height:11px;border:2.5px solid #fff;border-radius:50%;display:inline-block;}
+.phone .body{padding:16px 16px 20px; display:flex; flex-direction:column; gap:14px;}
+.q-title{font-size:var(--t-lead); font-weight:700; line-height:1.25;}
+.chip-live{display:inline-flex; align-items:center; gap:6px; font-size:var(--t-cap); font-weight:600; padding:5px 11px; border-radius:999px; background:var(--nc-success-light); color:var(--nc-success);}
+.chip-live .dot{width:8px;height:8px;border-radius:50%;background:currentColor;animation:pd 1.6s ease-in-out infinite;}
+@keyframes pd{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.7)}}
+@media (prefers-reduced-motion:reduce){.chip-live .dot{animation:none}}
+.row-top{display:flex; justify-content:space-between; align-items:center;}
+.scale-note{font-size:var(--t-cap); color:var(--nc-maxcontrast);}
+
+/* ── GETEILTER BAUSTEIN: gemeinsame Wert-Hierarchie ── */
+.val-readout{display:flex; align-items:baseline; justify-content:center; gap:4px; padding:6px 0 2px;}
+.val-readout .v{font-family:var(--mono); font-weight:800; font-size:40px; line-height:1; letter-spacing:-.02em; color:var(--nc-main-text); font-variant-numeric:tabular-nums;}
+.val-readout .u{font-family:var(--mono); font-weight:700; font-size:18px; color:var(--nc-maxcontrast);}
+.val-readout.empty .v{color:var(--nc-maxcontrast); opacity:.55;}
+/* Kompass-Readout: gleiche Prominenz, tabellenziffrig, zwei Achsen (§3.1) */
+.val-xy{display:flex; align-items:baseline; justify-content:center; gap:16px; padding:6px 0 2px;}
+.val-xy .ax{display:flex; align-items:baseline; gap:5px;}
+.val-xy .k{font-size:var(--t-cap); font-weight:700; color:var(--nc-maxcontrast); text-transform:uppercase; letter-spacing:.08em;}
+.val-xy .n{font-family:var(--mono); font-weight:800; font-size:30px; line-height:1; color:var(--nc-main-text); font-variant-numeric:tabular-nums;}
+.val-xy.empty .n{color:var(--nc-maxcontrast); opacity:.55;}
+
+/* ── GETEILTER BAUSTEIN: Regler + Pad ── */
+.srange{-webkit-appearance:none; appearance:none; width:100%; height:44px; background:transparent; cursor:pointer; margin:0;}
+.srange:focus-visible{outline:2px solid var(--nc-primary-el); outline-offset:3px; border-radius:8px;}
+.srange::-webkit-slider-runnable-track{height:9px; border-radius:999px; background:var(--nc-bg-dark);}
+.srange::-moz-range-track{height:9px; border-radius:999px; background:var(--nc-bg-dark);}
+.srange::-webkit-slider-thumb{-webkit-appearance:none; width:28px; height:28px; margin-top:-9.5px; border-radius:50%; background:var(--thumb,var(--nc-primary-el)); border:3px solid var(--nc-main-bg); box-shadow:0 1px 5px rgba(0,0,0,.35);}
+.srange::-moz-range-thumb{width:28px; height:28px; border-radius:50%; background:var(--thumb,var(--nc-primary-el)); border:3px solid var(--nc-main-bg); box-shadow:0 1px 5px rgba(0,0,0,.35);}
+/* Einzel: unipolare Füllung 0→Thumb (Menge/Füllstand) */
+.srange.uni::-webkit-slider-runnable-track{background:linear-gradient(90deg,var(--nc-primary-el) var(--pct,0%),var(--nc-bg-dark) var(--pct,0%));}
+.srange.uni::-moz-range-progress{height:9px; border-radius:999px; background:var(--nc-primary-el);}
+/* Spektrum: BIPOLAR — Füllung von der MITTE aus, Mittel-Tick (§3.1) */
+.track-wrap{position:relative;}
+.track-wrap .mid-tick{position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:2px; height:20px; background:var(--nc-maxcontrast); border-radius:2px; pointer-events:none; z-index:0;}
+/* Slider über den Tick heben: der deckende Thumb überlagert den Mittel-Tick,
+   die transparente Reglerfläche lässt die Tick-Stummel ober-/unterhalb der Spur durch. */
+.track-wrap .srange{position:relative; z-index:1;}
+.srange.bip::-webkit-slider-runnable-track{background:
+  linear-gradient(90deg,
+    transparent 0 var(--lo,50%),
+    var(--nc-primary-el) var(--lo,50%) var(--hi,50%),
+    transparent var(--hi,50%) 100%),
+  var(--nc-bg-dark);
+  background-blend-mode:normal;}
+.srange.bip::-moz-range-track{height:9px; border-radius:999px; background:var(--nc-bg-dark);}
+.poles{display:flex; justify-content:space-between; font-size:var(--t-cap); color:var(--nc-maxcontrast);}
+.aspect{display:flex; flex-direction:column; gap:5px;}
+.aspect .head{display:flex; align-items:baseline; justify-content:space-between;}
+.aspect .name{font-weight:700; font-size:var(--t-body);}
+.aspect .val{font-family:var(--mono); font-weight:800; color:var(--nc-main-text); font-size:var(--t-body); font-variant-numeric:tabular-nums;}
+.aspect .val.neutral{color:var(--nc-maxcontrast);}
+
+/* 2D-Pad — Punkt = „Du" (self), nicht Quiz-Lila (§6) */
+.pad-grid{display:grid; grid-template-columns:auto 1fr auto; grid-template-rows:auto 1fr auto; gap:6px; align-items:center; justify-items:center;}
+.pad-pole{font-size:var(--t-cap); color:var(--nc-maxcontrast); text-align:center; max-width:9ch;}
+.pad-pole.side{writing-mode:vertical-rl; transform:rotate(180deg);}
+.pad{grid-column:2; grid-row:2; position:relative; width:226px; height:226px; border:1.5px solid var(--nc-border-dark); border-radius:12px; background:var(--nc-bg-dark); touch-action:none; cursor:crosshair;}
+.pad .axis{position:absolute; background:var(--nc-border-dark);}
+.pad .axis.v{left:50%; top:0; width:2px; height:100%; transform:translateX(-1px);}
+.pad .axis.h{top:50%; left:0; height:2px; width:100%; transform:translateY(-1px);}
+.pad .thumb{position:absolute; width:34px; height:34px; border-radius:50%; background:var(--pulse-self); border:3px solid var(--nc-main-bg); box-shadow:0 2px 6px rgba(0,0,0,.35); transform:translate(-50%,-50%); left:50%; top:50%;}
+.pad:focus-within{outline:2px solid var(--nc-primary-el); outline-offset:3px;}
+.pad.self-track::-webkit-slider-thumb{background:var(--pulse-self);}
+.selfthumb{--thumb:var(--pulse-self);}
+
+.axrow{display:flex; flex-direction:column; gap:2px;}
+.axrow .name{font-weight:700; font-size:var(--t-sm); color:var(--nc-main-text);}
+.pbtn{font-family:inherit; font-size:var(--t-body); font-weight:600; min-height:48px; padding:0 18px; border-radius:999px; border:0; cursor:pointer; background:var(--nc-primary-el); color:var(--nc-on-primary); width:100%;}
+.pbtn:hover{background:var(--nc-primary-hover);}
+.pbtn:disabled{background:var(--nc-bg-dark); color:var(--nc-maxcontrast); cursor:not-allowed;}
+.hint{font-size:var(--t-cap); color:var(--nc-maxcontrast); text-align:center;}
+/* sticky Footer mit Safe-Area (§9 – Absenden nicht unter Navigationsleiste) */
+.sticky-foot{display:flex; flex-direction:column; gap:8px; padding-bottom:max(0px,env(safe-area-inset-bottom));}
+
+/* ── BEAMER-BÜHNE ── */
+.beamer{border-radius:16px; padding:16px; background:#0a0d13; box-shadow:var(--shadow-pop);}
+.beamer .screen{background:var(--nc-main-bg); color:var(--nc-main-text); border-radius:10px; overflow:hidden; padding:clamp(16px,2.4vw,30px);}
+.beamer .q{font-weight:800; font-size:clamp(20px,2.4vw,32px); line-height:1.1; margin:0 0 2px;}
+.beamer .meta{font-size:clamp(13px,1.3vw,16px); font-weight:600; color:var(--nc-main-text); margin-bottom:10px;}
+.beamer svg{width:100%; height:auto; display:block;}
+.beamers{display:grid; grid-template-columns:1fr 1fr; gap:18px;}
+@media (max-width:920px){ .beamers{grid-template-columns:1fr} }
+.rlegend{display:flex; gap:16px; flex-wrap:wrap; font-size:clamp(12px,1.2vw,15px); color:var(--nc-main-text); margin-top:12px;}
+.rlegend .d{display:inline-block; width:14px;height:14px;border-radius:50%;vertical-align:-2px;margin-right:6px;}
+.rlegend .sq{display:inline-block; width:16px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:6px;}
+/* SVG-Klassen */
+.fgrid{stroke:var(--nc-border); fill:none; stroke-width:1;}
+.fnull{stroke:var(--nc-maxcontrast); fill:none; stroke-width:1.75;}
+.fborder{stroke:var(--nc-border-dark); fill:none; stroke-width:1.75;}
+.flabel{font-size:16px; font-weight:800; fill:var(--nc-main-text);}
+.fcorner{font-size:13px; font-weight:700; fill:var(--nc-maxcontrast);}
+.axnum{font-size:12px; fill:var(--nc-maxcontrast); font-family:var(--mono);}
+.emptybox{fill:none; stroke:var(--nc-border-dark); stroke-width:1.5; stroke-dasharray:6 6;}
+.emptytxt{fill:var(--nc-maxcontrast); font-size:16px; font-weight:600; text-anchor:middle;}
+
+footer.foot{margin-top:70px; padding-top:24px; border-top:1px solid #dde3ec; text-align:center; color:#7a8699; font-size:13px;}
+</style>
+</head>
+<body data-od-id="pulse-skala-familie">
+
+<header class="doc-head" data-od-id="doc-header">
+  <span class="logo"><span class="dot"></span> Pulse <span class="sub">· Skala-Familie · Verfeinerung §10.1</span></span>
+  <span class="spacer"></span>
+  <button class="theme-btn" id="themeToggle" data-od-id="theme-toggle">◐ Dark-Theme</button>
+</header>
+
+<div class="wrap">
+
+  <section class="block" style="margin-top:38px" data-od-id="intro">
+    <div class="eyebrow">Übergabe 2 · Politur</div>
+    <h2 class="sec">Die Skala-Familie als <em>eine</em> Familie<span class="pill">nie designt</span></h2>
+    <p class="sec-intro">Drei Modi — <b>Einzel</b> (Regler → Histogramm), <b>Spektrum</b> (Aspekt-Regler → Radar),
+    <b>Kompass</b> (2D-Feld → Streubild) — bekommen jetzt <b>eine gemeinsame Sprache</b>: dieselbe Wert-Hierarchie,
+    einen geteilten Regler-/Pad-Baustein und Ergebnis-Grafiken, die am Beamer die Bühne füllen. Alles auf
+    <span style="font-family:var(--mono)">--pulse-*</span>-Tokens, Light &amp; Dark. Voraussetzung sind zwei neue
+    Farb-Rollen (unten): <b>„Du"</b> und <b>Datenvisualisierung</b>.</p>
+  </section>
+
+  <!-- ══ 0 · FARB-ENTSCHEIDUNGEN (§6 + §3.2) ══ -->
+  <section class="block" data-od-id="colors">
+    <div class="eyebrow">Voraussetzung · zwei neue Farb-Rollen</div>
+    <h2 class="sec">„Du" und „Daten" bekommen eigene Farben</h2>
+    <p class="sec-intro">Heute streiten sich drei Blau-/Lila-Töne um dieselbe Fläche: UI-Primärblau, Quiz-Lila und
+    das Datenblau der Grafiken. Zwei sauber getrennte Rollen lösen das — beide sind <b>Empfehlungen</b> (§11),
+    hier als Annahme umgesetzt.</p>
+
+    <div class="tokens" data-od-id="token-swatches">
+      <div class="tok"><div class="chip" style="background:var(--pulse-self)">--pulse-self</div>
+        <div class="meta"><div class="nm">„Du" / Self-Identität</div><div class="ro">Magenta · Deine Position, Dein Punkt, Deine Pille</div></div></div>
+      <div class="tok"><div class="chip" style="background:var(--pulse-viz)">--pulse-viz</div>
+        <div class="meta"><div class="nm">Datenvisualisierung</div><div class="ro">Petrol · Histogramm, Radar-Ø, Kompass-Menge</div></div></div>
+      <div class="tok"><div class="chip" style="background:var(--nc-primary-el)">--nc-primary</div>
+        <div class="meta"><div class="nm">UI / Marke</div><div class="ro">Blau · Buttons, Links, Fokus — nicht mehr in Grafiken</div></div></div>
+      <div class="tok"><div class="chip" style="background:var(--nc-quiz)">--nc-quiz</div>
+        <div class="meta"><div class="nm">Quiz-Akzent</div><div class="ro">Lila · nur im Quiz — raus aus dem Umfrage-Kompass</div></div></div>
+    </div>
+
+    <div class="why"><b>Warum „Du" ≠ Blau ≠ Lila:</b> Ein Mensch soll „Das bin ich" überall an <b>derselben</b> Farbe
+    erkennen — in Rangliste, Balken, Radar und Kompass. Heute ist die „Du"-Pille blau (kollidiert mit dem Datenblau
+    der Grafiken) und der Kompass-Punkt lila (semantisch ein Quiz-Ton in einem Umfrage-Feature, §6). Magenta ist von
+    beiden weit entfernt (Farbkreis: Blau 210°, Lila 280°, Magenta 335°) und liest auch am abgedunkelten Beamer als
+    „persönlich". Farbe trägt nie allein — überall steht zusätzlich das Wort <b>„Du"</b>.</div>
+    <div class="why"><b>Warum eine eigene Viz-Farbe:</b> Radar-Band und Ø-Fläche waren „fast ununterscheidbar", weil
+    beide aus <i>einem</i> Blau in Deckkraft­stufen bestanden (§3.2). Petrol löst die Grafiken zugleich vom UI-Blau
+    (Buttons/Chrome) — Daten sehen nach Daten aus, nicht nach anklickbarer Fläche. Ø = kräftige <b>Kontur</b> in
+    <span style="font-family:var(--mono)">--pulse-viz</span>, Streuung = hellere/gerasterte Fläche
+    (<span style="font-family:var(--mono)">--pulse-viz-2</span>): Unterschied jetzt über <b>Form + Helligkeit</b>, nicht nur Deckkraft.</div>
+    <div class="why assume"><b>Annahme (§11):</b> „Du" = eigener Self-Akzent (Magenta), Viz = eigenes Petrol —
+    beide als benannte Tokens, Light+Dark. Wenn die Marke andere Werte vorgibt, tauschen wir nur die zwei Tokens;
+    die Grammatik bleibt.</div>
+    <div class="why dark-note"><b>Dark:</b> <span style="font-family:var(--mono)">--pulse-self</span> wird heller
+    (<span style="font-family:var(--mono)">#f2699b</span>), Petrol öffnet auf Cyan
+    (<span style="font-family:var(--mono)">#43c3d8</span>) — beide ≥ 4,5:1 auf dem dunklen Beamer.</div>
+  </section>
+
+  <!-- ══ 1 · GETEILTER BAUSTEIN ══ -->
+  <section class="block" data-od-id="shared">
+    <div class="eyebrow">Baustein · gilt für alle drei Modi</div>
+    <h2 class="sec">Eine Wert-Hierarchie, ein Regler</h2>
+    <p class="sec-intro">Derselbe Fragetyp quittierte den Zieh-Moment bisher mal als Riesenzahl, mal als winzige „2",
+    mal als Fließtext (§3.1). Ab jetzt: <b>eine</b> tabellenziffrige Wert-Anzeige über der Eingabe, und <b>ein</b>
+    Regler-/Pad-Look (Track 9 px, Thumb 28 px, sichtbarer Fokus, Trefferfläche 44 px).</p>
+    <div class="two">
+      <div>
+        <div class="eyebrow" style="margin-bottom:8px">Wert-Anzeige</div>
+        <div style="border:1px solid var(--nc-border); border-radius:14px; padding:14px 16px; background:var(--nc-main-bg);">
+          <div class="val-readout"><span class="v">4</span><span class="u">/ 7</span></div>
+          <div class="hint">Einzel: eine Zahl, ein Maßstab.</div>
+          <hr style="border:0; border-top:1px solid var(--nc-border); margin:14px 0;">
+          <div class="val-xy"><div class="ax"><span class="k">X</span><span class="n">+2</span></div><div class="ax"><span class="k">Y</span><span class="n">−1</span></div></div>
+          <div class="hint">Kompass: gleich prominent, zwei Achsen — nicht mehr Fließtext.</div>
+        </div>
+      </div>
+      <div>
+        <div class="eyebrow" style="margin-bottom:8px">Regler-Zustände</div>
+        <div style="border:1px solid var(--nc-border); border-radius:14px; padding:16px; background:var(--nc-main-bg); display:flex; flex-direction:column; gap:16px;">
+          <div><div class="scale-note" style="margin-bottom:2px">Einzel · unipolar, Füllung 0 → Thumb</div>
+            <input class="srange uni" type="range" min="1" max="7" value="4" style="--pct:50%" aria-label="Beispiel unipolar"></div>
+          <div><div class="scale-note" style="margin-bottom:2px">Spektrum · bipolar, Füllung <b>von der Mitte</b>, Mittel-Tick</div>
+            <div class="track-wrap"><span class="mid-tick"></span>
+              <input class="srange bip" type="range" min="0" max="6" value="4" style="--lo:50%;--hi:66.6%" aria-label="Beispiel bipolar"></div></div>
+          <div><div class="scale-note" style="margin-bottom:2px">Kompass-Regler · Thumb in „Du"-Magenta</div>
+            <input class="srange selfthumb" type="range" min="-5" max="5" value="2" aria-label="Beispiel Kompass"></div>
+        </div>
+      </div>
+    </div>
+    <div class="why"><b>Warum eine Hierarchie:</b> Der Wert ist in allen Modi die <i>Quittung</i> derselben Geste —
+    also überall gleich lesbar (Monospace, <span style="font-family:var(--mono)">tabular-nums</span>, gleiche Größe).
+    Der Kompass-Readout springt von grauer Fließtext-Zeile auf dasselbe Prominenz-Niveau wie die Einzel-Zahl.</div>
+    <div class="why"><b>Warum Füllung von der Mitte (Spektrum):</b> Bei 0–6 sitzt der neutrale Default (3) jetzt
+    <b>exakt mittig</b> und die blaue Füllung läuft <b>von der Mitte</b> zum Thumb — sie liest sich als
+    „Abweichung von neutral", nicht als „Füllstand/Menge". Damit stimmen Aussage („steht neutral in der Mitte")
+    und Bild endlich überein (§3.1). Ein Mittel-Tick markiert die Neutral-Linie — das Handy-Pendant zum Neutral-Ring im Radar.</div>
+  </section>
+
+  <!-- ══ 2 · EINZEL ══ -->
+  <section class="block" data-od-id="einzel">
+    <div class="eyebrow">Modus 1 · Einzel</div>
+    <h2 class="sec">Regler → Histogramm</h2>
+    <div class="two">
+      <div data-od-id="einzel-handy">
+        <div class="eyebrow" style="margin-bottom:10px">Handy · Eingabe (mit Leerzustand)</div>
+        <div class="phone">
+          <div class="notch"></div>
+          <div class="screen">
+            <div class="nc-topbar"><span class="rings"><i></i><i></i><i></i></span> Nextcloud</div>
+            <div class="body">
+              <div class="row-top"><span class="chip-live"><span class="dot"></span> Läuft</span>
+                <span class="scale-note">1 – 7</span></div>
+              <div class="q-title">Wie sicher fühlst Du Dich mit dem Thema?</div>
+              <div class="val-readout empty" id="e-read"><span class="v" id="e-val">–</span><span class="u">/ 7</span></div>
+              <input class="srange uni" id="e-range" type="range" min="1" max="7" value="4" style="--pct:50%" aria-label="Sicherheit 1 bis 7" data-touched="0">
+              <div class="poles"><span>1 · unsicher</span><span>7 · sehr sicher</span></div>
+              <div class="sticky-foot">
+                <div class="hint">Zieh den Regler auf Deinen Wert. Noch nichts gewählt.</div>
+                <button class="pbtn" id="e-send" disabled>Absenden</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="legend"><span><b>Neu:</b> Zieh-Hinweis + echter „noch nichts gewählt"-Zustand (grauer „–",
+        Absenden gesperrt) — analog zu Spektrum/Kompass. Erst bei Berührung wird der Wert schwarz und der Button aktiv.</span></div>
+      </div>
+      <div data-od-id="einzel-beamer">
+        <div class="eyebrow" style="margin-bottom:10px">Beamer · Ergebnis (füllt die Bühne)</div>
+        <div class="beamer">
+          <div class="screen">
+            <div class="q">Wie sicher fühlt sich der Raum?</div>
+            <div class="meta">Skala · <b>34 Stimmen</b> · 1–7</div>
+            <svg id="histo" viewBox="0 0 900 440" role="img" aria-label="Histogramm der Skala-Antworten"></svg>
+            <div class="rlegend">
+              <span><span class="sq" style="background:var(--pulse-viz)"></span> Verteilung</span>
+              <span><span class="sq" style="background:var(--pulse-viz);height:16px;width:3px;border-radius:2px"></span> Ø 4,6</span>
+              <span><span class="sq" style="background:var(--nc-main-text);height:16px;width:3px;border-radius:2px"></span> Median 5</span>
+            </div>
+          </div>
+        </div>
+        <div class="legend"><span><b>Neu:</b> Grafik füllt die volle Breite (kein winziger Block mit leeren Flanken).
+        Ø &amp; Median sind <b>Marker in der Verteilung</b> (Linien mit Fähnchen), nicht losgelöste Zahlen darüber.</span></div>
+      </div>
+    </div>
+    <div class="why"><b>Warum Marker statt schwebender Zahlen:</b> Ø und Median gehören <i>in</i> die Verteilung, damit
+    man sieht, wo sie relativ zu den Säulen liegen (§3.2). Alle Skalenwerte 1–7 stehen als Grundlinie, auch die mit
+    0 Stimmen — bei wenig Daten steht so keine einsame Säule im Leerraum, sondern eine ruhige, vollständige Achse.</div>
+    <div class="why dark-note"><b>Dark:</b> Säulen in Petrol (heller Cyan-Ton), Ø-Marker Petrol, Median-Marker in
+    <span style="font-family:var(--mono)">--nc-main-text</span> — beide durch <b>Form</b> unterscheidbar (durchgezogen vs. gestrichelt), nicht nur Farbe.</div>
+  </section>
+
+  <!-- ══ 3 · SPEKTRUM ══ -->
+  <section class="block" data-od-id="spektrum">
+    <div class="eyebrow">Modus 2 · Spektrum</div>
+    <h2 class="sec">Aspekt-Regler → Radar</h2>
+    <div class="two">
+      <div data-od-id="spektrum-handy">
+        <div class="eyebrow" style="margin-bottom:10px">Handy · Eingabe (bipolar)</div>
+        <div class="phone">
+          <div class="notch"></div>
+          <div class="screen">
+            <div class="nc-topbar"><span class="rings"><i></i><i></i><i></i></span> Nextcloud</div>
+            <div class="body">
+              <div class="row-top"><span class="chip-live"><span class="dot"></span> Läuft</span>
+                <span class="scale-note">0 – 6 · Mitte = neutral</span></div>
+              <div class="q-title">Wie erlebst Du dieses Format?</div>
+              <div id="aspectInputs" style="display:flex; flex-direction:column; gap:15px;"></div>
+              <div class="sticky-foot">
+                <div class="hint">Regler stehen <b>neutral in der Mitte</b> — verschiebe nur, was für Dich abweicht.</div>
+                <button class="pbtn">Absenden</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="legend"><span><b>Neu:</b> Default exakt mittig, Füllung von der Mitte, Mittel-Tick. Ein neutraler
+        Wert bleibt grau (nicht schwarz) — man sieht sofort, was man <i>nicht</i> angefasst hat.</span></div>
+      </div>
+      <div data-od-id="spektrum-beamer">
+        <div class="eyebrow" style="margin-bottom:10px">Beamer · Ergebnis (Radar)</div>
+        <div class="beamer">
+          <div class="screen">
+            <div class="q">Wie erlebt der Raum dieses Format?</div>
+            <div class="meta">Spektrum · <b>42 Antworten</b> · 0–6 · Norm Ø 3,4</div>
+            <svg id="radar" viewBox="0 0 720 560" role="img" aria-label="Radar-Spektrum der Aspekte"></svg>
+            <div class="rlegend">
+              <span><span class="sq" style="background:var(--pulse-viz)"></span> Ø des Raums</span>
+              <span><span class="sq" style="background:var(--pulse-viz-2)"></span> Streuung (Min–Max)</span>
+              <span><span class="sq" style="background:transparent;border:1.5px dashed var(--nc-maxcontrast)"></span> Neutral (3)</span>
+              <span><span class="d" style="background:var(--pulse-self);width:12px;height:12px"></span> Du</span>
+            </div>
+          </div>
+        </div>
+        <div class="legend"><span><b>Neu:</b> Ø als kräftige Petrol-<b>Kontur</b> über hellerem Streuungs-Band
+        (unterscheidbar!), optionales <b>„Du"-Polygon</b> (Magenta, dünn) + Norm-Note in der Kopfzeile.
+        Lange Aspekt-Namen werden umgebrochen statt abgeschnitten.</span></div>
+      </div>
+    </div>
+    <div class="why"><b>Warum „Du" + Norm im Radar:</b> Der Kompass verortet die eigene Antwort und trägt eine
+    Norm-Note — der Radar tat beides nicht und wirkte unpersönlicher (§3.2). Jetzt zeigt ein dünnes Magenta-Polygon
+    Dein Profil über dem Ø des Raums, und die Kopfzeile nennt den Vergleichswert.</div>
+    <div class="why"><b>Warum Umbruch statt Clipping:</b> „Erzieherfähigkeit" wurde real zu „ieherfähigkeit" beschnitten
+    (§3.2/§9). Die Labels sitzen jetzt mit Rand-Puffer außerhalb des Rings und brechen bei &gt; 12 Zeichen auf zwei Zeilen.</div>
+    <div class="why dark-note"><b>Dark:</b> Ø-Kontur Cyan, Band <span style="font-family:var(--mono)">--pulse-viz-2</span>
+    blass, „Du" heller Magenta — jede Ebene bleibt auf dunklem Grund trennscharf.</div>
+  </section>
+
+  <!-- ══ 4 · KOMPASS ══ -->
+  <section class="block" data-od-id="kompass">
+    <div class="eyebrow">Modus 3 · Kompass</div>
+    <h2 class="sec">2D-Feld → Streubild / Heatmap</h2>
+    <div class="two">
+      <div data-od-id="kompass-handy">
+        <div class="eyebrow" style="margin-bottom:10px">Handy · Eingabe (Punkt = „Du")</div>
+        <div class="phone">
+          <div class="notch"></div>
+          <div class="screen">
+            <div class="nc-topbar"><span class="rings"><i></i><i></i><i></i></span> Nextcloud</div>
+            <div class="body">
+              <div class="row-top"><span class="chip-live"><span class="dot"></span> Läuft</span>
+                <span class="scale-note">Mitte = neutral</span></div>
+              <div class="q-title">Wie tickst Du?</div>
+              <div class="pad-grid">
+                <div></div><div class="pad-pole">gemeinsam</div><div></div>
+                <div class="pad-pole side">praktisch</div>
+                <div class="pad" id="pad" role="application" aria-label="2D-Feld: X praktisch–theoretisch, Y einzeln–gemeinsam; ziehe den Punkt">
+                  <div class="axis v"></div><div class="axis h"></div>
+                  <div class="thumb" id="thumb"></div>
+                </div>
+                <div class="pad-pole side">theoretisch</div>
+                <div></div><div class="pad-pole">einzeln</div><div></div>
+              </div>
+              <div class="val-xy" id="k-read"><div class="ax"><span class="k">X</span><span class="n" id="k-x">0</span></div><div class="ax"><span class="k">Y</span><span class="n" id="k-y">0</span></div></div>
+              <div class="axrow"><div class="name">praktisch ↔ theoretisch</div>
+                <input class="srange selfthumb" id="rx" type="range" min="-5" max="5" step="1" value="0" aria-label="Achse praktisch bis theoretisch, −5 bis 5"></div>
+              <div class="axrow"><div class="name">einzeln ↔ gemeinsam</div>
+                <input class="srange selfthumb" id="ry" type="range" min="-5" max="5" step="1" value="0" aria-label="Achse einzeln bis gemeinsam, −5 bis 5"></div>
+              <div class="sticky-foot">
+                <div class="hint">Zieh den Punkt oder nutz die Regler. Mitte = neutral (zählt).</div>
+                <button class="pbtn">Absenden</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="legend"><span><b>Neu:</b> Pad-Punkt, Readout und beide Regler-Thumbs in <b>„Du"-Magenta</b>
+        statt Quiz-Lila (§6). Der sticky Footer respektiert <span style="font-family:var(--mono)">safe-area-inset</span>,
+        damit „Absenden" nicht unter der Android-Leiste verschwindet (§9).</span></div>
+      </div>
+      <div data-od-id="kompass-beamer">
+        <div class="eyebrow" style="margin-bottom:10px">Beamer · Ergebnis (zwei Zustände, groß)</div>
+        <div class="beamers">
+          <div class="beamer">
+            <div class="screen">
+              <div class="meta" style="margin-bottom:6px">Wenige Stimmen · Scatter · <b>22</b></div>
+              <svg id="scatter" viewBox="0 0 460 440" role="img" aria-label="Streudiagramm im Quadranten"></svg>
+            </div>
+          </div>
+          <div class="beamer">
+            <div class="screen">
+              <div class="meta" style="margin-bottom:6px">Viele Stimmen · Heatmap · <b>128</b></div>
+              <svg id="heatmap" viewBox="0 0 460 440" role="img" aria-label="Heatmap der Antwortdichte"></svg>
+            </div>
+          </div>
+        </div>
+        <div class="rlegend" style="color:var(--nc-main-text)">
+          <span><span class="d" style="background:var(--pulse-viz);opacity:.55"></span> Stimme</span>
+          <span><span class="d" style="background:var(--pulse-viz)"></span> Schwerpunkt (Raute)</span>
+          <span><span class="d" style="background:var(--pulse-self)"></span> Du</span>
+        </div>
+        <div class="legend"><span><b>Neu:</b> Menge/Heatmap/Schwerpunkt in <b>Petrol</b>, Dein Punkt in <b>Magenta</b> —
+        drei Rollen, drei Farben, nie verwechselbar. Am Beamer füllt das Feld die Fläche wie die Choice-Balken.</span></div>
+      </div>
+    </div>
+    <div class="why"><b>Warum diese Farbtrennung hier zählt:</b> Der Kompass zeigt Menge (Petrol), Raum-Tendenz
+    (Petrol-Raute, „Schwerpunkt") und Deine Position (Magenta, „Du") <b>gleichzeitig</b>. Drei getrennte Farben +
+    Form (Raute vs. Ring) + Text machen jede Rolle eindeutig — Farbe nie einziger Träger.</div>
+  </section>
+
+  <!-- ══ 5 · LEERZUSTAND ══ -->
+  <section class="block" data-od-id="empty">
+    <div class="eyebrow">Randfall · alle drei Grafiken</div>
+    <h2 class="sec">Stiller Leerzustand statt kaputtem Diagramm</h2>
+    <div class="beamer" style="max-width:560px">
+      <div class="screen">
+        <div class="meta" style="margin-bottom:6px">Skala · 0 Stimmen</div>
+        <svg viewBox="0 0 560 240" role="img" aria-label="Noch keine Antworten">
+          <rect class="emptybox" x="20" y="20" width="520" height="200" rx="12"></rect>
+          <text class="emptytxt" x="280" y="118">Noch keine Antworten</text>
+          <text class="emptytxt" x="280" y="146" style="font-size:13px;font-weight:500">Sobald abgestimmt wird, füllt sich die Bühne.</text>
+        </svg>
+      </div>
+    </div>
+    <div class="why"><b>Warum:</b> 0 Stimmen führte zu einem kollabierten/leeren Diagramm, das kaputt aussah (§3.2).
+    Der ruhige Rahmen mit einer Zeile hält die Bühne würdevoll, bis die erste Antwort kommt — für Histogramm,
+    Radar und Kompass gleich.</div>
+  </section>
+
+  <section class="block" data-od-id="handoff">
+    <div class="why"><b>Nicht in diesem Turn (nach §10):</b> Feier-Moment + Podium am Beamer (§5), Beamer-Fläche
+    für Choice-Overflow/Lobby/Freitext (§4), Demo-Leiste &amp; Skala-Composer (§3.3/§3.4), Kleinteile (§7/§8).
+    Sag einfach „weiter mit §5" o. Ä. — die Farb- und Wert-Grammatik von hier trägt dort weiter.</div>
+    <div class="legend"><span><b>Umsetzungs-Specs (bleiben gültig):</b> <b>HANDOFF-skala-slider.md</b> (Einzel),
+    <b>HANDOFF-spektrum.md</b> (Spektrum), <b>HANDOFF-kompass.md</b> (Kompass). Neu für Dev: zwei Tokens
+    <span style="font-family:var(--mono)">--pulse-self</span> / <span style="font-family:var(--mono)">--pulse-viz</span> (+ Dark) einführen,
+    Grafik-Farben von <span style="font-family:var(--mono)">--nc-primary</span> auf <span style="font-family:var(--mono)">--pulse-viz</span> umstellen,
+    „Du" überall auf <span style="font-family:var(--mono)">--pulse-self</span>.</span></div>
+  </section>
+
+</div>
+
+<footer class="foot">Pulse · Skala-Familie (Einzel · Spektrum · Kompass) · Verfeinerung §10.1 · NC-Tokens + --pulse-self/--pulse-viz · Light + Dark</footer>
+
+<script>
+/* Theme */
+(function(){var b=document.getElementById('themeToggle'),d=document.documentElement;
+ b.addEventListener('click',function(){var k=d.getAttribute('data-theme')==='dark';d.setAttribute('data-theme',k?'light':'dark');b.textContent=k?'◐ Dark-Theme':'◑ Light-Theme';try{localStorage.setItem('pulse-doc-theme',k?'light':'dark')}catch(e){}});
+ try{var s=localStorage.getItem('pulse-doc-theme');if(s){d.setAttribute('data-theme',s);b.textContent=s==='dark'?'◑ Light-Theme':'◐ Dark-Theme'}}catch(e){}})();
+
+/* ── Einzel: Leerzustand → berührt ── */
+(function(){
+  var r=document.getElementById('e-range'), val=document.getElementById('e-val'),
+      read=document.getElementById('e-read'), send=document.getElementById('e-send'),
+      MIN=1, MAX=7;
+  function fill(){ r.style.setProperty('--pct', ((r.value-MIN)/(MAX-MIN)*100)+'%'); }
+  function touch(){ if(r.dataset.touched==='1') return; r.dataset.touched='1';
+    read.classList.remove('empty'); send.disabled=false;
+    document.querySelector('#einzel-handy .hint').textContent='Dein Wert – jederzeit noch verschiebbar.'; }
+  r.addEventListener('input', function(){ touch(); val.textContent=r.value; fill(); });
+  r.addEventListener('pointerdown', touch);
+  fill();
+})();
+
+/* ── Spektrum-Eingabe: bipolare Regler, Füllung von der Mitte ── */
+var X=6, MID=Math.floor(X/2);
+var ASPECTS=[
+  {name:'Tempo',        low:'zu langsam', high:'zu schnell',    avg:4.2, min:2, max:6, me:5},
+  {name:'Schwierigkeit',low:'zu leicht',  high:'zu schwer',     avg:3.6, min:1, max:5, me:3},
+  {name:'Relevanz',     low:'gering',     high:'hoch',          avg:5.1, min:3, max:6, me:6},
+  {name:'Interaktion',  low:'zu wenig',   high:'genau richtig', avg:2.8, min:0, max:5, me:4},
+  {name:'Erzieherfähigkeit', low:'unklar', high:'klar',         avg:4.6, min:2, max:6, me:4}
+];
+(function(){
+  var host=document.getElementById('aspectInputs');
+  ASPECTS.forEach(function(a,i){
+    var el=document.createElement('div'); el.className='aspect'; el.setAttribute('data-od-id','aspect-'+i);
+    el.innerHTML=
+      '<div class="head"><span class="name">'+a.name+'</span><span class="val neutral" id="av'+i+'">'+MID+'</span></div>'+
+      '<div class="track-wrap"><span class="mid-tick"></span>'+
+      '<input class="srange bip" id="ar'+i+'" type="range" min="0" max="'+X+'" step="1" value="'+MID+'" aria-label="'+a.name+' – 0 '+a.low+' bis '+X+' '+a.high+'"></div>'+
+      '<div class="poles"><span>'+a.low+'</span><span>'+a.high+'</span></div>';
+    host.appendChild(el);
+    var r=el.querySelector('#ar'+i), out=el.querySelector('#av'+i);
+    function paint(){
+      var v=+r.value, midPct=MID/X*100, vPct=v/X*100;
+      r.style.setProperty('--lo', Math.min(midPct,vPct)+'%');
+      r.style.setProperty('--hi', Math.max(midPct,vPct)+'%');
+      out.textContent=v; out.classList.toggle('neutral', v===MID);
+    }
+    r.addEventListener('input', paint); paint();
+  });
+})();
+
+/* ── Beamer: Histogramm ── */
+(function(){
+  var counts=[1,2,4,7,9,8,3];               // Werte 1..7
+  var MINV=1, N=counts.length, total=counts.reduce(function(a,b){return a+b;},0);
+  var avg=4.6, median=5;
+  var VB={w:900,h:440}, padL=54, padR=30, padT=54, padB=64;
+  var plotW=VB.w-padL-padR, plotH=VB.h-padT-padB;
+  var maxC=Math.max.apply(null,counts), band=plotW/N, bw=band*0.62;
+  var s='';
+  // Grundlinie
+  s+='<line class="fborder" x1="'+padL+'" y1="'+(padT+plotH)+'" x2="'+(padL+plotW)+'" y2="'+(padT+plotH)+'"/>';
+  // Säulen + Achsenzahlen (auch 0-Stimmen als ruhiger Sockel)
+  for(var i=0;i<N;i++){
+    var cx=padL+band*i+band/2, h=maxC?counts[i]/maxC*plotH:0;
+    var x=cx-bw/2, y=padT+plotH-h;
+    if(counts[i]>0){
+      s+='<rect x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+h.toFixed(1)+'" rx="4" style="fill:var(--pulse-viz)"/>';
+      s+='<text class="axnum" x="'+cx.toFixed(1)+'" y="'+(y-8).toFixed(1)+'" text-anchor="middle" style="font-weight:700;fill:var(--nc-main-text)">'+counts[i]+'</text>';
+    } else {
+      s+='<rect x="'+x.toFixed(1)+'" y="'+(padT+plotH-6)+'" width="'+bw.toFixed(1)+'" height="6" rx="3" style="fill:var(--nc-border-dark)"/>';
+    }
+    s+='<text class="axnum" x="'+cx.toFixed(1)+'" y="'+(padT+plotH+26)+'" text-anchor="middle">'+(MINV+i)+'</text>';
+  }
+  // Ø-Marker (durchgezogen, Petrol) + Median (gestrichelt, Text-Farbe) — IN der Verteilung
+  function marker(val,color,dash,label,ly){
+    var mx=padL+band*(val-MINV)+band/2;
+    s+='<line x1="'+mx.toFixed(1)+'" y1="'+(padT-6)+'" x2="'+mx.toFixed(1)+'" y2="'+(padT+plotH)+'" style="stroke:'+color+';stroke-width:3'+(dash?';stroke-dasharray:6 5':'')+'"/>';
+    s+='<rect x="'+(mx-30).toFixed(1)+'" y="'+ly+'" width="60" height="24" rx="6" style="fill:'+color+'"/>';
+    s+='<text x="'+mx.toFixed(1)+'" y="'+(ly+16)+'" text-anchor="middle" style="fill:var(--nc-main-bg);font-size:13px;font-weight:800">'+label+'</text>';
+  }
+  marker(avg,'var(--pulse-viz)',false,'Ø 4,6', padT-4);
+  marker(median,'var(--nc-main-text)',true,'Med 5', padT+22);
+  document.getElementById('histo').innerHTML=s;
+})();
+
+/* ── Beamer: Radar ── */
+(function(){
+  var N=ASPECTS.length, cx=360, cy=270, R=180;
+  function pt(val,i){ var a=(-90+i*360/N)*Math.PI/180, r=(val/X)*R; return [cx+r*Math.cos(a), cy+r*Math.sin(a)]; }
+  function chain(vals){ return vals.map(function(v,i){return pt(v,i).join(',');}).join(' '); }
+  var s='';
+  for(var g=1; g<=X; g++) s+='<circle class="fgrid" cx="'+cx+'" cy="'+cy+'" r="'+(g/X*R).toFixed(1)+'"/>';
+  s+='<circle class="fnull" style="stroke-dasharray:4 5;stroke-width:1.5" cx="'+cx+'" cy="'+cy+'" r="'+(0.5*R).toFixed(1)+'"/>';
+  s+='<circle class="fborder" cx="'+cx+'" cy="'+cy+'" r="'+R+'"/>';
+  for(var i=0;i<N;i++){ var p=pt(X,i); s+='<line class="fgrid" x1="'+cx+'" y1="'+cy+'" x2="'+p[0].toFixed(1)+'" y2="'+p[1].toFixed(1)+'"/>'; }
+  // Streuungs-Band (Min–Max) — HELLERES Petrol (viz-2), klar unter der Ø-Kontur
+  var maxD='M'+ASPECTS.map(function(a,i){return pt(a.max,i).map(function(n){return n.toFixed(1)}).join(',')}).join('L')+'Z';
+  var minD='M'+ASPECTS.map(function(a,i){return pt(a.min,i).map(function(n){return n.toFixed(1)}).join(',')}).join('L')+'Z';
+  s+='<path d="'+maxD+' '+minD+'" style="fill:var(--pulse-viz-2);fill-opacity:.45;fill-rule:evenodd;stroke:none"/>';
+  // Ø-Vieleck — kräftige Petrol-KONTUR
+  s+='<polygon points="'+chain(ASPECTS.map(function(a){return a.avg}))+'" style="fill:var(--pulse-viz);fill-opacity:.12;stroke:var(--pulse-viz);stroke-width:3.5;stroke-linejoin:round"/>';
+  // „Du"-Polygon (Magenta, dünn)
+  s+='<polygon points="'+chain(ASPECTS.map(function(a){return a.me}))+'" style="fill:none;stroke:var(--pulse-self);stroke-width:2.5;stroke-dasharray:2 4;stroke-linejoin:round"/>';
+  // Ø-Punkte
+  for(var j=0;j<N;j++){ var d=pt(ASPECTS[j].avg,j);
+    s+='<circle cx="'+d[0].toFixed(1)+'" cy="'+d[1].toFixed(1)+'" r="5" style="fill:var(--pulse-viz);stroke:var(--nc-main-bg);stroke-width:2"/>'; }
+  // Labels: Rand-Puffer + Umbruch bei > 12 Zeichen (kein Clipping)
+  for(var k=0;k<N;k++){
+    var a=(-90+k*360/N)*Math.PI/180;
+    var lx=cx+(R+34)*Math.cos(a), ly=cy+(R+34)*Math.sin(a);
+    var anchor=Math.abs(lx-cx)<12?'middle':(lx>cx?'start':'end');
+    var nm=ASPECTS[k].name, val='Ø '+ASPECTS[k].avg.toFixed(1).replace('.',',');
+    var dyBase=ly<cy-24?-6:(ly>cy+24?14:2);
+    if(nm.length>12){
+      var half=Math.ceil(nm.length/2), sp=nm.lastIndexOf('',half);
+      // an sinnvoller Stelle brechen (Mitte, an Buchstabengrenze)
+      var brk=Math.round(nm.length/2), l1=nm.slice(0,brk), l2=nm.slice(brk);
+      s+='<text class="flabel" x="'+lx.toFixed(1)+'" y="'+(ly+dyBase-8).toFixed(1)+'" text-anchor="'+anchor+'">'+l1+'</text>';
+      s+='<text class="flabel" x="'+lx.toFixed(1)+'" y="'+(ly+dyBase+9).toFixed(1)+'" text-anchor="'+anchor+'">'+l2+'</text>';
+      s+='<text class="fcorner" x="'+lx.toFixed(1)+'" y="'+(ly+dyBase+27).toFixed(1)+'" text-anchor="'+anchor+'" style="fill:var(--pulse-viz);font-weight:800">'+val+'</text>';
+    } else {
+      s+='<text class="flabel" x="'+lx.toFixed(1)+'" y="'+(ly+dyBase).toFixed(1)+'" text-anchor="'+anchor+'">'+nm+'</text>';
+      s+='<text class="fcorner" x="'+lx.toFixed(1)+'" y="'+(ly+dyBase+18).toFixed(1)+'" text-anchor="'+anchor+'" style="fill:var(--pulse-viz);font-weight:800">'+val+'</text>';
+    }
+  }
+  s+='<circle cx="'+cx+'" cy="'+cy+'" r="2.5" style="fill:var(--nc-maxcontrast)"/>';
+  document.getElementById('radar').innerHTML=s;
+})();
+
+/* ── Kompass: Handy-Pad + Regler synchron ── */
+var KR=5;
+(function(){
+  var pad=document.getElementById('pad'), thumb=document.getElementById('thumb'),
+      rx=document.getElementById('rx'), ry=document.getElementById('ry'),
+      kx=document.getElementById('k-x'), ky=document.getElementById('k-y');
+  var x=0,y=0;
+  function paint(){
+    thumb.style.left=((x/KR+1)/2*100)+'%'; thumb.style.top=((1-(y/KR+1)/2)*100)+'%';
+    kx.textContent=(x>0?'+':'')+x; ky.textContent=(y>0?'+':'')+y; rx.value=x; ry.value=y;
+  }
+  function setXY(nx,ny){ x=Math.max(-KR,Math.min(KR,Math.round(nx))); y=Math.max(-KR,Math.min(KR,Math.round(ny))); paint(); }
+  function fromClient(cx,cy){ var r=pad.getBoundingClientRect(); setXY(((cx-r.left)/r.width*2-1)*KR,(1-(cy-r.top)/r.height*2)*KR); }
+  var down=false;
+  pad.addEventListener('pointerdown',function(e){down=true;pad.setPointerCapture(e.pointerId);fromClient(e.clientX,e.clientY);});
+  pad.addEventListener('pointermove',function(e){if(down)fromClient(e.clientX,e.clientY);});
+  pad.addEventListener('pointerup',function(){down=false;});
+  rx.addEventListener('input',function(){setXY(+rx.value,y);});
+  ry.addEventListener('input',function(){setXY(x,+ry.value);});
+  paint();
+})();
+
+/* ── Kompass-Feld: gemeinsame Zeichnung (Beamer) ── */
+var Kcx=230, Kcy=210, KH=160;
+function ksx(x){return Kcx+(x/KR)*KH;} function ksy(y){return Kcy-(y/KR)*KH;}
+var KAX={xLow:'praktisch',xHigh:'theoretisch',yLow:'einzeln',yHigh:'gemeinsam'};
+function fieldSVG(){
+  var s='';
+  for(var g=-KR;g<=KR;g++){
+    s+='<line class="fgrid" x1="'+ksx(g)+'" y1="'+ksy(-KR)+'" x2="'+ksx(g)+'" y2="'+ksy(KR)+'"/>';
+    s+='<line class="fgrid" x1="'+ksx(-KR)+'" y1="'+ksy(g)+'" x2="'+ksx(KR)+'" y2="'+ksy(g)+'"/>';
+  }
+  s+='<rect class="fborder" x="'+ksx(-KR)+'" y="'+ksy(KR)+'" width="'+(2*KH)+'" height="'+(2*KH)+'" rx="6"/>';
+  s+='<line class="fnull" x1="'+ksx(0)+'" y1="'+ksy(-KR)+'" x2="'+ksx(0)+'" y2="'+ksy(KR)+'"/>';
+  s+='<line class="fnull" x1="'+ksx(-KR)+'" y1="'+ksy(0)+'" x2="'+ksx(KR)+'" y2="'+ksy(0)+'"/>';
+  s+='<text class="flabel" x="'+Kcx+'" y="'+(ksy(KR)-12)+'" text-anchor="middle">'+KAX.yHigh+'</text>';
+  s+='<text class="flabel" x="'+Kcx+'" y="'+(ksy(-KR)+24)+'" text-anchor="middle">'+KAX.yLow+'</text>';
+  s+='<text class="flabel" x="'+(ksx(KR)+10)+'" y="'+(Kcy+5)+'" text-anchor="end" style="fill:var(--nc-main-text)">'+KAX.xHigh+'</text>';
+  s+='<text class="flabel" x="'+(ksx(-KR)-10)+'" y="'+(Kcy-8)+'" text-anchor="start">'+KAX.xLow+'</text>';
+  return s;
+}
+function centroid(pts){var a=0,b=0;pts.forEach(function(p){a+=p[0];b+=p[1];});return[a/pts.length,b/pts.length];}
+function centroidMarker(c){var X=ksx(c[0]),Y=ksy(c[1]),r=10;
+  return '<polygon points="'+X+','+(Y-r)+' '+(X+r)+','+Y+' '+X+','+(Y+r)+' '+(X-r)+','+Y+'" style="fill:var(--pulse-viz);stroke:var(--nc-main-bg);stroke-width:2"/>'+
+    '<text class="fcorner" x="'+X+'" y="'+(Y-15)+'" text-anchor="middle" style="fill:var(--pulse-viz);font-weight:800">Schwerpunkt</text>';}
+function meMarker(p){var X=ksx(p[0]),Y=ksy(p[1]);
+  return '<circle cx="'+X+'" cy="'+Y+'" r="13" style="fill:none;stroke:var(--pulse-self);stroke-width:3"/>'+
+    '<circle cx="'+X+'" cy="'+Y+'" r="6" style="fill:var(--pulse-self);stroke:var(--nc-main-bg);stroke-width:2"/>'+
+    '<text x="'+(X+17)+'" y="'+(Y+5)+'" style="fill:var(--pulse-self);font-weight:800;font-size:15px">Du</text>';}
+/* Scatter */
+(function(){
+  var votes=[[3,2],[2,3],[4,1],[1,2],[3,4],[2,1],[4,3],[1,4],[3,1],[2,4],[-1,2],[-2,1],[0,3],[1,-1],[-1,-2],[2,2],[3,3],[-2,3],[4,2],[1,3],[0,1],[2,0]];
+  var me=[-1,3], s=fieldSVG();
+  votes.forEach(function(v){ s+='<circle cx="'+ksx(v[0])+'" cy="'+ksy(v[1])+'" r="7" style="fill:var(--pulse-viz);fill-opacity:.5"/>'; });
+  s+=centroidMarker(centroid(votes)); s+=meMarker(me);
+  document.getElementById('scatter').innerHTML=s;
+})();
+/* Heatmap */
+(function(){
+  var me=[-1,3], s=fieldSVG(), cell=(2*KH)/(2*KR);
+  var peakX=2.2, peakY=2.0, sigma=2.4, max=0, grid=[];
+  for(var gx=-KR;gx<KR;gx++){for(var gy=-KR;gy<KR;gy++){
+    var mx=gx+0.5,my=gy+0.5, val=Math.exp(-(((mx-peakX)*(mx-peakX)+(my-peakY)*(my-peakY))/(2*sigma*sigma)));
+    grid.push([gx,gy,val]); if(val>max)max=val;}}
+  grid.forEach(function(c){var op=(c[2]/max)*0.8; if(op<0.04)return;
+    var x0=ksx(c[0]), y0=ksy(c[1]+1);
+    s+='<rect x="'+x0+'" y="'+y0+'" width="'+cell+'" height="'+cell+'" style="fill:var(--pulse-viz);fill-opacity:'+op.toFixed(3)+'"/>';});
+  s+='<rect class="fborder" x="'+ksx(-KR)+'" y="'+ksy(KR)+'" width="'+(2*KH)+'" height="'+(2*KH)+'" rx="6"/>';
+  s+='<line class="fnull" x1="'+ksx(0)+'" y1="'+ksy(-KR)+'" x2="'+ksx(0)+'" y2="'+ksy(KR)+'"/>';
+  s+='<line class="fnull" x1="'+ksx(-KR)+'" y1="'+ksy(0)+'" x2="'+ksx(KR)+'" y2="'+ksy(0)+'"/>';
+  s+=centroidMarker([peakX,peakY]); s+=meMarker(me);
+  document.getElementById('heatmap').innerHTML=s;
+})();
+</script>
+</body>
+</html>

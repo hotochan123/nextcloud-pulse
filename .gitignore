@@ -1,0 +1,35 @@
+/node_modules/
+*.log
+.DS_Store
+
+# Build-Artefakte werden mit ausgeliefert (NC-Apps enthalten fertiges js/),
+# aber die Source-Maps nicht.
+/js/*.map
+
+# Wegwerf-Testskripte (DB-Harnesse gegen die laufende Instanz, s. tests/README.md)
+/_*.php
+
+# Release-Bau (build/package.sh)
+/build/dist/
+/build/pulse-*.tar.gz
+/build/info.xsd
+
+# Schlüsselmaterial für die App-Signatur gehört nie ins Repo
+*.key
+*.csr
+*.crt
+
+# PHPUnit-PHAR und geckodriver werden bei Bedarf geladen, gehören nicht ins Repo
+/tools/
+
+# Design-Screenshots: Bilder, Probe-Daten und das Passwort des Wegwerf-Nutzers
+/dev/design-shots/out/
+/dev/design-shots/out-*/
+/dev/design-shots/probe.json
+/dev/design-shots/pace.json
+/dev/design-shots/store.json
+/dev/design-shots/.host
+/dev/design-shots/.store-host
+/dev/design-shots/.shots-pass
+.phpunit.cache/
+.phpunit.result.cache

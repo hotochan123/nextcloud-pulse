@@ -1,0 +1,528 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pulse — DS-Vorschau (Schritt 1)</title>
+<style>
+/* ── NC-Theme SIMULIERT (in der echten App liefert NC diese --color-*) ── */
+:root{
+  --color-main-background:#ffffff; --color-main-text:#1a1a1a; --color-text-maxcontrast:#6b6b6b;
+  --color-background-hover:#f2f2f2; --color-background-dark:#ededed; --color-border:#dcdcdc; --color-border-dark:#c4c4c4;
+  --color-primary-element:#006aa3; --color-primary-element-hover:#00538a; --color-primary-element-text:#ffffff;
+  --color-success:#2d7d46; --color-warning:#e5a100; --color-warning-text:#9a6b00; --color-error:#c13030;
+}
+html[data-theme-dark]{
+  --color-main-background:#171717; --color-main-text:#ededed; --color-text-maxcontrast:#a0a0a0;
+  --color-background-hover:#262626; --color-background-dark:#242424; --color-border:#333333; --color-border-dark:#454545;
+  --color-primary-element:#3ba1f0; --color-primary-element-hover:#64b6f5; --color-primary-element-text:#06243a;
+  --color-success:#57c06f; --color-warning:#e0a800; --color-warning-text:#e0a800; --color-error:#e56b6b;
+}
+/* ==================== src/styles/pulse-tokens.css ==================== */
+/*
+ * Pulse — Token-Schicht (Schritt 1 des Design-Systems).
+ * Global, un-scoped; wird in main.js UND public.js importiert -> erreicht
+ * Moderator (Steuerpult), Participant (Handy) und Screen (Beamer).
+ *
+ * Regel (Handoff §3): theme-abhängige Rollen binden an die echten NC-Vars
+ * (--color-*) mit JE EINEM Fallback -> Light/Dark folgt NC automatisch und
+ * die Fallback-Drift (#767676/#999/#555, #c33/#c73e3e, Radius 8/10/12/14)
+ * verschwindet, weil jede Rolle nur noch an EINER Stelle definiert ist.
+ * Fest bleiben bewusst nur: Antwort-Palette A–H, Quiz-Akzent, Warn-Fläche.
+ */
+
+:root {
+	/* ── Theme-Rollen (an NC-Theme gebunden, je EIN Fallback) ─────────────── */
+	--pulse-bg:            var(--color-main-background, #ffffff);
+	--pulse-text:          var(--color-main-text, #1a1a1a);
+	--pulse-text-2:        var(--color-text-maxcontrast, #6b6b6b);
+	--pulse-hover:         var(--color-background-hover, #f2f2f2);
+	--pulse-fill:          var(--color-background-dark, #ededed);
+	--pulse-border:        var(--color-border, #dcdcdc);
+	--pulse-border-strong: var(--color-border-dark, #c4c4c4);
+
+	--pulse-primary:       var(--color-primary-element, #006aa3);
+	--pulse-primary-hover: var(--color-primary-element-hover, #00538a);
+	--pulse-on-primary:    var(--color-primary-element-text, #ffffff);
+
+	--pulse-success:       var(--color-success, #2d7d46);
+	--pulse-warning:       var(--color-warning-text, #9a6b00); /* Text/Icon-Rolle, AA auf Weiß */
+	--pulse-warning-fill:  #e5a100;                            /* Warn-Fläche (bewusst fest) */
+	--pulse-error:         var(--color-error, #c13030);
+
+	/* ── Soft-Tönungen: color-mix aus der Rolle (folgt Theme) + rgba-Fallback ─ */
+	--pulse-primary-soft: rgba(0, 106, 163, .12);
+	--pulse-primary-soft: color-mix(in srgb, var(--pulse-primary) 12%, transparent);
+	--pulse-success-soft: rgba(45, 125, 70, .14);
+	--pulse-success-soft: color-mix(in srgb, var(--pulse-success) 14%, transparent);
+	--pulse-warning-soft: rgba(154, 107, 0, .14);
+	--pulse-warning-soft: color-mix(in srgb, var(--pulse-warning) 14%, transparent);
+	--pulse-error-soft:   rgba(193, 48, 48, .13);
+	--pulse-error-soft:   color-mix(in srgb, var(--pulse-error) 13%, transparent);
+
+	/* ── Quiz-Akzent (theme-UNABHÄNGIG, eigener Dark-Wert weiter unten) ────── */
+	--pulse-quiz:      #7a3ea8;
+	--pulse-quiz-on:   #ffffff;
+	--pulse-quiz-soft: rgba(122, 62, 168, .13);
+
+	/* ── Typo-Skala (§3.5 — eine statt ~14) ───────────────────────────────── */
+	--t-cap:  12px; /* Meta, Labels                       */
+	--t-sm:   14px; /* Sekundärtext                       */
+	--t-body: 16px; /* Fließtext, Buttons (kein iOS-Zoom) */
+	--t-lead: 20px; /* Frage Handy, Kartentitel           */
+	--t-h2:   26px; /* Screen-Titel                       */
+	--t-h1:   34px; /* Landing                            */
+
+	/* ── Beamer-Skala (fern-lesbar, relativ zum Viewport) ─────────────────── */
+	--b-meta: clamp(15px, 1.4vw, 26px);
+	--b-body: clamp(20px, 2.2vw, 40px);
+	--b-tile: clamp(22px, 2.4vw, 46px);
+	--b-q:    clamp(34px, 4.2vw, 84px);
+	--b-huge: clamp(64px, 9vw, 168px);
+
+	/* ── EIN Radius-Set (§3.4) ────────────────────────────────────────────── */
+	--pulse-r-el:   8px;
+	--pulse-r-card: 14px;
+	--pulse-r-pill: 9999px;
+
+	/* ── Schatten (Dark-Werte weiter unten) ───────────────────────────────── */
+	--pulse-shadow-card: 0 2px 8px rgba(0, 0, 0, .07);
+	--pulse-shadow-pop:  0 8px 28px rgba(0, 0, 0, .16);
+
+	/* ── Kanonische Antwort-Palette A–H — AA-geprüft, THEME-UNABHÄNGIG ──────
+	   Jede Farbe trägt ihre eigene, geprüfte Textfarbe (--opt-*-ink). Wird von
+	   der Live-Kachel über den Handy-Button bis in den Ergebnis-Balken
+	   durchgezogen (die Kahoot-Brücke, siehe util/palette.js). */
+	--opt-a: #c23b2e; --opt-a-ink: #ffffff; /* Rot     */
+	--opt-b: #1d6fb0; --opt-b-ink: #ffffff; /* Blau    */
+	--opt-c: #2e7d46; --opt-c-ink: #ffffff; /* Grün    */
+	--opt-d: #e8a200; --opt-d-ink: #241a00; /* Amber → dunkler Text (AA-Fix) */
+	--opt-e: #7b3fa0; --opt-e-ink: #ffffff; /* Lila    */
+	--opt-f: #0f7c8c; --opt-f-ink: #ffffff; /* Türkis (abgedunkelt, AA-Fix) */
+	--opt-g: #c2255c; --opt-g-ink: #ffffff; /* Magenta */
+	--opt-h: #495057; --opt-h-ink: #ffffff; /* Schiefer */
+}
+
+/*
+ * Dark: nur die theme-UNABHÄNGIGEN Tokens anfassen, die trotzdem einen
+ * eigenen Dark-Wert haben (Quiz-Akzent, Schatten). Alles andere folgt NC
+ * automatisch, weil es an --color-* gebunden ist. Selektoren = die von NC
+ * kompiliert genutzten Dark-Marker.
+ */
+[data-theme-dark],
+[data-themes*="dark"],
+.theme--dark {
+	--pulse-quiz:      #b57fe0;
+	--pulse-quiz-on:   #1c0a2b;
+	--pulse-quiz-soft: rgba(181, 127, 224, .20);
+	--pulse-shadow-card: 0 2px 10px rgba(0, 0, 0, .45);
+	--pulse-shadow-pop:  0 10px 34px rgba(0, 0, 0, .6);
+}
+
+/* NC-Standardtheme folgt dem Betriebssystem — dort Dark ebenfalls schalten. */
+@media (prefers-color-scheme: dark) {
+	[data-theme-default],
+	[data-themes*="default"] {
+		--pulse-quiz:      #b57fe0;
+		--pulse-quiz-on:   #1c0a2b;
+		--pulse-quiz-soft: rgba(181, 127, 224, .20);
+		--pulse-shadow-card: 0 2px 10px rgba(0, 0, 0, .45);
+		--pulse-shadow-pop:  0 10px 34px rgba(0, 0, 0, .6);
+	}
+}
+/* ==================== src/styles/pulse-ds.css ==================== */
+/*
+ * Pulse — Design-System-Primitive (Schritt 1).
+ * Global, un-scoped; aus dem Konzept (Stufe 1) portiert, `pulse-`-präfigiert
+ * (Kollisionsschutz zu den alten scoped Klassen während der Migration).
+ *
+ * Enthält die NC-`<button>`-Resets: Nextcloud stylt native <button> global mit
+ * hoher Spezifität -> ohne appearance/Reset schlägt das durch.
+ * Farben/Radien/Typo kommen aus pulse-tokens.css.
+ */
+
+/* ══ Buttons — EINE Hierarchie ══════════════════════════════════════════════ */
+.pulse-btn {
+	font-family: inherit;
+	font-size: var(--t-body);
+	font-weight: 600;
+	line-height: 1;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	min-height: 44px;
+	padding: 0 18px;
+	border: 1px solid transparent;
+	border-radius: var(--pulse-r-pill);
+	background: var(--pulse-fill);
+	color: var(--pulse-text);
+	cursor: pointer;
+	-webkit-appearance: none;
+	appearance: none;
+	box-shadow: none;
+	transition: filter .15s, background .15s, border-color .15s;
+}
+.pulse-btn:focus-visible { outline: 2px solid var(--pulse-primary); outline-offset: 2px; }
+.pulse-btn:disabled { opacity: .5; cursor: default; }
+
+.pulse-btn.is-primary   { background: var(--pulse-primary); color: var(--pulse-on-primary); }
+.pulse-btn.is-primary:hover:not(:disabled)   { background: var(--pulse-primary-hover); }
+.pulse-btn.is-secondary { background: transparent; color: var(--pulse-text); border-color: var(--pulse-border-strong); }
+.pulse-btn.is-secondary:hover:not(:disabled) { background: var(--pulse-hover); }
+.pulse-btn.is-tertiary  { background: var(--pulse-fill); color: var(--pulse-text); }
+.pulse-btn.is-tertiary:hover:not(:disabled)  { background: var(--pulse-hover); }
+.pulse-btn.is-quiz      { background: var(--pulse-quiz); color: var(--pulse-quiz-on); }
+.pulse-btn.is-quiz:hover:not(:disabled)      { filter: brightness(1.06); }
+
+/* Danger: default abgesetzt (Outline), nur die ernste Aktion bekommt .is-solid */
+.pulse-btn.is-danger {
+	background: transparent;
+	color: var(--pulse-error);
+	border-color: rgba(193, 48, 48, .45);
+	border-color: color-mix(in srgb, var(--pulse-error) 45%, transparent);
+}
+.pulse-btn.is-danger:hover:not(:disabled) { background: var(--pulse-error-soft); }
+.pulse-btn.is-danger.is-solid { background: var(--pulse-error); color: #fff; border-color: var(--pulse-error); }
+
+.pulse-btn.is-sm { min-height: 36px; font-size: var(--t-sm); padding: 0 12px; }
+.pulse-btn.is-icon { width: 44px; padding: 0; }
+.pulse-btn.is-icon.is-sm { width: 36px; }
+
+/* ══ Chip / Badge — EINE Familie ════════════════════════════════════════════ */
+.pulse-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	font-size: var(--t-cap);
+	font-weight: 600;
+	line-height: 1;
+	padding: 5px 11px;
+	border: 1px solid transparent;
+	border-radius: var(--pulse-r-pill);
+	background: var(--pulse-fill);
+	color: var(--pulse-text);
+}
+.pulse-chip.is-neutral { background: var(--pulse-fill); color: var(--pulse-text-2); border-color: var(--pulse-border); }
+.pulse-chip.is-accent  { background: var(--pulse-primary-soft); color: var(--pulse-primary); }
+.pulse-chip.is-live    { background: var(--pulse-success-soft); color: var(--pulse-success); }
+.pulse-chip.is-locked  { background: var(--pulse-fill); color: var(--pulse-text-2); border-color: var(--pulse-border-strong); }
+.pulse-chip.is-warning { background: var(--pulse-warning-soft); color: var(--pulse-warning); }
+.pulse-chip.is-error   { background: var(--pulse-error-soft); color: var(--pulse-error); }
+.pulse-chip.is-success { background: var(--pulse-success-soft); color: var(--pulse-success); }
+.pulse-chip.is-quiz    { background: var(--pulse-quiz-soft); color: var(--pulse-quiz); }
+
+/* Puls-Punkt für "Läuft" o.ä. — eigener Name, kollidiert nicht mit den
+   bestehenden scoped .pulse-dot in Participant/Screen. */
+.pulse-chip-dot {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background: currentColor;
+	animation: pulse-chip-dot 1.6s ease-in-out infinite;
+}
+@keyframes pulse-chip-dot { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .35; transform: scale(.7); } }
+
+/* ══ Notice ═════════════════════════════════════════════════════════════════ */
+.pulse-notice {
+	display: flex;
+	gap: 12px;
+	align-items: flex-start;
+	padding: 12px 14px;
+	border: 1px solid transparent;
+	border-radius: var(--pulse-r-el);
+	font-size: var(--t-sm);
+}
+.pulse-notice .pulse-notice-ico { flex: 0 0 20px; margin-top: 1px; }
+.pulse-notice.is-info    { background: var(--pulse-primary-soft); color: var(--pulse-primary); }
+.pulse-notice.is-warn    { background: var(--pulse-warning-soft); color: var(--pulse-warning); }
+.pulse-notice.is-success { background: var(--pulse-success-soft); color: var(--pulse-success); }
+.pulse-notice strong { display: block; color: var(--pulse-text); }
+
+/* ══ Antwort-Palette A–H — Verkabelung ══════════════════════════════════════
+   Eine Klasse pro Index setzt --opt-fill/--opt-ink; Buchstaben-Badge UND
+   Ergebnis-Balken lesen dieselben Variablen -> die Optionsfarbe wandert von
+   der Live-Kachel bis in den ausgefüllten Balken (util/palette.js liefert die
+   Klasse). Amber (D) trägt zusätzlich .is-ink für dunkle Letter-Chip-Tönung. */
+.pulse-opt-a { --opt-fill: var(--opt-a); --opt-ink: var(--opt-a-ink); }
+.pulse-opt-b { --opt-fill: var(--opt-b); --opt-ink: var(--opt-b-ink); }
+.pulse-opt-c { --opt-fill: var(--opt-c); --opt-ink: var(--opt-c-ink); }
+.pulse-opt-d { --opt-fill: var(--opt-d); --opt-ink: var(--opt-d-ink); }
+.pulse-opt-e { --opt-fill: var(--opt-e); --opt-ink: var(--opt-e-ink); }
+.pulse-opt-f { --opt-fill: var(--opt-f); --opt-ink: var(--opt-f-ink); }
+.pulse-opt-g { --opt-fill: var(--opt-g); --opt-ink: var(--opt-g-ink); }
+.pulse-opt-h { --opt-fill: var(--opt-h); --opt-ink: var(--opt-h-ink); }
+
+/* Buchstaben-Badge — Größe relativ (em), damit es auf Handy klein und auf dem
+   Beamer groß rendert; Fläche = Optionsfarbe, Text = geprüfte Ink-Farbe. */
+.pulse-badge {
+	display: inline-grid;
+	place-items: center;
+	width: 2.2em;
+	height: 2.2em;
+	border-radius: .5em;
+	font-weight: 800;
+	flex: 0 0 auto;
+	background: var(--opt-fill, var(--pulse-fill));
+	color: var(--opt-ink, var(--pulse-text));
+}
+
+/* ══ Ergebnis-Grammatik — Basis-Balken, komplett in `em` ════════════════════
+   Container-font-size steuert die Größe (Handy klein / Beamer groß). Kind-
+   Elemente NICHT in px, sonst bricht die Beamer-Skalierung (das ist der Fix
+   für §4.9 "Auflösung bleibt zu klein"). */
+.pulse-rbar { margin-bottom: .55em; }
+.pulse-rbar-top {
+	display: flex;
+	align-items: center;
+	gap: .5em;
+	font-size: .9em;
+	margin-bottom: .3em;
+}
+.pulse-rbar-top .pulse-badge { width: 1.6em; height: 1.6em; border-radius: .4em; font-size: .85em; }
+.pulse-rbar-name { font-weight: 700; }
+.pulse-rbar-pct { margin-left: auto; font-variant-numeric: tabular-nums; color: var(--pulse-text-2); }
+.pulse-rbar-track {
+	height: 1.6em;
+	border-radius: .5em;
+	background: var(--pulse-fill);
+	overflow: hidden;
+}
+.pulse-rbar-fill {
+	height: 100%;
+	border-radius: .5em;
+	background: var(--opt-fill, var(--pulse-primary));
+	transition: width .4s ease;
+}
+.pulse-rbar.is-correct .pulse-rbar-name::after {
+	content: " ✓ richtig";
+	color: var(--pulse-success);
+	font-size: .8em;
+	font-weight: 700;
+	white-space: nowrap;
+}
+
+/* "Du"-Pille — identisch in Liste, Balken, Podium. */
+.pulse-du {
+	display: inline-flex;
+	align-items: center;
+	font-size: .75em;
+	font-weight: 700;
+	padding: .12em .55em;
+	border-radius: var(--pulse-r-pill);
+	background: var(--pulse-primary-soft);
+	color: var(--pulse-primary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.pulse-chip-dot { animation: none; }
+	.pulse-rbar-fill { transition: none; }
+	.pulse-btn { transition: none; }
+}
+/* ── nur für die Vorschau: Layout + die scoped Styles aus PulseIcon/Segmented/Confirm ── */
+body{margin:0;background:var(--pulse-bg);color:var(--pulse-text);font-family:-apple-system,"Segoe UI",Roboto,sans-serif;line-height:1.5;transition:background .2s,color .2s;}
+.wrap{max-width:960px;margin:0 auto;padding:0 24px 120px;}
+.bar{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:14px;padding:14px 24px;background:var(--pulse-bg);border-bottom:1px solid var(--pulse-border);}
+.bar b{font-weight:800;} .bar .sp{flex:1;}
+h2{font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:var(--pulse-text-2);margin:44px 0 14px;}
+.row{display:flex;flex-wrap:wrap;gap:12px;align-items:center;}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(94px,1fr));gap:12px;}
+.icard{display:flex;flex-direction:column;align-items:center;gap:8px;padding:14px 6px;background:var(--pulse-fill);border-radius:var(--pulse-r-el);}
+.icard span{font-size:11px;color:var(--pulse-text-2);text-align:center;}
+.pulse-icon{display:inline-block;vertical-align:-.15em;flex:0 0 auto;}
+.icard .pulse-icon{width:26px;height:26px;}
+.card{background:var(--pulse-bg);border:1px solid var(--pulse-border);border-radius:var(--pulse-r-card);padding:18px;box-shadow:var(--pulse-shadow-card);}
+/* PulseSegmented (aus der .vue kopiert) */
+.pseg{display:inline-flex;flex-wrap:wrap;gap:4px;row-gap:4px;padding:4px;border:1px solid var(--pulse-border);border-radius:12px;background:var(--pulse-fill);}
+.pseg-item{font:inherit;font-size:var(--t-sm);font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;padding:0 14px;border:0;border-radius:9px;background:transparent;color:var(--pulse-text-2);cursor:pointer;}
+.pseg-item.is-active{background:var(--pulse-bg);color:var(--pulse-text);box-shadow:var(--pulse-shadow-card);}
+/* PulseConfirm (aus der .vue kopiert, statisch eingebettet) */
+.pconfirm{width:100%;max-width:360px;background:var(--pulse-bg);border:1px solid var(--pulse-border);border-radius:var(--pulse-r-card);box-shadow:var(--pulse-shadow-pop);padding:22px;}
+.pconfirm-title{margin:0 0 6px;font-size:var(--t-lead);display:flex;align-items:center;gap:10px;}
+.pconfirm-warn{color:var(--pulse-error);}
+.pconfirm-text{margin:0 0 18px;font-size:var(--t-sm);color:var(--pulse-text-2);}
+.pconfirm-row{display:flex;gap:10px;justify-content:flex-end;}
+.opt-row{display:flex;align-items:center;gap:14px;min-height:60px;padding:10px;border:2px solid var(--pulse-border);border-radius:var(--pulse-r-card);font-weight:600;background:var(--pulse-bg);}
+.opt-row .pulse-badge{width:44px;height:44px;font-size:20px;}
+/* §4.7 Handy (aus Participant.vue kopiert, statische Vorschau) */
+.h-choices{display:flex;flex-direction:column;gap:12px;max-width:420px;}
+.h-choice{appearance:none;display:flex;align-items:center;gap:14px;min-height:60px;padding:10px 14px 10px 10px;border:2px solid var(--pulse-border);border-radius:var(--pulse-r-card);background:var(--pulse-bg);color:var(--pulse-text);font-size:var(--t-body);font-weight:600;text-align:left;width:100%;cursor:pointer;font-family:inherit;}
+.h-choice .pulse-badge{flex:0 0 44px;width:44px;height:44px;border-radius:11px;font-size:20px;}
+.h-choice-label{flex:1;}
+.h-choice.is-picked{border-color:var(--pulse-primary);box-shadow:0 0 0 2px var(--pulse-primary) inset;font-weight:800;}
+.h-choice-box{margin-left:auto;width:26px;height:26px;border:2px solid var(--pulse-border-strong);border-radius:7px;display:grid;place-items:center;color:var(--pulse-on-primary);}
+.h-choice.is-picked .h-choice-box{background:var(--pulse-primary);border-color:var(--pulse-primary);}
+.h-tf{display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:420px;}
+.h-tf-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;min-height:128px;padding:20px;border:2px solid var(--pulse-border);border-radius:var(--pulse-r-card);background:var(--pulse-bg);color:var(--pulse-text);font-size:var(--t-lead);font-weight:800;font-family:inherit;}
+.h-tf-mark{width:52px;height:52px;border-radius:50%;display:grid;place-items:center;color:#fff;}
+.h-tf-btn.is-yes .h-tf-mark{background:var(--pulse-success);}
+.h-tf-btn.is-no .h-tf-mark{background:var(--pulse-error);}
+.h-scale{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;max-width:420px;}
+.h-scale-btn{aspect-ratio:1;min-height:44px;border:2px solid var(--pulse-border);border-radius:var(--pulse-r-el);background:var(--pulse-bg);color:var(--pulse-text);font-size:var(--t-lead);font-weight:800;display:grid;place-items:center;font-family:inherit;}
+.h-timer{display:flex;align-items:center;gap:12px;max-width:420px;margin-bottom:10px;}
+.h-timer-track{flex:1;height:12px;border-radius:999px;background:var(--pulse-fill);overflow:hidden;}
+.h-timer-fill{height:100%;border-radius:999px;background:var(--pulse-primary);}
+.h-timer.is-low .h-timer-fill{background:var(--pulse-error);}
+.h-timer-num{font-size:var(--t-lead);font-weight:800;min-width:2ch;text-align:right;}
+.h-timer.is-low .h-timer-num{color:var(--pulse-error);}
+.h-verdict{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;}
+.h-verdict-mark{width:72px;height:72px;border-radius:50%;display:grid;place-items:center;color:#fff;}
+.h-verdict.is-ok .h-verdict-mark{background:var(--pulse-success);}
+.h-verdict.is-no .h-verdict-mark{background:var(--pulse-error);}
+.h-verdict-text{font-size:var(--t-h2);font-weight:800;}
+.h-verdict.is-ok .h-verdict-text{color:var(--pulse-success);}
+.h-verdict.is-no .h-verdict-text{color:var(--pulse-error);}
+.states{display:flex;gap:32px;flex-wrap:wrap;align-items:flex-start;}
+/* §4.9 Beamer-Kacheln (aus Screen.vue) */
+.b-tiles{display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:680px;}
+.b-tile{display:flex;align-items:center;gap:18px;padding:22px;border-radius:var(--pulse-r-card);min-height:96px;background:var(--opt-fill,var(--pulse-primary));color:var(--opt-ink,#fff);font-weight:800;font-size:26px;}
+.b-tile.is-yes{background:var(--pulse-success);color:#fff;}
+.b-tile.is-no{background:var(--pulse-error);color:#fff;}
+.b-key,.b-mark{flex:0 0 auto;display:grid;place-items:center;width:56px;height:56px;border-radius:14px;background:rgba(255,255,255,.22);font-size:30px;font-weight:900;}
+.b-mark{border-radius:50%;}
+.b-tile.is-ink .b-key{background:rgba(0,0,0,.16);}
+</style>
+</head>
+<body>
+<div class="bar"><b>● Pulse</b> · DS-Vorschau Schritt 1 <span class="sp"></span>
+  <button class="pulse-btn is-secondary is-sm" onclick="var h=document.documentElement;h.toggleAttribute('data-theme-dark');this.textContent=h.hasAttribute('data-theme-dark')?'◑ Light':'◐ Dark';">◐ Dark</button>
+</div>
+<div class="wrap">
+
+  <h2>Buttons</h2>
+  <div class="row">
+    <button class="pulse-btn is-primary">Präsentation starten</button>
+    <button class="pulse-btn is-secondary">Beamer</button>
+    <button class="pulse-btn is-tertiary">Zurücksetzen</button>
+    <button class="pulse-btn is-quiz">Quiz starten</button>
+    <button class="pulse-btn is-danger">Beenden</button>
+    <button class="pulse-btn is-primary is-sm">klein</button>
+    <button class="pulse-btn is-secondary" disabled>disabled</button>
+    <button class="pulse-btn is-icon is-secondary" aria-label="Schließen"><svg class="pulse-icon" style="width:20px;height:20px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>
+  </div>
+
+  <h2>Chips</h2>
+  <div class="row">
+    <span class="pulse-chip is-live"><span class="pulse-chip-dot"></span> Läuft</span>
+    <span class="pulse-chip is-locked">Gesperrt</span>
+    <span class="pulse-chip is-accent">Aufgelöst</span>
+    <span class="pulse-chip is-neutral">Multiple Choice</span>
+    <span class="pulse-chip is-quiz">Quiz</span>
+    <span class="pulse-chip is-warning">Probelauf · zählt nicht</span>
+    <span class="pulse-chip is-success">+120 Punkte</span>
+    <span class="pulse-chip is-error">Offline</span>
+  </div>
+
+  <h2>Notices</h2>
+  <div class="row" style="flex-direction:column;align-items:stretch">
+    <div class="pulse-notice is-info"><div><strong>Probelauf aktiv</strong>Antworten zählen nicht zur Wertung.</div></div>
+    <div class="pulse-notice is-warn"><div><strong>Noch keine Frage im Deck</strong>Füge zuerst eine Frage hinzu.</div></div>
+    <div class="pulse-notice is-success"><div><strong>Antwort gespeichert</strong>Du kannst sie bis zur Auflösung ändern.</div></div>
+  </div>
+
+  <h2>Icon-Set (currentColor)</h2>
+  <div class="grid" id="icons"></div>
+
+  <h2>Antwort-Palette A–H (Buchstabe + Farbe, AA)</h2>
+  <div class="row">
+    <span class="pulse-badge pulse-opt-a" style="width:44px;height:44px;font-size:20px">A</span>
+    <span class="pulse-badge pulse-opt-b" style="width:44px;height:44px;font-size:20px">B</span>
+    <span class="pulse-badge pulse-opt-c" style="width:44px;height:44px;font-size:20px">C</span>
+    <span class="pulse-badge pulse-opt-d" style="width:44px;height:44px;font-size:20px">D</span>
+    <span class="pulse-badge pulse-opt-e" style="width:44px;height:44px;font-size:20px">E</span>
+    <span class="pulse-badge pulse-opt-f" style="width:44px;height:44px;font-size:20px">F</span>
+    <span class="pulse-badge pulse-opt-g" style="width:44px;height:44px;font-size:20px">G</span>
+    <span class="pulse-badge pulse-opt-h" style="width:44px;height:44px;font-size:20px">H</span>
+  </div>
+  <div class="row" style="margin-top:16px">
+    <div class="opt-row pulse-opt-a" style="flex:1;min-width:200px"><span class="pulse-badge">A</span> Sydney</div>
+    <div class="opt-row pulse-opt-d" style="flex:1;min-width:200px"><span class="pulse-badge">D</span> Amber trägt dunklen Text</div>
+  </div>
+
+  <h2>Ergebnis-Grammatik (dieselbe Komponente, em-skaliert)</h2>
+  <div class="card">
+    <div style="color:var(--pulse-text-2);font-size:12px;margin-bottom:8px">Handy-Größe (font-size:16px)</div>
+    <div class="pulse-rbar is-correct pulse-opt-b" style="font-size:16px">
+      <div class="pulse-rbar-top"><span class="pulse-badge">B</span><span class="pulse-rbar-name">Canberra</span><span class="pulse-rbar-pct">72 · 56 %</span></div>
+      <div class="pulse-rbar-track"><div class="pulse-rbar-fill" style="width:56%"></div></div>
+    </div>
+    <div class="pulse-rbar pulse-opt-a" style="font-size:16px">
+      <div class="pulse-rbar-top"><span class="pulse-badge">A</span><span class="pulse-rbar-name">Sydney</span><span class="pulse-rbar-pct">44 · 34 %</span></div>
+      <div class="pulse-rbar-track"><div class="pulse-rbar-fill" style="width:34%"></div></div>
+    </div>
+    <div style="color:var(--pulse-text-2);font-size:12px;margin:18px 0 8px">Beamer-Größe (font-size:34px) — dieselbe Klasse</div>
+    <div class="pulse-rbar is-correct pulse-opt-b" style="font-size:34px">
+      <div class="pulse-rbar-top"><span class="pulse-badge">B</span><span class="pulse-rbar-name">Canberra</span><span class="pulse-rbar-pct">72 · 56 %</span></div>
+      <div class="pulse-rbar-track"><div class="pulse-rbar-fill" style="width:56%"></div></div>
+    </div>
+    <div style="margin-top:14px">Rangliste: <span class="pulse-du">Du</span></div>
+  </div>
+
+  <h2>§4.7 Handy — Abstimmen (Palette-Brücke: Buchstabe + Farbe)</h2>
+  <div class="h-choices">
+    <button class="h-choice pulse-opt-a"><span class="pulse-badge">A</span><span class="h-choice-label">Sydney</span></button>
+    <button class="h-choice pulse-opt-b"><span class="pulse-badge">B</span><span class="h-choice-label">Canberra</span></button>
+    <button class="h-choice pulse-opt-c"><span class="pulse-badge">C</span><span class="h-choice-label">Melbourne</span></button>
+    <button class="h-choice pulse-opt-d"><span class="pulse-badge">D</span><span class="h-choice-label">Perth · Amber trägt dunklen Text</span></button>
+  </div>
+
+  <h2>§4.7 — Wahr/Falsch (codiert) · Mehrfachauswahl · Skala 0–10</h2>
+  <div class="h-tf" style="margin-bottom:18px">
+    <button class="h-tf-btn is-yes"><span class="h-tf-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:1.6em;height:1.6em"><polyline points="4 12 10 18 20 6"/></svg></span> Wahr</button>
+    <button class="h-tf-btn is-no"><span class="h-tf-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:1.6em;height:1.6em"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></span> Falsch</button>
+  </div>
+  <div class="h-choices" style="margin-bottom:18px">
+    <button class="h-choice is-multi pulse-opt-a"><span class="pulse-badge">A</span><span class="h-choice-label">Barrierefreiheit</span><span class="h-choice-box"></span></button>
+    <button class="h-choice is-multi pulse-opt-b is-picked"><span class="pulse-badge">B</span><span class="h-choice-label">Kontrast (gewählt)</span><span class="h-choice-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:1.1em;height:1.1em"><polyline points="4 12 10 18 20 6"/></svg></span></button>
+    <button class="h-choice is-multi pulse-opt-c is-picked"><span class="pulse-badge">C</span><span class="h-choice-label">Fokus-Sichtbarkeit (gewählt)</span><span class="h-choice-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:1.1em;height:1.1em"><polyline points="4 12 10 18 20 6"/></svg></span></button>
+  </div>
+  <div class="h-scale">
+    <button class="h-scale-btn">0</button><button class="h-scale-btn">1</button><button class="h-scale-btn">2</button><button class="h-scale-btn">3</button><button class="h-scale-btn">4</button><button class="h-scale-btn">5</button>
+    <button class="h-scale-btn">6</button><button class="h-scale-btn">7</button><button class="h-scale-btn">8</button><button class="h-scale-btn">9</button><button class="h-scale-btn">10</button>
+  </div>
+
+  <h2>§4.7 — Zustände (Auflösung + Timer)</h2>
+  <div class="states">
+    <div class="h-verdict is-ok"><span class="h-verdict-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:2em;height:2em"><polyline points="4 12 10 18 20 6"/></svg></span><span class="h-verdict-text">Richtig!</span><span class="pulse-chip is-success">+120</span></div>
+    <div class="h-verdict is-no"><span class="h-verdict-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:2em;height:2em"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></span><span class="h-verdict-text">Leider daneben</span></div>
+    <div style="min-width:260px">
+      <div class="h-timer"><div class="h-timer-track"><div class="h-timer-fill" style="width:70%"></div></div><span class="h-timer-num">18</span></div>
+      <div class="h-timer is-low"><div class="h-timer-track"><div class="h-timer-fill" style="width:14%"></div></div><span class="h-timer-num">3</span></div>
+    </div>
+  </div>
+
+  <h2>§4.9 Beamer — Live-Kacheln (Palette-Brücke: gleiche Farbe + Buchstabe wie Handy)</h2>
+  <div class="b-tiles">
+    <div class="b-tile pulse-opt-a"><span class="b-key">A</span> Sydney</div>
+    <div class="b-tile pulse-opt-b"><span class="b-key">B</span> Canberra</div>
+    <div class="b-tile pulse-opt-c"><span class="b-key">C</span> Melbourne</div>
+    <div class="b-tile pulse-opt-d is-ink"><span class="b-key">D</span> Perth · Amber = dunkler Ink</div>
+  </div>
+  <div class="b-tiles" style="margin-top:16px">
+    <div class="b-tile is-yes"><span class="b-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:1.4em;height:1.4em"><polyline points="4 12 10 18 20 6"/></svg></span> Wahr</div>
+    <div class="b-tile is-no"><span class="b-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:1.4em;height:1.4em"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></span> Falsch</div>
+  </div>
+
+  <h2>Segmented-Control (Wrap-fest)</h2>
+  <div class="pseg">
+    <button class="pseg-item is-active">Umfrage</button>
+    <button class="pseg-item">Quiz</button>
+    <button class="pseg-item">Wortwolke</button>
+    <button class="pseg-item">Skala</button>
+  </div>
+
+  <h2>Bestätigungsdialog (destruktiv)</h2>
+  <div class="pconfirm">
+    <h5 class="pconfirm-title"><svg class="pulse-icon pconfirm-warn" style="width:22px;height:22px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 20h20L12 3z"/><line x1="12" y1="10" x2="12" y2="14"/><line x1="12" y1="17.5" x2="12" y2="17.5"/></svg> Raum wirklich löschen?</h5>
+    <p class="pconfirm-text">„HWZ UTC" und alle Antworten werden dauerhaft entfernt. Das lässt sich nicht rückgängig machen.</p>
+    <div class="pconfirm-row"><button class="pulse-btn is-secondary is-sm">Abbrechen</button><button class="pulse-btn is-sm is-danger is-solid">Endgültig löschen</button></div>
+  </div>
+
+</div>
+<script>
+var ICONS={check:'<polyline points="4 12 10 18 20 6"/>',close:'<line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>',eye:'<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',fullscreen:'<path d="M4 9V4h5"/><path d="M20 9V4h-5"/><path d="M4 15v5h5"/><path d="M20 15v5h-5"/>',timer:'<circle cx="12" cy="13" r="8"/><path d="M12 13V9"/><path d="M9 2h6"/>',beamer:'<rect x="2" y="6" width="20" height="11" rx="2"/><path d="M8 21h8"/>',poll:'<line x1="6" y1="20" x2="6" y2="12"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="18" y1="20" x2="18" y2="9"/>',quiz:'<circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.8.4-1 .9-1 1.7"/><line x1="12" y1="17" x2="12" y2="17"/>',ranking:'<path d="M8 21V9h8v12"/><path d="M4 21V13h4"/><path d="M16 21V5h4v16"/>',chevron:'<polyline points="9 6 15 12 9 18"/>',drag:'<circle cx="9" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="18" r="1"/>',trash:'<path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/>',edit:'<path d="M4 20h4L18.5 9.5a2.12 2.12 0 0 0-3-3L5 17v3z"/><path d="M13.5 6.5l3 3"/>','arrow-up':'<line x1="12" y1="19" x2="12" y2="5"/><polyline points="6 11 12 5 18 11"/>','arrow-down':'<line x1="12" y1="5" x2="12" y2="19"/><polyline points="6 13 12 19 18 13"/>',warning:'<path d="M12 3 2 20h20L12 3z"/><line x1="12" y1="10" x2="12" y2="14"/><line x1="12" y1="17.5" x2="12" y2="17.5"/>',play:'<polygon points="7 4 20 12 7 20 7 4"/>',reset:'<path d="M3 12a9 9 0 1 0 3-6.7"/><polyline points="3 3 3 8 8 8"/>',check_ring:'<circle cx="12" cy="12" r="9"/><polyline points="8 12 11 15 16 9"/>'};
+var g=document.getElementById('icons');
+Object.keys(ICONS).forEach(function(n){g.insertAdjacentHTML('beforeend','<div class="icard"><svg class="pulse-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+ICONS[n]+'</svg><span>'+n+'</span></div>');});
+</script>
+</body>
+</html>

@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="de" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pulse — Kompass (2D-Feld)</title>
+<style>
+/* PULSE — Skala-Option „2D-Feld / Kompass": Handy 2D-Pad + Beamer Scatter/Heatmap. NC-Tokens, Light+Dark. */
+:root, [data-theme="light"]{
+  --nc-main-bg:#ffffff; --nc-main-text:#1a1a1a; --nc-maxcontrast:#6b6b6b;
+  --nc-bg-hover:#f2f2f2; --nc-bg-dark:#ededed; --nc-border:#dcdcdc; --nc-border-dark:#c4c4c4;
+  --nc-primary:#0069c2; --nc-primary-el:#006aa3; --nc-primary-hover:#00538a; --nc-primary-light:rgba(0,105,194,.12); --nc-on-primary:#fff;
+  --nc-quiz:#7a3ea8; --nc-quiz-light:rgba(122,62,168,.14);
+  --nc-success:#2d7d46;
+  --stage-grad: radial-gradient(120% 90% at 50% -10%, #eaf3fd 0%, #f6f8fb 45%, #eef1f6 100%);
+  --shadow-card:0 2px 8px rgba(0,0,0,.07); --shadow-pop:0 8px 28px rgba(0,0,0,.16);
+}
+[data-theme="dark"]{
+  --nc-main-bg:#171717; --nc-main-text:#ededed; --nc-maxcontrast:#a0a0a0;
+  --nc-bg-hover:#262626; --nc-bg-dark:#242424; --nc-border:#333; --nc-border-dark:#454545;
+  --nc-primary:#3ba1f0; --nc-primary-el:#3ba1f0; --nc-primary-hover:#64b6f5; --nc-primary-light:rgba(59,161,240,.18); --nc-on-primary:#06243a;
+  --nc-quiz:#b57fe0; --nc-quiz-light:rgba(181,127,224,.20);
+  --nc-success:#57c06f;
+  --stage-grad: radial-gradient(120% 95% at 50% -10%, #10233c 0%, #0d1626 45%, #0a0f18 100%);
+  --shadow-card:0 2px 10px rgba(0,0,0,.45); --shadow-pop:0 10px 34px rgba(0,0,0,.6);
+}
+:root{ --t-cap:12px; --t-sm:14px; --t-body:16px; --t-lead:20px; --r-el:8px; --r-card:14px;
+  --fs:-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif; }
+*{box-sizing:border-box;}
+body{margin:0; font-family:var(--fs); color:#1c2230; background:#eef1f5; -webkit-font-smoothing:antialiased; line-height:1.5;}
+
+.doc-head{position:sticky; top:0; z-index:40; display:flex; align-items:center; gap:16px; flex-wrap:wrap; padding:14px 28px; background:#0b1f38; color:#fff; border-bottom:3px solid #0069c2;}
+.doc-head .logo{display:flex; align-items:center; gap:10px; font-weight:800;}
+.doc-head .logo .dot{width:14px;height:14px;border-radius:50%;background:#0069c2;box-shadow:0 0 0 4px rgba(0,105,194,.3);}
+.doc-head .sub{color:#9db6d4; font-size:13px;} .doc-head .spacer{flex:1;}
+.theme-btn{cursor:pointer; border:1px solid rgba(255,255,255,.3); background:rgba(255,255,255,.08); color:#fff; font:inherit; font-size:13px; padding:6px 13px; border-radius:999px;}
+.theme-btn:hover{background:rgba(255,255,255,.18);}
+
+.wrap{max-width:1180px; margin:0 auto; padding:0 28px 120px;}
+section.block{margin-top:52px;}
+.eyebrow{font-size:12px; letter-spacing:.16em; text-transform:uppercase; color:#0069c2; font-weight:700;}
+h2.sec{font-size:28px; margin:6px 0 4px; letter-spacing:-.01em; color:#101828;}
+.sec-intro{color:#4a5568; max-width:72ch; margin:0 0 8px;}
+.why{border-left:3px solid #0069c2; background:#eaf2fb; padding:10px 14px; border-radius:0 8px 8px 0; font-size:14px; color:#20344d; margin:14px 0;}
+.why b{color:#0b3f74;}
+.dark-note{border-left:3px solid #5a4b8a; background:#efecf7; color:#2f2650;} .dark-note b{color:#4a3a86;}
+.legend{display:flex; gap:16px; flex-wrap:wrap; font-size:13px; color:#4a5568; margin-top:10px;}
+.legend .sw{display:inline-block; width:14px; height:14px; border-radius:4px; vertical-align:-2px; margin-right:6px;}
+.two{display:grid; grid-template-columns:340px 1fr; gap:24px; align-items:start;}
+@media (max-width:920px){ .two{grid-template-columns:1fr} }
+
+/* Phone */
+.phone{width:340px; max-width:100%; border-radius:34px; padding:12px; background:linear-gradient(160deg,#2a2f3a,#12151c); box-shadow:var(--shadow-pop); margin:0 auto;}
+.phone .screen{background:var(--nc-main-bg); color:var(--nc-main-text); border-radius:24px; overflow:hidden; display:flex; flex-direction:column;}
+.phone .notch{height:26px; display:flex; justify-content:center;}
+.phone .notch::after{content:""; width:120px; height:22px; background:#12151c; border-radius:0 0 16px 16px;}
+.nc-topbar{background:var(--nc-primary); color:#fff; padding:10px 14px; display:flex; align-items:center; gap:8px; font-size:14px; font-weight:600;}
+.nc-topbar .rings{display:flex; gap:3px;} .nc-topbar .rings i{width:11px;height:11px;border:2.5px solid #fff;border-radius:50%;display:inline-block;}
+.phone .body{padding:16px 16px 20px; display:flex; flex-direction:column; gap:14px;}
+.chip{display:inline-flex; align-items:center; gap:6px; font-size:var(--t-cap); font-weight:600; padding:5px 11px; border-radius:999px; background:var(--nc-success);color:#fff;}
+.chip .dot{width:8px;height:8px;border-radius:50%;background:#fff;animation:pd 1.6s ease-in-out infinite;}
+@keyframes pd{0%,100%{opacity:1}50%{opacity:.35}}
+@media (prefers-reduced-motion:reduce){.chip .dot{animation:none}}
+
+/* 2D-Pad */
+.pad-grid{display:grid; grid-template-columns:auto 1fr auto; grid-template-rows:auto 1fr auto; gap:6px; align-items:center; justify-items:center;}
+.pad-pole{font-size:var(--t-cap); color:var(--nc-maxcontrast); text-align:center; max-width:9ch;}
+.pad-pole.side{writing-mode:vertical-rl; transform:rotate(180deg);}
+.pad{grid-column:2; grid-row:2; position:relative; width:230px; height:230px; border:1.5px solid var(--nc-border-dark); border-radius:12px;
+  background:var(--nc-bg-dark); touch-action:none; cursor:crosshair;}
+.pad .axis{position:absolute; background:var(--nc-border-dark);}
+.pad .axis.v{left:50%; top:0; width:2px; height:100%; transform:translateX(-1px);}
+.pad .axis.h{top:50%; left:0; height:2px; width:100%; transform:translateY(-1px);}
+.pad .thumb{position:absolute; width:34px; height:34px; border-radius:50%; background:var(--nc-quiz); border:3px solid var(--nc-main-bg);
+  box-shadow:0 2px 6px rgba(0,0,0,.35); transform:translate(-50%,-50%); left:50%; top:50%;}
+.pad:focus-within{outline:2px solid var(--nc-primary-el); outline-offset:3px;}
+.readout{text-align:center; font-size:var(--t-cap); color:var(--nc-maxcontrast);}
+.readout b{color:var(--nc-quiz); font-family:ui-monospace,monospace;}
+
+.axrow{display:flex; flex-direction:column; gap:4px;}
+.axrow .lab{display:flex; justify-content:space-between; font-size:var(--t-cap); color:var(--nc-maxcontrast);}
+.axrow .name{font-weight:700; font-size:var(--t-sm); color:var(--nc-main-text);}
+.srange{-webkit-appearance:none; appearance:none; width:100%; height:44px; background:transparent; cursor:pointer; margin:0;}
+.srange:focus-visible{outline:2px solid var(--nc-primary-el); outline-offset:3px; border-radius:8px;}
+.srange::-webkit-slider-runnable-track{height:8px; border-radius:999px; background:var(--nc-bg-dark);}
+.srange::-moz-range-track{height:8px; border-radius:999px; background:var(--nc-bg-dark);}
+.srange::-webkit-slider-thumb{-webkit-appearance:none; width:26px; height:26px; margin-top:-9px; border-radius:50%; background:var(--nc-quiz); border:3px solid var(--nc-main-bg); box-shadow:0 1px 4px rgba(0,0,0,.35);}
+.srange::-moz-range-thumb{width:26px; height:26px; border-radius:50%; background:var(--nc-quiz); border:3px solid var(--nc-main-bg); box-shadow:0 1px 4px rgba(0,0,0,.35);}
+.pbtn{font-family:inherit; font-size:var(--t-body); font-weight:600; min-height:44px; padding:0 18px; border-radius:999px; border:0; cursor:pointer; background:var(--nc-primary-el); color:var(--nc-on-primary); width:100%;}
+.pbtn:hover{background:var(--nc-primary-hover);}
+.hint{font-size:var(--t-cap); color:var(--nc-maxcontrast); text-align:center;}
+
+/* Beamer */
+.beamer{border-radius:16px; padding:14px; background:#0a0d13; box-shadow:var(--shadow-pop);}
+.beamer .screen{background:var(--nc-main-bg); color:var(--nc-main-text); border-radius:10px; overflow:hidden; padding:clamp(12px,1.6vw,20px);}
+.beamer .cap{font-size:clamp(12px,1.2vw,15px); font-weight:700; color:var(--nc-main-text); margin-bottom:2px;}
+.beamer .sub{font-size:clamp(11px,1vw,13px); color:var(--nc-maxcontrast); margin-bottom:6px;}
+.beamer svg{width:100%; height:auto; display:block;}
+.fgrid{stroke:var(--nc-border); fill:none; stroke-width:1;}
+.fnull{stroke:var(--nc-maxcontrast); fill:none; stroke-width:1.5;}
+.fborder{stroke:var(--nc-border-dark); fill:none; stroke-width:1.5;}
+.flabel{font-size:13px; font-weight:700; fill:var(--nc-main-text);}
+.fcorner{font-size:11px; fill:var(--nc-maxcontrast);}
+.beamers{display:grid; grid-template-columns:1fr 1fr; gap:18px;}
+@media (max-width:920px){ .beamers{grid-template-columns:1fr} }
+.rlegend{display:flex; gap:14px; flex-wrap:wrap; font-size:12px; color:var(--nc-maxcontrast); margin-top:8px;}
+.rlegend .d{display:inline-block; width:12px;height:12px;border-radius:50%;vertical-align:-1px;margin-right:5px;}
+
+footer.foot{margin-top:70px; padding-top:24px; border-top:1px solid #dde3ec; text-align:center; color:#7a8699; font-size:13px;}
+</style>
+</head>
+<body data-od-id="pulse-kompass">
+
+<header class="doc-head" data-od-id="doc-header">
+  <span class="logo"><span class="dot"></span> Pulse <span class="sub">· Skala-Option „2D-Feld / Kompass"</span></span>
+  <span class="spacer"></span>
+  <button class="theme-btn" id="themeToggle" data-od-id="theme-toggle">◐ Dark-Theme</button>
+</header>
+
+<div class="wrap">
+
+  <section class="block" style="margin-top:40px" data-od-id="intro">
+    <div class="eyebrow">Skala · Modus Kompass</div>
+    <h2 class="sec">Zwei Achsen, ein Punkt</h2>
+    <p class="sec-intro">Teilnehmende setzen <b>einen Punkt</b> auf zwei bipolaren Achsen (−5…+5, Mitte 0 = neutral).
+    Am Handy per <b>2D-Pad</b> (ziehen) mit zwei synchronen X/Y-Reglern als barrierefreie Alternative. Der Beamer
+    zeigt den <b>Quadranten</b>: bei wenigen Stimmen als Scatter (dein Punkt hervorgehoben), ab 40 Stimmen als
+    <b>Heatmap</b> — mit dem <b>Schwerpunkt des Raums</b> als Marker. Beispiel: X = praktisch ↔ theoretisch,
+    Y = einzeln ↔ gemeinsam.</p>
+  </section>
+
+  <div class="two">
+    <!-- HANDY -->
+    <div data-od-id="handy-col">
+      <div class="eyebrow" style="margin-bottom:10px">Handy · Eingabe</div>
+      <div class="phone" data-od-id="handy-kompass">
+        <div class="notch"></div>
+        <div class="screen">
+          <div class="nc-topbar"><span class="rings"><i></i><i></i><i></i></span> Nextcloud</div>
+          <div class="body">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span class="chip"><span class="dot"></span> Läuft</span>
+              <span style="font-size:var(--t-cap); color:var(--nc-maxcontrast)">Mitte = neutral</span>
+            </div>
+            <div style="font-size:var(--t-lead); font-weight:700;">Wie tickst Du?</div>
+
+            <div class="pad-grid">
+              <div></div><div class="pad-pole" id="poleTop">gemeinsam</div><div></div>
+              <div class="pad-pole side" id="poleLeft">praktisch</div>
+              <div class="pad" id="pad" role="application" aria-label="2D-Feld: X praktisch–theoretisch, Y einzeln–gemeinsam; ziehe den Punkt">
+                <div class="axis v"></div><div class="axis h"></div>
+                <div class="thumb" id="thumb"></div>
+              </div>
+              <div class="pad-pole side" id="poleRight">theoretisch</div>
+              <div></div><div class="pad-pole" id="poleBottom">einzeln</div><div></div>
+            </div>
+            <div class="readout">Deine Position: <b id="ro">X 0 · Y 0</b></div>
+
+            <div class="axrow">
+              <div class="name">praktisch ↔ theoretisch</div>
+              <input class="srange" id="rx" type="range" min="-5" max="5" step="1" value="0" aria-label="Achse praktisch bis theoretisch, −5 bis 5">
+            </div>
+            <div class="axrow">
+              <div class="name">einzeln ↔ gemeinsam</div>
+              <input class="srange" id="ry" type="range" min="-5" max="5" step="1" value="0" aria-label="Achse einzeln bis gemeinsam, −5 bis 5">
+            </div>
+
+            <div class="hint">Zieh den Punkt oder nutz die Regler. Mitte = neutral (zählt).</div>
+            <button class="pbtn">Absenden</button>
+          </div>
+        </div>
+      </div>
+      <div class="legend"><span><b>A11y:</b> Das Pad ist die schnelle Geste; die beiden Regler setzen denselben
+      Punkt und sind tastatur-/screenreader-bedienbar. Beide sind synchron.</span></div>
+    </div>
+
+    <!-- BEAMER -->
+    <div data-od-id="beamer-col">
+      <div class="eyebrow" style="margin-bottom:10px">Beamer · Ergebnis (zwei Zustände)</div>
+      <div class="beamers">
+        <div class="beamer" data-od-id="beamer-scatter">
+          <div class="screen">
+            <div class="cap">Wenige Stimmen · Scatter</div>
+            <div class="sub">22 Antworten · dein Punkt hervorgehoben</div>
+            <svg id="scatter" viewBox="0 0 420 380" role="img" aria-label="Streudiagramm der Antworten im Quadranten"></svg>
+            <div class="rlegend">
+              <span><span class="d" style="background:var(--nc-primary-el);opacity:.5"></span> Stimme</span>
+              <span><span class="d" style="background:var(--nc-quiz)"></span> Du</span>
+              <span><span class="d" style="background:var(--nc-primary-el)"></span> Schwerpunkt</span>
+            </div>
+          </div>
+        </div>
+        <div class="beamer" data-od-id="beamer-heatmap">
+          <div class="screen">
+            <div class="cap">Viele Stimmen · Heatmap</div>
+            <div class="sub">128 Antworten · Dichte statt Einzelpunkte (ab 40)</div>
+            <svg id="heatmap" viewBox="0 0 420 380" role="img" aria-label="Heatmap der Antwortdichte im Quadranten"></svg>
+            <div class="rlegend">
+              <span><span class="d" style="background:var(--nc-primary-el);opacity:.25;border-radius:3px"></span> wenig</span>
+              <span><span class="d" style="background:var(--nc-primary-el);opacity:.75;border-radius:3px"></span> viel</span>
+              <span><span class="d" style="background:var(--nc-quiz)"></span> Du</span>
+              <span><span class="d" style="background:var(--nc-primary-el)"></span> Schwerpunkt</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="legend"><span><b>Lesart:</b> Achsenschnittpunkt = neutral; die vier Ecken sind die Quadranten-
+      Kombinationen. Der Schwerpunkt zeigt die Tendenz des Raums, dein Punkt Deine Position darin.</span></div>
+    </div>
+  </div>
+
+  <section class="block" data-od-id="notes">
+    <div class="why"><b>Warum Kompass:</b> Zwei zusammenhängende Achsen ergeben ein Profil, das ein einzelner
+    Wert nicht zeigt — „praktisch <i>und</i> gemeinsam" statt zweier getrennter Skalen. Der Schwerpunkt macht die
+    Raum-Tendenz sichtbar, die Heatmap fängt große Gruppen ohne Punktesalat. Feld als SVG-<span style="font-family:ui-monospace,monospace">viewBox</span>
+    → skaliert Handy bis Beamer.</div>
+    <div class="why dark-note"><b>Dark-Abweichung:</b> Gitter/Nulllinien nutzen <span style="font-family:ui-monospace,monospace">--nc-border</span>/
+    <span style="font-family:ui-monospace,monospace">--nc-maxcontrast</span>; Heatmap = Primärton mit Deckungs-Stufen. „Du" ist der
+    Quiz-Akzent (Lila), damit Dein Punkt sich von der blauen Menge und dem Schwerpunkt abhebt — plus „Du"-Label (Farbe nie allein).</div>
+    <div class="legend"><span><b>Umsetzungs-Spec:</b> Markup, Pad-Logik, Scatter/Heatmap/Centroid-Berechnung, Datenmodell
+    und Abnahme in <b>HANDOFF-kompass.md</b> · Paket + Prompt in <b>kompass-paket.md</b>.</span></div>
+  </section>
+
+</div>
+
+<footer class="foot">Pulse · Skala-Option „2D-Feld / Kompass" · Quadranten-Scatter/Heatmap + Centroid · NC-Tokens · Light + Dark</footer>
+
+<script>
+/* Theme */
+(function(){var b=document.getElementById('themeToggle'),d=document.documentElement;
+ b.addEventListener('click',function(){var k=d.getAttribute('data-theme')==='dark';d.setAttribute('data-theme',k?'light':'dark');b.textContent=k?'◐ Dark-Theme':'◑ Light-Theme';try{localStorage.setItem('pulse-doc-theme',k?'light':'dark')}catch(e){}});
+ try{var s=localStorage.getItem('pulse-doc-theme');if(s){d.setAttribute('data-theme',s);b.textContent=s==='dark'?'◑ Light-Theme':'◐ Dark-Theme'}}catch(e){}})();
+
+var R = 5;
+var AX = {xLow:'praktisch', xHigh:'theoretisch', yLow:'einzeln', yHigh:'gemeinsam'};
+
+/* ---- Handy: 2D-Pad + Regler synchron ---- */
+(function(){
+  var pad=document.getElementById('pad'), thumb=document.getElementById('thumb'),
+      rx=document.getElementById('rx'), ry=document.getElementById('ry'), ro=document.getElementById('ro');
+  var x=0, y=0;
+  function paint(){
+    thumb.style.left=((x/R+1)/2*100)+'%';
+    thumb.style.top=((1-(y/R+1)/2)*100)+'%';
+    ro.textContent='X '+(x>0?'+':'')+x+' · Y '+(y>0?'+':'')+y;
+    rx.value=x; ry.value=y;
+  }
+  function setXY(nx,ny){ x=Math.max(-R,Math.min(R,Math.round(nx))); y=Math.max(-R,Math.min(R,Math.round(ny))); paint(); }
+  function fromClient(cx,cy){ var r=pad.getBoundingClientRect();
+    var px=(cx-r.left)/r.width, py=(cy-r.top)/r.height;
+    setXY((px*2-1)*R, (1-py*2)*R); }
+  var down=false;
+  pad.addEventListener('pointerdown', function(e){ down=true; pad.setPointerCapture(e.pointerId); fromClient(e.clientX,e.clientY); });
+  pad.addEventListener('pointermove', function(e){ if(down) fromClient(e.clientX,e.clientY); });
+  pad.addEventListener('pointerup', function(){ down=false; });
+  rx.addEventListener('input', function(){ setXY(+rx.value, y); });
+  ry.addEventListener('input', function(){ setXY(x, +ry.value); });
+  paint();
+})();
+
+/* ---- Beamer-Feld: gemeinsame Zeichnung ---- */
+var cx=210, cy=185, H=140;                 // Plot: Zentrum + Halb-Spanne
+function sx(x){ return cx + (x/R)*H; }
+function sy(y){ return cy - (y/R)*H; }
+function fieldSVG(){
+  var s='';
+  for(var g=-R; g<=R; g++){                // Gitter je ganze Einheit
+    s+='<line class="fgrid" x1="'+sx(g)+'" y1="'+sy(-R)+'" x2="'+sx(g)+'" y2="'+sy(R)+'"/>';
+    s+='<line class="fgrid" x1="'+sx(-R)+'" y1="'+sy(g)+'" x2="'+sx(R)+'" y2="'+sy(g)+'"/>';
+  }
+  s+='<rect class="fborder" x="'+sx(-R)+'" y="'+sy(R)+'" width="'+(2*H)+'" height="'+(2*H)+'" rx="6"/>';
+  s+='<line class="fnull" x1="'+sx(0)+'" y1="'+sy(-R)+'" x2="'+sx(0)+'" y2="'+sy(R)+'"/>';
+  s+='<line class="fnull" x1="'+sx(-R)+'" y1="'+sy(0)+'" x2="'+sx(R)+'" y2="'+sy(0)+'"/>';
+  /* Pol-Labels */
+  s+='<text class="flabel" x="'+cx+'" y="'+(sy(R)-12)+'" text-anchor="middle">'+AX.yHigh+'</text>';
+  s+='<text class="flabel" x="'+cx+'" y="'+(sy(-R)+22)+'" text-anchor="middle">'+AX.yLow+'</text>';
+  s+='<text class="flabel" x="'+(sx(R)+10)+'" y="'+(cy+4)+'" text-anchor="start">'+AX.xHigh+'</text>';
+  s+='<text class="flabel" x="'+(sx(-R)-10)+'" y="'+(cy+4)+'" text-anchor="end">'+AX.xLow+'</text>';
+  /* Quadranten-Ecklabels (dezent) */
+  s+='<text class="fcorner" x="'+(sx(R)-6)+'" y="'+(sy(R)+16)+'" text-anchor="end">'+AX.xHigh+' &amp; '+AX.yHigh+'</text>';
+  s+='<text class="fcorner" x="'+(sx(-R)+6)+'" y="'+(sy(R)+16)+'" text-anchor="start">'+AX.xLow+' &amp; '+AX.yHigh+'</text>';
+  s+='<text class="fcorner" x="'+(sx(R)-6)+'" y="'+(sy(-R)-8)+'" text-anchor="end">'+AX.xHigh+' &amp; '+AX.yLow+'</text>';
+  s+='<text class="fcorner" x="'+(sx(-R)+6)+'" y="'+(sy(-R)-8)+'" text-anchor="start">'+AX.xLow+' &amp; '+AX.yLow+'</text>';
+  return s;
+}
+function centroid(pts){ var sxv=0,syv=0; pts.forEach(function(p){sxv+=p[0];syv+=p[1];}); return [sxv/pts.length, syv/pts.length]; }
+function centroidMarker(c){
+  var X=sx(c[0]), Y=sy(c[1]), r=9;
+  return '<polygon points="'+X+','+(Y-r)+' '+(X+r)+','+Y+' '+X+','+(Y+r)+' '+(X-r)+','+Y+'" '+
+    'style="fill:var(--nc-primary-el);stroke:var(--nc-main-bg);stroke-width:2"/>'+
+    '<text class="fcorner" x="'+X+'" y="'+(Y-14)+'" text-anchor="middle" style="fill:var(--nc-primary-el);font-weight:800">Schwerpunkt</text>';
+}
+function meMarker(p){
+  var X=sx(p[0]), Y=sy(p[1]);
+  return '<circle cx="'+X+'" cy="'+Y+'" r="12" style="fill:none;stroke:var(--nc-quiz);stroke-width:2.5"/>'+
+    '<circle cx="'+X+'" cy="'+Y+'" r="6" style="fill:var(--nc-quiz);stroke:var(--nc-main-bg);stroke-width:2"/>'+
+    '<text x="'+(X+15)+'" y="'+(Y+4)+'" style="fill:var(--nc-quiz);font-weight:800;font-size:13px">Du</text>';
+}
+
+/* ---- Scatter (wenige Stimmen) ---- */
+(function(){
+  var votes=[[3,2],[2,3],[4,1],[1,2],[3,4],[2,1],[4,3],[1,4],[3,1],[2,4],[-1,2],[-2,1],[0,3],[1,-1],[-1,-2],[2,2],[3,3],[-2,3],[4,2],[1,3],[0,1],[2,0]];
+  var me=[-1,3];
+  var s=fieldSVG();
+  votes.forEach(function(v){ s+='<circle cx="'+sx(v[0])+'" cy="'+sy(v[1])+'" r="6" style="fill:var(--nc-primary-el);fill-opacity:.5"/>'; });
+  s+=centroidMarker(centroid(votes));
+  s+=meMarker(me);
+  document.getElementById('scatter').innerHTML=s;
+})();
+
+/* ---- Heatmap (viele Stimmen) ---- */
+(function(){
+  var me=[-1,3];
+  var s=fieldSVG();
+  var cell=(2*H)/(2*R);                       // Zellbreite in px (Raster über −R..R)
+  var peakX=2.2, peakY=2.0, sigma=2.4, max=0, grid=[];
+  for(var gx=-R; gx<R; gx++){ for(var gy=-R; gy<R; gy++){
+    var mx=gx+0.5, my=gy+0.5;
+    var val=Math.exp(-(((mx-peakX)*(mx-peakX)+(my-peakY)*(my-peakY))/(2*sigma*sigma)));
+    grid.push([gx,gy,val]); if(val>max)max=val;
+  }}
+  grid.forEach(function(c){
+    var op=(c[2]/max)*0.78;
+    if(op<0.04) return;
+    var x0=sx(c[0]), y0=sy(c[1]+1);           // obere Ecke (y invertiert)
+    s+='<rect x="'+x0+'" y="'+y0+'" width="'+cell+'" height="'+cell+'" style="fill:var(--nc-primary-el);fill-opacity:'+op.toFixed(3)+'"/>';
+  });
+  /* Nulllinien/Border erneut über die Heatmap, damit sie sichtbar bleiben */
+  s+='<rect class="fborder" x="'+sx(-R)+'" y="'+sy(R)+'" width="'+(2*H)+'" height="'+(2*H)+'" rx="6"/>';
+  s+='<line class="fnull" x1="'+sx(0)+'" y1="'+sy(-R)+'" x2="'+sx(0)+'" y2="'+sy(R)+'"/>';
+  s+='<line class="fnull" x1="'+sx(-R)+'" y1="'+sy(0)+'" x2="'+sx(R)+'" y2="'+sy(0)+'"/>';
+  s+=centroidMarker([peakX,peakY]);
+  s+=meMarker(me);
+  document.getElementById('heatmap').innerHTML=s;
+})();
+</script>
+</body>
+</html>

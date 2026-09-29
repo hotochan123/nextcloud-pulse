@@ -1,0 +1,441 @@
+<!doctype html>
+<html lang="de" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pulse — Design-Konzept · Stufe 3 (Ergebnis-Grammatik)</title>
+<style>
+/* ═══════════════════════════════════════════════════════════════════
+   PULSE — Design-Konzept Stufe 3 · Delta zu Stufe 1/2.
+   §4.10 geteilte Ergebnis-Grammatik (eine Balken-/Prozent-/Sieger-/Du-
+   Sprache, relative Einheiten) + Mehrfachauswahl + Freitext-Bewertung.
+   ═══════════════════════════════════════════════════════════════════ */
+:root, [data-theme="light"]{
+  --nc-main-bg:#ffffff; --nc-main-text:#1a1a1a; --nc-maxcontrast:#6b6b6b;
+  --nc-bg-hover:#f2f2f2; --nc-bg-dark:#ededed; --nc-border:#dcdcdc; --nc-border-dark:#c4c4c4;
+  --nc-primary:#0069c2; --nc-primary-el:#006aa3; --nc-primary-hover:#00538a;
+  --nc-primary-light:rgba(0,105,194,.12); --nc-on-primary:#fff;
+  --nc-quiz:#7a3ea8; --nc-quiz-light:rgba(122,62,168,.13); --nc-on-quiz:#fff;
+  --nc-success:#2d7d46; --nc-success-light:rgba(45,125,70,.14);
+  --nc-warning:#9a6b00; --nc-warning-fill:#e5a100; --nc-warning-light:rgba(154,107,0,.14);
+  --nc-error:#c13030; --nc-error-light:rgba(193,48,48,.13);
+  --shadow-card:0 2px 8px rgba(0,0,0,.07); --shadow-pop:0 8px 28px rgba(0,0,0,.16);
+}
+[data-theme="dark"]{
+  --nc-main-bg:#171717; --nc-main-text:#ededed; --nc-maxcontrast:#a0a0a0;
+  --nc-bg-hover:#262626; --nc-bg-dark:#242424; --nc-border:#333; --nc-border-dark:#454545;
+  --nc-primary:#3ba1f0; --nc-primary-el:#3ba1f0; --nc-primary-hover:#64b6f5;
+  --nc-primary-light:rgba(59,161,240,.18); --nc-on-primary:#06243a;
+  --nc-quiz:#b57fe0; --nc-quiz-light:rgba(181,127,224,.20); --nc-on-quiz:#1c0a2b;
+  --nc-success:#57c06f; --nc-success-light:rgba(87,192,111,.20);
+  --nc-warning:#e0a800; --nc-warning-fill:#e0a800; --nc-warning-light:rgba(224,168,0,.20);
+  --nc-error:#e56b6b; --nc-error-light:rgba(229,107,107,.20);
+  --shadow-card:0 2px 10px rgba(0,0,0,.45); --shadow-pop:0 10px 34px rgba(0,0,0,.6);
+}
+:root{
+  --t-cap:12px; --t-sm:14px; --t-body:16px; --t-lead:20px; --t-h2:26px; --t-h1:34px;
+  --r-el:8px; --r-card:14px; --r-pill:999px;
+  --fs:-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --opt-a:#c23b2e; --opt-a-ink:#fff; --opt-b:#1d6fb0; --opt-b-ink:#fff;
+  --opt-c:#2e7d46; --opt-c-ink:#fff; --opt-d:#e8a200; --opt-d-ink:#241a00;
+  --opt-e:#7b3fa0; --opt-e-ink:#fff;
+}
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{margin:0; font-family:var(--fs); color:#1c2230; background:#eef1f5; -webkit-font-smoothing:antialiased; line-height:1.5;}
+
+.doc-head{position:sticky; top:0; z-index:40; display:flex; align-items:center; gap:16px; flex-wrap:wrap;
+  padding:14px 28px; background:#0b1f38; color:#fff; border-bottom:3px solid #0069c2;}
+.doc-head .logo{display:flex; align-items:center; gap:10px; font-weight:800; letter-spacing:.02em;}
+.doc-head .logo .dot{width:14px;height:14px;border-radius:50%;background:#0069c2;box-shadow:0 0 0 4px rgba(0,105,194,.3);}
+.doc-head .sub{color:#9db6d4; font-size:13px;}
+.doc-head nav{margin-left:auto; display:flex; gap:6px; flex-wrap:wrap;}
+.doc-head nav a{color:#cdddef; text-decoration:none; font-size:13px; padding:5px 11px; border-radius:999px;}
+.doc-head nav a:hover{background:rgba(255,255,255,.12); color:#fff;}
+.theme-btn{cursor:pointer; border:1px solid rgba(255,255,255,.3); background:rgba(255,255,255,.08); color:#fff; font:inherit; font-size:13px; padding:6px 13px; border-radius:999px;}
+.theme-btn:hover{background:rgba(255,255,255,.18);}
+
+.wrap{max-width:1180px; margin:0 auto; padding:0 28px 120px;}
+section.block{margin-top:64px; scroll-margin-top:78px;}
+.eyebrow{font-size:12px; letter-spacing:.16em; text-transform:uppercase; color:#0069c2; font-weight:700;}
+h2.sec{font-size:30px; margin:6px 0 4px; letter-spacing:-.01em; color:#101828;}
+.sec-intro{color:#4a5568; max-width:74ch; margin:0 0 8px;}
+h3.sub{font-size:19px; margin:34px 0 12px; color:#182130; border-bottom:1px solid #dde3ec; padding-bottom:8px;}
+.why{border-left:3px solid #0069c2; background:#eaf2fb; padding:10px 14px; border-radius:0 8px 8px 0; font-size:14px; color:#20344d; margin:12px 0;}
+.why b{color:#0b3f74;}
+.dark-note{border-left:3px solid #5a4b8a; background:#efecf7; color:#2f2650;} .dark-note b{color:#4a3a86;}
+.legend{display:flex; gap:16px; flex-wrap:wrap; font-size:13px; color:#4a5568; margin-top:10px;}
+.legend .pin,.pin-inline{display:inline-grid; place-items:center; width:20px; height:20px; border-radius:50%; background:#0069c2; color:#fff; font-size:11px; font-weight:700;}
+.legend .pin{margin-right:6px;}
+.two-col{display:grid; grid-template-columns:1fr 1fr; gap:20px; align-items:start;}
+@media (max-width:820px){ .two-col{grid-template-columns:1fr} .doc-head nav{display:none} }
+
+.stage{background:var(--nc-main-bg); color:var(--nc-main-text); border:1px solid var(--nc-border); border-radius:14px; padding:22px; transition:background .2s,color .2s;}
+.stage-label{font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--nc-maxcontrast); margin-bottom:14px; font-weight:600;}
+
+.pbtn{font-family:inherit; font-size:var(--t-body); font-weight:600; line-height:1; display:inline-flex; align-items:center; gap:8px; justify-content:center;
+  min-height:44px; padding:0 18px; border-radius:var(--r-pill); border:1px solid transparent; cursor:pointer;}
+.pbtn:focus-visible{outline:2px solid var(--nc-primary-el); outline-offset:2px;}
+.pbtn.primary{background:var(--nc-primary-el); color:var(--nc-on-primary);} .pbtn.primary:hover{background:var(--nc-primary-hover);}
+.pbtn.secondary{background:transparent; color:var(--nc-main-text); border-color:var(--nc-border-dark);} .pbtn.secondary:hover{background:var(--nc-bg-hover);}
+.pbtn.sm{min-height:36px; font-size:var(--t-sm); padding:0 12px;}
+
+.chip{display:inline-flex; align-items:center; gap:6px; font-size:var(--t-cap); font-weight:600; line-height:1; padding:5px 11px; border-radius:var(--r-pill); border:1px solid transparent; background:var(--nc-bg-dark); color:var(--nc-main-text);}
+.chip.neutral{background:var(--nc-bg-dark); color:var(--nc-maxcontrast); border-color:var(--nc-border);}
+.chip.accent{background:var(--nc-primary-light); color:var(--nc-primary-el);}
+.chip.success{background:var(--nc-success-light); color:var(--nc-success);}
+.chip.quiz{background:var(--nc-quiz-light); color:var(--nc-quiz);}
+.chip.warning{background:var(--nc-warning-light); color:var(--nc-warning);}
+
+.notice{display:flex; gap:12px; align-items:flex-start; padding:12px 14px; border-radius:var(--r-el); font-size:var(--t-sm); border:1px solid transparent;}
+.notice .ico{flex:0 0 20px; margin-top:1px;}
+.notice.info{background:var(--nc-primary-light); color:var(--nc-primary-el);}
+.notice.warn{background:var(--nc-warning-light); color:var(--nc-warning);}
+.notice strong{display:block; color:var(--nc-main-text);}
+
+.row{display:flex; gap:10px; align-items:center; flex-wrap:wrap;}
+.between{display:flex; align-items:center; justify-content:space-between; gap:12px;}
+.muted{color:var(--nc-maxcontrast);}
+.mono{font-family:ui-monospace,monospace;}
+
+/* Rule cards */
+.rules{display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:14px;}
+.rulecard{background:var(--nc-main-bg); border:1px solid var(--nc-border); border-radius:12px; padding:16px;}
+.rulecard .n{width:28px; height:28px; border-radius:8px; background:var(--nc-primary-light); color:var(--nc-primary-el); display:grid; place-items:center; font-weight:800; margin-bottom:10px;}
+.rulecard h4{margin:0 0 4px; font-size:15px; color:var(--nc-main-text);}
+.rulecard p{margin:0; font-size:13px; color:var(--nc-maxcontrast);}
+
+/* ── ResultsView (relativ in em → skaliert mit Container-font-size) ── */
+.rv{font-size:inherit; color:var(--nc-main-text);}
+.rv .rv-q{font-size:1.15em; font-weight:700; margin-bottom:.7em; line-height:1.15;}
+.rv-bar{margin-bottom:.6em;}
+.rv-top{display:flex; align-items:center; gap:.5em; font-size:.95em; margin-bottom:.3em;}
+.rv-letter{width:1.7em; height:1.7em; border-radius:.35em; display:grid; place-items:center; font-weight:800; font-size:.8em; flex:0 0 auto;}
+.rv-name{font-weight:600;}
+.rv-mark{color:var(--nc-success); font-weight:700; font-size:.8em; display:inline-flex; align-items:center; gap:.25em;}
+.rv-pct{margin-left:auto; font-variant-numeric:tabular-nums; color:var(--nc-maxcontrast);}
+.rv-track{height:1.35em; border-radius:.4em; background:var(--nc-bg-dark); overflow:hidden;}
+.rv-fill{height:100%; border-radius:.4em;}
+.rv-foot{font-size:.78em; color:var(--nc-maxcontrast); text-align:right; margin-top:.35em;}
+.scale-wrap{border:1px solid var(--nc-border); border-radius:12px; padding:16px; background:var(--nc-main-bg); overflow:hidden;}
+.scale-tag{font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--nc-maxcontrast); font-weight:600; margin-bottom:12px;}
+
+/* Marker demo */
+.marker-row{display:flex; align-items:center; gap:14px; padding:10px 0; border-bottom:1px dashed var(--nc-border);}
+.marker-row .demo{flex:0 0 auto;}
+.marker-row .desc{font-size:13px; color:var(--nc-maxcontrast);}
+.pill-du{display:inline-flex; align-items:center; font-size:11px; font-weight:800; letter-spacing:.04em; padding:2px 8px; border-radius:999px; background:var(--nc-primary-el); color:var(--nc-on-primary);}
+.mark-hit{display:inline-flex; align-items:center; gap:6px; font-size:13px; font-weight:700; color:var(--nc-success);}
+.mark-hit .tick{width:20px; height:20px; border-radius:50%; background:var(--nc-success); color:#fff; display:grid; place-items:center; font-size:12px;}
+
+/* Histogram (Skala/Zahl) */
+.hist{display:flex; align-items:flex-end; gap:6px; height:150px; padding-top:10px;}
+.hist .col{flex:1; display:flex; flex-direction:column; justify-content:flex-end; align-items:center; gap:6px; height:100%;}
+.hist .bar{width:100%; background:var(--nc-primary-el); border-radius:5px 5px 0 0; min-height:3px; position:relative;}
+.hist .cnt{font-size:11px; color:var(--nc-maxcontrast); font-variant-numeric:tabular-nums;}
+.hist .lab{font-size:12px; color:var(--nc-main-text); font-weight:600;}
+.statbig{display:flex; gap:22px; margin-top:14px;}
+.statbig .s b{font-size:24px; font-family:ui-monospace,monospace;} .statbig .s span{font-size:12px; color:var(--nc-maxcontrast); display:block; text-transform:uppercase; letter-spacing:.06em;}
+
+/* Multi-select (Handy) */
+.phone{width:330px; max-width:100%; border-radius:34px; padding:12px; background:linear-gradient(160deg,#2a2f3a,#12151c); box-shadow:var(--shadow-pop); margin:0 auto;}
+.phone .screen{background:var(--nc-main-bg); color:var(--nc-main-text); border-radius:24px; overflow:hidden; min-height:560px; display:flex; flex-direction:column;}
+.phone .notch{height:26px; display:flex; justify-content:center;}
+.phone .notch::after{content:""; width:120px; height:22px; background:#12151c; border-radius:0 0 16px 16px;}
+.nc-topbar{background:var(--nc-primary); color:#fff; padding:10px 14px; display:flex; align-items:center; gap:8px; font-size:14px; font-weight:600;}
+.nc-topbar .rings{display:flex; gap:3px;} .nc-topbar .rings i{width:11px;height:11px;border:2.5px solid #fff;border-radius:50%;display:inline-block;}
+.phone .body{padding:18px 16px 22px; flex:1; display:flex; flex-direction:column; gap:12px;}
+.msopt{display:flex; align-items:center; gap:12px; min-height:56px; padding:8px 14px 8px 10px; border-radius:var(--r-card); border:2px solid var(--nc-border); background:var(--nc-main-bg); color:var(--nc-main-text); cursor:pointer; font-weight:600; width:100%; text-align:left;}
+.msopt .badge{flex:0 0 40px; height:40px; border-radius:10px; display:grid; place-items:center; font-size:18px; font-weight:800;}
+.msopt .cbx{margin-left:auto; width:26px; height:26px; border-radius:7px; border:2px solid var(--nc-border-dark); display:grid; place-items:center; color:transparent; flex:0 0 auto;}
+.msopt[aria-pressed="true"]{border-color:var(--nc-primary-el); box-shadow:0 0 0 1px var(--nc-primary-el) inset;}
+.msopt[aria-pressed="true"] .cbx{background:var(--nc-primary-el); border-color:var(--nc-primary-el); color:#fff;}
+
+/* TextGrading (Moderator) */
+.desk{border:1px solid var(--nc-border); border-radius:14px; overflow:hidden; box-shadow:var(--shadow-card); background:var(--nc-main-bg); color:var(--nc-main-text);}
+.desk .os{background:linear-gradient(90deg,#0069c2,#0a86e0); height:40px; display:flex; align-items:center; padding:0 14px; gap:8px; color:#fff; font-size:13px;}
+.desk .os .search{background:rgba(255,255,255,.9); color:#333; border-radius:6px; font-size:12px; padding:5px 12px; margin:0 auto; width:min(420px,50%);}
+.desk .inner{padding:22px 26px;}
+.grade{display:flex; align-items:center; gap:14px; padding:12px 14px; border:1px solid var(--nc-border); border-radius:11px; background:var(--nc-main-bg); margin-bottom:10px;}
+.grade .ans{flex:1; min-width:0;}
+.grade .ans .txt{font-weight:600;} .grade .ans .who{font-size:12px; color:var(--nc-maxcontrast);}
+.gbtns{display:flex; gap:8px; flex:0 0 auto;}
+.gbtn{min-height:44px; padding:0 15px; border-radius:var(--r-pill); border:1.5px solid var(--nc-border-dark); background:transparent; font-weight:600; font-size:14px; cursor:pointer; display:inline-flex; align-items:center; gap:7px; color:var(--nc-maxcontrast);}
+.gbtn .box{width:18px;height:18px;border-radius:5px;border:2px solid currentColor;display:grid;place-items:center;color:transparent;font-size:12px;}
+.gbtn.yes[aria-pressed="true"]{background:var(--nc-success-light); border-color:var(--nc-success); color:var(--nc-success);}
+.gbtn.yes[aria-pressed="true"] .box{background:var(--nc-success); border-color:var(--nc-success); color:#fff;}
+.gbtn.no[aria-pressed="true"]{background:var(--nc-error-light); border-color:var(--nc-error); color:var(--nc-error);}
+.gbtn.no[aria-pressed="true"] .box{background:var(--nc-error); border-color:var(--nc-error); color:#fff;}
+.pts-badge{flex:0 0 auto; min-width:64px; text-align:right; font-family:ui-monospace,monospace; font-weight:700; color:var(--nc-success);}
+
+footer.foot{margin-top:80px; padding:28px; text-align:center; color:#7a8699; font-size:13px; border-top:1px solid #dde3ec;}
+</style>
+</head>
+<body data-od-id="pulse-konzept-stufe3">
+
+<header class="doc-head" data-od-id="doc-header">
+  <div class="logo"><span class="dot"></span> Pulse <span class="sub">· Design-Konzept · Stufe 3 · Ergebnis-Grammatik</span></div>
+  <nav>
+    <a href="#regeln">Die 4 Regeln</a>
+    <a href="#skalen">Eine Komponente</a>
+    <a href="#norm">Balken-Norm</a>
+    <a href="#marker">Sieger/richtig/Du</a>
+    <a href="#multi">Mehrfachauswahl</a>
+    <a href="#grading">Freitext-Bewertung</a>
+  </nav>
+  <button class="theme-btn" id="themeToggle" data-od-id="theme-toggle">◐ Dark-Theme</button>
+</header>
+
+<div class="wrap">
+
+  <section class="block" style="margin-top:44px" data-od-id="intro">
+    <div class="eyebrow">Stufe 3 · §4.10 quer über alle Flächen</div>
+    <h2 class="sec">Die geteilte Ergebnis-Grammatik</h2>
+    <p class="sec-intro">Dieselben Komponenten (<span class="mono">ResultsView</span> · <span class="mono">Leaderboard</span> ·
+    <span class="mono">TextGrading</span>) rendern in Handy, Beamer und Moderator. Heute driften sie: zwei Balken-Normen,
+    die gleich aussehen aber Verschiedenes heißen; uneinheitliche Prozent-Notation; ★ vs. ✓ vs. 🥇 für verwandte
+    Dinge; „du" mal Pille, mal Farbe. Stufe 3 macht daraus <b>eine</b> Grammatik — und ergänzt die letzten
+    Sonderfälle Mehrfachauswahl &amp; Freitext-Bewertung.</p>
+  </section>
+
+  <!-- ═══════════ DIE 4 REGELN ═══════════ -->
+  <section class="block" id="regeln" data-od-id="sec-regeln">
+    <div class="eyebrow">Das Regelwerk</div>
+    <h2 class="sec">Vier Regeln, überall gleich</h2>
+    <div class="rules">
+      <div class="rulecard" data-od-id="rule-norm"><div class="n">1</div><h4>Eine Balken-Norm</h4><p>Balken normieren <b>immer auf die Gesamtstimmen</b> (echter Anteil). Verteilungstypen (Skala/Zahl) nutzen ein Histogramm mit Achse — nicht denselben Balken mit anderer Bedeutung. Jeder Block sagt, was 100 % heißt.</p></div>
+      <div class="rulecard" data-od-id="rule-pct"><div class="n">2</div><h4>Eine Prozent-Notation</h4><p>Durchgängig <b>„N · P %"</b> (absolute Stimmen · Anteil) — bei jedem Typ gleich, nicht mal „%", mal nur Rohzahl.</p></div>
+      <div class="rulecard" data-od-id="rule-mark"><div class="n">3</div><h4>Eine Treffer- &amp; Du-Markierung</h4><p><b>Treffer</b> (richtig/Sieger) = grüner Haken + Wort. <b>Du</b> = eine Akzent-Pille „Du". Beide identisch in Liste, Balken und Podium — Form + Farbe + Text.</p></div>
+      <div class="rulecard" data-od-id="rule-rel"><div class="n">4</div><h4>Relative Einheiten</h4><p>Alle Maße in <span class="mono">em</span>. Dieselbe Komponente rendert über die Container-<span class="mono">font-size</span> auf dem Handy klein, auf dem Beamer groß — kein hartes px, das die Beamer-Skalierung bricht.</p></div>
+    </div>
+  </section>
+
+  <!-- ═══════════ EINE KOMPONENTE, DREI GRÖSSEN ═══════════ -->
+  <section class="block" id="skalen" data-od-id="sec-skalen">
+    <div class="eyebrow">Regel 4 · sichtbar gemacht</div>
+    <h2 class="sec">Eine Komponente, drei Größen</h2>
+    <p class="sec-intro">Exakt dasselbe <span class="mono">ResultsView</span>-Markup, dreimal — nur die Container-
+    <span class="mono">font-size</span> ändert sich (14 / 16 / 30 px). Weil alles in <span class="mono">em</span> ist,
+    skaliert es mit. Das löst §4.9 „Auflösung bleibt in Handy-Größe stehen".</p>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:18px; align-items:start;">
+      <div class="scale-wrap" style="font-size:14px" data-od-id="scale-handy">
+        <div class="scale-tag">Handy · 14 px Basis</div>
+        <div class="rv" id="rv-handy"></div>
+      </div>
+      <div class="scale-wrap" style="font-size:16px" data-od-id="scale-mod">
+        <div class="scale-tag">Moderator · 16 px Basis</div>
+        <div class="rv" id="rv-mod"></div>
+      </div>
+    </div>
+    <div class="scale-wrap" style="font-size:30px; margin-top:18px; background:var(--nc-main-bg)" data-od-id="scale-beamer">
+      <div class="scale-tag" style="font-size:11px">Beamer · 30 px Basis — dieselbe Komponente, fern-lesbar</div>
+      <div class="rv" id="rv-beamer"></div>
+    </div>
+    <div class="why"><b>Warum:</b> §4.9/§4.10 — heute überschreiben Kind-Elemente die <span class="mono">clamp()</span>-
+    Hochskalierung mit absoluten px, also bleiben Balken/Rangliste auf dem Beamer klein. Mit durchgängigem
+    <span class="mono">em</span> genügt <b>eine</b> Container-<span class="mono">font-size</span> je Fläche.</div>
+  </section>
+
+  <!-- ═══════════ BALKEN-NORM JE TYP ═══════════ -->
+  <section class="block" id="norm" data-od-id="sec-norm">
+    <div class="eyebrow">Regel 1 · je Typ</div>
+    <h2 class="sec">Was 100 % heißt — beschriftet</h2>
+    <div class="two-col">
+      <div class="stage" data-od-id="norm-choice">
+        <div class="stage-label">Choice — Anteil an allen Stimmen</div>
+        <div class="rv" style="font-size:15px">
+          <div class="rv-bar"><div class="rv-top"><span class="rv-letter" style="background:var(--opt-b);color:var(--opt-b-ink)">B</span><span class="rv-name">Canberra</span><span class="rv-mark"><span class="tick" style="width:1.1em;height:1.1em;border-radius:50%;background:var(--nc-success);color:#fff;display:inline-grid;place-items:center;font-size:.7em">✓</span>richtig</span><span class="rv-pct">72 · 56 %</span></div><div class="rv-track"><div class="rv-fill" style="width:56%;background:var(--opt-b)"></div></div></div>
+          <div class="rv-bar"><div class="rv-top"><span class="rv-letter" style="background:var(--opt-a);color:var(--opt-a-ink)">A</span><span class="rv-name">Sydney</span><span class="rv-pct">41 · 32 %</span></div><div class="rv-track"><div class="rv-fill" style="width:32%;background:var(--opt-a)"></div></div></div>
+          <div class="rv-bar"><div class="rv-top"><span class="rv-letter" style="background:var(--opt-c);color:var(--opt-c-ink)">C</span><span class="rv-name">Melbourne</span><span class="rv-pct">15 · 12 %</span></div><div class="rv-track"><div class="rv-fill" style="width:12%;background:var(--opt-c)"></div></div></div>
+          <div class="rv-foot">128 Stimmen · 100 % = alle Stimmen</div>
+        </div>
+      </div>
+      <div class="stage" data-od-id="norm-multi">
+        <div class="stage-label">Mehrfachauswahl — Anteil der Antwortenden</div>
+        <div class="rv" style="font-size:15px">
+          <div class="rv-bar"><div class="rv-top"><span class="rv-letter" style="background:var(--opt-a);color:var(--opt-a-ink)">A</span><span class="rv-name">Barrierefreiheit</span><span class="rv-pct">88 · 71 %</span></div><div class="rv-track"><div class="rv-fill" style="width:71%;background:var(--opt-a)"></div></div></div>
+          <div class="rv-bar"><div class="rv-top"><span class="rv-letter" style="background:var(--opt-b);color:var(--opt-b-ink)">B</span><span class="rv-name">Performance</span><span class="rv-pct">64 · 52 %</span></div><div class="rv-track"><div class="rv-fill" style="width:52%;background:var(--opt-b)"></div></div></div>
+          <div class="rv-bar"><div class="rv-top"><span class="rv-letter" style="background:var(--opt-c);color:var(--opt-c-ink)">C</span><span class="rv-name">Design</span><span class="rv-pct">40 · 32 %</span></div><div class="rv-track"><div class="rv-fill" style="width:32%;background:var(--opt-c)"></div></div></div>
+          <div class="rv-foot">124 Antwortende · 100 % = alle Antwortenden · Mehrfachnennung möglich</div>
+        </div>
+      </div>
+    </div>
+    <div class="stage" style="margin-top:18px" data-od-id="norm-scale">
+      <div class="stage-label">Skala / Zahl — Verteilung als Histogramm (nicht als Balken)</div>
+      <div class="hist">
+        <div class="col"><span class="cnt">1</span><div class="bar" style="height:8%"></div><span class="lab">0</span></div>
+        <div class="col"><span class="cnt">2</span><div class="bar" style="height:14%"></div><span class="lab">1</span></div>
+        <div class="col"><span class="cnt">3</span><div class="bar" style="height:22%"></div><span class="lab">2</span></div>
+        <div class="col"><span class="cnt">6</span><div class="bar" style="height:44%"></div><span class="lab">3</span></div>
+        <div class="col"><span class="cnt">9</span><div class="bar" style="height:66%"></div><span class="lab">4</span></div>
+        <div class="col"><span class="cnt">14</span><div class="bar" style="height:100%"></div><span class="lab">5</span></div>
+        <div class="col"><span class="cnt">11</span><div class="bar" style="height:80%"></div><span class="lab">6</span></div>
+        <div class="col"><span class="cnt">8</span><div class="bar" style="height:58%"></div><span class="lab">7</span></div>
+        <div class="col"><span class="cnt">5</span><div class="bar" style="height:38%"></div><span class="lab">8</span></div>
+        <div class="col"><span class="cnt">3</span><div class="bar" style="height:22%"></div><span class="lab">9</span></div>
+        <div class="col"><span class="cnt">2</span><div class="bar" style="height:14%"></div><span class="lab">10</span></div>
+      </div>
+      <div class="statbig"><div class="s"><b>5,4</b><span>Durchschnitt</span></div><div class="s"><b>5</b><span>Median</span></div><div class="s"><b>74</b><span>Stimmen</span></div></div>
+    </div>
+    <div class="why"><b>Warum:</b> §4.10 — heute normieren choice/multi auf die Gesamtstimmen, Zahl/Skala aber aufs
+    Maximum (führender Wert = 100 %) — zwei Bedeutungen, gleiche Optik. Fix: Balken heißen <b>immer</b> Anteil an
+    allen Stimmen; Verteilungen bekommen ein <b>Histogramm mit Achse</b> + Ø/Median. Missverständnis ausgeschlossen.</div>
+  </section>
+
+  <!-- ═══════════ MARKIERUNG ═══════════ -->
+  <section class="block" id="marker" data-od-id="sec-marker">
+    <div class="eyebrow">Regel 3</div>
+    <h2 class="sec">Eine Markierung für Sieger / richtig / Du</h2>
+    <div class="two-col">
+      <div class="stage">
+        <div class="stage-label">Statt ★ / ✓ / 🥇 / eingefärbtem Namen</div>
+        <div class="marker-row"><span class="demo mark-hit"><span class="tick">✓</span> richtig</span><span class="desc">Quiz: die richtige Antwort</span></div>
+        <div class="marker-row"><span class="demo mark-hit"><span class="tick">✓</span> Sieger</span><span class="desc">Umfrage: die häufigste Option (gleiche Form)</span></div>
+        <div class="marker-row" style="border:0"><span class="demo"><span class="pill-du">Du</span></span><span class="desc">Deine Zeile — in Liste, Balken und Podium identisch</span></div>
+      </div>
+      <div class="stage" data-od-id="leaderboard">
+        <div class="stage-label">Leaderboard — Du-Markierung überall gleich</div>
+        <div style="display:flex; flex-direction:column; gap:8px; font-size:15px">
+          <div class="between" style="padding:10px 12px; border-radius:9px; background:var(--nc-bg-dark)"><span class="row" style="gap:10px"><b>1</b> Jonas <span class="mark-hit" style="font-size:12px"><span class="tick" style="width:16px;height:16px;font-size:10px">✓</span></span></span><b class="mono">940</b></div>
+          <div class="between" style="padding:10px 12px; border-radius:9px; background:var(--nc-bg-dark)"><span class="row" style="gap:10px"><b>2</b> Mara</span><b class="mono">820</b></div>
+          <div class="between" style="padding:10px 12px; border-radius:9px; background:var(--nc-primary-light)"><span class="row" style="gap:10px"><b>3</b> Kim <span class="pill-du">Du</span></span><b class="mono">610</b></div>
+        </div>
+      </div>
+    </div>
+    <div class="why"><b>Warum:</b> §4.10 — heute markiert „Sieger" mal ★, Quiz-richtig einen grünen ✓, das Podium 🥇 —
+    verwandte Dinge, vier Symbole. Jetzt: ein <b>Treffer-Marker</b> (Haken + Farbe + Wort) für richtig/Sieger, eine
+    <b>Du-Pille</b> für „das bist du" — beide identisch über Liste, Balken und Podium (das Podium behält die
+    Medaillen-Deko zusätzlich, aber „Du" bleibt die Pille, nicht nur eingefärbt).</div>
+  </section>
+
+  <!-- ═══════════ MEHRFACHAUSWAHL ═══════════ -->
+  <section class="block" id="multi" data-od-id="sec-multi">
+    <div class="eyebrow">Quiz-Sonderfall</div>
+    <h2 class="sec">Mehrfachauswahl</h2>
+    <p class="sec-intro">Antippen mehrerer Optionen + eine klare Absende-Aktion; die Buchstabe/Farbe-Brücke
+    wie bei Choice; das Ergebnis normiert auf die Antwortenden (Summe kann &gt; 100 % sein).</p>
+    <div class="two-col">
+      <div class="phone" data-od-id="handy-multi">
+        <div class="notch"></div>
+        <div class="screen">
+          <div class="nc-topbar"><span class="rings"><i></i><i></i><i></i></span> Nextcloud</div>
+          <div class="body">
+            <div class="between"><span class="chip success"><span style="width:8px;height:8px;border-radius:50%;background:currentColor;display:inline-block"></span> Läuft</span><span class="chip neutral mono">22 s</span></div>
+            <div style="font-size:var(--t-lead); font-weight:700;">Was ist Dir am Prototyp wichtig? <span class="muted" style="font-weight:400; font-size:var(--t-sm)">(mehrere möglich)</span></div>
+            <button class="msopt" aria-pressed="true"><span class="badge" style="background:var(--opt-a);color:var(--opt-a-ink)">A</span> Barrierefreiheit <span class="cbx">✓</span></button>
+            <button class="msopt" aria-pressed="false"><span class="badge" style="background:var(--opt-b);color:var(--opt-b-ink)">B</span> Performance <span class="cbx">✓</span></button>
+            <button class="msopt" aria-pressed="true"><span class="badge" style="background:var(--opt-c);color:var(--opt-c-ink)">C</span> Design <span class="cbx">✓</span></button>
+            <button class="msopt" aria-pressed="false"><span class="badge" style="background:var(--opt-d);color:var(--opt-d-ink)">D</span> Doku <span class="cbx">✓</span></button>
+            <button class="pbtn primary" style="width:100%; margin-top:auto;">2 ausgewählt · Absenden</button>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="stage" data-od-id="multi-result">
+          <div class="stage-label">Ergebnis — Anteil der Antwortenden</div>
+          <div class="rv" style="font-size:15px">
+            <div class="rv-bar"><div class="rv-top"><span class="rv-letter" style="background:var(--opt-a);color:var(--opt-a-ink)">A</span><span class="rv-name">Barrierefreiheit</span><span class="rv-pct">88 · 71 %</span></div><div class="rv-track"><div class="rv-fill" style="width:71%;background:var(--opt-a)"></div></div></div>
+            <div class="rv-bar"><div class="rv-top"><span class="rv-letter" style="background:var(--opt-b);color:var(--opt-b-ink)">B</span><span class="rv-name">Performance</span><span class="rv-pct">64 · 52 %</span></div><div class="rv-track"><div class="rv-fill" style="width:52%;background:var(--opt-b)"></div></div></div>
+            <div class="rv-bar"><div class="rv-top"><span class="rv-letter" style="background:var(--opt-c);color:var(--opt-c-ink)">C</span><span class="rv-name">Design</span><span class="rv-pct">40 · 32 %</span></div><div class="rv-track"><div class="rv-fill" style="width:32%;background:var(--opt-c)"></div></div></div>
+            <div class="rv-bar"><div class="rv-top"><span class="rv-letter" style="background:var(--opt-d);color:var(--opt-d-ink)">D</span><span class="rv-name">Doku</span><span class="rv-pct">22 · 18 %</span></div><div class="rv-track"><div class="rv-fill" style="width:18%;background:var(--opt-d)"></div></div></div>
+            <div class="rv-foot">124 Antwortende · Mehrfachnennung → Summe &gt; 100 %</div>
+          </div>
+        </div>
+        <div class="notice info" style="margin-top:14px"><span class="ico">ⓘ</span><div><strong>Absende-Label sagt den Stand</strong>„2 ausgewählt · Absenden" — eine Aktion, kein Auto-Senden, Auswahl über Checkbox-Form.</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════ FREITEXT-BEWERTUNG ═══════════ -->
+  <section class="block" id="grading" data-od-id="sec-grading">
+    <div class="eyebrow">Quiz-Sonderfall</div>
+    <h2 class="sec">Freitext-Bewertung (TextGrading)</h2>
+    <p class="sec-intro">Die vortragende Person bewertet Freitext-Antworten live: richtig/falsch je Antwort
+    (Form + Farbe + Text), Punkte fließen sofort. Derselbe Baustein rendert in der Zusammenfassung read-only.</p>
+    <div class="desk" data-od-id="grading-desk">
+      <div class="os"><span>Pulse</span><span class="search">Nach Apps, Dateien, Nachrichten suchen …</span></div>
+      <div class="inner">
+        <div class="between" style="margin-bottom:16px;"><div class="row"><span style="font-size:var(--t-lead); font-weight:700;">Wie heißt die Hauptstadt Australiens?</span><span class="chip neutral">Freitext</span></div><span class="chip accent">4 Antworten · 2 bewertet</span></div>
+        <div class="grade"><div class="ans"><div class="txt">Canberra</div><div class="who">Jonas · vor 3 s</div></div><div class="gbtns"><button class="gbtn yes" aria-pressed="true"><span class="box">✓</span> richtig</button><button class="gbtn no" aria-pressed="false"><span class="box">✕</span> falsch</button></div><div class="pts-badge">+100</div></div>
+        <div class="grade"><div class="ans"><div class="txt">canberra!!</div><div class="who">Mara · vor 5 s</div></div><div class="gbtns"><button class="gbtn yes" aria-pressed="true"><span class="box">✓</span> richtig</button><button class="gbtn no" aria-pressed="false"><span class="box">✕</span> falsch</button></div><div class="pts-badge">+100</div></div>
+        <div class="grade"><div class="ans"><div class="txt">Sydney</div><div class="who">Kim · vor 4 s</div></div><div class="gbtns"><button class="gbtn yes" aria-pressed="false"><span class="box">✓</span> richtig</button><button class="gbtn no" aria-pressed="true"><span class="box">✕</span> falsch</button></div><div class="pts-badge" style="color:var(--nc-maxcontrast)">0</div></div>
+        <div class="grade" style="margin-bottom:0"><div class="ans"><div class="txt">weiß nicht</div><div class="who">Alex · vor 2 s</div></div><div class="gbtns"><button class="gbtn yes" aria-pressed="false"><span class="box">✓</span> richtig</button><button class="gbtn no" aria-pressed="false"><span class="box">✕</span> falsch</button></div><div class="pts-badge muted" style="color:var(--nc-maxcontrast)">– offen</div></div>
+        <div class="notice warn" style="margin-top:16px"><span class="ico">⚑</span><div><strong>1 Antwort noch offen</strong>Offene Antworten zählen erst nach der Bewertung — vor dem Weiterschalten prüfen.</div></div>
+      </div>
+    </div>
+    <div class="why"><b>Warum:</b> §4.10 — heute rendern <span class="mono">ResultsView</span> (read-only) und
+    <span class="mono">TextGrading</span> (interaktiv) denselben Block mit getrennten Klassen und leicht
+    abweichenden Werten (Drift-Risiko). Jetzt: <b>ein</b> Freitext-Baustein; im Grading tragen die Antworten
+    einen richtig/falsch-Umschalter (Form + Farbe + Text, 44 px), read-only zeigt dieselbe Zeile ohne Buttons
+    mit dem Ergebnis. Offene Antworten sind sichtbar markiert, nicht stumm 0.</div>
+    <div class="dark-note notice" style="max-width:none; margin-top:12px"><span>◐</span><div><b>Dark-Abweichung:</b>
+    richtig/falsch-Buttons nutzen die soft-getönten Statusflächen (<span class="mono">--nc-success/-error-light</span>),
+    die im Dark heller aufscheinen — die Bedeutung trägt zusätzlich der Haken/das Kreuz + das Wort.</div></div>
+  </section>
+
+  <section class="block" data-od-id="sec-status">
+    <div class="notice info why" style="max-width:none"><span>✓</span><div><b>Konzept abgeschlossen.</b>
+    Fundament + Antwort-Palette + drei heiße Flächen (Stufe 1) · alle übrigen Screens + Fragetypen + Empty-States
+    (Stufe 2) · geteilte Ergebnis-Grammatik + Mehrfachauswahl + Freitext-Bewertung (Stufe 3) · Live-Wortwolke als
+    lauffähige Engine. Die vier Deliverables aus Brief §5 sind damit gedeckt. Nächster natürlicher Schritt wäre die
+    Übergabe an die Entwickler-Sitzung (px→relativ, themebare Dialoge, Farbpaletten-Verkabelung Live→Ergebnis).</div></div>
+  </section>
+
+</div>
+
+<footer class="foot">Pulse · Design-Konzept Stufe 3 · Geteilte Ergebnis-Grammatik · Nextcloud-Tokens · Light + Dark</footer>
+
+<script>
+(function(){
+  var btn=document.getElementById('themeToggle'), doc=document.documentElement;
+  btn.addEventListener('click', function(){
+    var d=doc.getAttribute('data-theme')==='dark';
+    doc.setAttribute('data-theme', d?'light':'dark');
+    btn.textContent=d?'◐ Dark-Theme':'◑ Light-Theme';
+    try{localStorage.setItem('pulse-doc-theme', d?'light':'dark');}catch(e){}
+  });
+  try{var s=localStorage.getItem('pulse-doc-theme'); if(s){doc.setAttribute('data-theme',s); btn.textContent=s==='dark'?'◑ Light-Theme':'◐ Dark-Theme';}}catch(e){}
+})();
+
+/* Ein ResultsView-Markup, dreimal gerendert (Regel 4: relativ skalierend) */
+(function(){
+  var bars=[
+    ['B','Canberra','var(--opt-b)','var(--opt-b-ink)',56,'72 · 56 %',true],
+    ['A','Sydney','var(--opt-a)','var(--opt-a-ink)',32,'41 · 32 %',false],
+    ['C','Melbourne','var(--opt-c)','var(--opt-c-ink)',12,'15 · 12 %',false]
+  ];
+  var html='<div class="rv-q">Welche Hauptstadt gehört zu Australien?</div>';
+  bars.forEach(function(b){
+    html+='<div class="rv-bar"><div class="rv-top"><span class="rv-letter" style="background:'+b[2]+';color:'+b[3]+'">'+b[0]+'</span>'+
+      '<span class="rv-name">'+b[1]+'</span>'+
+      (b[6]?'<span class="rv-mark"><span class="tick" style="width:1.1em;height:1.1em;border-radius:50%;background:var(--nc-success);color:#fff;display:inline-grid;place-items:center;font-size:.65em">✓</span>richtig</span>':'')+
+      '<span class="rv-pct">'+b[5]+'</span></div>'+
+      '<div class="rv-track"><div class="rv-fill" style="width:'+b[4]+'%;background:'+b[2]+'"></div></div></div>';
+  });
+  html+='<div class="rv-foot">128 Stimmen · 100 % = alle Stimmen</div>';
+  ['rv-handy','rv-mod','rv-beamer'].forEach(function(id){ document.getElementById(id).innerHTML=html; });
+})();
+
+/* Grading- und Multi-Buttons interaktiv (Feel) */
+document.querySelectorAll('.grade').forEach(function(g){
+  var yes=g.querySelector('.gbtn.yes'), no=g.querySelector('.gbtn.no'), pts=g.querySelector('.pts-badge');
+  function set(which){
+    yes.setAttribute('aria-pressed', which==='yes'?'true':'false');
+    no.setAttribute('aria-pressed', which==='no'?'true':'false');
+    if(pts){ if(which==='yes'){pts.textContent='+100'; pts.style.color='var(--nc-success)';}
+      else if(which==='no'){pts.textContent='0'; pts.style.color='var(--nc-maxcontrast)';} }
+  }
+  yes.addEventListener('click', function(){ set(yes.getAttribute('aria-pressed')==='true'?null:'yes'); });
+  no.addEventListener('click', function(){ set(no.getAttribute('aria-pressed')==='true'?null:'no'); });
+});
+document.querySelectorAll('.msopt').forEach(function(m){
+  m.addEventListener('click', function(){
+    m.setAttribute('aria-pressed', m.getAttribute('aria-pressed')==='true'?'false':'true');
+    var n=document.querySelectorAll('.msopt[aria-pressed="true"]').length;
+    var btn=m.closest('.body').querySelector('.pbtn.primary');
+    if(btn) btn.textContent = n+' ausgewählt · Absenden';
+  });
+});
+</script>
+</body>
+</html>

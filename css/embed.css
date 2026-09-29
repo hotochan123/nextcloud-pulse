@@ -1,0 +1,190 @@
+/**
+ * SPDX-FileCopyrightText: 2026 hotochan123
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ */
+/* Einbett-Shell fürs Office-/PowerPoint-Add-in. Vollflächig, keine NC-Chrome.
+   Farben kommen aus der Token-Schicht (js/pulse-styles.js lädt sie), Knöpfe
+   aus dem EINEN Button-System .pulse-btn — die Shell hatte vorher eigene
+   Hex-Werte und einen eigenen Knopf (B3). */
+html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    background: var(--pulse-screen-bg, #fff);
+}
+
+/* NC-Gast-Chrome des Public-Layouts ausblenden — die Folie zeigt nur die Umfrage. */
+#header,
+footer.guest-box {
+    display: none !important;
+}
+
+#pulse-embed-root {
+    position: absolute;
+    inset: 0;
+    z-index: 1000; /* über etwaiger NC-Chrome (z.B. #header z-index ~2000 wird zusätzlich ausgeblendet) */
+    font-family: var(--font-face, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif);
+    color: var(--pulse-text, #1a1a1a);
+}
+
+/* Ladezustand + Formular werden zentriert */
+.pulse-embed-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--pulse-text-2, #6b6b6b);
+}
+
+/* ── Setup-Formular (Code eingeben) ───────────────────────────── */
+.pulse-embed-setup {
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    max-width: 420px;
+    height: max-content;
+    padding: 24px;
+    text-align: center;
+}
+/* Wortmarke über dem Feld: die Shell steckt in fremden Folien, dort muss
+   erkennbar sein, was das ist (§9.7). */
+.pulse-embed-mark {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin: 0 0 6px;
+    font-size: 1.5rem;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    color: var(--pulse-primary, #006aa3);
+}
+.pulse-embed-dot {
+    width: 0.5em;
+    height: 0.5em;
+    border-radius: 50%;
+    background: currentColor;
+}
+.pulse-embed-lede {
+    margin: 0 0 18px;
+    color: var(--pulse-text-2, #6b6b6b);
+    font-size: 0.95rem;
+}
+.pulse-embed-label {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--pulse-text-2, #6b6b6b);
+}
+/* Sechs Stellen statt eines Feldes — der Code IST sechsstellig.
+   Nextcloud stylt native <input> global über Element-Selektoren und schlägt
+   damit jede Klasse: ohne !important kämen Größe, Rahmen und Schriftgrad von
+   dort (gemessen: 45×34 px, 15 px Schrift, grauer Rahmen statt rotem). */
+.pulse-embed-cells {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+}
+.pulse-embed-cell {
+    box-sizing: border-box;
+    width: 3rem !important;
+    height: 3.6rem !important;
+    min-height: 3.6rem !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    font-family: inherit;
+    font-size: 1.6rem !important;
+    font-weight: 700;
+    text-align: center;
+    text-transform: uppercase;
+    border: 2px solid var(--pulse-border-strong, #c4c4c4) !important;
+    border-radius: var(--pulse-r-el, 8px) !important;
+    background: var(--pulse-bg, #fff) !important;
+    color: var(--pulse-text, #1a1a1a) !important;
+    font-variant-numeric: tabular-nums;
+}
+.pulse-embed-cell:focus-visible {
+    outline: 2px solid var(--pulse-primary, #006aa3) !important;
+    outline-offset: 1px;
+}
+.pulse-embed-cell--err {
+    border-color: var(--pulse-error, #b5261f) !important;
+}
+/* Meldung am Feld, kein Dialog: der Fehler steht dort, wo er entstanden ist. */
+.pulse-embed-err {
+    margin: 10px 0 0;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--pulse-error, #b5261f);
+}
+/* NC stylt native <button> global mit hoher Spezifität — auch die Breite.
+   Deshalb hier !important, wie in pulse-ds.css bei den formgebenden Rollen. */
+.pulse-embed-go {
+    margin-top: 16px;
+    width: 100% !important;
+}
+
+/* ── iframe-Ansicht (vollflächig) + Hover-Leiste ──────────────── */
+.pulse-embed-frame {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    display: block;
+}
+.pulse-embed-bar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 6px 10px;
+    background: var(--pulse-fill, #ededed);
+    color: var(--pulse-text, #1a1a1a);
+    font-size: 0.8rem;
+    transform: translateY(-100%);
+    transition: transform 0.15s ease;
+}
+#pulse-embed-root:hover .pulse-embed-bar {
+    transform: translateY(0);
+}
+.pulse-embed-code {
+    font-weight: 600;
+    letter-spacing: 0.1em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .pulse-embed-bar { transition: none; }
+}
+
+/*
+ * Farbschema folgt der EINBETTUNG, nicht dem Server (§9.7): die Shell steckt in
+ * einer fremden Folie, in der weder Theme noch Sitzung bekannt sind. Die Rollen
+ * hängen sonst an NCs --color-*, die auf der Gastseite hell bleiben. ID-Selektor,
+ * weil die Token-Schicht per JS nachgeladen wird und sonst später käme.
+ */
+@media (prefers-color-scheme: dark) {
+    html, body { background: #171717; }
+    #pulse-embed-root {
+        --pulse-screen-bg: #171717;
+        --pulse-bg: #1f1f1f;
+        --pulse-fill: #2b2b2b;
+        --pulse-hover: #2b2b2b;
+        --pulse-text: #ebebeb;
+        --pulse-text-2: #b0b0b0;
+        --pulse-border: #3a3a3a;
+        --pulse-border-strong: #545454;
+        --pulse-primary: #4aa3df;
+        --pulse-primary-hover: #6fb8e8;
+        --pulse-on-primary: #0b1a24;
+        --pulse-error: #ff7b70;
+        color: var(--pulse-text);
+    }
+}

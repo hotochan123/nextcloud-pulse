@@ -1,0 +1,230 @@
+/**
+ * SPDX-FileCopyrightText: 2026 hotochan123
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ */
+/*
+ * Pulse — Token-Schicht (Schritt 1 des Design-Systems).
+ * Global, un-scoped; wird in main.js UND public.js importiert -> erreicht
+ * Moderator (Steuerpult), Participant (Handy) und Screen (Beamer).
+ *
+ * Regel (Handoff §3): theme-abhängige Rollen binden an die echten NC-Vars
+ * (--color-*) mit JE EINEM Fallback -> Light/Dark folgt NC automatisch und
+ * die Fallback-Drift (#767676/#999/#555, #c33/#c73e3e, Radius 8/10/12/14)
+ * verschwindet, weil jede Rolle nur noch an EINER Stelle definiert ist.
+ * Fest bleiben bewusst nur: Antwort-Palette A–H, Quiz-Akzent.
+ */
+
+:root {
+	/* ── Theme-Rollen (an NC-Theme gebunden, je EIN Fallback) ─────────────── */
+	--pulse-bg:            var(--color-main-background, #ffffff);
+	--pulse-text:          var(--color-main-text, #1a1a1a);
+	--pulse-text-2:        var(--color-text-maxcontrast, #6b6b6b);
+	--pulse-hover:         var(--color-background-hover, #f2f2f2);
+	--pulse-fill:          var(--color-background-dark, #ededed);
+	--pulse-border:        var(--color-border, #dcdcdc);
+	--pulse-border-strong: var(--color-border-dark, #c4c4c4);
+
+	--pulse-primary:       var(--color-primary-element, #006aa3);
+	--pulse-primary-hover: var(--color-primary-element-hover, #00538a);
+	--pulse-on-primary:    var(--color-primary-element-text, #ffffff);
+
+	/* WICHTIG: an die -text-Varianten binden, NICHT an --color-success/-error!
+	   NC nutzt --color-success/-error als HELLE Flächen-Tönung (#D8F3DA/#FFE7E7),
+	   --color-*-text als dunkle, AA-lesbare Text-/Icon-Farbe (#005416/#8A0000).
+	   Diese Rollen sind Text/Rand/Solid-Danger-BG -> müssen dunkel sein. */
+	--pulse-success:       var(--color-success-text, #1d7a3e);
+	--pulse-warning:       var(--color-warning-text, #9a6b00); /* Text/Icon-Rolle, AA auf Weiß */
+	--pulse-error:         var(--color-error-text, #b5261f);
+
+	/* ── Soft-Tönungen: color-mix aus der Rolle (folgt Theme) + rgba-Fallback ─ */
+	--pulse-primary-soft: rgba(0, 106, 163, .12);
+	--pulse-primary-soft: color-mix(in srgb, var(--pulse-primary) 12%, transparent);
+	--pulse-success-soft: rgba(45, 125, 70, .14);
+	--pulse-success-soft: color-mix(in srgb, var(--pulse-success) 14%, transparent);
+	--pulse-warning-soft: rgba(154, 107, 0, .14);
+	--pulse-warning-soft: color-mix(in srgb, var(--pulse-warning) 14%, transparent);
+	--pulse-error-soft:   rgba(193, 48, 48, .13);
+	--pulse-error-soft:   color-mix(in srgb, var(--pulse-error) 13%, transparent);
+
+	/* ── Quiz-Akzent (theme-UNABHÄNGIG, eigener Dark-Wert weiter unten) ────── */
+	--pulse-quiz:      #7a3ea8;
+	--pulse-quiz-on:   #ffffff;
+	--pulse-quiz-soft: rgba(122, 62, 168, .13);
+
+	/* ── Typo-Skala (§3.5 — eine statt ~14) ───────────────────────────────── */
+	--t-cap:  12px; /* Meta, Labels                       */
+	--t-sm:   14px; /* Sekundärtext                       */
+	--t-body: 16px; /* Fließtext, Buttons (kein iOS-Zoom) */
+	--t-lead: 20px; /* Frage Handy, Kartentitel           */
+	--t-h2:   26px; /* Screen-Titel                       */
+	--t-h1:   34px; /* Landing                            */
+
+	/* Eine Mono-Familie für DATEN-Zahlen (Skala-Wert, Kompass-Readout, Counts):
+	   tabellenziffrig -> die Zahl springt beim Ziehen nicht in der Breite. */
+	--pulse-mono: ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+
+	/* ── Beamer-Skala (fern-lesbar, relativ zum Viewport) ─────────────────── */
+	--b-meta: clamp(15px, 1.4vw, 26px);
+	--b-body: clamp(20px, 2.2vw, 40px);
+	--b-tile: clamp(22px, 2.4vw, 46px);
+	--b-q:    clamp(34px, 4.2vw, 84px);
+	--b-huge: clamp(64px, 9vw, 168px);
+
+	/* ── Bühnen-Typografie (Redesign §2.2) ────────────────────────────────
+	   Gerechnet, nicht geschätzt: Bezugsprojektion 3,0 m Bildbreite bei
+	   1920 px -> 1 px = 1,5625 mm. Versalhöhe ≈ 0,70 × Schriftgrad, lesbar
+	   ab Cap ≥ Leseabstand / 200.
+	     Klasse A (15 m): Frage, Bühnentitel, Raumcode      -> 68 px
+	     Klasse B (10 m): Labels, Werte, Namen, Achsen      -> 46 px
+	     Klasse C ( 5 m): Meta-Leiste, Legende, „+N weitere" -> 23 px
+	   --scr-stage-fs ist der EINZIGE px-Wert der Bühne; alles darin rechnet
+	   in em davon, damit die Schrumpf-Schleife mit einem Schreibzugriff
+	   auskommt (§2.3). */
+	--scr-pad:      clamp(24px, 2.5vw, 56px);
+	--scr-q-fs:     clamp(34px, 3.6vw, 72px);
+	--scr-stage-fs: clamp(24px, 2.4vw, 46px);
+	--scr-meta-fs:  clamp(16px, 1.25vw, 26px);
+
+	/* ── EIN Radius-Set (§3.4) ────────────────────────────────────────────── */
+	--pulse-r-el:   8px;
+	--pulse-r-card: 14px;
+	--pulse-r-pill: 9999px;
+
+	/* ── Schatten (Dark-Werte weiter unten) ───────────────────────────────── */
+	--pulse-shadow-card: 0 2px 8px rgba(0, 0, 0, .07);
+	--pulse-shadow-pop:  0 8px 28px rgba(0, 0, 0, .16);
+
+	/* ── Kanonische Antwort-Palette A–H — AA-geprüft, THEME-UNABHÄNGIG ──────
+	   Jede Farbe trägt ihre eigene, geprüfte Textfarbe (--opt-*-ink). Wird von
+	   der Live-Kachel über den Handy-Button bis in den Ergebnis-Balken
+	   durchgezogen (die Kahoot-Brücke, siehe util/palette.js). */
+	--opt-a: #c23b2e; --opt-a-ink: #ffffff; /* Rot     */
+	--opt-b: #1d6fb0; --opt-b-ink: #ffffff; /* Blau    */
+	--opt-c: #2e7d46; --opt-c-ink: #ffffff; /* Grün    */
+	--opt-d: #e8a200; --opt-d-ink: #241a00; /* Amber → dunkler Text (AA-Fix) */
+	--opt-e: #5b46c4; --opt-e-ink: #ffffff; /* Indigo — von Quiz-Lila (--pulse-quiz) abgerückt (§5/§8) */
+	--opt-f: #0f7c8c; --opt-f-ink: #ffffff; /* Türkis (abgedunkelt, AA-Fix) */
+	--opt-g: #c2255c; --opt-g-ink: #ffffff; /* Magenta */
+	--opt-h: #495057; --opt-h-ink: #ffffff; /* Schiefer */
+
+	/* ── Bühnen-Rollen (Redesign §3.2/§3.3) ───────────────────────────────
+	   Der Kontrastpartner der Antwort-Palette (§3.1) ist bereits da: jede
+	   Farbe trägt ihr geprüftes --opt-*-ink. Das Balken-Label liest es über
+	   --opt-ink, deshalb entstehen hier keine acht neuen Tokens. */
+	--pulse-screen-bg:     var(--pulse-bg);
+	--pulse-bar-track:     var(--pulse-fill);
+	--pulse-meta:          var(--pulse-readout);
+	--pulse-state-open:    var(--pulse-success);
+	--pulse-state-done:    var(--pulse-readout);
+	/* Schrift AUF der done-Fläche (Rennzeile „Finished", eigenes Tempo):
+	   #fff auf #33465e = 9,64:1. Die Rennzeile füllt mit --pulse-readout, am
+	   Element aufgelöst — NICHT mit --pulse-state-done: das wird hier in :root
+	   aufgelöst (var() rechnet am deklarierenden Element) und bliebe in den
+	   Dunkel-Blöcken #33465e, auf der dunklen Spur #292929 nur 1,51:1
+	   (Review 28.09.). Dunkel ist die Fläche #c3d2e4, die Schrift #0d1620. */
+	--pulse-state-done-ink: #ffffff;
+	--pulse-solution-ring: var(--pulse-success);
+	--pulse-solution-mark: var(--pulse-success);
+	--pulse-countdown-urgent: var(--pulse-error);
+	/* Bildfrage (§7.8): im Hellen trägt das Bild eine ruhige Fläche, im Dunklen
+	   nimmt sie zusammen mit der leichten Abdunklung das Leuchten aus weißen
+	   Bildgründen. Keine Invertierung — Diagramme und Logos würden falsch. */
+	--pulse-image-mat:     var(--pulse-fill);
+	--pulse-image-filter:  none;
+
+	/* ── §0 Verfeinerung: vier neue Rollen (THEME-UNABHÄNGIG, Dark unten) ────
+	   Warum eigene Rollen statt --pulse-primary/-quiz/-text-2:
+	   • self  = "Du"/Ich-Identität — EINE Farbe über Rangliste, Podium, Balken,
+	             Kompass-Punkt/Regler. Vorher lieh sie sich das Quiz-Lila, was
+	             "Du" und "Quiz-Modus" visuell verschmolz.
+	   • viz   = Datenvisualisierung (Histogramm/Radar/Kompass). Vorher UI-Blau
+	             -> Diagramm und Bedienelement sahen gleich wichtig aus.
+	   • readout = DATENTRAGENDES Grau (Counts, %, N Stimmen, Mini-PIN, Code).
+	             Kräftiger als --pulse-text-2, das weglassbare Beschriftung bleibt.
+	   • gold/silver/bronze = Podium (§2).
+	   AA-Regel: Farbe ist nie einziger Träger — "Du"/Schwerpunkt/Rang immer
+	   zusätzlich als Text oder Form. */
+	--pulse-self:      #c2255c;
+	--pulse-self-ink:  #ffffff;
+	--pulse-self-soft: rgba(194, 37, 92, .12);
+
+	--pulse-viz:       #0e7c8b; /* Ø / Kontur / Säule */
+	--pulse-viz-2:     #7ac6d2; /* Streuung / Fläche  */
+	--pulse-viz-soft:  rgba(14, 124, 139, .14);
+	/* Schrift AUF einer viz-Fläche (Rennbalken, eigenes Tempo): #fff auf #0e7c8b = 4,91:1. */
+	--pulse-viz-ink:   #ffffff;
+
+	--pulse-readout:   #33465e;
+
+	--pulse-gold:   #c8961e; --pulse-gold-2:   #efc75a;
+	--pulse-silver: #8b93a0; --pulse-silver-2: #c3cad4;
+	--pulse-bronze: #a56a3c; --pulse-bronze-2: #cf9463;
+
+	/* ── Wort-Palette (§7) — kategorial je Wort, THEME-ABHÄNGIG (Dark-Varianten
+	   weiter unten). BEWUSST GETRENNT von der Antwort-Palette A–H und vom
+	   UI-Akzent: die Wortwolke ist Zufallsfarbe-je-Wort, keine Options-Brücke.
+	   Farbe ist hier reine Kategorie-Deko — Informationsträger ist das Wort. */
+	--w1: #E23744; --w2: #E86B12; --w3: #C08400; --w4: #0E9E90;
+	--w5: #2D6FE0; --w6: #7C4DD6; --w7: #D6409A; --w8: #1BA25A;
+}
+
+/*
+ * Dark: nur die theme-UNABHÄNGIGEN Tokens anfassen, die trotzdem einen
+ * eigenen Dark-Wert haben (Quiz-Akzent, Schatten). Alles andere folgt NC
+ * automatisch, weil es an --color-* gebunden ist. Selektoren = die von NC
+ * kompiliert genutzten Dark-Marker.
+ */
+[data-theme-dark],
+[data-themes*="dark"],
+.theme--dark {
+	--pulse-quiz:      #b57fe0;
+	--pulse-quiz-on:   #1c0a2b;
+	--pulse-quiz-soft: rgba(181, 127, 224, .20);
+	--pulse-self:      #f2699b;
+	--pulse-self-ink:  #2a0a17;
+	--pulse-self-soft: rgba(242, 105, 155, .20);
+	--pulse-viz:       #43c3d8;
+	--pulse-viz-2:     #9fe0ea;
+	--pulse-viz-soft:  rgba(67, 195, 216, .18);
+	--pulse-viz-ink:   #062a30; /* auf #43c3d8 = 7,26:1 */
+	--pulse-state-done-ink: #0d1620; /* auf readout #c3d2e4 = 11,9:1 (Rennzeile „Finished") */
+	--pulse-readout:   #c3d2e4;
+	--pulse-image-mat:    #2b2b2b;
+	--pulse-image-filter: brightness(.94);
+	--pulse-gold:   #e6bd4d; --pulse-gold-2:   #f6d97e;
+	--pulse-silver: #b7bfcc; --pulse-silver-2: #dbe1ea;
+	--pulse-bronze: #c98a56; --pulse-bronze-2: #e0aa7e;
+	--pulse-shadow-card: 0 2px 10px rgba(0, 0, 0, .45);
+	--pulse-shadow-pop:  0 10px 34px rgba(0, 0, 0, .6);
+	/* Wort-Palette Dark: hellere Varianten (Kontrast auf dunklem Beamer) */
+	--w1: #FF6B77; --w2: #FFA24D; --w3: #F4C24A; --w4: #31CEB4;
+	--w5: #5B96FF; --w6: #B48CFF; --w7: #FF74B4; --w8: #4CD888;
+}
+
+/* NC-Standardtheme folgt dem Betriebssystem — dort Dark ebenfalls schalten. */
+@media (prefers-color-scheme: dark) {
+	[data-theme-default],
+	[data-themes*="default"] {
+		--pulse-quiz:      #b57fe0;
+		--pulse-quiz-on:   #1c0a2b;
+		--pulse-quiz-soft: rgba(181, 127, 224, .20);
+		--pulse-self:      #f2699b;
+		--pulse-self-ink:  #2a0a17;
+		--pulse-self-soft: rgba(242, 105, 155, .20);
+		--pulse-viz:       #43c3d8;
+		--pulse-viz-2:     #9fe0ea;
+		--pulse-viz-soft:  rgba(67, 195, 216, .18);
+		--pulse-viz-ink:   #062a30; /* auf #43c3d8 = 7,26:1 */
+		--pulse-state-done-ink: #0d1620; /* auf readout #c3d2e4 = 11,9:1 (Rennzeile „Finished") */
+		--pulse-readout:   #c3d2e4;
+	--pulse-image-mat:    #2b2b2b;
+	--pulse-image-filter: brightness(.94);
+		--pulse-gold:   #e6bd4d; --pulse-gold-2:   #f6d97e;
+		--pulse-silver: #b7bfcc; --pulse-silver-2: #dbe1ea;
+		--pulse-bronze: #c98a56; --pulse-bronze-2: #e0aa7e;
+		--pulse-shadow-card: 0 2px 10px rgba(0, 0, 0, .45);
+		--pulse-shadow-pop:  0 10px 34px rgba(0, 0, 0, .6);
+		--w1: #FF6B77; --w2: #FFA24D; --w3: #F4C24A; --w4: #31CEB4;
+		--w5: #5B96FF; --w6: #B48CFF; --w7: #FF74B4; --w8: #4CD888;
+	}
+}

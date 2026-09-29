@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="de" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pulse — Feier-Moment & Podium (Verfeinerung §5)</title>
+<style>
+/* PULSE — Feier-Moment + Podium am Beamer (Übergabe 2, §5). NC-Tokens + Gold/Silber/Bronze + --pulse-self.
+   Motion folgt der Bedeutung: gestaffelter Podest-Einlauf, Medaillen-Pop, Quiz-Verdikt — reduced-motion-fest. */
+:root, [data-theme="light"]{
+  --nc-main-bg:#ffffff; --nc-main-text:#1a1a1a; --nc-maxcontrast:#6b6b6b;
+  --nc-bg-hover:#f2f2f2; --nc-bg-dark:#ededed; --nc-border:#dcdcdc; --nc-border-dark:#c4c4c4;
+  --nc-primary:#0069c2; --nc-primary-el:#006aa3; --nc-primary-hover:#00538a; --nc-on-primary:#fff;
+  --nc-quiz:#7a3ea8; --nc-quiz-light:rgba(122,62,168,.14);
+  --nc-success:#2d7d46; --nc-success-light:rgba(45,125,70,.14); --nc-error:#b7304a; --nc-error-light:rgba(183,48,74,.12);
+  --pulse-self:#c2255c; --pulse-self-soft:rgba(194,37,92,.12); --pulse-self-ink:#fff;
+  --pulse-gold:#c8961e; --pulse-gold-2:#efc75a; --pulse-silver:#8b93a0; --pulse-silver-2:#c3cad4; --pulse-bronze:#a56a3c; --pulse-bronze-2:#cf9463;
+  --shadow-card:0 2px 8px rgba(0,0,0,.07); --shadow-pop:0 8px 28px rgba(0,0,0,.16);
+}
+[data-theme="dark"]{
+  --nc-main-bg:#171717; --nc-main-text:#ededed; --nc-maxcontrast:#a0a0a0;
+  --nc-bg-hover:#262626; --nc-bg-dark:#242424; --nc-border:#333; --nc-border-dark:#454545;
+  --nc-primary:#3ba1f0; --nc-primary-el:#3ba1f0; --nc-primary-hover:#64b6f5; --nc-on-primary:#06243a;
+  --nc-quiz:#b57fe0; --nc-quiz-light:rgba(181,127,224,.20);
+  --nc-success:#57c06f; --nc-success-light:rgba(87,192,111,.20); --nc-error:#e2687e; --nc-error-light:rgba(226,104,126,.18);
+  --pulse-self:#f2699b; --pulse-self-soft:rgba(242,105,155,.20); --pulse-self-ink:#2a0a17;
+  --pulse-gold:#e6bd4d; --pulse-gold-2:#f6d97e; --pulse-silver:#b7bfcc; --pulse-silver-2:#dbe1ea; --pulse-bronze:#c98a56; --pulse-bronze-2:#e0aa7e;
+  --shadow-card:0 2px 10px rgba(0,0,0,.45); --shadow-pop:0 10px 34px rgba(0,0,0,.6);
+}
+:root{ --t-cap:12px; --t-sm:14px; --t-body:16px; --t-lead:20px; --r-el:8px; --r-card:14px;
+  --fs:-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --mono:ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace; }
+*{box-sizing:border-box;}
+body{margin:0; font-family:var(--fs); color:#1c2230; background:#eef1f5; -webkit-font-smoothing:antialiased; line-height:1.5;}
+
+.doc-head{position:sticky; top:0; z-index:40; display:flex; align-items:center; gap:16px; flex-wrap:wrap; padding:14px 28px; background:#0b1f38; color:#fff; border-bottom:3px solid #0069c2;}
+.doc-head .logo{display:flex; align-items:center; gap:10px; font-weight:800;}
+.doc-head .logo .dot{width:14px;height:14px;border-radius:50%;background:#0069c2;box-shadow:0 0 0 4px rgba(0,105,194,.3);}
+.doc-head .sub{color:#9db6d4; font-size:13px;} .doc-head .spacer{flex:1;}
+.theme-btn{cursor:pointer; border:1px solid rgba(255,255,255,.3); background:rgba(255,255,255,.08); color:#fff; font:inherit; font-size:13px; padding:6px 13px; border-radius:999px;}
+.theme-btn:hover{background:rgba(255,255,255,.18);}
+
+.wrap{max-width:1180px; margin:0 auto; padding:0 28px 120px;}
+section.block{margin-top:54px;}
+.eyebrow{font-size:12px; letter-spacing:.16em; text-transform:uppercase; color:#0069c2; font-weight:700;}
+h2.sec{font-size:28px; margin:6px 0 4px; letter-spacing:-.01em; color:#101828;}
+.sec-intro{color:#4a5568; max-width:74ch; margin:0 0 8px;}
+.why{border-left:3px solid #0069c2; background:#eaf2fb; padding:10px 14px; border-radius:0 8px 8px 0; font-size:14px; color:#20344d; margin:14px 0;}
+.why b{color:#0b3f74;}
+.dark-note{border-left:3px solid #5a4b8a; background:#efecf7; color:#2f2650;} .dark-note b{color:#4a3a86;}
+.assume{border-left:3px solid #c8961e; background:#fbf3df; color:#5a4413;} .assume b{color:#7a5a12;}
+.legend{display:flex; gap:16px; flex-wrap:wrap; font-size:13px; color:#4a5568; margin-top:10px;}
+.pill{display:inline-block; font-size:11px; font-weight:700; letter-spacing:.02em; padding:2px 9px; border-radius:999px; background:#fbeccb; color:#7a5a12; vertical-align:2px; margin-left:8px;}
+.doc-btn{cursor:pointer; border:1px solid var(--nc-border-dark); background:var(--nc-main-bg); color:var(--nc-main-text); font:inherit; font-size:13px; font-weight:600; padding:8px 15px; border-radius:999px;}
+.doc-btn:hover{background:var(--nc-bg-hover);}
+
+/* ── BEAMER-BÜHNE ── */
+.beamer{border-radius:16px; padding:16px; background:#0a0d13; box-shadow:var(--shadow-pop);}
+.beamer .screen{position:relative; background:var(--nc-main-bg); color:var(--nc-main-text); border-radius:10px; overflow:hidden; padding:clamp(20px,3vw,40px);}
+.beamer .stage-title{text-align:center; font-weight:800; font-size:clamp(22px,2.8vw,38px); letter-spacing:-.02em; margin:0 0 2px;}
+.beamer .stage-sub{text-align:center; font-size:clamp(13px,1.3vw,16px); color:var(--nc-maxcontrast); margin-bottom:clamp(22px,3vw,38px);}
+
+/* Winner-Glow hinter dem Podest (dezent, kein Konfetti) */
+.podium-glow{position:absolute; left:50%; top:8%; width:60%; height:70%; transform:translateX(-50%);
+  background:radial-gradient(60% 60% at 50% 30%, color-mix(in oklab,var(--pulse-gold) 40%,transparent) 0%, transparent 70%);
+  opacity:0; pointer-events:none;}
+.animate .podium-glow{animation:glow 900ms ease-out .75s both;}
+
+/* Podest */
+.podium{position:relative; display:grid; grid-template-columns:1fr 1.15fr 1fr; align-items:end; gap:clamp(10px,1.6vw,22px); max-width:720px; margin:0 auto;}
+.podium-col{display:flex; flex-direction:column; align-items:center; gap:10px;}
+.win-card{display:flex; flex-direction:column; align-items:center; gap:6px;}
+.medal{position:relative; width:clamp(46px,5vw,62px); height:clamp(46px,5vw,62px); border-radius:50%; display:grid; place-items:center;
+  font-family:var(--mono); font-weight:800; font-size:clamp(18px,2vw,24px); color:#3a2a00; border:3px solid var(--nc-main-bg); box-shadow:0 3px 10px rgba(0,0,0,.28);}
+.medal.g{background:radial-gradient(circle at 35% 30%, var(--pulse-gold-2), var(--pulse-gold));}
+.medal.s{background:radial-gradient(circle at 35% 30%, var(--pulse-silver-2), var(--pulse-silver)); color:#25292e;}
+.medal.b{background:radial-gradient(circle at 35% 30%, var(--pulse-bronze-2), var(--pulse-bronze)); color:#2e1a0c;}
+.animate .medal{animation:pop 460ms cubic-bezier(.34,1.56,.64,1) both;}
+.name{font-weight:700; font-size:clamp(14px,1.5vw,19px); text-align:center; max-width:12ch; overflow-wrap:break-word;}
+.score{font-family:var(--mono); font-weight:800; font-size:clamp(14px,1.5vw,18px); color:var(--nc-primary-el);}
+.riser{width:100%; border-radius:10px 10px 0 0; border:1px solid var(--nc-border); border-bottom:0;
+  display:grid; place-items:center; color:var(--nc-main-bg); font-family:var(--mono); font-weight:800; font-size:clamp(26px,3.4vw,46px);}
+.riser.g{height:clamp(120px,15vw,190px); background:linear-gradient(180deg,var(--pulse-gold),color-mix(in oklab,var(--pulse-gold) 78%,#000));}
+.riser.s{height:clamp(88px,11vw,140px); background:linear-gradient(180deg,var(--pulse-silver),color-mix(in oklab,var(--pulse-silver) 78%,#000));}
+.riser.b{height:clamp(66px,8.5vw,108px); background:linear-gradient(180deg,var(--pulse-bronze),color-mix(in oklab,var(--pulse-bronze) 78%,#000));}
+.animate .podium-col{animation:rise 520ms cubic-bezier(.2,.7,.2,1) both;}
+.animate .podium-col.c3{animation-delay:80ms;}   /* Bronze zuerst */
+.animate .podium-col.c2{animation-delay:300ms;}  /* Silber */
+.animate .podium-col.c1{animation-delay:560ms;}  /* Sieger zuletzt */
+.animate .podium-col.c3 .medal{animation-delay:300ms;}
+.animate .podium-col.c2 .medal{animation-delay:520ms;}
+.animate .podium-col.c1 .medal{animation-delay:820ms;}
+/* „Du" auf dem Podest */
+.you-ring{outline:3px solid var(--pulse-self); outline-offset:3px; border-radius:12px;}
+.you-pill{display:inline-flex; align-items:center; gap:5px; font-size:var(--t-cap); font-weight:800; padding:3px 10px; border-radius:999px; background:var(--pulse-self); color:var(--pulse-self-ink);}
+
+@keyframes rise{from{opacity:0; transform:translateY(46px);} to{opacity:1; transform:none;}}
+@keyframes pop{0%{transform:scale(0);} 70%{transform:scale(1.18);} 100%{transform:scale(1);}}
+@keyframes glow{from{opacity:0;} 40%{opacity:1;} to{opacity:.65;}}
+@keyframes vpop{0%{opacity:0; transform:scale(.82);} 60%{transform:scale(1.05);} 100%{opacity:1; transform:scale(1);}}
+@keyframes check{from{stroke-dashoffset:40;} to{stroke-dashoffset:0;}}
+@media (prefers-reduced-motion:reduce){
+  .animate .podium-col,.animate .medal,.animate .podium-glow,.animate .verdict,.animate .vmark path{animation:none !important;}
+  .animate .podium-glow{opacity:.5;} .verdict{opacity:1 !important; transform:none !important;} .vmark path{stroke-dashoffset:0 !important;}
+}
+
+/* Endstand-Liste (Beamer, Ränge 4..N) */
+.board{max-width:720px; margin:22px auto 0; display:flex; flex-direction:column; gap:8px;}
+.brow{display:grid; grid-template-columns:44px 1fr auto; align-items:center; gap:14px; padding:12px 16px; border-radius:12px; background:var(--nc-bg-hover); border:1px solid var(--nc-border);}
+.brow .rk{font-family:var(--mono); font-weight:800; font-size:clamp(16px,1.8vw,20px); color:var(--nc-maxcontrast); text-align:center;}
+.brow .nm{font-weight:600; font-size:clamp(14px,1.6vw,18px);}
+.brow .pt{font-family:var(--mono); font-weight:800; font-size:clamp(14px,1.6vw,18px); color:var(--nc-primary-el);}
+.brow.you{background:var(--pulse-self-soft); border-color:var(--pulse-self);}
+.brow.you .rk{color:var(--pulse-self);}
+
+/* Quiz-Verdikt */
+.verdicts{display:grid; grid-template-columns:1fr 1fr; gap:18px; max-width:720px; margin:0 auto;}
+@media (max-width:720px){ .verdicts{grid-template-columns:1fr} }
+.verdict{border-radius:16px; padding:clamp(20px,2.6vw,34px); text-align:center; color:#fff;}
+.verdict.ok{background:var(--nc-success);} .verdict.no{background:var(--nc-error);}
+.animate .verdict.ok{animation:vpop 420ms cubic-bezier(.34,1.56,.64,1) both;}
+.animate .verdict.no{animation:vpop 380ms cubic-bezier(.2,.7,.2,1) both .1s;}
+.vmark{width:clamp(56px,7vw,84px); height:clamp(56px,7vw,84px); border-radius:50%; background:rgba(255,255,255,.18); display:grid; place-items:center; margin:0 auto 12px;}
+.vmark svg{width:60%; height:60%;} .vmark path{fill:none; stroke:#fff; stroke-width:7; stroke-linecap:round; stroke-linejoin:round; stroke-dasharray:40;}
+.animate .vmark path{animation:check 420ms ease-out both .2s;}
+.verdict .vt{font-weight:800; font-size:clamp(22px,2.6vw,32px); letter-spacing:-.01em;}
+.verdict .vs{font-size:clamp(13px,1.4vw,16px); opacity:.92; margin-top:4px;}
+.verdict .vpts{margin-top:12px; display:inline-block; font-family:var(--mono); font-weight:800; font-size:clamp(14px,1.5vw,18px); padding:5px 14px; border-radius:999px; background:rgba(255,255,255,.2);}
+
+footer.foot{margin-top:70px; padding-top:24px; border-top:1px solid #dde3ec; text-align:center; color:#7a8699; font-size:13px;}
+</style>
+</head>
+<body data-od-id="pulse-feier-podium">
+
+<header class="doc-head" data-od-id="doc-header">
+  <span class="logo"><span class="dot"></span> Pulse <span class="sub">· Feier-Moment & Podium · Verfeinerung §5</span></span>
+  <span class="spacer"></span>
+  <button class="doc-btn" id="replay" data-od-id="replay">↻ Animation abspielen</button>
+  <button class="theme-btn" id="themeToggle" data-od-id="theme-toggle">◐ Dark-Theme</button>
+</header>
+
+<div class="wrap">
+
+  <section class="block" style="margin-top:38px" data-od-id="intro">
+    <div class="eyebrow">Übergabe 2 · §5 · Der Höhepunkt</div>
+    <h2 class="sec">Motion folgt der Bedeutung<span class="pill">nie designt</span></h2>
+    <p class="sec-intro">Der Endstand ist der emotionale Höhepunkt — bisher aber am schwächsten ausgearbeitet: das
+    Podium lief nur auf dem privaten Moderator-Schirm, war bewegungslos (drei blaue Balken per Deckkraft), und das
+    Quiz-„Richtig!" ploppte regungslos. Jetzt gehört das Podium <b>auf den Beamer</b>, läuft <b>gestaffelt</b> ein
+    (Sieger zuletzt, Medaillen-Pop) und trägt sparsame <b>Gold/Silber/Bronze</b>-Akzente. Festlich, nicht kitschig —
+    und komplett <span style="font-family:var(--mono)">reduced-motion</span>-fest.</p>
+  </section>
+
+  <!-- ══ PODIUM ══ -->
+  <section class="block" data-od-id="podium">
+    <div class="eyebrow">Beamer · Endstand · Podium</div>
+    <h2 class="sec">Das Podest läuft ein</h2>
+    <div class="beamer" data-od-id="beamer-podium">
+      <div class="screen" id="podiumStage">
+        <div class="podium-glow"></div>
+        <div class="stage-title">Endstand</div>
+        <div class="stage-sub">Quiz „Nextcloud-Basics" · 5 Fragen · 18 dabei</div>
+        <div class="podium">
+          <!-- Silber (links) -->
+          <div class="podium-col c2" data-od-id="podium-2">
+            <div class="win-card you-ring">
+              <span class="you-pill">Du</span>
+              <div class="medal s">2</div>
+              <div class="name">Du (Lena&nbsp;M.)</div>
+              <div class="score">4 210</div>
+            </div>
+            <div class="riser s">2</div>
+          </div>
+          <!-- Gold (Mitte) -->
+          <div class="podium-col c1" data-od-id="podium-1">
+            <div class="win-card">
+              <div class="medal g">1</div>
+              <div class="name">Jonas&nbsp;K.</div>
+              <div class="score">4 560</div>
+            </div>
+            <div class="riser g">1</div>
+          </div>
+          <!-- Bronze (rechts) -->
+          <div class="podium-col c3" data-od-id="podium-3">
+            <div class="win-card">
+              <div class="medal b">3</div>
+              <div class="name">Amir&nbsp;S.</div>
+              <div class="score">3 980</div>
+            </div>
+            <div class="riser b">3</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="why"><b>Warum gestaffelt (Sieger zuletzt):</b> Spannung entsteht durch Reihenfolge — Bronze steigt
+    zuerst, dann Silber, der Sieger zuletzt, jede Medaille poppt beim Ankommen. Der dezente Gold-Glow hinter Platz 1
+    ersetzt Konfetti: festlich, aber nicht kitschig (§11). Die Balken sind nicht mehr nur „per Deckkraft abgestuft",
+    sondern echte Podest-Höhen 1 &gt; 2 &gt; 3 mit Metall-Akzent.</div>
+    <div class="why"><b>Warum Farbe nie allein trägt:</b> Rang steht dreifach — Medaillen­zahl, Podest­höhe und Name/Punkte.
+    Gold/Silber/Bronze sind Zugabe, nicht der einzige Träger. Deine Platzierung markiert der <b>Magenta „Du"-Ring +
+    „Du"-Pille</b> (<span style="font-family:var(--mono)">--pulse-self</span>) — dieselbe „Du"-Farbe wie in Skala/Rangliste (§6).</div>
+    <div class="why assume"><b>Annahme (§11 „Feier-Motion"):</b> Umfang = „festlich, nicht kitschig" — Rise + Medal-Pop
+    + ruhiger Glow, kein Konfetti-Regen, keine Loops. Alles einmalig, &lt; 1 s, dann still.</div>
+    <div class="why dark-note"><b>Dark:</b> Gold/Silber/Bronze öffnen heller (<span style="font-family:var(--mono)">--pulse-gold-2</span> usw.),
+    der Glow bleibt dezent auf dunklem Grund. „Du"-Ring in hellerem Magenta.</div>
+  </section>
+
+  <!-- ══ ENDSTAND-LISTE ══ -->
+  <section class="block" data-od-id="board">
+    <div class="eyebrow">Beamer · darunter</div>
+    <h2 class="sec">Die restlichen Ränge — „Du" bleibt sichtbar</h2>
+    <div class="beamer">
+      <div class="screen">
+        <div class="stage-sub" style="margin-bottom:6px;text-align:left">Ränge 4 – 8</div>
+        <div class="board">
+          <div class="brow"><span class="rk">4</span><span class="nm">Sofia&nbsp;R.</span><span class="pt">3 640</span></div>
+          <div class="brow"><span class="rk">5</span><span class="nm">Tom&nbsp;B.</span><span class="pt">3 410</span></div>
+          <div class="brow"><span class="rk">6</span><span class="nm">Nika&nbsp;P.</span><span class="pt">3 120</span></div>
+          <div class="brow"><span class="rk">7</span><span class="nm">Elias&nbsp;W.</span><span class="pt">2 880</span></div>
+          <div class="brow"><span class="rk">8</span><span class="nm">Mara&nbsp;L.</span><span class="pt">2 540</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="why"><b>Warum:</b> Auf großen Endständen scrollt niemand — die Top-3 stehen auf dem Podest, die
+    Ränge 4+ als ruhige Liste darunter. Wärst Du nicht auf dem Podest, würde <b>Deine Zeile</b> hier in
+    <span style="font-family:var(--mono)">--pulse-self</span> hervorgehoben (wie in der Live-Rangliste) — auch weit
+    unten sofort auffindbar.</div>
+  </section>
+
+  <!-- ══ QUIZ-VERDIKT ══ -->
+  <section class="block" data-od-id="verdict">
+    <div class="eyebrow">Beamer & Handy · pro Frage</div>
+    <h2 class="sec">Das Verdikt bekommt einen Moment</h2>
+    <div class="beamer" data-od-id="beamer-verdict">
+      <div class="screen" id="verdictStage">
+        <div class="stage-sub" style="margin-bottom:18px">Frage 3 aufgelöst · richtige Antwort: <b>Talk</b></div>
+        <div class="verdicts">
+          <div class="verdict ok">
+            <div class="vmark"><svg viewBox="0 0 40 40"><path d="M9 21 L17 29 L32 12"/></svg></div>
+            <div class="vt">Richtig!</div>
+            <div class="vs">„Talk" ist die Video-App in Nextcloud.</div>
+            <div class="vpts">+ 860 Punkte · schnell geantwortet</div>
+          </div>
+          <div class="verdict no">
+            <div class="vmark"><svg viewBox="0 0 40 40"><path d="M12 12 L28 28 M28 12 L12 28"/></svg></div>
+            <div class="vt">Leider falsch</div>
+            <div class="vs">Richtig wäre „Talk" gewesen.</div>
+            <div class="vpts">+ 0 Punkte</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="why"><b>Warum ein knapper Scale-in:</b> Das Verdikt ist die Belohnung/Enttäuschung des Moments — es
+    „ploppt" jetzt mit kurzem Scale (wie der elegante „Antwort abgegeben"-Haken), der Haken zeichnet sich ein. Kein
+    Dauer-Effekt, keine Schleife.</div>
+    <div class="why"><b>Warum Haken/Kreuz + Text, nicht nur Grün/Rot:</b> Symbol (✓/✗) und Wort tragen die Aussage —
+    Grün/Rot ist Verstärkung, nicht der einzige Kanal (WCAG AA). Punkte-Chip zeigt die Konsequenz sofort.</div>
+    <div class="why dark-note"><b>Dark:</b> <span style="font-family:var(--mono)">--nc-success</span>/<span style="font-family:var(--mono)">--nc-error</span>
+    öffnen heller; weißer Haken/Text bleibt ≥ 4,5:1 auf beiden Flächen.</div>
+  </section>
+
+  <section class="block" data-od-id="handoff">
+    <div class="why"><b>Erledigt nach §10:</b> 1 Skala-Familie · 2 Feier-Moment + Podium (dieser Turn) · 3 „Du"-Farbe
+    (durchgezogen). <b>Noch offen:</b> §4 Beamer-Fläche (Choice-Overflow, Lobby-Komposition + Momentum-Zähler,
+    Freitext-Verdichtung, Grau-Readouts), §3.3 Demo-Leiste, §3.4 Skala-Composer, §7/§8 Kleinteile. Sag „weiter mit §4".</div>
+    <div class="legend"><span><b>Für Dev:</b> Podium-Komponente auf den Beamer-Screen (nicht nur Moderator);
+    Rise/Pop/Glow als CSS-Animationen mit Delays (c3→c2→c1), alle in
+    <span style="font-family:var(--mono)">@media (prefers-reduced-motion:reduce)</span> abgeschaltet; Verdikt-Scale ebenso.
+    Tokens: Gold/Silber/Bronze (+ Dark) neu, „Du" = <span style="font-family:var(--mono)">--pulse-self</span>.</span></div>
+  </section>
+
+</div>
+
+<footer class="foot">Pulse · Feier-Moment & Podium · Verfeinerung §5 · NC-Tokens + Gold/Silber/Bronze + --pulse-self · Light + Dark · reduced-motion-fest</footer>
+
+<script>
+/* Theme */
+(function(){var b=document.getElementById('themeToggle'),d=document.documentElement;
+ b.addEventListener('click',function(){var k=d.getAttribute('data-theme')==='dark';d.setAttribute('data-theme',k?'light':'dark');b.textContent=k?'◐ Dark-Theme':'◑ Light-Theme';try{localStorage.setItem('pulse-doc-theme',k?'light':'dark')}catch(e){}});
+ try{var s=localStorage.getItem('pulse-doc-theme');if(s){d.setAttribute('data-theme',s);b.textContent=s==='dark'?'◑ Light-Theme':'◐ Dark-Theme'}}catch(e){}})();
+
+/* Animation abspielen — Klasse .animate neu setzen (Reflow erzwingt Neustart) */
+(function(){
+  var stages=[document.getElementById('podiumStage'), document.getElementById('verdictStage')];
+  function play(){ stages.forEach(function(s){ if(!s)return; s.classList.remove('animate'); void s.offsetWidth; s.classList.add('animate'); }); }
+  document.getElementById('replay').addEventListener('click', play);
+  play(); /* einmal beim Laden */
+})();
+</script>
+</body>
+</html>

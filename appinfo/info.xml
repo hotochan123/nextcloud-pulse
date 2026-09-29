@@ -1,0 +1,76 @@
+<?xml version="1.0"?>
+<info xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:noNamespaceSchemaLocation="https://apps.nextcloud.com/schema/apps/info.xsd">
+    <id>pulse</id>
+    <name>Pulse</name>
+    <summary>Live polls for presentations — the audience votes with a code</summary>
+    <summary lang="de">Live-Umfragen für Präsentationen — Publikum stimmt per Code ab</summary>
+    <description><![CDATA[
+Pulse brings Mentimeter-style live polls to Nextcloud. The presenter opens a room
+and projects a six-character code; the audience joins through a public link without
+a Nextcloud account and votes from their own phone. Results update live.
+
+Two room modes:
+- Poll (anonymous): multiple choice, word cloud, scale (single slider, spectrum
+  radar, compass 2D field), ranking, matching
+- Quiz (with a nickname): multiple choice, true/false, multiple answers, number
+  guess, free text with grading after the fact, ranking, matching — countdown,
+  speed points, leaderboard
+
+On top of that: a deck of several questions, a projector/audience view at
+/screen/{code}, QR code and join link, a practice mode, reveal per question or at
+the end, a summary with CSV export and an add-in for embedding into PowerPoint.
+
+Participants need no account (a public share page, just like share links). An
+anonymous voter token in a cookie prevents double voting without identifying anyone.
+    ]]></description>
+    <description lang="de"><![CDATA[
+Pulse bringt Mentimeter-artige Live-Umfragen nach Nextcloud. Die vortragende Person
+öffnet einen Raum und projiziert einen 6-stelligen Code; das Publikum tritt ohne
+Nextcloud-Konto über einen öffentlichen Link bei und stimmt vom eigenen Handy ab.
+Ergebnisse aktualisieren sich live.
+
+Zwei Raum-Modi:
+- Umfrage (anonym): Multiple Choice, Wortwolke, Skala (Einzel-Slider, Spektrum-Radar,
+  Kompass-2D-Feld), Reihenfolge, Zuordnung
+- Quiz (mit Nickname): Multiple Choice, Wahr/Falsch, Mehrfachauswahl, Schätzfrage,
+  Freitext mit nachträglicher Bewertung, Reihenfolge, Zuordnung — Countdown,
+  Tempo-Punkte, Rangliste
+
+Dazu: Deck aus mehreren Fragen, Beamer-/Publikumsansicht unter /screen/{code},
+QR-Code und Beitritts-Link, Probelauf-Modus, Auflösung je Frage oder am Ende,
+Zusammenfassung mit CSV-Export und ein Add-in zum Einbetten in PowerPoint.
+
+Teilnehmende brauchen keinen Account (öffentliche Freigabe-Seite, wie bei
+Freigabe-Links). Ein anonymes Voter-Token im Cookie verhindert Mehrfachabstimmung,
+ohne eine Person zu identifizieren.
+    ]]></description>
+    <version>0.18.0</version>
+    <licence>agpl</licence>
+    <author homepage="https://github.com/hotochan123">hotochan123</author>
+    <namespace>Pulse</namespace>
+    <documentation>
+        <admin>https://github.com/hotochan123/hotochan123-nextcloud-pulse#readme</admin>
+    </documentation>
+    <category>tools</category>
+    <website>https://github.com/hotochan123/hotochan123-nextcloud-pulse</website>
+    <bugs>https://github.com/hotochan123/hotochan123-nextcloud-pulse/issues</bugs>
+    <repository type="git">https://github.com/hotochan123/hotochan123-nextcloud-pulse.git</repository>
+    <screenshot>https://raw.githubusercontent.com/hotochan123/hotochan123-nextcloud-pulse/main/screenshots/01-projector-live.png</screenshot>
+    <screenshot>https://raw.githubusercontent.com/hotochan123/hotochan123-nextcloud-pulse/main/screenshots/02-join-code.png</screenshot>
+    <screenshot>https://raw.githubusercontent.com/hotochan123/hotochan123-nextcloud-pulse/main/screenshots/03-projector-result.png</screenshot>
+    <screenshot>https://raw.githubusercontent.com/hotochan123/hotochan123-nextcloud-pulse/main/screenshots/04-phone-vote.png</screenshot>
+    <screenshot>https://raw.githubusercontent.com/hotochan123/hotochan123-nextcloud-pulse/main/screenshots/05-moderator.png</screenshot>
+    <screenshot>https://raw.githubusercontent.com/hotochan123/hotochan123-nextcloud-pulse/main/screenshots/06-quiz-standings.png</screenshot>
+    <dependencies>
+        <nextcloud min-version="34" max-version="34"/>
+    </dependencies>
+    <navigations>
+        <navigation>
+            <name>Pulse</name>
+            <route>pulse.page.index</route>
+            <icon>app.svg</icon>
+            <order>10</order>
+        </navigation>
+    </navigations>
+</info>

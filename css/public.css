@@ -1,0 +1,14 @@
+/**
+ * SPDX-FileCopyrightText: 2026 hotochan123
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ */
+/*
+ * Öffentliche Pulse-Seiten (Teilnehmer /s/{code} + Beamer /screen/{code}):
+ * den Nextcloud-Gast-Footer ausblenden — Slogan "… a safe home for all your
+ * data" + "Get your own free account". Stört auf dem Beamer und lenkt die
+ * Teilnehmer ab. Gezielt nur dieses eine Footer-Element, damit die App selbst
+ * (nicht in .guest-box) unberührt bleibt.
+ */
+footer.guest-box {
+	display: none !important;
+}

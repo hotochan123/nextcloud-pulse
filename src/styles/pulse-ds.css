@@ -1,0 +1,378 @@
+/**
+ * SPDX-FileCopyrightText: 2026 hotochan123
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ */
+/*
+ * Pulse — Design-System-Primitive (Schritt 1).
+ * Global, un-scoped; aus dem Konzept (Stufe 1) portiert, `pulse-`-präfigiert
+ * (Kollisionsschutz zu den alten scoped Klassen während der Migration).
+ *
+ * Enthält die NC-`<button>`-Resets: Nextcloud stylt native <button> global mit
+ * hoher Spezifität -> ohne appearance/Reset schlägt das durch.
+ * Farben/Radien/Typo kommen aus pulse-tokens.css.
+ */
+
+/* ══ Buttons — EINE Hierarchie ══════════════════════════════════════════════ */
+.pulse-btn {
+	font-family: inherit;
+	font-size: var(--t-body);
+	font-weight: 600;
+	line-height: 1;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	min-height: 44px;
+	height: auto !important;
+	padding: 0 18px;
+	/* NC stylt <button> auf authentifizierten Seiten (Steuerpult) mit hoher
+	   Spezifität -> die formgebenden Rollen tragen !important, Layout/Größe
+	   (padding/min-height) bleiben frei überschreibbar (Modifier, is-sm …). */
+	border: 1px solid transparent !important;
+	border-radius: var(--pulse-r-pill) !important;
+	background: var(--pulse-fill) !important;
+	color: var(--pulse-text) !important;
+	box-shadow: none !important;
+	cursor: pointer;
+	-webkit-appearance: none;
+	appearance: none !important;
+	box-sizing: border-box;
+	transition: filter .15s, background .15s, border-color .15s;
+}
+.pulse-btn:focus-visible { outline: 2px solid var(--pulse-primary); outline-offset: 2px; }
+.pulse-btn:disabled { opacity: .5; cursor: default; }
+.pulse-btn:active:not(:disabled) { transform: translateY(1px); }
+
+.pulse-btn.is-primary   { background: var(--pulse-primary) !important; color: var(--pulse-on-primary) !important; }
+.pulse-btn.is-primary:hover:not(:disabled)   { background: var(--pulse-primary-hover) !important; }
+.pulse-btn.is-secondary { background: transparent !important; color: var(--pulse-text) !important; border-color: var(--pulse-border-strong) !important; }
+.pulse-btn.is-secondary:hover:not(:disabled) { background: var(--pulse-hover) !important; }
+.pulse-btn.is-tertiary  { background: var(--pulse-fill) !important; color: var(--pulse-text) !important; }
+.pulse-btn.is-tertiary:hover:not(:disabled)  { background: var(--pulse-hover) !important; }
+.pulse-btn.is-quiz      { background: var(--pulse-quiz) !important; color: var(--pulse-quiz-on) !important; }
+.pulse-btn.is-quiz:hover:not(:disabled)      { filter: brightness(1.06); }
+.pulse-btn.is-on        { background: var(--pulse-primary) !important; color: var(--pulse-on-primary) !important; }
+
+/* Danger: default abgesetzt (Outline), nur die ernste Aktion bekommt .is-solid */
+.pulse-btn.is-danger {
+	background: transparent !important;
+	color: var(--pulse-error) !important;
+	border-color: rgba(193, 48, 48, .45) !important;
+	border-color: color-mix(in srgb, var(--pulse-error) 45%, transparent) !important;
+}
+.pulse-btn.is-danger:hover:not(:disabled) { background: var(--pulse-error-soft) !important; }
+.pulse-btn.is-danger.is-solid { background: var(--pulse-error) !important; color: #fff !important; border-color: var(--pulse-error) !important; }
+/* Ohne diese Zeile gewinnt die Hover-Regel der Outline-Variante (eine Klasse
+   mehr in der Spezifität) und der gefüllte Danger-Knopf wird beim Zeigen HELLER
+   — er sah aus wie deaktiviert. */
+.pulse-btn.is-danger.is-solid:hover:not(:disabled) { background: var(--pulse-error) !important; filter: brightness(.92); }
+
+.pulse-btn.is-lg { min-height: 52px; font-size: 18px; padding: 0 32px; }
+.pulse-btn.is-sm { min-height: 36px; font-size: var(--t-sm); padding: 0 12px; }
+.pulse-btn.is-xs { min-height: 30px; font-size: 12px; padding: 0 8px; }
+.pulse-btn.is-icon { width: 44px; padding: 0; }
+.pulse-btn.is-icon.is-sm { width: 36px; }
+.pulse-btn.is-icon.is-xs { width: 30px; }
+
+/* ══ Chip / Badge — EINE Familie ════════════════════════════════════════════ */
+.pulse-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	font-size: var(--t-cap);
+	font-weight: 600;
+	line-height: 1;
+	padding: 5px 11px;
+	border: 1px solid transparent;
+	border-radius: var(--pulse-r-pill);
+	background: var(--pulse-fill);
+	color: var(--pulse-text);
+}
+.pulse-chip.is-neutral { background: var(--pulse-fill); color: var(--pulse-text-2); border-color: var(--pulse-border); }
+.pulse-chip.is-accent  { background: var(--pulse-primary-soft); color: var(--pulse-primary); }
+.pulse-chip.is-live    { background: var(--pulse-success-soft); color: var(--pulse-success); }
+.pulse-chip.is-locked  { background: var(--pulse-fill); color: var(--pulse-text-2); border-color: var(--pulse-border-strong); }
+.pulse-chip.is-warning { background: var(--pulse-warning-soft); color: var(--pulse-warning); }
+.pulse-chip.is-error   { background: var(--pulse-error-soft); color: var(--pulse-error); }
+.pulse-chip.is-success { background: var(--pulse-success-soft); color: var(--pulse-success); }
+.pulse-chip.is-quiz    { background: var(--pulse-quiz-soft); color: var(--pulse-quiz); }
+
+/* Puls-Punkt für "Läuft" o.ä. — eigener Name, kollidiert nicht mit den
+   bestehenden scoped .pulse-dot in Participant/Screen. */
+.pulse-chip-dot {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background: currentColor;
+	animation: pulse-chip-dot 1.6s ease-in-out infinite;
+}
+@keyframes pulse-chip-dot { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .35; transform: scale(.7); } }
+
+/* ══ Notice ═════════════════════════════════════════════════════════════════ */
+.pulse-notice {
+	display: flex;
+	gap: 12px;
+	align-items: flex-start;
+	padding: 12px 14px;
+	border: 1px solid transparent;
+	border-radius: var(--pulse-r-el);
+	font-size: var(--t-sm);
+}
+.pulse-notice .pulse-notice-ico { flex: 0 0 20px; margin-top: 1px; }
+.pulse-notice.is-info    { background: var(--pulse-primary-soft); color: var(--pulse-primary); }
+.pulse-notice.is-warn    { background: var(--pulse-warning-soft); color: var(--pulse-warning); }
+.pulse-notice.is-success { background: var(--pulse-success-soft); color: var(--pulse-success); }
+.pulse-notice strong { display: block; color: var(--pulse-text); }
+
+/* ══ Antwort-Palette A–H — Verkabelung ══════════════════════════════════════
+   Eine Klasse pro Index setzt --opt-fill/--opt-ink; Buchstaben-Badge UND
+   Ergebnis-Balken lesen dieselben Variablen -> die Optionsfarbe wandert von
+   der Live-Kachel bis in den ausgefüllten Balken (util/palette.js liefert die
+   Klasse). Amber (D) trägt zusätzlich .is-ink für dunkle Letter-Chip-Tönung. */
+.pulse-opt-a { --opt-fill: var(--opt-a); --opt-ink: var(--opt-a-ink); }
+.pulse-opt-b { --opt-fill: var(--opt-b); --opt-ink: var(--opt-b-ink); }
+.pulse-opt-c { --opt-fill: var(--opt-c); --opt-ink: var(--opt-c-ink); }
+.pulse-opt-d { --opt-fill: var(--opt-d); --opt-ink: var(--opt-d-ink); }
+.pulse-opt-e { --opt-fill: var(--opt-e); --opt-ink: var(--opt-e-ink); }
+.pulse-opt-f { --opt-fill: var(--opt-f); --opt-ink: var(--opt-f-ink); }
+.pulse-opt-g { --opt-fill: var(--opt-g); --opt-ink: var(--opt-g-ink); }
+.pulse-opt-h { --opt-fill: var(--opt-h); --opt-ink: var(--opt-h-ink); }
+
+/* Buchstaben-Badge — Größe relativ (em), damit es auf Handy klein und auf dem
+   Beamer groß rendert; Fläche = Optionsfarbe, Text = geprüfte Ink-Farbe. */
+.pulse-badge {
+	display: inline-grid;
+	place-items: center;
+	width: 2.2em;
+	height: 2.2em;
+	border-radius: .5em;
+	font-weight: 800;
+	flex: 0 0 auto;
+	background: var(--opt-fill, var(--pulse-fill));
+	color: var(--opt-ink, var(--pulse-text));
+}
+
+/* ══ Ergebnis-Grammatik — Basis-Balken, komplett in `em` ════════════════════
+   Container-font-size steuert die Größe (Handy klein / Beamer groß). Kind-
+   Elemente NICHT in px, sonst bricht die Beamer-Skalierung (das ist der Fix
+   für §4.9 "Auflösung bleibt zu klein"). */
+.pulse-rbar { margin-bottom: .55em; }
+.pulse-rbar-top {
+	display: flex;
+	align-items: center;
+	gap: .5em;
+	font-size: .9em;
+	margin-bottom: .3em;
+}
+.pulse-rbar-top .pulse-badge { width: 1.6em; height: 1.6em; border-radius: .4em; font-size: .85em; }
+.pulse-rbar-name { font-weight: 700; }
+.pulse-rbar-pct { margin-left: auto; font-variant-numeric: tabular-nums; color: var(--pulse-text-2); }
+.pulse-rbar-track {
+	height: 1.6em;
+	border-radius: .5em;
+	background: var(--pulse-fill);
+	overflow: hidden;
+}
+.pulse-rbar-fill {
+	height: 100%;
+	border-radius: .5em;
+	background: var(--opt-fill, var(--pulse-primary));
+	transition: width .4s ease;
+}
+.pulse-rbar.is-correct .pulse-rbar-name::after {
+	content: " ✓ richtig";
+	color: var(--pulse-success);
+	font-size: .8em;
+	font-weight: 700;
+	white-space: nowrap;
+}
+
+/* ══ Bühnen-Zeilenmodell (Redesign §2.4) ════════════════════════════════════
+   EINE Zeile pro Option: der Balken IST die Zeile, Plakette/Label/Wert liegen
+   darüber. Löst zwei Befunde zusammen — die doppelte Höhe je Option (die Bühne
+   endete bei 78 %) und den 1800-px-Augenweg vom Label links zur Zahl rechts
+   außen.
+
+   Alle Maße in em von --scr-stage-fs; die Schrumpf-Schleife schreibt nur
+   diesen einen Wert (§2.3).
+
+   Lesbarkeit über Füllung UND Spur ohne Messung: zwei deckungsgleiche
+   Textebenen mit komplementärem clip-path. Ein Buchstabe auf der Kante wird
+   sauber halbiert und bleibt in beiden Hälften lesbar. */
+.srows { display: flex; flex-direction: column; gap: .5em; min-width: 0; min-height: 0; }
+/* Die Zeile hat KEINE Eigenhöhe: Spur, Füllung und beide Textebenen liegen
+   absolut übereinander. Ohne gesetzte Höhe bliebe sie 0 hoch — deshalb ist die
+   feste Zeilenhöhe der Standard und die Streckung der Sonderfall. */
+.srows > .srow { flex: 0 0 auto; height: 2.4em; }
+/* Bühne: die Zeilen teilen sich die Höhe zwischen Minimum und Maximum. Bei zwei
+   Optionen wächst nichts ins Riesenhafte (3,2 em Deckel), der Block zentriert. */
+.srows--stretch { height: 100%; justify-content: center; }
+.srows--stretch > .srow { flex: 1 1 2.4em; height: auto; min-height: 1.9em; max-height: 3.2em; }
+.srows--stretch.is-tall > .srow { max-height: 3.4em; }
+
+.srow {
+	position: relative;
+	overflow: hidden;
+	border-radius: .2em;
+	min-width: 0;
+}
+.srow-track { position: absolute; inset: 0; background: var(--pulse-bar-track); }
+.srow-fill {
+	position: absolute; inset: 0 auto 0 0; width: var(--p, 0%);
+	background: var(--opt-fill, var(--pulse-primary));
+	transition: width .7s cubic-bezier(.22, 1, .36, 1);
+}
+.srow-text {
+	position: absolute; inset: 0;
+	display: flex; align-items: center; gap: .55em;
+	padding-inline: .35em .5em;
+	min-width: 0;
+}
+/* Auf der Füllung: geprüfter Kontrastpartner der Palettenfarbe (--opt-ink). */
+.srow-text--fill  { color: var(--opt-ink, var(--pulse-on-primary)); clip-path: inset(0 calc(100% - var(--p, 0%)) 0 0); }
+/* Auf der Spur: normale Textfarbe. */
+.srow-text--track { color: var(--pulse-text); clip-path: inset(0 0 0 var(--p, 0%)); }
+
+.srow-badge {
+	flex: 0 0 auto;
+	display: grid; place-items: center;
+	width: 1.5em; height: 1.5em;
+	border-radius: .25em;
+	font-weight: 800; line-height: 1;
+	font-variant-numeric: tabular-nums;
+}
+/* Über der Füllung wäre eine Plakette in der Optionsfarbe unsichtbar — dort
+   trägt sie eine Tönung des Kontrastpartners. Über der Spur die Vollfarbe. */
+.srow-text--fill  .srow-badge { background: color-mix(in srgb, var(--opt-ink, #fff) 22%, transparent); color: var(--opt-ink, var(--pulse-on-primary)); }
+.srow-text--track .srow-badge { background: var(--opt-fill, var(--pulse-fill)); color: var(--opt-ink, var(--pulse-text)); }
+
+.srow-label {
+	min-width: 0; flex: 0 1 auto;
+	font-weight: 600; line-height: 1.15;
+	/* Unterlängen-Reserve: 1,15 liegt unter der natürlichen Texthöhe (≈1,36 em),
+	   und die Zeile clippt — ohne Reserve verlieren g, p, ü, ß ihre Unterlänge. */
+	padding-block: .14em;
+	overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.srow--tall .srow-label { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.srow-val {
+	flex: 0 0 auto; margin-left: auto; min-width: 5.5em; text-align: right;
+	font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.srow-flag { flex: 0 0 auto; display: inline-flex; align-items: center; gap: .2em; font-weight: 800; white-space: nowrap; }
+.srow-mark { flex: 0 0 auto; }
+
+/* Auflösung (§4.2): vier Träger für die Lösung — Sättigung, Ring, Häkchen,
+   Wort. Erkennbar aus 10 m und auch bei Farbfehlsichtigkeit, weil die
+   Sättigungsdifferenz trägt. */
+/* Der Ring liegt als eigene Ebene über Spur und Füllung: ein inset-Schatten am
+   .srow selbst läge UNTER den absolut gesetzten Kindern und wäre unsichtbar. */
+.srow.is-correct::after {
+	content: ''; position: absolute; inset: 0; z-index: 2; pointer-events: none;
+	border: .12em solid var(--pulse-solution-ring); border-radius: inherit;
+}
+.srow.is-correct .srow-label { font-weight: 700; }
+.srow.is-wrong .srow-fill { filter: saturate(.35); }
+
+/* Offene Bühne (§6.3): Umriss statt Fläche — dieselbe Familie, anderer
+   Zustand. Kein Wert, keine Füllung. */
+.srow--outline { border: .05em solid var(--pulse-border); background: transparent; }
+.srow--outline .srow-text { color: var(--pulse-text); position: static; height: 100%; }
+
+/* ── Gestapelte Zeile (§7.5/§7.6) ───────────────────────────────────────
+   Die Zeile ist immer zu 100 % gefüllt und in Segmente geteilt; das Segment
+   trägt den Anteil, nicht die Balkenlänge. Anders als bei .srow steht das
+   Label AUSSERHALB — über Segmentgrenzen hinweg gäbe es keinen Ort, an dem
+   ein durchlaufendes Label lesbar bliebe. */
+.sstack-row { display: flex; align-items: center; gap: .6em; min-width: 0; }
+.sstack-rank {
+	flex: 0 0 auto; display: grid; place-items: center;
+	width: 1.5em; height: 1.5em; border-radius: .25em;
+	font-size: .82em; font-weight: 800; line-height: 1;
+	font-variant-numeric: tabular-nums;
+	background: var(--pulse-bar-track); color: var(--pulse-text);
+}
+.sstack-head {
+	flex: 0 0 9em; width: 9em; min-width: 0;
+	font-weight: 600; line-height: 1.15; padding-block: .14em;
+	overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.sstack {
+	flex: 1 1 auto; min-width: 0;
+	display: flex; height: 2.4em;
+	border-radius: .2em; overflow: hidden;
+	background: var(--pulse-bar-track);
+}
+.sseg {
+	position: relative; min-width: 0;
+	display: grid; place-items: center;
+	font-size: .82em; font-weight: 800; line-height: 1;
+	overflow: hidden; white-space: nowrap;
+	background: var(--seg-fill, var(--pulse-primary));
+	color: var(--seg-ink, var(--pulse-on-primary));
+}
+/* Lösung im Segment, nicht am Zeilenanfang (§7.6) — der Ring liegt als eigene
+   Ebene darüber, damit er nicht unter dem Nachbarsegment verschwindet. */
+.sseg.is-correct::after {
+	content: ''; position: absolute; inset: 0; z-index: 2; pointer-events: none;
+	border: .12em solid var(--pulse-solution-ring);
+}
+.sseg.is-wrong { filter: saturate(.35); }
+.sstack-val {
+	flex: 0 0 auto; min-width: 4.2em; text-align: right;
+	font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+
+/* ── Rennen im eigenen Tempo (Beamer, §3.3) ─────────────────────────────
+   Dieselbe Zeile wie die Auflösung, aber Zählstände statt Antworten: die
+   Fragezeilen in der Datenfarbe, „Finished" in der Abschlussfarbe (das
+   Readout-Grau, am Element aufgelöst: dunkel #c3d2e4 — --pulse-state-done
+   bliebe dort #33465e, 1,5:1 auf der Spur), „Not started" grau. Die
+   Kontrastpartner (--*-ink) sind in pulse-tokens.css
+   gemessen. „Not started" nimmt das Nebentext-Grau, nicht --pulse-border-
+   strong: dessen Füllung stand mit 1,2:1 auf der Spur, die Balkenlänge war
+   nicht zu sehen (gemessen 28.09.: Grau/Spur hell 4,5:1, Schrift darauf
+   --pulse-bg ≥ 4,5:1 hell und dunkel — beide Rollen folgen dem NC-Theme,
+   auch auf der öffentlichen Seite). Der Wert ist nur eine Zahl — die
+   Mindestbreite für „9 · 38 %" nähme den Fragezeilen in zwei Spalten den
+   Platz fürs Label. */
+.pace-race-row { --opt-fill: var(--pulse-viz); --opt-ink: var(--pulse-viz-ink); }
+.pace-race-row.is-done { --opt-fill: var(--pulse-readout); --opt-ink: var(--pulse-state-done-ink); }
+.pace-race-row.is-idle { --opt-fill: var(--pulse-text-2); --opt-ink: var(--pulse-bg); }
+/* Öffentliche Seite ohne Theme-Wahl (<body data-themes="">, der Beamer im
+   Klassenraum): NC schaltet dort nur über prefers-color-scheme auf dunkel
+   (:root), keiner der Dunkel-Blöcke in pulse-tokens.css greift. Spur und
+   Text werden dunkel, Datenfarbe und Readout blieben hell — gemessen 28.09.:
+   „Finished" #33465e auf #292929 = 1,51:1, Fragen #0e7c8b = 2,96:1. Nur die
+   Rennzeilen ziehen deshalb die Dunkelwerte nach (dieselben wie in den
+   Token-Blöcken: #43c3d8 = 6,9:1 und #c3d2e4 = 9,5:1 auf #292929); der
+   übrige öffentliche Beamer bleibt, wie er ist (moderiert unverändert). */
+@media (prefers-color-scheme: dark) {
+	[data-themes=""] .pace-race-row {
+		--pulse-viz: #43c3d8;
+		--pulse-viz-ink: #062a30;
+		--pulse-readout: #c3d2e4;
+		--pulse-state-done-ink: #0d1620;
+	}
+}
+.pace-race-row .srow-val { min-width: 2.5em; }
+
+/* "Du"-Pille — identisch in Liste, Balken, Podium. */
+.pulse-du {
+	display: inline-flex;
+	align-items: center;
+	font-size: .75em;
+	font-weight: 700;
+	padding: .12em .55em;
+	border-radius: var(--pulse-r-pill);
+	background: var(--pulse-primary-soft);
+	color: var(--pulse-primary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.pulse-chip-dot { animation: none; }
+	.pulse-rbar-fill { transition: none; }
+	/* Das Rennen ändert sich alle 2 s, die ganze Sitzung lang (§3.3). */
+	.pace-race-row .srow-fill { transition: none; }
+	.pulse-btn { transition: none; }
+}
