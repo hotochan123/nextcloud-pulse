@@ -64,7 +64,7 @@ class PollVoteRaceTest extends TestCase {
         }
     }
 
-    public function testGleichzeitigeErsteStimmeWirdZurAenderung(): void {
+    public function testSimultaneousFirstVoteBecomesAnUpdate(): void {
         $other = new Vote();
         $other->setPollId(7);
         $other->setVoterToken('tok');
@@ -89,7 +89,7 @@ class PollVoteRaceTest extends TestCase {
         $this->assertSame(1000, $saved->getCreatedAt());
     }
 
-    public function testAndererDatenbankfehlerBleibtEinFehler(): void {
+    public function testOtherDatabaseErrorStaysAnError(): void {
         $this->votes->method('findByPollAndToken')->willThrowException(new DoesNotExistException('keine Stimme'));
         $this->votes->method('insert')->willThrowException($this->dbError(Exception::REASON_CONNECTION_LOST));
         $this->votes->expects($this->never())->method('update');

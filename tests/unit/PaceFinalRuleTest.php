@@ -27,43 +27,43 @@ class PaceFinalRuleTest extends TestCase {
 
     // ── isFinal ────────────────────────────────────────────────────────────
 
-    public function testKorrekturfensterDreiSekundenStrikt(): void {
+    public function testCorrectionWindowThreeSecondsStrict(): void {
         $payload = ['value' => 'a', 'fw' => 3];
         $this->assertFalse(PaceService::isFinal($payload, 100, 103));
         $this->assertTrue(PaceService::isFinal($payload, 100, 104));
     }
 
-    public function testKorrekturfensterSechsSekundenBeiTastatur(): void {
+    public function testCorrectionWindowSixSecondsWithKeyboard(): void {
         $payload = ['value' => 'a', 'fw' => 6];
         $this->assertFalse(PaceService::isFinal($payload, 100, 106));
         $this->assertTrue(PaceService::isFinal($payload, 100, 107));
     }
 
-    public function testKorrigierteStimmeIstSofortEndgueltig(): void {
+    public function testCorrectedVoteIsFinalImmediately(): void {
         $this->assertTrue(PaceService::isFinal(['value' => 'a', 'fw' => 6, 'fixed' => true], 100, 100));
     }
 
-    public function testOhneFwGiltDasNormaleFenster(): void {
+    public function testWithoutFwTheNormalWindowApplies(): void {
         $this->assertSame(3, VoteService::FIX_WINDOW);
         $this->assertFalse(PaceService::isFinal(['value' => 'a'], 100, 103));
         $this->assertTrue(PaceService::isFinal(['value' => 'a'], 100, 104));
     }
 
-    public function testNichtMehrKorrigierbarIstSofortEndgueltig(): void {
+    public function testNoLongerCorrectableIsFinalImmediately(): void {
         // Window closed or question left: no waiting for fw.
         $this->assertTrue(PaceService::isFinal(['value' => 'a', 'fw' => 6], 100, 100, false));
     }
 
     // ── correctable ────────────────────────────────────────────────────────
 
-    public function testKorrigierbarNurBeiOffenemFensterUndOffenerZeile(): void {
+    public function testCorrectableOnlyWithOpenWindowAndOpenRow(): void {
         $open = $this->room(openedAt: self::NOW - 100);
         $this->assertTrue(PaceService::correctable($open, self::NOW, $this->row(seq: 0)));
         $this->assertFalse(PaceService::correctable($open, self::NOW, $this->row(seq: 0, leftAt: self::NOW - 1)));
         $this->assertFalse(PaceService::correctable($open, self::NOW, null));
     }
 
-    public function testNichtKorrigierbarBeiGeschlossenemOderFreigegebenemFenster(): void {
+    public function testNotCorrectableWithClosedOrReleasedWindow(): void {
         $closed = $this->room(openedAt: self::NOW - 100, closesAt: self::NOW);
         // Race stopped without release (close {release: false}): deadline 0.
         $stopped = $this->room(openedAt: self::NOW - 100, closedAt: self::NOW - 1);
@@ -76,31 +76,31 @@ class PaceFinalRuleTest extends TestCase {
 
     // ── isFinished ─────────────────────────────────────────────────────────
 
-    public function testLetzteFrageBeantwortetOhneFertigTippenIstFertig(): void {
+    public function testLastQuestionAnsweredWithoutTappingDoneIsFinished(): void {
         $this->assertTrue(PaceService::isFinished(3, $this->row(seq: 2), true, 'open'));
     }
 
-    public function testLetzteFrageOffenOhneStimmeBeiOffenemFensterNichtFertig(): void {
+    public function testLastQuestionOpenWithoutVoteWithOpenWindowIsNotFinished(): void {
         $this->assertFalse(PaceService::isFinished(3, $this->row(seq: 2), false, 'open'));
     }
 
-    public function testLetzteFrageOffenOhneStimmeNachSchlussFertig(): void {
+    public function testLastQuestionOpenWithoutVoteAfterCloseIsFinished(): void {
         $this->assertTrue(PaceService::isFinished(3, $this->row(seq: 2), false, 'closed'));
         $this->assertTrue(PaceService::isFinished(3, $this->row(seq: 2), false, 'released'));
     }
 
-    public function testLetzteFrageVerlassenIstFertig(): void {
+    public function testLastQuestionLeftIsFinished(): void {
         $this->assertTrue(PaceService::isFinished(3, $this->row(seq: 2, leftAt: self::NOW), false, 'open'));
     }
 
-    public function testVorDerLetztenFrageNieFertig(): void {
+    public function testBeforeTheLastQuestionNeverFinished(): void {
         $this->assertFalse(PaceService::isFinished(3, $this->row(seq: 1, leftAt: self::NOW), true, 'closed'));
         $this->assertFalse(PaceService::isFinished(3, null, false, 'released'));
     }
 
     // ── afterFor ───────────────────────────────────────────────────────────
 
-    public function testAfterIstDieOffeneFrage(): void {
+    public function testAfterIsTheOpenQuestion(): void {
         $rows = [
             $this->row(seq: 0, pollId: 11, leftAt: self::NOW - 20),
             $this->row(seq: 1, pollId: 12),
@@ -108,7 +108,7 @@ class PaceFinalRuleTest extends TestCase {
         $this->assertSame(12, PaceService::afterFor($rows));
     }
 
-    public function testAfterOhneOffeneZeileIstDieZuletztErreichte(): void {
+    public function testAfterWithoutOpenRowIsTheLastReached(): void {
         // Aborted between closing and starting: no open row.
         $rows = [
             $this->row(seq: 0, pollId: 11, leftAt: self::NOW - 20),
@@ -117,7 +117,7 @@ class PaceFinalRuleTest extends TestCase {
         $this->assertSame(12, PaceService::afterFor($rows));
     }
 
-    public function testAfterOhneZeilenIstNull(): void {
+    public function testAfterWithoutRowsIsZero(): void {
         $this->assertSame(0, PaceService::afterFor([]));
     }
 

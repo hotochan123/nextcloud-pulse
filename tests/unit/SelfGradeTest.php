@@ -77,7 +77,7 @@ class SelfGradeTest extends TestCase {
         }
     }
 
-    public function testOhneTimerGibtEsFlachePunkte(): void {
+    public function testWithoutTimerThereAreFlatPoints(): void {
         // The question has 20 s, but limit 0 is stored (room without a timer).
         $this->votes = [$this->vote(1, ['value' => 'Saturn', 'points' => 0, 'correct' => false, 'elapsed' => 10, 'norm' => 'saturn', 'pending' => true, 'limit' => 0, 'fw' => 3])];
 
@@ -89,7 +89,7 @@ class SelfGradeTest extends TestCase {
         );
     }
 
-    public function testGespeichertesLimitStattDemDerFrage(): void {
+    public function testStoredLimitInsteadOfTheQuestionLimit(): void {
         $this->poll->setTimeLimit(40);
         $this->votes = [$this->vote(1, ['value' => 'Saturn', 'points' => 0, 'correct' => false, 'elapsed' => 10, 'norm' => 'saturn', 'pending' => true, 'limit' => 20, 'fw' => 3])];
 
@@ -98,7 +98,7 @@ class SelfGradeTest extends TestCase {
         $this->assertSame((new QuizService())->points(10, 20), json_decode($this->saved[1], true)['points']);
     }
 
-    public function testFalschBewertetEntferntPendingUndGibtNull(): void {
+    public function testGradedWrongRemovesPendingAndGivesZero(): void {
         $this->votes = [$this->vote(1, ['value' => 'Saturn', 'points' => 0, 'correct' => false, 'elapsed' => 10, 'norm' => 'saturn', 'pending' => true, 'limit' => 20, 'fw' => 3])];
 
         $this->service->gradeTextAnswer($this->room(), 13, 'Saturn', false);
@@ -109,7 +109,7 @@ class SelfGradeTest extends TestCase {
         $this->assertSame(0, $saved['points']);
     }
 
-    public function testKorrekturflagUndFensterBleiben(): void {
+    public function testCorrectionFlagAndWindowStay(): void {
         // Grading is not a correction by the person: fixed/fw stay, and so does created_at.
         $vote = $this->vote(1, ['value' => 'Saturn', 'points' => 0, 'correct' => false, 'elapsed' => 10, 'norm' => 'saturn', 'pending' => true, 'limit' => 20, 'fw' => 6, 'fixed' => true]);
         $vote->setCreatedAt(1234);
@@ -123,7 +123,7 @@ class SelfGradeTest extends TestCase {
         $this->assertSame(1234, $vote->getCreatedAt());
     }
 
-    public function testAndereNormalformBleibtUnberuehrt(): void {
+    public function testOtherNormalFormStaysUntouched(): void {
         $this->votes = [
             $this->vote(1, ['value' => 'Saturn', 'points' => 0, 'correct' => false, 'elapsed' => 10, 'norm' => 'saturn', 'pending' => true, 'limit' => 20, 'fw' => 3]),
             $this->vote(2, ['value' => 'Venus', 'points' => 0, 'correct' => false, 'elapsed' => 4, 'norm' => 'venus', 'pending' => true, 'limit' => 20, 'fw' => 3]),
@@ -134,7 +134,7 @@ class SelfGradeTest extends TestCase {
         $this->assertSame([1], array_keys($this->saved), 'Venus wartet weiter auf ihre Bewertung');
     }
 
-    public function testModeriertePayloadBleibtBytegleich(): void {
+    public function testModeratedPayloadStaysByteIdentical(): void {
         // This is how gradeTextAnswer computed before self-paced mode: points from the
         // question's limit, nothing else touched.
         $old = ['value' => 'Saturn', 'points' => 0, 'correct' => false, 'elapsed' => 5, 'norm' => 'saturn'];
@@ -151,7 +151,7 @@ class SelfGradeTest extends TestCase {
         $this->assertSame($expected, $this->saved);
     }
 
-    public function testModeriertFalschBleibtBytegleich(): void {
+    public function testModeratedWrongStaysByteIdentical(): void {
         $old = ['value' => 'Saturn', 'points' => 0, 'correct' => false, 'elapsed' => 5, 'norm' => 'saturn'];
         $this->votes = [$this->vote(1, $old)];
 
@@ -160,7 +160,7 @@ class SelfGradeTest extends TestCase {
         $this->assertSame([1 => json_encode($old)], $this->saved);
     }
 
-    public function testEigenesTempoBewertetUnterDerRaumsperre(): void {
+    public function testSelfPacedGradesUnderTheRoomLock(): void {
         $fresh = $this->room();
         $fresh->setPace('self');
         $room = $this->room();
@@ -189,7 +189,7 @@ class SelfGradeTest extends TestCase {
         $this->assertTrue(json_decode($this->saved[1], true)['correct']);
     }
 
-    public function testModeriertOhneRaumsperre(): void {
+    public function testModeratedWithoutRoomLock(): void {
         $pace = $this->createMock(PaceService::class);
         $pace->expects($this->never())->method($this->anything());
         (new ReflectionProperty(VoteService::class, 'paceService'))->setValue($this->service, $pace);

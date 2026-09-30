@@ -70,7 +70,7 @@ class LeaderboardSkipTest extends TestCase {
         }
     }
 
-    public function testOhneAuslassenZaehlenAlleFragen(): void {
+    public function testWithoutSkippingAllQuestionsCount(): void {
         $rows = $this->service->leaderboardFor($this->room(), 'tok-anna');
 
         $this->assertSame([
@@ -80,7 +80,7 @@ class LeaderboardSkipTest extends TestCase {
         $this->assertSame([1, 2], $this->read);
     }
 
-    public function testAusgelasseneFrageZaehltNicht(): void {
+    public function testSkippedQuestionDoesNotCount(): void {
         $rows = $this->service->leaderboardFor($this->room(), 'tok-ben', [2]);
 
         $this->assertSame([
@@ -90,14 +90,14 @@ class LeaderboardSkipTest extends TestCase {
         $this->assertSame([1], $this->read, 'Stimmen der ausgelassenen Frage werden gar nicht gelesen');
     }
 
-    public function testNullLaesstNichtsAus(): void {
+    public function testNullSkipsNothing(): void {
         $this->assertSame(
             $this->service->leaderboardFor($this->room(), null),
             $this->service->leaderboardFor($this->room(), null, []),
         );
     }
 
-    public function testUnbekannteFrageLaesstNichtsAus(): void {
+    public function testUnknownQuestionSkipsNothing(): void {
         $rows = $this->service->leaderboardFor($this->room(), null, [99]);
 
         $this->assertSame([900, 800], array_column($rows, 'score'));

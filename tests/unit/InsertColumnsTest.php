@@ -71,7 +71,7 @@ class InsertColumnsTest extends TestCase {
 
     // ── Schema ──────────────────────────────────────────────────────────────
 
-    public function testJedeTabelleHatEineEntity(): void {
+    public function testEveryTableHasAnEntity(): void {
         $tables = array_map(static fn ($t): string => $t->getName(), $this->schema()->getTables());
         sort($tables);
         $known = array_keys(self::ENTITIES);
@@ -79,7 +79,7 @@ class InsertColumnsTest extends TestCase {
         $this->assertSame($known, $tables);
     }
 
-    public function testMysqlVerwirftGenauDenDefaultVonOptions(): void {
+    public function testMysqlDropsExactlyTheDefaultOfOptions(): void {
         // The audit result, and a check that the replay is not vacuous.
         $this->assertSame(['pulse_polls' => ['options' => '[]']], $this->droppedDefaults());
     }
@@ -91,7 +91,7 @@ class InsertColumnsTest extends TestCase {
     }
 
     #[DataProvider('tables')]
-    public function testNeueEntityMarkiertGenauDieSpaltenMitVerworfenemDefault(string $table): void {
+    public function testNewEntityMarksExactlyTheColumnsWithDroppedDefault(string $table): void {
         $class = self::ENTITIES[$table];
         /** @var Entity $entity */
         $entity = new $class();
@@ -106,7 +106,7 @@ class InsertColumnsTest extends TestCase {
         }
     }
 
-    public function testGeladeneUmfrageSchreibtBeimUpdateNurGeaendertes(): void {
+    public function testLoadedPollWritesOnlyWhatChangedOnUpdate(): void {
         // fromRow() runs the constructor and then resets the marks: an UPDATE
         // of a loaded poll must not rewrite `options` (the edit path sets it
         // itself when the content changes).
@@ -147,7 +147,7 @@ class InsertColumnsTest extends TestCase {
     }
 
     #[DataProvider('pollTypes')]
-    public function testAddPollSchreibtJedeSpalteOhneMysqlDefault(string $mode, array $data): void {
+    public function testAddPollWritesEveryColumnWithoutMysqlDefault(string $mode, array $data): void {
         $inserted = [];
         $polls = $this->createMock(PollMapper::class);
         $polls->method('insert')->willReturnCallback(static function (Poll $p) use (&$inserted): Poll {
@@ -168,7 +168,7 @@ class InsertColumnsTest extends TestCase {
         $this->assertInsertCarries('pulse_polls', $inserted[0]);
     }
 
-    public function testDuplicateRoomSchreibtJedeSpalteOhneMysqlDefault(): void {
+    public function testDuplicateRoomWritesEveryColumnWithoutMysqlDefault(): void {
         // Loaded the way the mapper loads them; two of them have options '[]'.
         $row = static fn (int $id, string $type, string $options, ?string $key): array => [
             'id' => (string)$id, 'room_id' => '1', 'type' => $type, 'question' => "Q$id",

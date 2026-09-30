@@ -76,7 +76,7 @@ class WordVoteBoundsTest extends TestCase {
 
     // ── Word cloud: the list ───────────────────────────────────────────────
 
-    public function testRiesigeWortlisteWirdSofortAbgelehnt(): void {
+    public function testHugeWordListIsRejectedImmediately(): void {
         $flood = array_fill(0, 200_000, 'a');
 
         $start = hrtime(true);
@@ -90,20 +90,20 @@ class WordVoteBoundsTest extends TestCase {
         $this->assertLessThan(0.05, (hrtime(true) - $start) / 1e9);
     }
 
-    public function testZwanzigEintraegeSindDieUntergrenze(): void {
+    public function testTwentyEntriesAreTheLowerBound(): void {
         // maxWords 3 -> max(20, 6) = 20 entries still count (empty fields and the like).
         $value = array_merge(['Kaffee'], array_fill(0, 19, ''));
 
         $this->assertSame(['Kaffee'], $this->service->normalizeValue($this->wordsPoll(3), $value));
     }
 
-    public function testEinundzwanzigEintraegeSindKeineStimme(): void {
+    public function testTwentyOneEntriesAreNoVote(): void {
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('Invalid words.');
         $this->service->normalizeValue($this->wordsPoll(3), array_fill(0, 21, 'Kaffee'));
     }
 
-    public function testGrenzeWaechstMitDoppeltenMaxWords(): void {
+    public function testLimitGrowsWithTwiceMaxWords(): void {
         // A (hand-edited) question with 15 words: 30 entries pass, 31 do not.
         $poll = $this->wordsPoll(15);
         $this->assertSame(['Kaffee'], $this->service->normalizeValue($poll, array_fill(0, 30, 'Kaffee')));
@@ -112,14 +112,14 @@ class WordVoteBoundsTest extends TestCase {
         $this->service->normalizeValue($poll, array_fill(0, 31, 'Kaffee'));
     }
 
-    public function testSchlussBeiMaxWordsErgibtDieselbenWorte(): void {
+    public function testStopAtMaxWordsGivesTheSameWords(): void {
         // The first maxWords distinct words in order, first spelling — as the old cut afterwards.
         $words = $this->service->normalizeValue($this->wordsPoll(2), ['Tee', 'TEE', 'Kaffee', 'Kakao', 'Wasser']);
 
         $this->assertSame(['Tee', 'Kaffee'], $words);
     }
 
-    public function testDublettenZaehlenNichtAlsPlatz(): void {
+    public function testDuplicatesDoNotCountAsASlot(): void {
         $words = $this->service->normalizeValue($this->wordsPoll(3), ['Tee', 'tee', ' TEE ', 'Kaffee', "\u{200B}", 'Kakao']);
 
         $this->assertSame(['Tee', 'Kaffee', 'Kakao'], $words);
@@ -127,54 +127,54 @@ class WordVoteBoundsTest extends TestCase {
 
     // ── Word cloud: one entry ──────────────────────────────────────────────
 
-    public function testLangesWortWirdAufVierzigZeichenGekuerzt(): void {
+    public function testLongWordIsCutToFortyCharacters(): void {
         $words = $this->service->normalizeValue($this->wordsPoll(1), str_repeat('x', 1_000_000));
 
         $this->assertSame([str_repeat('x', 40)], $words);
     }
 
-    public function testEintragWirdVorDemBereinigenGekuerzt(): void {
+    public function testEntryIsCutBeforeCleaning(): void {
         // 200 invisible characters in front: the cut keeps only those, nothing visible remains.
         $this->expectExceptionMessage('Please enter at least one word.');
         $this->service->normalizeValue($this->wordsPoll(1), str_repeat("\u{200B}", 200) . 'Kaffee');
     }
 
-    public function testKurzesKaputtesUtf8FaelltWieBisherWeg(): void {
+    public function testShortBrokenUtf8IsDroppedAsBefore(): void {
         $this->assertSame(['Kaffee'], $this->service->normalizeValue($this->wordsPoll(2), ["\xFF\xFE", 'Kaffee']));
     }
 
-    public function testLangesKaputtesUtf8WirdKeinFragezeichen(): void {
+    public function testLongBrokenUtf8DoesNotBecomeAQuestionMark(): void {
         // mb_substr would turn broken bytes into '?' — a word nobody typed.
         $this->assertSame(['Kaffee'], $this->service->normalizeValue($this->wordsPoll(2), [str_repeat("\xFF", 300), 'Kaffee']));
     }
 
     // ── Free text ──────────────────────────────────────────────────────────
 
-    public function testRiesigerFreitextWirdGekuerzt(): void {
+    public function testHugeFreeTextIsCut(): void {
         $text = $this->service->normalizeValue($this->textPoll(), str_repeat('Antwort ', 500_000));
 
         $this->assertSame(mb_substr(str_repeat('Antwort ', 20), 0, 100), $text);
     }
 
-    public function testFreitextMitMehrbyteZeichenBleibtUngekuerzt(): void {
+    public function testFreeTextWithMultibyteCharactersStaysUncut(): void {
         // 100 characters, 200 bytes: fits the limit in characters, not in bytes.
         $this->assertSame(str_repeat('ä', 100), $this->service->normalizeValue($this->textPoll(), str_repeat('ä', 100)));
     }
 
-    public function testLangerKaputterFreitextIstLeer(): void {
+    public function testLongBrokenFreeTextIsEmpty(): void {
         $this->expectExceptionMessage('Please enter an answer.');
         $this->service->normalizeValue($this->textPoll(), str_repeat("\xFF", 1000));
     }
 
     // ── Nickname ───────────────────────────────────────────────────────────
 
-    public function testRiesigerNameWirdAufVierundzwanzigZeichenGekuerzt(): void {
+    public function testHugeNameIsCutToTwentyFourCharacters(): void {
         $this->service->quizJoin($this->quizRoom(), 'tok-neu', str_repeat('Anna', 1_000_000));
 
         $this->assertSame([str_repeat('Anna', 6)], $this->registered);
     }
 
-    public function testLangerKaputterNameIstLeer(): void {
+    public function testLongBrokenNameIsEmpty(): void {
         $this->expectExceptionMessage('Please enter a name.');
         $this->service->quizJoin($this->quizRoom(), 'tok-neu', str_repeat("\xFF", 1000));
     }

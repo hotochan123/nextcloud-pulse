@@ -81,18 +81,18 @@ class StateVersionTest extends TestCase {
         }
     }
 
-    public function testVersionIst24HexZeichen(): void {
+    public function testVersionIs24HexCharacters(): void {
         $this->assertMatchesRegularExpression('/^[0-9a-f]{24}$/', $this->version());
         $this->assertMatchesRegularExpression('/^[0-9a-f]{24}$/', $this->version(active: 0), 'auch in der Lobby');
         $this->assertMatchesRegularExpression('/^[0-9a-f]{24}$/', $this->version(presence: true), 'auch mit Präsenz');
     }
 
-    public function testGleicherZustandGibtGleicheVersion(): void {
+    public function testSameStateGivesSameVersion(): void {
         $this->assertSame($this->version(), $this->version());
         $this->assertSame($this->version(active: 0), $this->version(active: 0));
     }
 
-    public function testGeaenderteStimmeAendertDieVersion(): void {
+    public function testChangedVoteChangesTheVersion(): void {
         // Upsert: same count, different payload -> different stamp.
         $before = $this->version();
         $this->stamp = '987654321';
@@ -100,7 +100,7 @@ class StateVersionTest extends TestCase {
         $this->assertNotSame($before, $this->version());
     }
 
-    public function testStatusStartzeitUndLoesungAendernDieVersion(): void {
+    public function testStatusStartTimeAndSolutionChangeTheVersion(): void {
         $base = $this->version();
 
         $this->poll->setStatus('locked');
@@ -115,7 +115,7 @@ class StateVersionTest extends TestCase {
         $this->assertNotSame($restarted, $this->version(), 'Freitext bewertet (answerKey)');
     }
 
-    public function testPraesenzNurMitSchalter(): void {
+    public function testPresenceOnlyWithTheSwitch(): void {
         $without = $this->version();
         $with = $this->version(presence: true);
         $this->present = 4;
@@ -124,14 +124,14 @@ class StateVersionTest extends TestCase {
         $this->assertNotSame($with, $this->version(presence: true), 'Zuschauer-Ansicht sieht neue Beitritte');
     }
 
-    public function testLobbyZaehltAnwesende(): void {
+    public function testLobbyCountsThosePresent(): void {
         $before = $this->version(active: 0);
         $this->present = 9;
 
         $this->assertNotSame($before, $this->version(active: 0));
     }
 
-    public function testEnthaeltKeinenRohenFingerabdruck(): void {
+    public function testContainsNoRawFingerprint(): void {
         $version = $this->version();
         $raw = '7:active:900:' . $this->stamp . ':' . crc32(self::ANSWER_KEY);
 
@@ -143,7 +143,7 @@ class StateVersionTest extends TestCase {
             'ohne das Instanz-Geheimnis nicht nachrechenbar');
     }
 
-    public function testVersionHaengtAmInstanzGeheimnis(): void {
+    public function testVersionDependsOnTheInstanceSecret(): void {
         // Whoever does not know the key cannot check candidate solutions
         // against the version.
         $before = $this->version();
@@ -152,7 +152,7 @@ class StateVersionTest extends TestCase {
         $this->assertNotSame($before, $this->version());
     }
 
-    public function testAufloesungAmEndeUmschaltenAendertDieVersion(): void {
+    public function testTogglingRevealAtEndChangesTheVersion(): void {
         // Locked question, then "Reveal at the end" switched on: no status
         // changes, but phone and projector must no longer show the reveal.
         $this->poll->setStatus('locked');
@@ -164,18 +164,18 @@ class StateVersionTest extends TestCase {
         $this->assertNotSame($this->version(presence: true), $this->version(presence: true, revealAtEnd: true), 'auch für den Beamer');
     }
 
-    public function testAufloesungAmEndeBeiLaufenderFrageAendertNichts(): void {
+    public function testRevealAtEndOnRunningQuestionChangesNothing(): void {
         // Running question: hidden either way — no reason for full polls.
         $this->assertSame($this->version(), $this->version(revealAtEnd: true));
     }
 
-    public function testProbelaufAendertDieVersion(): void {
+    public function testPracticeRunChangesTheVersion(): void {
         $this->poll->setStatus('locked');
 
         $this->assertNotSame($this->version(), $this->version(practice: true));
     }
 
-    public function testLobbySiehtZuruecksetzenProbelaufUndTitel(): void {
+    public function testLobbySeesResetPracticeRunAndTitle(): void {
         // Reset and the practice-run toggle delete all players; their own
         // heartbeat immediately brings presence back to its old value.
         $base = $this->version(active: 0);
@@ -192,7 +192,7 @@ class StateVersionTest extends TestCase {
         $this->assertNotSame($practice, $this->version(active: 0), 'Titel');
     }
 
-    public function testBearbeiteteFrageOhneStimmenAendertDieVersion(): void {
+    public function testEditedQuestionWithoutVotesChangesTheVersion(): void {
         // Poll: editing changes neither status nor start time nor stamp.
         $before = $this->version();
         $this->poll->setQuestion('Neu formuliert?');

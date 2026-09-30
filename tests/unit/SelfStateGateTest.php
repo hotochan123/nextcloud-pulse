@@ -33,7 +33,7 @@ class SelfStateGateTest extends PaceStateTestCase {
     }
 
     #[DataProvider('unreleasedStates')]
-    public function testVorDerFreigabeKeineLoesungUndKeineVerteilung(string $state): void {
+    public function testBeforeReleaseNoSolutionAndNoDistribution(string $state): void {
         $this->row(11, 'tok-anna', self::NOW - 50, self::NOW - 30);
         $this->vote(11, 'tok-anna', 'AA', 900, true, self::NOW - 40);
         $this->row(12, 'tok-anna', self::NOW - 10);
@@ -63,7 +63,7 @@ class SelfStateGateTest extends PaceStateTestCase {
         }
     }
 
-    public function testRangfolgeGemischtWieInPublicView(): void {
+    public function testRankingShuffledAsInPublicView(): void {
         $this->row(11, 'tok-anna', self::NOW - 50, self::NOW - 30);
         $this->row(12, 'tok-anna', self::NOW - 10);
 
@@ -74,7 +74,7 @@ class SelfStateGateTest extends PaceStateTestCase {
 
     // ── Personal clock ─────────────────────────────────────────────────────
 
-    public function testPersoenlicheUhrUndPosition(): void {
+    public function testPersonalClockAndPosition(): void {
         // poll.startedAt is meaningless when self-paced — the clock runs from /next.
         $this->polls[12]->setStartedAt(self::NOW - 5000);
         $this->row(11, 'tok-anna', self::NOW - 50, self::NOW - 30);
@@ -88,7 +88,7 @@ class SelfStateGateTest extends PaceStateTestCase {
         $this->assertSame('active', $poll['status']);
     }
 
-    public function testOhneTimerKeinLimit(): void {
+    public function testWithoutTimerNoLimit(): void {
         $this->room->setTimed(false);
         $this->row(11, 'tok-anna', self::NOW - 50_000);
 
@@ -100,7 +100,7 @@ class SelfStateGateTest extends PaceStateTestCase {
 
     // ── Verdict ────────────────────────────────────────────────────────────
 
-    public function testJeFrageVorEndgueltigKeinUrteil(): void {
+    public function testPerQuestionNoVerdictBeforeFinal(): void {
         $this->row(11, 'tok-anna', self::NOW - 10);
         $this->vote(11, 'tok-anna', 'AA', 900, true, self::NOW - 3);
 
@@ -116,7 +116,7 @@ class SelfStateGateTest extends PaceStateTestCase {
         $this->assertSame(0, $data['myScore'], 'auch nicht über die eigenen Punkte');
     }
 
-    public function testJeFrageEndgueltigMitUrteilUndPunkten(): void {
+    public function testPerQuestionFinalWithVerdictAndPoints(): void {
         $this->row(11, 'tok-anna', self::NOW - 10);
         $this->vote(11, 'tok-anna', 'AA', 900, true, self::NOW - 4);
 
@@ -129,7 +129,7 @@ class SelfStateGateTest extends PaceStateTestCase {
         $this->assertSame(900, $data['myScore']);
     }
 
-    public function testFalscheAntwortNullPunkte(): void {
+    public function testWrongAnswerZeroPoints(): void {
         $this->row(11, 'tok-anna', self::NOW - 10);
         $this->vote(11, 'tok-anna', 'BB', 0, false, self::NOW - 4);
 
@@ -139,7 +139,7 @@ class SelfStateGateTest extends PaceStateTestCase {
         );
     }
 
-    public function testRueckmeldungAmEndeNurGespeichert(): void {
+    public function testFeedbackAtEndOnlySaved(): void {
         $this->room->setFeedback('end');
         $this->row(11, 'tok-anna', self::NOW - 20, self::NOW - 12);
         $this->vote(11, 'tok-anna', 'AA', 900, true, self::NOW - 15);
@@ -156,7 +156,7 @@ class SelfStateGateTest extends PaceStateTestCase {
         $this->assertNull($data['leaderboard']);
     }
 
-    public function testRueckmeldungAmEndeNachDerFreigabeMitPunkten(): void {
+    public function testFeedbackAtEndWithPointsAfterRelease(): void {
         $this->room->setFeedback('end');
         $this->row(11, 'tok-anna', self::NOW - 20);
         $this->vote(11, 'tok-anna', 'AA', 900, true, self::NOW - 15);
@@ -168,7 +168,7 @@ class SelfStateGateTest extends PaceStateTestCase {
         $this->assertNull($data['poll'], 'Rückblick nur über /summary');
     }
 
-    public function testProbelaufUrteiltTrotzRueckmeldungAmEnde(): void {
+    public function testPracticeRunGivesVerdictDespiteFeedbackAtEnd(): void {
         $this->room->setPractice(true);
         $this->room->setFeedback('end');
         $this->row(11, 'tok-anna', self::NOW - 10);
@@ -177,7 +177,7 @@ class SelfStateGateTest extends PaceStateTestCase {
         $this->assertSame('correct', $this->phone()['myResult']['verdict']);
     }
 
-    public function testFreitextOhneBewertungWirdGeprueft(): void {
+    public function testFreeTextWithoutGradingIsBeingChecked(): void {
         $this->row(11, 'tok-anna', self::NOW - 50, self::NOW - 40);
         $this->row(12, 'tok-anna', self::NOW - 40, self::NOW - 30);
         $this->row(13, 'tok-anna', self::NOW - 30);
@@ -191,7 +191,7 @@ class SelfStateGateTest extends PaceStateTestCase {
 
     // ── Leaderboard ────────────────────────────────────────────────────────
 
-    public function testProbelaufNachDerFreigabeKeineRangliste(): void {
+    public function testPracticeRunNoLeaderboardAfterRelease(): void {
         $this->room->setPractice(true);
         $this->row(11, 'tok-anna', self::NOW - 20);
         $this->vote(11, 'tok-anna', 'AA', 900, true, self::NOW - 15);
@@ -201,7 +201,7 @@ class SelfStateGateTest extends PaceStateTestCase {
         $this->assertNull($this->phone('tok-fremd')['leaderboard']);
     }
 
-    public function testFreigegebenOhneSpielerNurDieRangliste(): void {
+    public function testReleasedWithoutPlayerOnlyTheLeaderboard(): void {
         $this->row(11, 'tok-anna', self::NOW - 20);
         $this->vote(11, 'tok-anna', 'AA', 900, true, self::NOW - 15);
         $this->release();
@@ -215,7 +215,7 @@ class SelfStateGateTest extends PaceStateTestCase {
         $this->assertNotContains(true, array_column($data['leaderboard'], 'me'));
     }
 
-    public function testVorDerFreigabeKeineRanglisteAufDemHandy(): void {
+    public function testBeforeReleaseNoLeaderboardOnThePhone(): void {
         $this->row(11, 'tok-anna', self::NOW - 20);
         $this->vote(11, 'tok-anna', 'AA', 900, true, self::NOW - 15);
 
@@ -224,7 +224,7 @@ class SelfStateGateTest extends PaceStateTestCase {
 
     // ── Progress ───────────────────────────────────────────────────────────
 
-    public function testGeschlossenKeinPollAberFortschritt(): void {
+    public function testClosedNoPollButProgress(): void {
         $this->row(11, 'tok-anna', self::NOW - 50, self::NOW - 30);
         $this->row(12, 'tok-anna', self::NOW - 10);
         $this->close();
@@ -236,7 +236,7 @@ class SelfStateGateTest extends PaceStateTestCase {
         $this->assertSame(12, $data['progress']['currentPollId']);
     }
 
-    public function testAfterIstDieOffeneFrage(): void {
+    public function testAfterIsTheOpenQuestion(): void {
         $this->row(11, 'tok-anna', self::NOW - 50, self::NOW - 30);
         $this->row(12, 'tok-anna', self::NOW - 10);
 
@@ -245,7 +245,7 @@ class SelfStateGateTest extends PaceStateTestCase {
         $this->assertSame(['k' => 2, 'n' => 3, 'started' => true, 'finished' => false, 'timeUp' => false, 'currentPollId' => 12, 'after' => 12], $progress);
     }
 
-    public function testNachAbbruchOhneOffeneZeileZeigtAfterAufDieVerlassene(): void {
+    public function testAbortWithoutOpenRowPointsAfterToTheLeftRow(): void {
         // /next closed Q11 and aborted before starting Q12.
         $this->row(11, 'tok-anna', self::NOW - 50, self::NOW - 30);
 
@@ -257,7 +257,7 @@ class SelfStateGateTest extends PaceStateTestCase {
         $this->assertSame(1, $data['progress']['k']);
     }
 
-    public function testGeloeschteFrageDerOffenenZeile(): void {
+    public function testDeletedQuestionOfTheOpenRow(): void {
         $this->row(11, 'tok-anna', self::NOW - 50, self::NOW - 30);
         $this->row(12, 'tok-anna', self::NOW - 10);
         unset($this->polls[12]);
@@ -269,7 +269,7 @@ class SelfStateGateTest extends PaceStateTestCase {
         $this->assertSame(12, $data['progress']['after'], '/next mit dieser Frage geht weiter');
     }
 
-    public function testVorDemStartNochKeineFrage(): void {
+    public function testBeforeTheStartNoQuestionYet(): void {
         $data = $this->phone();
 
         $this->assertSame('Anna', $data['nickname']);
@@ -277,7 +277,7 @@ class SelfStateGateTest extends PaceStateTestCase {
         $this->assertNull($data['poll']);
     }
 
-    public function testFertigNachIsFinished(): void {
+    public function testFinishedFollowsIsFinished(): void {
         $this->row(11, 'tok-anna', self::NOW - 50, self::NOW - 40);
         $this->row(12, 'tok-anna', self::NOW - 40, self::NOW - 30);
         $this->row(13, 'tok-anna', self::NOW - 30);
@@ -291,7 +291,7 @@ class SelfStateGateTest extends PaceStateTestCase {
         $this->assertTrue($this->phone()['progress']['finished'], 'unbeantwortet, aber Fenster zu');
     }
 
-    public function testZeitUmKipptBeiLimitPlusEins(): void {
+    public function testTimeUpFlipsAtLimitPlusOne(): void {
         $this->row(11, 'tok-anna', self::NOW - 20);
         $this->assertFalse($this->phone()['progress']['timeUp'], 'Grenze wie /vote: elapsed > limit');
 
@@ -299,7 +299,7 @@ class SelfStateGateTest extends PaceStateTestCase {
         $this->assertTrue($this->phone()['progress']['timeUp']);
     }
 
-    public function testPraesenzNurImEntwurf(): void {
+    public function testPresenceOnlyInDraft(): void {
         $this->present = 7;
         $this->row(11, 'tok-anna', self::NOW - 20);
         $this->assertSame(0, $this->phone()['present'], 'offen: sonst trieben Heartbeats die Version');
@@ -310,7 +310,7 @@ class SelfStateGateTest extends PaceStateTestCase {
         $this->assertSame(7, $this->phone()['present'], 'Wartezustand: „N dabei"');
     }
 
-    public function testKopfFelder(): void {
+    public function testHeaderFields(): void {
         $data = $this->phone();
 
         $this->assertSame(['code' => 'AB12CD', 'title' => 'Planeten', 'mode' => 'quiz', 'pace' => 'self'], $data['room']);
@@ -323,7 +323,7 @@ class SelfStateGateTest extends PaceStateTestCase {
 
     // ── Projector ──────────────────────────────────────────────────────────
 
-    public function testBeamerOhneFragenUndOptionen(): void {
+    public function testProjectorWithoutQuestionsAndOptions(): void {
         $this->raceWithThreePlayers();
 
         $data = $this->beamer();
@@ -338,7 +338,7 @@ class SelfStateGateTest extends PaceStateTestCase {
         $this->assertArrayNotHasKey('progress', $data);
     }
 
-    public function testBeamerRennenInZahlen(): void {
+    public function testProjectorRaceInNumbers(): void {
         $this->raceWithThreePlayers();
 
         $race = $this->beamer()['race'];
@@ -348,7 +348,7 @@ class SelfStateGateTest extends PaceStateTestCase {
         $this->assertSame($race['joined'], $race['joined'] - $race['started'] + array_sum($race['onQuestion']) + $race['finished'], 'jede Person genau einmal');
     }
 
-    public function testBeamerRanglisteNurBeiRueckmeldungJeFrage(): void {
+    public function testProjectorLeaderboardOnlyWithFeedbackPerQuestion(): void {
         $this->raceWithThreePlayers();
         $this->players = array_merge($this->players, array_map(
             fn (int $i) => $this->player(40 + $i, 'tok-' . $i, 'Spieler ' . $i),
@@ -374,13 +374,13 @@ class SelfStateGateTest extends PaceStateTestCase {
         $this->assertNull($this->beamer()['leaderboard'], 'Probelauf: nie');
     }
 
-    public function testBeamerZeigtAnwesende(): void {
+    public function testProjectorShowsThosePresent(): void {
         $this->present = 12;
 
         $this->assertSame(12, $this->beamer()['present']);
     }
 
-    public function testBeamerPunkteGleichHandyPunkte(): void {
+    public function testProjectorPointsEqualPhonePoints(): void {
         // All views count only final votes.
         $this->raceWithThreePlayers();
 
@@ -405,7 +405,7 @@ class SelfStateGateTest extends PaceStateTestCase {
      * started + per question + done = joined, in every window state.
      */
     #[DataProvider('raceStates')]
-    public function testBeamerZaehltJedePersonGenauEinmal(string $state, array $onQuestion, int $finished): void {
+    public function testProjectorCountsEveryPersonExactlyOnce(string $state, array $onQuestion, int $finished): void {
         $this->raceWithSixPlayers();
         if ($state === 'closed') {
             $this->close();

@@ -100,21 +100,21 @@ class PollParamsTest extends TestCase {
         $property->setValue($target, $value);
     }
 
-    public function testAddPollReichtJedesFeldDurch(): void {
+    public function testAddPollPassesEveryFieldThrough(): void {
         $sent = array_keys($this->capture('addPoll'));
         sort($sent);
         $this->assertSame([], array_diff($this->fieldsReadByDeckService(), $sent),
             'DeckService liest Felder, die addPoll() nicht weiterreicht');
     }
 
-    public function testUpdatePollReichtJedesFeldDurch(): void {
+    public function testUpdatePollPassesEveryFieldThrough(): void {
         $sent = array_keys($this->capture('updatePoll'));
         sort($sent);
         $this->assertSame([], array_diff($this->fieldsReadByDeckService(), $sent),
             'DeckService liest Felder, die updatePoll() nicht weiterreicht');
     }
 
-    public function testPaareKommenAlsEigenesFeldAn(): void {
+    public function testPairsArriveAsTheirOwnField(): void {
         $this->assertSame('value:pairs', $this->capture('addPoll')['pairs'] ?? null);
         $this->assertSame('value:pairs', $this->capture('updatePoll')['pairs'] ?? null);
     }

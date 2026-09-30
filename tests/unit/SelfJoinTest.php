@@ -96,7 +96,7 @@ class SelfJoinTest extends TestCase {
 
     // ── Window state ───────────────────────────────────────────────────────
 
-    public static function zu(): array {
+    public static function closedWindows(): array {
         return [
             // closesAt, closedAt, releasedAt
             'manuell geschlossen' => [0, self::NOW - 1, 0],
@@ -105,33 +105,33 @@ class SelfJoinTest extends TestCase {
         ];
     }
 
-    #[DataProvider('zu')]
-    public function testNachDemSchlussKeinBeitritt(int $closesAt, int $closedAt, int $releasedAt): void {
+    #[DataProvider('closedWindows')]
+    public function testNoJoinAfterClosing(int $closesAt, int $closedAt, int $releasedAt): void {
         $this->locked = $this->room(self::NOW - 100, $closesAt, $closedAt, $releasedAt);
 
         $this->assertRejected('The quiz is closed.', 'tok-neu', 'Cem');
     }
 
-    public function testBekannteSpielerNachDemSchlussAuchNicht(): void {
+    public function testKnownPlayersNotAfterClosingEither(): void {
         $this->locked = $this->room(self::NOW - 100, 0, self::NOW - 1);
 
         $this->assertRejected('The quiz is closed.', 'tok-anna', 'Anna');
     }
 
-    public function testImEntwurfErlaubt(): void {
+    public function testAllowedInDraft(): void {
         $this->locked = $this->room(0);
         $this->expectRegister('tok-neu', 'Cem');
 
         $this->join('tok-neu', 'Cem');
     }
 
-    public function testImOffenenFensterErlaubt(): void {
+    public function testAllowedInOpenWindow(): void {
         $this->expectRegister('tok-neu', 'Cem');
 
         $this->join('tok-neu', 'Cem');
     }
 
-    public function testZustandZaehltAnDerGesperrtenZeile(): void {
+    public function testStateCountsOnTheLockedRow(): void {
         // The room passed in is stale (open); read with the lock it is already closed.
         $this->locked = $this->room(self::NOW - 100, 0, self::NOW - 1);
         $this->players->expects($this->never())->method('register');
@@ -145,7 +145,7 @@ class SelfJoinTest extends TestCase {
         $this->assertSame(1, $this->lockCalls);
     }
 
-    public function testLaeuftUnterDerRaumsperre(): void {
+    public function testRunsUnderTheRoomLock(): void {
         $this->expectRegister('tok-neu', 'Cem');
 
         $this->join('tok-neu', 'Cem');
@@ -155,13 +155,13 @@ class SelfJoinTest extends TestCase {
 
     // ── Lock joining, cap ──────────────────────────────────────────────────
 
-    public function testGesperrtNeuesTokenWirdAbgewiesen(): void {
+    public function testLockedNewTokenIsRejected(): void {
         $this->locked->setJoinsLocked(true);
 
         $this->assertRejected('Joining is closed for this quiz.', 'tok-neu', 'Cem');
     }
 
-    public function testGesperrtBekanntesTokenKommtWeiterRein(): void {
+    public function testLockedKnownTokenStillGetsIn(): void {
         // Phone reloaded, name confirmed again.
         $this->locked->setJoinsLocked(true);
         $this->expectRegister('tok-anna', 'Anna');
@@ -169,14 +169,14 @@ class SelfJoinTest extends TestCase {
         $this->join('tok-anna', 'Anna');
     }
 
-    public function testGesperrtVorDerNamenspruefung(): void {
+    public function testLockedBeforeTheNameCheck(): void {
         // A throwaway token does not even learn which names are taken.
         $this->locked->setJoinsLocked(true);
 
         $this->assertRejected('Joining is closed for this quiz.', 'tok-neu', 'anna');
     }
 
-    public function testVollerRaumWeistNeueTokensAb(): void {
+    public function testFullRoomRejectsNewTokens(): void {
         // The cap counts players who have started (SelfJoinCapTest has the rest).
         $this->roster = $this->manyPlayers(PaceService::MAX_PLAYERS);
         foreach ($this->roster as $p) {
@@ -186,14 +186,14 @@ class SelfJoinTest extends TestCase {
         $this->assertRejected('This quiz is full.', 'tok-neu', 'Cem');
     }
 
-    public function testEinPlatzFreiGehtNoch(): void {
+    public function testOneFreeSlotStillWorks(): void {
         $this->roster = $this->manyPlayers(PaceService::MAX_PLAYERS - 1);
         $this->expectRegister('tok-neu', 'Cem');
 
         $this->join('tok-neu', 'Cem');
     }
 
-    public function testVollerRaumLaesstBekannteSpielerRein(): void {
+    public function testFullRoomLetsKnownPlayersIn(): void {
         $this->roster = $this->manyPlayers(PaceService::MAX_PLAYERS);
         $this->expectRegister('tok-7', 'P7');
 
@@ -202,40 +202,40 @@ class SelfJoinTest extends TestCase {
 
     // ── Name after starting ────────────────────────────────────────────────
 
-    public function testUmbenennenNachDemStartWirdAbgelehnt(): void {
+    public function testRenameAfterStartIsRejected(): void {
         $this->progress['tok-anna'] = [$this->progressRow('tok-anna')];
 
         $this->assertRejected('You can\'t change your name after starting.', 'tok-anna', 'Anna2');
     }
 
-    public function testUmbenennenVorDemStartIstErlaubt(): void {
+    public function testRenameBeforeStartIsAllowed(): void {
         $this->expectRegister('tok-anna', 'Annika');
 
         $this->join('tok-anna', 'Annika');
     }
 
-    public function testGrossKleinAmEigenenNamenBleibtNachDemStartAenderbar(): void {
+    public function testCaseOfOwnNameStaysChangeableAfterStart(): void {
         $this->progress['tok-anna'] = [$this->progressRow('tok-anna')];
         $this->expectRegister('tok-anna', 'ANNA');
 
         $this->join('tok-anna', 'ANNA');
     }
 
-    public function testNamensdubletteWirdAbgelehnt(): void {
+    public function testDuplicateNameIsRejected(): void {
         $this->assertRejected('This name is already taken. Please choose another one.', 'tok-neu', ' anna ');
     }
 
-    public function testUmbenennenAufFremdenNamenWirdAbgelehnt(): void {
+    public function testRenameToAnotherPlayersNameIsRejected(): void {
         $this->assertRejected('This name is already taken. Please choose another one.', 'tok-ben', 'ANNA');
     }
 
-    public function testLeererNameWirdAbgelehnt(): void {
+    public function testEmptyNameIsRejected(): void {
         $this->assertRejected('Please enter a name.', 'tok-neu', "\u{200B} ");
     }
 
     // ── A new identity starts empty ────────────────────────────────────────
 
-    public function testNeuesTokenImOffenenFensterBeginntLeer(): void {
+    public function testNewTokenInOpenWindowStartsEmpty(): void {
         // Say, the cookie of a removed person: whatever of theirs is left goes away —
         // under the lock and before registering, question 1 with a new clock.
         $calls = [];
@@ -255,14 +255,14 @@ class SelfJoinTest extends TestCase {
         $this->assertSame(['forget', 'register'], $calls);
     }
 
-    public function testBekanntesTokenBehaeltSeinenStand(): void {
+    public function testKnownTokenKeepsItsState(): void {
         $this->pace->expects($this->never())->method('forgetToken');
         $this->expectRegister('tok-anna', 'Anna');
 
         $this->join('tok-anna', 'Anna');
     }
 
-    public function testImEntwurfGibtEsNichtsZuVergessen(): void {
+    public function testNothingToForgetInDraft(): void {
         $this->locked = $this->room(0);
         $this->pace->expects($this->never())->method('forgetToken');
         $this->expectRegister('tok-neu', 'Cem');
@@ -270,7 +270,7 @@ class SelfJoinTest extends TestCase {
         $this->join('tok-neu', 'Cem');
     }
 
-    public function testAbgewiesenVergisstNichts(): void {
+    public function testRejectedForgetsNothing(): void {
         $this->locked->setJoinsLocked(true);
         $this->pace->expects($this->never())->method('forgetToken');
 
@@ -279,7 +279,7 @@ class SelfJoinTest extends TestCase {
 
     // ── Moderated mode ─────────────────────────────────────────────────────
 
-    public function testModeriertNurDieRaumsperreKeineSelbstTempoPfade(): void {
+    public function testModeratedOnlyTheRoomLockNoSelfPacedPaths(): void {
         // Moderated the join takes the room lock too (LiveQuizJoinTest), but
         // never the self-paced paths: no progress, no forgetToken, no
         // started-players cap — 599 joined players, far more than

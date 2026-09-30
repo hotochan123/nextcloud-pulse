@@ -22,32 +22,32 @@ class PaceWindowStateTest extends TestCase {
 
     private const NOW = 1_800_000_000;
 
-    public function testEntwurfSolangeNieGeoeffnet(): void {
+    public function testDraftAsLongAsNeverOpened(): void {
         $room = $this->room();
         $this->assertSame('draft', PaceService::deriveState($room, self::NOW));
     }
 
-    public function testOffenOhneFrist(): void {
+    public function testOpenWithoutDeadline(): void {
         $room = $this->room(openedAt: self::NOW - 100);
         $this->assertSame('open', PaceService::deriveState($room, self::NOW));
     }
 
-    public function testEineSekundeVorDerFristNochOffen(): void {
+    public function testStillOpenOneSecondBeforeTheDeadline(): void {
         $room = $this->room(openedAt: self::NOW - 100, closesAt: self::NOW + 1);
         $this->assertSame('open', PaceService::deriveState($room, self::NOW));
     }
 
-    public function testInDerSekundeDerFristGeschlossen(): void {
+    public function testClosedInTheSecondOfTheDeadline(): void {
         $room = $this->room(openedAt: self::NOW - 100, closesAt: self::NOW);
         $this->assertSame('closed', PaceService::deriveState($room, self::NOW));
     }
 
-    public function testManuellGeschlossenTrotzKuenftigerFrist(): void {
+    public function testClosedManuallyDespiteAFutureDeadline(): void {
         $room = $this->room(openedAt: self::NOW - 100, closesAt: self::NOW + 3600, closedAt: self::NOW - 5);
         $this->assertSame('closed', PaceService::deriveState($room, self::NOW));
     }
 
-    public function testFreigabeSchlaegtAlles(): void {
+    public function testReleaseBeatsEverything(): void {
         // Deadline left open, no closed_at — released is released.
         $room = $this->room(openedAt: self::NOW - 100, closesAt: self::NOW + 3600, releasedAt: self::NOW - 1);
         $this->assertSame('released', PaceService::deriveState($room, self::NOW));
@@ -57,30 +57,30 @@ class PaceWindowStateTest extends TestCase {
 
     // ── effectiveClosedAt ──────────────────────────────────────────────────
 
-    public function testSchlussManuellGeschlossen(): void {
+    public function testCloseWhenClosedManually(): void {
         // closed_at wins, even if the deadline expired afterwards.
         $room = $this->room(openedAt: self::NOW - 100, closesAt: self::NOW - 10, closedAt: self::NOW - 50);
         $this->assertSame(self::NOW - 50, PaceService::effectiveClosedAt($room, self::NOW));
     }
 
-    public function testSchlussDurchAbgelaufeneFrist(): void {
+    public function testCloseThroughAnExpiredDeadline(): void {
         $room = $this->room(openedAt: self::NOW - 100, closesAt: self::NOW);
         $this->assertSame(self::NOW, PaceService::effectiveClosedAt($room, self::NOW));
     }
 
-    public function testKeinSchlussVorDerFrist(): void {
+    public function testNoCloseBeforeTheDeadline(): void {
         $room = $this->room(openedAt: self::NOW - 100, closesAt: self::NOW + 1);
         $this->assertSame(0, PaceService::effectiveClosedAt($room, self::NOW));
     }
 
-    public function testKeinSchlussOhneFristUndOhneSchliessen(): void {
+    public function testNoCloseWithoutDeadlineAndWithoutClosing(): void {
         $room = $this->room(openedAt: self::NOW - 100);
         $this->assertSame(0, PaceService::effectiveClosedAt($room, self::NOW));
     }
 
     // ── windowView / effectiveFeedback / isSelf ────────────────────────────
 
-    public function testFensterZaehltNachDemOeffnenDieEingefroreneReihenfolge(): void {
+    public function testWindowCountsTheFrozenOrderAfterOpening(): void {
         $room = $this->room(openedAt: self::NOW - 100, closesAt: self::NOW - 1);
         $room->setDeckOrder('[12,15,13]');
         $room->setTimed(false);
@@ -100,13 +100,13 @@ class PaceWindowStateTest extends TestCase {
         ], $view);
     }
 
-    public function testFensterZaehltImEntwurfDasAktuelleDeck(): void {
+    public function testWindowCountsTheCurrentDeckInDraft(): void {
         $view = PaceService::windowView($this->room(), self::NOW, 4);
         $this->assertSame('draft', $view['state']);
         $this->assertSame(4, $view['total']);
     }
 
-    public function testProbelaufGibtImmerSofortRueckmeldung(): void {
+    public function testPracticeRunAlwaysGivesImmediateFeedback(): void {
         $room = $this->room();
         $room->setFeedback('end');
         $this->assertSame('end', PaceService::effectiveFeedback($room));
@@ -116,7 +116,7 @@ class PaceWindowStateTest extends TestCase {
         $this->assertSame('each', PaceService::windowView($room, self::NOW, 1)['feedback']);
     }
 
-    public function testNurQuizRaeumeLaufenImEigenenTempo(): void {
+    public function testOnlyQuizRoomsRunInSelfPacedMode(): void {
         $room = $this->room();
         $this->assertTrue(PaceService::isSelf($room));
 

@@ -22,7 +22,7 @@ class CodeGeneratorTest extends TestCase {
 
     private const SAFE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
-    public function testRaumcodeIstSechsstelligUndAusDemVerwechslungsarmenAlphabet(): void {
+    public function testRoomCodeIsSixCharactersFromTheUnambiguousAlphabet(): void {
         $random = $this->createMock(ISecureRandom::class);
         $random->expects($this->once())
             ->method('generate')
@@ -34,13 +34,13 @@ class CodeGeneratorTest extends TestCase {
         $this->assertSame('K9RY8M', (new CodeGenerator($random, $mapper))->uniqueRoomCode());
     }
 
-    public function testAlphabetEnthaeltKeineVerwechselbarenZeichen(): void {
-        foreach (['I', 'O', '0', '1'] as $verboten) {
-            $this->assertStringNotContainsString($verboten, self::SAFE_ALPHABET);
+    public function testAlphabetContainsNoConfusableCharacters(): void {
+        foreach (['I', 'O', '0', '1'] as $forbidden) {
+            $this->assertStringNotContainsString($forbidden, self::SAFE_ALPHABET);
         }
     }
 
-    public function testBelegterCodeWirdNeuGewuerfelt(): void {
+    public function testTakenCodeIsRerolled(): void {
         $random = $this->createMock(ISecureRandom::class);
         $random->method('generate')->willReturnOnConsecutiveCalls('AAAAAA', 'BBBBBB');
         $mapper = $this->createMock(RoomMapper::class);
@@ -50,7 +50,7 @@ class CodeGeneratorTest extends TestCase {
         $this->assertSame('BBBBBB', (new CodeGenerator($random, $mapper))->uniqueRoomCode());
     }
 
-    public function testNachZwanzigKollisionenWirdAbgebrochenStattEndlosZuDrehen(): void {
+    public function testAfterTwentyCollisionsItGivesUpInsteadOfSpinningForever(): void {
         $random = $this->createMock(ISecureRandom::class);
         $random->expects($this->exactly(20))->method('generate')->willReturn('AAAAAA');
         $mapper = $this->createMock(RoomMapper::class);
@@ -60,14 +60,14 @@ class CodeGeneratorTest extends TestCase {
         (new CodeGenerator($random, $mapper))->uniqueRoomCode();
     }
 
-    public function testOptionsIdIstVierstelligAusDemselbenAlphabet(): void {
+    public function testOptionIdIsFourCharactersFromTheSameAlphabet(): void {
         $random = $this->createMock(ISecureRandom::class);
         $random->expects($this->once())->method('generate')->with(4, self::SAFE_ALPHABET)->willReturn('AB12');
 
         $this->assertSame('AB12', (new CodeGenerator($random, $this->createMock(RoomMapper::class)))->optionId());
     }
 
-    public function testVoterTokenIstDreissigzweiStellig(): void {
+    public function testVoterTokenIsThirtyTwoCharacters(): void {
         // 32 characters is a hard limit: all three token columns are varchar(32).
         $random = $this->createMock(ISecureRandom::class);
         $random->expects($this->once())
@@ -79,7 +79,7 @@ class CodeGeneratorTest extends TestCase {
         $this->assertSame(32, strlen($token));
     }
 
-    public function testVoterTokenFormWirdErkannt(): void {
+    public function testVoterTokenFormIsRecognised(): void {
         // Only what voterToken() hands out counts as a cookie: anything else would fail
         // on the varchar(32) column or on the database's UTF-8.
         $this->assertTrue(CodeGenerator::isVoterToken(str_repeat('a', 32)));
@@ -93,8 +93,8 @@ class CodeGeneratorTest extends TestCase {
             'kaputtes UTF-8' => str_repeat("\xFF", 32),
             'Umlaute' => str_repeat('ä', 32),
             'leer' => '',
-        ] as $fall => $wert) {
-            $this->assertFalse(CodeGenerator::isVoterToken($wert), $fall);
+        ] as $case => $value) {
+            $this->assertFalse(CodeGenerator::isVoterToken($value), $case);
         }
 
         $random = $this->createMock(ISecureRandom::class);

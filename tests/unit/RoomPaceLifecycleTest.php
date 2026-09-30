@@ -101,7 +101,7 @@ class RoomPaceLifecycleTest extends TestCase {
 
     // ── resetRoom ──────────────────────────────────────────────────────────
 
-    public function testResetModeriertOhneCursorSchreibtDenRaumNicht(): void {
+    public function testResetModeratedWithoutCursorDoesNotWriteTheRoom(): void {
         $room = $this->room();
         $this->rooms->expects($this->never())->method('update');
         $this->progress->expects($this->once())->method('deleteByRoom')->with(5);
@@ -109,7 +109,7 @@ class RoomPaceLifecycleTest extends TestCase {
         $this->service->resetRoom($room);
     }
 
-    public function testResetModeriertMitCursorSchreibtNurDenCursor(): void {
+    public function testResetModeratedWithCursorWritesOnlyTheCursor(): void {
         $room = $this->room();
         $room->setActivePollId(7);
         $room->resetUpdatedFields();
@@ -124,7 +124,7 @@ class RoomPaceLifecycleTest extends TestCase {
         $this->assertSame(0, $room->getActivePollId());
     }
 
-    public function testResetImEigenenTempoLeertFensterUndBehaeltFormat(): void {
+    public function testResetInSelfPacedModeClearsTheWindowAndKeepsTheFormat(): void {
         $room = $this->room();
         $room->setPace('self');
         $room->setTimed(false);
@@ -156,7 +156,7 @@ class RoomPaceLifecycleTest extends TestCase {
         $this->assertSame(self::NOW - 100, $room->getTouchedAt());
     }
 
-    public function testResetImEntwurfOhneFensterSchreibtDenRaumNicht(): void {
+    public function testResetInDraftWithoutWindowDoesNotWriteTheRoom(): void {
         $room = $this->room();
         $room->setPace('self');
         $room->setTouchedAt(self::NOW - 100);
@@ -167,7 +167,7 @@ class RoomPaceLifecycleTest extends TestCase {
         $this->service->resetRoom($room);
     }
 
-    public function testResetHebtAuchEineAlleinigeBeitrittssperreAuf(): void {
+    public function testResetAlsoLiftsASoleJoinLock(): void {
         $room = $this->room();
         $room->setPace('self');
         $room->setJoinsLocked(true);
@@ -181,7 +181,7 @@ class RoomPaceLifecycleTest extends TestCase {
 
     // ── duplicateRoom ──────────────────────────────────────────────────────
 
-    public function testKopieEinesModeriertenRaumsOhneExtraUpdate(): void {
+    public function testCopyOfAModeratedRoomWithoutExtraUpdate(): void {
         $this->rooms->expects($this->never())->method('update');
 
         $copy = $this->service->duplicateRoom($this->room(), 'alice');
@@ -189,7 +189,7 @@ class RoomPaceLifecycleTest extends TestCase {
         $this->assertSame('live', $copy->getPace());
     }
 
-    public function testKopieMitAufloesungAmEndeSchreibtWieBisherEinmal(): void {
+    public function testCopyWithRevealAtEndWritesOnceAsBefore(): void {
         $src = $this->room();
         $src->setRevealAtEnd(true);
         $this->rooms->expects($this->once())->method('update')->willReturnArgument(0);
@@ -200,7 +200,7 @@ class RoomPaceLifecycleTest extends TestCase {
         $this->assertSame('live', $copy->getPace());
     }
 
-    public function testKopieImEigenenTempoNimmtNurDasFormatMit(): void {
+    public function testCopyInSelfPacedModeTakesOnlyTheFormatAlong(): void {
         $src = $this->room();
         $src->setPace('self');
         $src->setTimed(false);
@@ -232,7 +232,7 @@ class RoomPaceLifecycleTest extends TestCase {
 
     // ── deleteRoom ─────────────────────────────────────────────────────────
 
-    public function testLoeschenNimmtDenFortschrittMit(): void {
+    public function testDeleteTakesTheProgressAlong(): void {
         $room = $this->room();
         $this->progress->expects($this->once())->method('deleteByRoom')->with(5);
         $this->rooms->expects($this->once())->method('delete')->with($room)->willReturnArgument(0);
@@ -240,7 +240,7 @@ class RoomPaceLifecycleTest extends TestCase {
         $this->service->deleteRoom($room);
     }
 
-    public function testLoeschenInDerReihenfolgeGegenWettlaeufe(): void {
+    public function testDeleteRunsInTheOrderThatGuardsAgainstRaces(): void {
         // Room row first (a self-paced join under the room lock finishes first
         // and is then deleted along with it, a later one gets 404), players before
         // votes and progress (/vote and /next re-check with a lock afterwards,
@@ -256,7 +256,7 @@ class RoomPaceLifecycleTest extends TestCase {
         );
     }
 
-    public function testFehlschlagMittendrinLaesstDenRaumGanz(): void {
+    public function testFailureHalfwayLeavesTheRoomIntact(): void {
         // A statement after the room row fails: everything is rolled back, so
         // the room is still complete and can be deleted again — instead of the
         // room row being gone and questions, votes and progress staying behind
@@ -275,7 +275,7 @@ class RoomPaceLifecycleTest extends TestCase {
         $this->assertSame(['begin', 'room', 'presence', 'players', 'findPolls', 'votes', 'rollBack'], $this->tx);
     }
 
-    public function testDeadlockWirdWiederholt(): void {
+    public function testDeadlockIsRetried(): void {
         // A participant votes while the room is deleted, and the database
         // resolves a deadlock by aborting the deletion: rolled back and tried
         // again, the second attempt deletes the room completely.
@@ -301,7 +301,7 @@ class RoomPaceLifecycleTest extends TestCase {
 
     // ── DemoService::clearDemoVotes ────────────────────────────────────────
 
-    public function testDemoRaeumenNimmtDenDemoFortschrittMit(): void {
+    public function testClearingTheDemoTakesTheDemoProgressAlong(): void {
         $poll = new Poll();
         $poll->setId(41);
         $polls = $this->createMock(PollMapper::class);

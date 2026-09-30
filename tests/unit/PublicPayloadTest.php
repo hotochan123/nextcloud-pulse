@@ -23,13 +23,13 @@ class PublicPayloadTest extends TestCase {
 
     // ── Leaderboard ────────────────────────────────────────────────────────
 
-    public function testOhneRanglisteBleibtNullMitLeerenZusatzfeldern(): void {
+    public function testWithoutLeaderboardStaysNullWithEmptyExtraFields(): void {
         $out = PublicPayload::withLeaderboard(['x' => 1, 'leaderboard' => ['alt']], null);
 
         $this->assertSame(['x' => 1, 'leaderboard' => null, 'leaderboardTotal' => 0, 'leaderboardMe' => null, 'leaderboardAround' => []], $out);
     }
 
-    public function testLeereRanglisteBleibtLeer(): void {
+    public function testEmptyLeaderboardStaysEmpty(): void {
         $out = PublicPayload::withLeaderboard([], []);
 
         $this->assertSame([], $out['leaderboard'], '[] bleibt [] — "noch keine Punkte" ist etwas anderes als "keine Rangliste"');
@@ -38,7 +38,7 @@ class PublicPayloadTest extends TestCase {
         $this->assertSame([], $out['leaderboardAround']);
     }
 
-    public function testKurzeRanglisteBleibtVollstaendig(): void {
+    public function testShortLeaderboardStaysComplete(): void {
         $rows = self::rows(4, me: 2);
 
         $out = PublicPayload::withLeaderboard([], $rows);
@@ -49,7 +49,7 @@ class PublicPayloadTest extends TestCase {
         $this->assertTrue($out['leaderboardMe']['me']);
     }
 
-    public function testLangeRanglisteNurDieErstenZehnPlusEigeneZeile(): void {
+    public function testLongLeaderboardOnlyTheFirstTenPlusOwnRow(): void {
         $rows = self::rows(20000, me: 12345);
 
         $out = PublicPayload::withLeaderboard([], $rows);
@@ -62,7 +62,7 @@ class PublicPayloadTest extends TestCase {
         $this->assertLessThan(3000, strlen((string)json_encode($out)), 'ein paar hundert Bytes statt Megabytes');
     }
 
-    public function testUmgebungAmRandAbgeschnitten(): void {
+    public function testSurroundingRowsCutOffAtTheEdge(): void {
         $first = PublicPayload::withLeaderboard([], self::rows(30, me: 0));
         $this->assertSame(['P1', 'P2', 'P3'], array_column($first['leaderboardAround'], 'nickname'));
 
@@ -70,7 +70,7 @@ class PublicPayloadTest extends TestCase {
         $this->assertSame(['P28', 'P29', 'P30'], array_column($last['leaderboardAround'], 'nickname'));
     }
 
-    public function testGeteilterRangUeberDieSchnittkanteHinweg(): void {
+    public function testSharedRankAcrossTheCutEdge(): void {
         // Places 10 and 11 share rank 10: the 10th row is "shared" although
         // its twin is cut off — the client could no longer see that.
         $rows = self::rows(15);
@@ -82,7 +82,7 @@ class PublicPayloadTest extends TestCase {
         $this->assertFalse($out['leaderboard'][8]['shared']);
     }
 
-    public function testBeamerOhneEigeneZeileUndEigenerSchnitt(): void {
+    public function testProjectorWithoutOwnRowAndWithItsOwnCut(): void {
         $out = PublicPayload::withLeaderboard([], self::rows(12), 8);
 
         $this->assertCount(8, $out['leaderboard']);
@@ -93,7 +93,7 @@ class PublicPayloadTest extends TestCase {
 
     // ── Tallies ────────────────────────────────────────────────────────────
 
-    public function testWortwolkeDieHaeufigstenHundertMitSummen(): void {
+    public function testWordCloudTheHundredMostFrequentWithTotals(): void {
         $results = [];
         for ($i = 0; $i < 5000; $i++) {
             $results[] = ['word' => 'w' . $i, 'count' => 5000 - $i];
@@ -109,7 +109,7 @@ class PublicPayloadTest extends TestCase {
         $this->assertSame(777, $out['total'], 'Personen bleiben ungekürzt');
     }
 
-    public function testKleineWortwolkeUnveraendertPlusSummen(): void {
+    public function testSmallWordCloudUnchangedPlusTotals(): void {
         $tally = ['type' => 'words', 'total' => 2, 'results' => [['word' => 'a', 'count' => 2], ['word' => 'b', 'count' => 1]]];
 
         $out = PublicPayload::tally($tally);
@@ -119,7 +119,7 @@ class PublicPayloadTest extends TestCase {
         $this->assertSame(3, $out['mentions']);
     }
 
-    public function testFreitextDieHaeufigstenHundertGruppen(): void {
+    public function testFreeTextTheHundredMostFrequentGroups(): void {
         $answers = [];
         for ($i = 0; $i < 300; $i++) {
             $answers[] = ['norm' => 'a' . $i, 'sample' => 'A' . $i, 'count' => 300 - $i, 'status' => 'pending'];
@@ -134,7 +134,7 @@ class PublicPayloadTest extends TestCase {
         $this->assertSame(900, $out['total']);
     }
 
-    public function testKompassStichprobeBehaeltVerteilungUndSchwerpunkt(): void {
+    public function testCompassSampleKeepsDistributionAndCentroid(): void {
         // 20,000 points: 50 % at (1,1), 30 % at (-2,3), 20 % at (0,0).
         $points = [];
         for ($i = 0; $i < 20000; $i++) {
@@ -154,7 +154,7 @@ class PublicPayloadTest extends TestCase {
         $this->assertSame($out['points'], PublicPayload::tally($tally)['points'], 'deterministisch — der Beamer flackert nicht');
     }
 
-    public function testKompassStichprobeGroessterRestUndSeltenePosition(): void {
+    public function testCompassSampleLargestRemainderAndRarePosition(): void {
         // 3 positions with 1001/1000/999 of 3000 points, cap 10: 3.34/3.33/3.33
         // -> 3/3/3 plus one to the largest remainder (the first).
         $points = array_merge(
@@ -169,7 +169,7 @@ class PublicPayloadTest extends TestCase {
         $this->assertSame(['1:0' => 4, '0:1' => 3, '-1:-1' => 3], array_count_values(array_map(static fn (array $p): string => $p['x'] . ':' . $p['y'], $sample)));
     }
 
-    public function testKleinerKompassUnveraendert(): void {
+    public function testSmallCompassUnchanged(): void {
         $points = [['x' => 1, 'y' => 2], ['x' => -3, 'y' => 0]];
         $tally = ['type' => 'scale', 'mode' => 'compass', 'total' => 2, 'points' => $points, 'results' => []];
 
@@ -179,7 +179,7 @@ class PublicPayloadTest extends TestCase {
         $this->assertSame(2, $out['pointsTotal']);
     }
 
-    public function testAndereTypenUnberuehrt(): void {
+    public function testOtherTypesUntouched(): void {
         foreach ([
             ['type' => 'choice', 'total' => 3, 'results' => [['id' => 'AA', 'label' => 'A', 'count' => 3]]],
             ['type' => 'scale', 'mode' => 'single', 'total' => 1, 'results' => [['value' => 1, 'count' => 1]]],

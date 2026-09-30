@@ -73,19 +73,19 @@ class RoomGoneTest extends TestCase {
 
     // ── Moderator ──────────────────────────────────────────────────────────
 
-    public function testPaceAktionAufGeloeschtemRaum(): void {
+    public function testPaceActionOnADeletedRoom(): void {
         $this->pace->method('closeWindow')->willThrowException(new RoomGoneException());
 
         $this->assertNotFound($this->moderator()->pace('ABCDEF'));
     }
 
-    public function testBewertenAufGeloeschtemRaum(): void {
+    public function testGradingOnADeletedRoom(): void {
         $this->votes->method('gradeTextAnswer')->willThrowException(new RoomGoneException());
 
         $this->assertNotFound($this->moderator()->gradeAnswer('ABCDEF', 13));
     }
 
-    public function testDeckAenderungAufGeloeschtemRaum(): void {
+    public function testDeckChangeOnADeletedRoom(): void {
         // deckChange -> paced -> locked: the room is already gone.
         $this->pace->method('locked')->willThrowException(new RoomGoneException());
 
@@ -94,19 +94,19 @@ class RoomGoneTest extends TestCase {
 
     // ── Public ─────────────────────────────────────────────────────────────
 
-    public function testBeitrittAufGeloeschtemRaum(): void {
+    public function testJoinOnADeletedRoom(): void {
         $this->votes->method('quizJoin')->willThrowException(new RoomGoneException());
 
         $this->assertUnthrottledNotFound($this->public()->join('ABCDEF'));
     }
 
-    public function testStimmeAufGeloeschtemRaum(): void {
+    public function testVoteOnADeletedRoom(): void {
         $this->votes->method('recordVote')->willThrowException(new RoomGoneException());
 
         $this->assertUnthrottledNotFound($this->public()->vote('ABCDEF'));
     }
 
-    public function testWeiterAufGeloeschtemRaum(): void {
+    public function testNextOnADeletedRoom(): void {
         $this->pace->method('next')->willThrowException(new RoomGoneException());
 
         $this->assertUnthrottledNotFound($this->public()->next('ABCDEF'));

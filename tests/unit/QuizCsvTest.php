@@ -61,7 +61,7 @@ class QuizCsvTest extends TestCase {
         }
     }
 
-    public function testFreitextEineZeileJeAntwortgruppe(): void {
+    public function testFreeTextOneRowPerAnswerGroup(): void {
         $this->poll(1, 'text', ['accepted' => ['Jupiter'], 'rejected' => ['Saturn']], ['Jupiter', 'Saturn', 'jupiter', '=HYPERLINK("x")']);
 
         $lines = $this->csv();
@@ -74,13 +74,13 @@ class QuizCsvTest extends TestCase {
         ], array_slice($lines, 1));
     }
 
-    public function testFreitextOhneAntwortenBleibtSichtbar(): void {
+    public function testFreeTextWithoutAnswersStaysVisible(): void {
         $this->poll(1, 'text', ['accepted' => ['Jupiter'], 'rejected' => []], []);
 
         $this->assertSame([['1', 'Frage 1?', 'Free text', '(no answers)', '0', '']], array_slice($this->csv(), 1));
     }
 
-    public function testSchaetzungNenntDieZahl(): void {
+    public function testNumberGuessNamesTheNumber(): void {
         $this->poll(1, 'number', ['target' => 1969, 'tolerance' => 1], [1969, 1950.5, 1969]);
 
         $this->assertSame([
@@ -89,7 +89,7 @@ class QuizCsvTest extends TestCase {
         ], array_slice($this->csv(), 1));
     }
 
-    public function testWortAusDemPublikumWirdKeineFormel(): void {
+    public function testWordFromTheAudienceBecomesNoFormula(): void {
         $this->poll(1, 'words', null, [['=cmd'], ['Kaffee']]);
 
         $answers = array_column(array_slice($this->csv(), 1), 3);
@@ -97,7 +97,7 @@ class QuizCsvTest extends TestCase {
         $this->assertSame(["'=cmd", 'kaffee'], $answers);
     }
 
-    public function testQuizMitFreitextZwischenAnderenFragen(): void {
+    public function testQuizWithFreeTextBetweenOtherQuestions(): void {
         // The reported case: a deck with free text aborted the whole export.
         $this->poll(1, 'truefalse', null, ['T'], [['id' => 'T', 'label' => 'True'], ['id' => 'F', 'label' => 'False']]);
         $this->poll(2, 'text', ['accepted' => ['Jupiter'], 'rejected' => []], ['Jupiter']);
@@ -109,7 +109,7 @@ class QuizCsvTest extends TestCase {
         $this->assertSame(['True', 'False', 'Jupiter'], array_column(array_slice($lines, 1, 3), 3));
     }
 
-    public function testAnfuehrungszeichenNachRfc4180(): void {
+    public function testQuotesPerRfc4180(): void {
         // No backslash escape: \" stays text; the character after the backslash is doubled.
         $this->poll(1, 'text', ['accepted' => [], 'rejected' => []], ['a\\"b']);
 

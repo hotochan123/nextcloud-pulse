@@ -63,7 +63,7 @@ class DeckSetCurrentTest extends TestCase {
         }
     }
 
-    public function testUmfrageErsterSprungSetztStartzeitpunkt(): void {
+    public function testPollFirstJumpSetsStartTime(): void {
         $this->given('active', 0);
         $this->polls->expects($this->once())->method('update')->willReturnArgument(0);
 
@@ -75,7 +75,7 @@ class DeckSetCurrentTest extends TestCase {
         $this->assertSame(7, $room->getActivePollId());
     }
 
-    public function testUmfrageSpaetererSprungLaesstStartzeitpunktStehen(): void {
+    public function testPollLaterJumpLeavesStartTimeAlone(): void {
         $this->given('locked', 1234);
         $this->polls->expects($this->never())->method('update');
 
@@ -85,7 +85,7 @@ class DeckSetCurrentTest extends TestCase {
         $this->assertSame('locked', $this->poll->getStatus(), 'Umfrage öffnet eine gesperrte Frage nicht');
     }
 
-    public function testQuizStartetTimerJedesMalNeuUndOeffnet(): void {
+    public function testQuizRestartsTimerEveryTimeAndOpens(): void {
         $this->given('locked', 1234);
         $this->polls->expects($this->once())->method('update')->willReturnArgument(0);
 
@@ -95,7 +95,7 @@ class DeckSetCurrentTest extends TestCase {
         $this->assertSame('active', $this->poll->getStatus());
     }
 
-    public function testQuizErsterSprungSetztEbenfallsStartzeitpunkt(): void {
+    public function testQuizFirstJumpAlsoSetsStartTime(): void {
         $this->given('active', 0);
         $this->polls->expects($this->once())->method('update')->willReturnArgument(0);
 
@@ -104,7 +104,7 @@ class DeckSetCurrentTest extends TestCase {
         $this->assertSame(5000, $this->poll->getStartedAt());
     }
 
-    public function testCursorAufNullFasstKeineFrageAn(): void {
+    public function testCursorToZeroTouchesNoQuestion(): void {
         $this->polls->expects($this->never())->method('find');
         $this->polls->expects($this->never())->method('update');
         $this->rooms->expects($this->once())->method('update');
@@ -118,7 +118,7 @@ class DeckSetCurrentTest extends TestCase {
 
     // ── A new run clears the old end ───────────────────────────────────────
 
-    public function testQuizSprungNimmtAltesEndeZurueck(): void {
+    public function testQuizJumpRevertsOldEnd(): void {
         // A second run (or a step back after the final standings): every
         // OTHER 'ended' question becomes 'locked' again — otherwise the quiz would
         // still count as over and /summary would reveal all answers from question 1 on.
@@ -131,7 +131,7 @@ class DeckSetCurrentTest extends TestCase {
         $this->assertSame('active', $this->poll->getStatus(), 'die Zielfrage selbst läuft wieder');
     }
 
-    public function testQuizNimmtEndeErstNachDemOeffnenZurueck(): void {
+    public function testQuizRevertsEndOnlyAfterOpening(): void {
         // Order: open the target question first, then reset the others —
         // the target question is excluded from that and is already 'active'.
         $this->given('active', 0);
@@ -149,7 +149,7 @@ class DeckSetCurrentTest extends TestCase {
         $this->assertSame(['update:active', 'unmarkEnded'], $calls);
     }
 
-    public function testUmfrageFasstEndeNichtAn(): void {
+    public function testPollDoesNotTouchTheEnd(): void {
         $this->given('active', 0);
         $this->polls->method('update')->willReturnArgument(0);
         $this->polls->expects($this->never())->method('unmarkEnded');
@@ -157,7 +157,7 @@ class DeckSetCurrentTest extends TestCase {
         $this->service->setCurrent($this->room('poll'), 7);
     }
 
-    public function testQuizCursorAufNullBehaeltDasEnde(): void {
+    public function testQuizCursorToZeroKeepsTheEnd(): void {
         // "Back to the deck" after /end: the final standings should stay.
         $this->polls->expects($this->never())->method('unmarkEnded');
 
@@ -168,7 +168,7 @@ class DeckSetCurrentTest extends TestCase {
         $this->assertSame(0, $room->getActivePollId());
     }
 
-    public function testFrageAusFremdemRaumWirdAbgelehnt(): void {
+    public function testQuestionFromAnotherRoomIsRejected(): void {
         $this->poll->setRoomId(99);
         $this->polls->expects($this->never())->method('update');
         $this->rooms->expects($this->never())->method('update');

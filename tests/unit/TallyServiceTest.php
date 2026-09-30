@@ -31,21 +31,21 @@ class TallyServiceTest extends TestCase {
 
     // ── normalizeText: ONE source for grading and grouping ──────────────────
 
-    public function testNormalizeTextZiehtWhitespaceZusammenUndSchreibtKlein(): void {
+    public function testNormalizeTextCollapsesWhitespaceAndLowercases(): void {
         $this->assertSame('hallo welt', TallyService::normalizeText("  Hallo \n\t WELT  "));
     }
 
-    public function testNormalizeTextIstMehrbyteSicher(): void {
+    public function testNormalizeTextIsMultibyteSafe(): void {
         $this->assertSame('grüße über äpfel', TallyService::normalizeText('Grüße   Über  Äpfel'));
     }
 
-    public function testNormalizeTextAufLeerstringBleibtLeer(): void {
+    public function testNormalizeTextOnEmptyStringStaysEmpty(): void {
         $this->assertSame('', TallyService::normalizeText("   \n "));
     }
 
     // ── choice / truefalse ─────────────────────────────────────────────────
 
-    public function testChoiceZaehltJeOptionUndBehaeltDieReihenfolge(): void {
+    public function testChoiceCountsPerOptionAndKeepsTheOrder(): void {
         $poll = $this->poll('choice', [['id' => 'AA', 'label' => 'Ja'], ['id' => 'BB', 'label' => 'Nein']]);
         $tally = $this->service->tally($poll, [$this->vote('AA'), $this->vote('BB'), $this->vote('AA')]);
 
@@ -57,7 +57,7 @@ class TallyServiceTest extends TestCase {
         ], $tally['results']);
     }
 
-    public function testChoiceIgnoriertUnbekannteOptionsIdsZaehltSieAberInTotal(): void {
+    public function testChoiceIgnoresUnknownOptionIdsButCountsThemInTotal(): void {
         // total = votes cast, not the sum of the bars (old votes point into
         // nothing after a question has been edited).
         $poll = $this->poll('choice', [['id' => 'AA', 'label' => 'Ja']]);
@@ -67,7 +67,7 @@ class TallyServiceTest extends TestCase {
         $this->assertSame(1, $tally['results'][0]['count']);
     }
 
-    public function testOhneStimmenStehenAlleOptionenAufNull(): void {
+    public function testWithoutVotesAllOptionsStandAtZero(): void {
         $poll = $this->poll('choice', [['id' => 'AA', 'label' => 'Ja'], ['id' => 'BB', 'label' => 'Nein']]);
         $tally = $this->service->tally($poll, []);
 
@@ -77,7 +77,7 @@ class TallyServiceTest extends TestCase {
 
     // ── words ──────────────────────────────────────────────────────────────
 
-    public function testWortwolkeZaehltKleingeschriebenNachHaeufigkeit(): void {
+    public function testWordCloudCountsLowercasedByFrequency(): void {
         $poll = $this->poll('words', []);
         $tally = $this->service->tally($poll, [
             $this->vote(['Kaffee', 'Tee']),
@@ -91,7 +91,7 @@ class TallyServiceTest extends TestCase {
         $this->assertSame([['word' => 'kaffee', 'count' => 2], ['word' => 'tee', 'count' => 1]], $tally['results']);
     }
 
-    public function testWortwolkeUeberspringtLeereUndNichtStrings(): void {
+    public function testWordCloudSkipsEmptyAndNonStrings(): void {
         $poll = $this->poll('words', []);
         $tally = $this->service->tally($poll, [$this->vote(['', '   ', 42, 'Tee'])]);
 
@@ -100,7 +100,7 @@ class TallyServiceTest extends TestCase {
 
     // ── scale: single ──────────────────────────────────────────────────────
 
-    public function testSkalaEinzelLiefertVerteilungUndDurchschnitt(): void {
+    public function testScaleSingleReturnsDistributionAndAverage(): void {
         $poll = $this->poll('scale', ['mode' => 'single', 'min' => 1, 'max' => 3, 'minLabel' => 'kalt', 'maxLabel' => 'heiß']);
         $tally = $this->service->tally($poll, [$this->vote(1), $this->vote(3), $this->vote(3)]);
 
@@ -114,7 +114,7 @@ class TallyServiceTest extends TestCase {
         $this->assertSame('kalt', $tally['minLabel']);
     }
 
-    public function testSkalaEinzelIgnoriertWerteAusserhalbDerSkala(): void {
+    public function testScaleSingleIgnoresValuesOutsideTheScale(): void {
         $poll = $this->poll('scale', ['mode' => 'single', 'min' => 1, 'max' => 3]);
         $tally = $this->service->tally($poll, [$this->vote(2), $this->vote(9), $this->vote('quatsch')]);
 
@@ -122,14 +122,14 @@ class TallyServiceTest extends TestCase {
         $this->assertSame(3, $tally['total']);
     }
 
-    public function testSkalaOhneStimmenHatDurchschnittNull(): void {
+    public function testScaleWithoutVotesHasAverageZero(): void {
         $poll = $this->poll('scale', ['mode' => 'single', 'min' => 1, 'max' => 5]);
         $this->assertSame(0.0, $this->service->tally($poll, [])['average']);
     }
 
     // ── scale: spectrum ────────────────────────────────────────────────────
 
-    public function testSpektrumRechnetJeAspektDurchschnittMinMax(): void {
+    public function testSpectrumComputesAverageMinMaxPerAspect(): void {
         $poll = $this->poll('scale', [
             'mode' => 'spectrum',
             'min' => 0,
@@ -153,7 +153,7 @@ class TallyServiceTest extends TestCase {
         );
     }
 
-    public function testSpektrumUeberspringtFehlendeUndAusserhalbLiegendeAspekte(): void {
+    public function testSpectrumSkipsMissingAndOutOfRangeAspects(): void {
         $poll = $this->poll('scale', [
             'mode' => 'spectrum', 'min' => 0, 'max' => 4,
             'aspects' => [['id' => 'a1', 'label' => 'Tempo', 'poleLow' => '', 'poleHigh' => '']],
@@ -171,7 +171,7 @@ class TallyServiceTest extends TestCase {
 
     // ── scale: compass ─────────────────────────────────────────────────────
 
-    public function testKompassLiefertPunkteUndSchwerpunkt(): void {
+    public function testCompassReturnsPointsAndCentroid(): void {
         $poll = $this->poll('scale', ['mode' => 'compass', 'range' => 5, 'heatmapThreshold' => 40]);
         $tally = $this->service->tally($poll, [
             $this->vote(['x' => 2, 'y' => -2]),
@@ -183,7 +183,7 @@ class TallyServiceTest extends TestCase {
         $this->assertSame(['x' => 3.0, 'y' => -1.0], $tally['centroid']);
     }
 
-    public function testKompassVerwirftPunkteAusserhalbDesFeldes(): void {
+    public function testCompassDiscardsPointsOutsideTheField(): void {
         $poll = $this->poll('scale', ['mode' => 'compass', 'range' => 3]);
         $tally = $this->service->tally($poll, [
             $this->vote(['x' => 1, 'y' => 1]),
@@ -194,14 +194,14 @@ class TallyServiceTest extends TestCase {
         $this->assertCount(1, $tally['points']);
     }
 
-    public function testKompassOhneStimmenHatKeinenSchwerpunkt(): void {
+    public function testCompassWithoutVotesHasNoCentroid(): void {
         $poll = $this->poll('scale', ['mode' => 'compass', 'range' => 5]);
         $this->assertNull($this->service->tally($poll, [])['centroid']);
     }
 
     // ── multi ──────────────────────────────────────────────────────────────
 
-    public function testMehrfachauswahlZaehltJedeAngekreuzteOption(): void {
+    public function testMultipleAnswersCountsEveryTickedOption(): void {
         $poll = $this->poll('multi', [
             ['id' => 'AA', 'label' => 'A'], ['id' => 'BB', 'label' => 'B'], ['id' => 'CC', 'label' => 'C'],
         ]);
@@ -216,7 +216,7 @@ class TallyServiceTest extends TestCase {
 
     // ── rank ───────────────────────────────────────────────────────────────
 
-    public function testReihenfolgeSortiertNachDurchschnittlichemPlatz(): void {
+    public function testRankingSortsByAveragePlace(): void {
         $poll = $this->poll('rank', [
             ['id' => 'AA', 'label' => 'Tempo'], ['id' => 'BB', 'label' => 'Preis'], ['id' => 'CC', 'label' => 'Qualität'],
         ]);
@@ -233,7 +233,7 @@ class TallyServiceTest extends TestCase {
         $this->assertSame([1.33, 2.0, 2.67], array_column($tally['results'], 'average'));
     }
 
-    public function testReihenfolgeLiefertDiePlatzverteilung(): void {
+    public function testRankingReturnsThePlaceDistribution(): void {
         $poll = $this->poll('rank', [
             ['id' => 'AA', 'label' => 'A'], ['id' => 'BB', 'label' => 'B'], ['id' => 'CC', 'label' => 'C'],
         ]);
@@ -256,7 +256,7 @@ class TallyServiceTest extends TestCase {
         }
     }
 
-    public function testReihenfolgeZaehltErstplaetze(): void {
+    public function testRankingCountsFirstPlaces(): void {
         $poll = $this->poll('rank', [['id' => 'AA', 'label' => 'A'], ['id' => 'BB', 'label' => 'B']]);
         $tally = $this->service->tally($poll, [
             $this->vote(['AA', 'BB']), $this->vote(['AA', 'BB']), $this->vote(['BB', 'AA']),
@@ -265,7 +265,7 @@ class TallyServiceTest extends TestCase {
         $this->assertSame([2, 1], array_column($tally['results'], 'first'));
     }
 
-    public function testReihenfolgeBeiGleichemDurchschnittEntscheidenErstplaetze(): void {
+    public function testRankingOnEqualAverageFirstPlacesDecide(): void {
         $poll = $this->poll('rank', [
             ['id' => 'AA', 'label' => 'A'], ['id' => 'BB', 'label' => 'B'], ['id' => 'CC', 'label' => 'C'],
         ]);
@@ -284,7 +284,7 @@ class TallyServiceTest extends TestCase {
         $this->assertSame([2, 2, 0], array_column($tally['results'], 'first'));
     }
 
-    public function testReihenfolgeOhneStimmenBehaeltDieEditorReihenfolge(): void {
+    public function testRankingWithoutVotesKeepsTheEditorOrder(): void {
         $poll = $this->poll('rank', [['id' => 'AA', 'label' => 'A'], ['id' => 'BB', 'label' => 'B']]);
         $tally = $this->service->tally($poll, []);
 
@@ -293,7 +293,7 @@ class TallyServiceTest extends TestCase {
         $this->assertSame([0, 0], array_column($tally['results'], 'n'));
     }
 
-    public function testReihenfolgeStelltUnbewerteteAntwortenHintenAn(): void {
+    public function testRankingPutsUnrankedAnswersLast(): void {
         // Answer C was added only after the votes (theoretically) — without a placement
         // it must not slide to the top with average 0.
         $poll = $this->poll('rank', [
@@ -305,7 +305,7 @@ class TallyServiceTest extends TestCase {
         $this->assertSame(0, $tally['results'][2]['n']);
     }
 
-    public function testReihenfolgeIgnoriertFremdeIdsInDerStimme(): void {
+    public function testRankingIgnoresForeignIdsInTheVote(): void {
         $poll = $this->poll('rank', [['id' => 'AA', 'label' => 'A'], ['id' => 'BB', 'label' => 'B']]);
         $tally = $this->service->tally($poll, [$this->vote(['AA', 'WEG', 'BB'])]);
 
@@ -316,7 +316,7 @@ class TallyServiceTest extends TestCase {
 
     // ── number ─────────────────────────────────────────────────────────────
 
-    public function testSchaetzfrageZaehltImToleranzbandUndSortiertAufsteigend(): void {
+    public function testNumberGuessCountsWithinTheToleranceBandAndSortsAscending(): void {
         $poll = $this->poll('number', []);
         $poll->setAnswerKey(json_encode(['target' => 100, 'tolerance' => 5]));
         $tally = $this->service->tally($poll, [
@@ -328,7 +328,7 @@ class TallyServiceTest extends TestCase {
         $this->assertSame([2, 1, 1], array_column($tally['results'], 'count'));
     }
 
-    public function testSchaetzfrageOhneToleranzVerlangtDenExaktenWert(): void {
+    public function testNumberGuessWithoutToleranceRequiresTheExactValue(): void {
         $poll = $this->poll('number', []);
         $poll->setAnswerKey(json_encode(['target' => 42, 'tolerance' => 0]));
         $tally = $this->service->tally($poll, [$this->vote(42), $this->vote(43)]);
@@ -338,7 +338,7 @@ class TallyServiceTest extends TestCase {
 
     // ── text ───────────────────────────────────────────────────────────────
 
-    public function testFreitextGruppiertNachNormalformUndKenntDenStatus(): void {
+    public function testFreeTextGroupsByNormalFormAndKnowsTheStatus(): void {
         $poll = $this->poll('text', []);
         $poll->setAnswerKey(json_encode(['accepted' => ['Paris'], 'rejected' => ['Berlin']]));
         $tally = $this->service->tally($poll, [
@@ -356,7 +356,7 @@ class TallyServiceTest extends TestCase {
         $this->assertSame('Paris', $byNorm['paris']['sample'], 'Rohtext der ersten Nennung als Beispiel');
     }
 
-    public function testFreitextSortiertNachHaeufigkeit(): void {
+    public function testFreeTextSortsByFrequency(): void {
         $poll = $this->poll('text', []);
         $tally = $this->service->tally($poll, [
             $this->vote('selten'), $this->vote('oft'), $this->vote('oft'), $this->vote('oft'),
@@ -365,7 +365,7 @@ class TallyServiceTest extends TestCase {
         $this->assertSame(['oft', 'selten'], array_column($tally['answers'], 'norm'));
     }
 
-    public function testFreitextUeberspringtLeereAntworten(): void {
+    public function testFreeTextSkipsEmptyAnswers(): void {
         $poll = $this->poll('text', []);
         $tally = $this->service->tally($poll, [$this->vote(''), $this->vote('Paris')]);
 
@@ -378,7 +378,7 @@ class TallyServiceTest extends TestCase {
     /** @param array $options option list (choice/multi) or scale config (scale) */
     // ── Matching ───────────────────────────────────────────────────────────
 
-    public function testZuordnungZaehltJeZeileUeberDieZiele(): void {
+    public function testMatchingCountsPerRowAcrossTheTargets(): void {
         $poll = $this->matchPoll();
         $tally = $this->service->tally($poll, [
             $this->vote(['I1' => 'T1', 'I2' => 'T2']),
@@ -393,7 +393,7 @@ class TallyServiceTest extends TestCase {
         $this->assertSame(2, $tally['results'][0]['n']);
     }
 
-    public function testZuordnungMarkiertDasMeistgewaehlteZielAlsKonsens(): void {
+    public function testMatchingMarksTheMostChosenTargetAsConsensus(): void {
         $poll = $this->matchPoll();
         $tally = $this->service->tally($poll, [
             $this->vote(['I1' => 'T2', 'I2' => 'T2']),
@@ -403,7 +403,7 @@ class TallyServiceTest extends TestCase {
         $this->assertSame('T2', $tally['results'][0]['top']);
     }
 
-    public function testZuordnungOhneKonsensLaesstTopLeer(): void {
+    public function testMatchingWithoutConsensusLeavesTopEmpty(): void {
         // A tie is not an agreement — otherwise the editor order would win.
         $poll = $this->matchPoll();
         $tally = $this->service->tally($poll, [
@@ -415,7 +415,7 @@ class TallyServiceTest extends TestCase {
         $this->assertSame(2, $tally['results'][0]['n']);
     }
 
-    public function testZuordnungIgnoriertUnbekannteIdsZaehltDieStimmeAber(): void {
+    public function testMatchingIgnoresUnknownIdsButCountsTheVote(): void {
         $poll = $this->matchPoll();
         $tally = $this->service->tally($poll, [$this->vote(['I1' => 'WEG', 'WEG' => 'T1'])]);
 
@@ -423,7 +423,7 @@ class TallyServiceTest extends TestCase {
         $this->assertSame(0, $tally['results'][0]['n']);
     }
 
-    public function testZuordnungOhneStimmenLiefertAlleZeilenMitNull(): void {
+    public function testMatchingWithoutVotesReturnsAllRowsWithZero(): void {
         $tally = $this->service->tally($this->matchPoll(), []);
 
         $this->assertSame(0, $tally['total']);

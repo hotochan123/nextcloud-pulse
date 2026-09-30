@@ -115,7 +115,7 @@ class LiveQuizJoinTest extends TestCase {
 
     // ── Room lock ──────────────────────────────────────────────────────────
 
-    public function testLaeuftUnterDerRaumsperre(): void {
+    public function testRunsUnderTheRoomLock(): void {
         $this->expectRegister('tok-neu', 'Cem');
 
         $this->join('tok-neu', 'Cem');
@@ -123,7 +123,7 @@ class LiveQuizJoinTest extends TestCase {
         $this->assertSame(1, $this->lockCalls);
     }
 
-    public function testEntscheidetAnDerGesperrtenZeile(): void {
+    public function testDecidesOnTheLockedRow(): void {
         // The room passed in is stale (joining open); read with the lock it is locked.
         $this->locked->setJoinsLocked(true);
 
@@ -131,7 +131,7 @@ class LiveQuizJoinTest extends TestCase {
         $this->assertSame(1, $this->lockCalls);
     }
 
-    public function testGleichzeitigesZweitesAnnaSiehtDasErste(): void {
+    public function testSimultaneousSecondAnnaSeesTheFirst(): void {
         // Serialised by the lock: the second request reads the first one's row.
         $this->players->expects($this->once())->method('register')
             ->willReturnCallback(function (int $roomId, string $token, string $nickname): Player {
@@ -148,7 +148,7 @@ class LiveQuizJoinTest extends TestCase {
         }
     }
 
-    public function testGeloeschterRaumWirdNichtRegistriert(): void {
+    public function testDeletedRoomDoesNotRegister(): void {
         $pace = $this->createMock(PaceService::class);
         $pace->method('locked')->willThrowException(new RoomGoneException());
         (new ReflectionProperty(VoteService::class, 'paceService'))->setValue($this->service, $pace);
@@ -160,19 +160,19 @@ class LiveQuizJoinTest extends TestCase {
 
     // ── Lock joining ───────────────────────────────────────────────────────
 
-    public function testGesperrtNeuesTokenWirdAbgewiesen(): void {
+    public function testLockedNewTokenIsRejected(): void {
         $this->locked->setJoinsLocked(true);
 
         $this->assertRejected('Joining is closed for this quiz.', 'tok-neu', 'Cem');
     }
 
-    public function testGesperrtVorDerNamenspruefung(): void {
+    public function testLockedBeforeTheNameCheck(): void {
         $this->locked->setJoinsLocked(true);
 
         $this->assertRejected('Joining is closed for this quiz.', 'tok-neu', 'anna');
     }
 
-    public function testGesperrtBekanntesTokenKommtWeiterRein(): void {
+    public function testLockedKnownTokenStillGetsIn(): void {
         $this->locked->setJoinsLocked(true);
         $this->expectRegister('tok-anna', 'Anna');
 
@@ -181,26 +181,26 @@ class LiveQuizJoinTest extends TestCase {
 
     // ── Name freeze ────────────────────────────────────────────────────────
 
-    public function testUmbenennenNachDerErstenAntwortWirdAbgelehnt(): void {
+    public function testRenameAfterTheFirstAnswerIsRejected(): void {
         $this->answered['tok-anna'] = [new Vote()];
 
         $this->assertRejected('You can\'t change your name after starting.', 'tok-anna', 'Annika');
     }
 
-    public function testUmbenennenNachDemQuizendeWirdAbgelehnt(): void {
+    public function testRenameAfterTheQuizEndIsRejected(): void {
         // Never answered, but the final standings are up.
         $this->deck[1]->setStatus('ended');
 
         $this->assertRejected('You can\'t change your name after starting.', 'tok-ben', 'Boss');
     }
 
-    public function testUmbenennenVorDerErstenAntwortIstErlaubt(): void {
+    public function testRenameBeforeTheFirstAnswerIsAllowed(): void {
         $this->expectRegister('tok-anna', 'Annika');
 
         $this->join('tok-anna', 'Annika');
     }
 
-    public function testSchreibweiseDesEigenenNamensBleibtAenderbar(): void {
+    public function testSpellingOfOwnNameStaysChangeable(): void {
         $this->answered['tok-anna'] = [new Vote()];
         $this->deck[1]->setStatus('ended');
         $this->expectRegister('tok-anna', 'ANNA');
@@ -208,7 +208,7 @@ class LiveQuizJoinTest extends TestCase {
         $this->join('tok-anna', 'ANNA');
     }
 
-    public function testEigenerNameWirdOhneFragenrundeBestaetigt(): void {
+    public function testOwnNameIsConfirmedWithoutReadingTheQuestions(): void {
         // Re-sending one's own name reads neither the questions nor the votes.
         $this->votes->expects($this->never())->method('findByPolls');
         $this->votes->expects($this->never())->method('deleteByPollsAndToken');
@@ -217,7 +217,7 @@ class LiveQuizJoinTest extends TestCase {
         $this->join('tok-ben', 'Ben');
     }
 
-    public function testNachDemQuizendeKannEinNeuerNochBeitreten(): void {
+    public function testAfterTheQuizEndANewcomerCanStillJoin(): void {
         // Only renaming is frozen; a latecomer still gets a (zero-point) row.
         $this->deck[1]->setStatus('ended');
         $this->expectRegister('tok-neu', 'Cem');
@@ -227,7 +227,7 @@ class LiveQuizJoinTest extends TestCase {
 
     // ── A new token starts empty ───────────────────────────────────────────
 
-    public function testNeuesTokenVerliertUebriggebliebeneStimmen(): void {
+    public function testNewTokenLosesLeftOverVotes(): void {
         $this->answered['tok-neu'] = [new Vote()];
         $calls = [];
         $this->votes->expects($this->once())->method('deleteByPollsAndToken')
@@ -246,7 +246,7 @@ class LiveQuizJoinTest extends TestCase {
         $this->assertSame(['forget', 'register'], $calls);
     }
 
-    public function testNeuesTokenOhneResteLoeschtNichts(): void {
+    public function testNewTokenWithoutLeftoversDeletesNothing(): void {
         // The usual join: nothing to forget, so no vote write — the stamp of
         // the running question stays, and nobody refetches because of a join.
         $this->votes->expects($this->once())->method('findByPolls')->with([21, 22], 'tok-neu');
@@ -256,14 +256,14 @@ class LiveQuizJoinTest extends TestCase {
         $this->join('tok-neu', 'Cem');
     }
 
-    public function testBekanntesTokenBehaeltSeineStimmen(): void {
+    public function testKnownTokenKeepsItsVotes(): void {
         $this->votes->expects($this->never())->method('deleteByPollsAndToken');
         $this->expectRegister('tok-anna', 'Annika');
 
         $this->join('tok-anna', 'Annika');
     }
 
-    public function testAbgewiesenVergisstNichts(): void {
+    public function testRejectedForgetsNothing(): void {
         $this->votes->expects($this->never())->method('deleteByPollsAndToken');
 
         $this->assertRejected('This name is already taken. Please choose another one.', 'tok-neu', 'ANNA');
@@ -271,7 +271,7 @@ class LiveQuizJoinTest extends TestCase {
 
     // ── Cap, but no count per address ──────────────────────────────────────
 
-    public function testUnterDemDeckelKeinZaehlerProAdresse(): void {
+    public function testBelowTheCapNoCounterPerAddress(): void {
         // The limiter mock refuses every call (setUp); one below the cap still lets a new one in.
         $this->roster = $this->manyPlayers(PaceService::MAX_JOINED - 1);
         $this->expectRegister('tok-neu', 'Cem');
@@ -279,21 +279,21 @@ class LiveQuizJoinTest extends TestCase {
         $this->service->quizJoin($this->room(), 'tok-neu', 'Cem', '203.0.113.7');
     }
 
-    public function testAmDeckelIstDasQuizVoll(): void {
+    public function testAtTheCapTheQuizIsFull(): void {
         $this->roster = $this->manyPlayers(PaceService::MAX_JOINED);
         $this->votes->expects($this->never())->method('deleteByPollsAndToken');
 
         $this->assertRejected('This quiz is full.', 'tok-neu', 'Cem');
     }
 
-    public function testAmDeckelKommtEinBekannterSpielerWeiterRein(): void {
+    public function testAtTheCapAKnownPlayerStillGetsIn(): void {
         $this->roster = $this->manyPlayers(PaceService::MAX_JOINED);
         $this->expectRegister('tok-7', 'P7');
 
         $this->join('tok-7', 'P7');
     }
 
-    public function testDeckelFolgtDerAppConfig(): void {
+    public function testCapFollowsTheAppConfig(): void {
         // occ config:app:set pulse max_players_per_room --value 3
         $this->limitConfig[\OCA\Pulse\Service\Limits::PLAYERS_PER_ROOM] = 3;
         $this->roster = $this->manyPlayers(3);
@@ -301,7 +301,7 @@ class LiveQuizJoinTest extends TestCase {
         $this->assertRejected('This quiz is full.', 'tok-neu', 'Cem');
     }
 
-    public function testHoehererDeckelLaesstMehrAlsSechshundertRein(): void {
+    public function testHigherCapLetsInMoreThanSixHundred(): void {
         // A keynote: the instance raised the ceiling.
         $this->limitConfig[\OCA\Pulse\Service\Limits::PLAYERS_PER_ROOM] = 1000;
         $this->roster = $this->manyPlayers(PaceService::MAX_JOINED);
@@ -310,7 +310,7 @@ class LiveQuizJoinTest extends TestCase {
         $this->join('tok-neu', 'Cem');
     }
 
-    public function testGesperrtGehtVorVoll(): void {
+    public function testLockedTakesPrecedenceOverFull(): void {
         // The same order as self-paced: a locked room says so, not "full".
         $this->roster = $this->manyPlayers(PaceService::MAX_JOINED);
         $this->locked->setJoinsLocked(true);

@@ -21,7 +21,7 @@ use PHPUnit\Framework\TestCase;
 #[CoversClass(PaceService::class)]
 class PaceOrderTest extends TestCase {
 
-    public static function muell(): array {
+    public static function garbage(): array {
         return [
             'null (Entwurf)' => [null, []],
             'leer' => ['', []],
@@ -33,32 +33,32 @@ class PaceOrderTest extends TestCase {
         ];
     }
 
-    #[DataProvider('muell')]
-    public function testReihenfolgeNimmtNurGanzzahligeIdsOhneDubletten(?string $json, array $want): void {
+    #[DataProvider('garbage')]
+    public function testOrderTakesOnlyIntegerIdsWithoutDuplicates(?string $json, array $want): void {
         $this->assertSame($want, PaceService::order($this->room($json)));
     }
 
-    public function testErsteFrageNachNull(): void {
+    public function testFirstQuestionAfterZero(): void {
         $this->assertSame(['pollId' => 12, 'seq' => 0], PaceService::nextAfter($this->room('[12,15,13]'), 0));
     }
 
-    public function testNachfolgerInDerMitte(): void {
+    public function testSuccessorInTheMiddle(): void {
         $this->assertSame(['pollId' => 13, 'seq' => 2], PaceService::nextAfter($this->room('[12,15,13]'), 15));
     }
 
-    public function testNachDerLetztenFrageNichts(): void {
+    public function testNothingAfterTheLastQuestion(): void {
         $this->assertNull(PaceService::nextAfter($this->room('[12,15,13]'), 13));
     }
 
-    public function testUnbekannteFrageNichts(): void {
+    public function testUnknownQuestionGivesNothing(): void {
         $this->assertNull(PaceService::nextAfter($this->room('[12,15,13]'), 99));
     }
 
-    public function testImEntwurfGibtEsKeineErsteFrage(): void {
+    public function testInDraftThereIsNoFirstQuestion(): void {
         $this->assertNull(PaceService::nextAfter($this->room(null), 0));
     }
 
-    public function testFehlendeFrageWirdUebersprungenSeqBleibtVoll(): void {
+    public function testMissingQuestionIsSkippedSeqStaysFull(): void {
         $room = $this->room('[11,12,13]');
         $this->assertSame(['pollId' => 13, 'seq' => 2], PaceService::nextAfter($room, 11, [11, 13]));
         // The deleted question itself stays a valid $after (open row of a deleted question).

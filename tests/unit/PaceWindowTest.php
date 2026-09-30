@@ -104,13 +104,13 @@ class PaceWindowTest extends TestCase {
 
     // ── Opening ────────────────────────────────────────────────────────────
 
-    public function testOeffnenNurImEigenenTempo(): void {
+    public function testOpenOnlyInSelfPacedMode(): void {
         $this->locked->setPace('live');
         $this->conflict(fn () => $this->service->openWindow($this->room(), 0, null, null), 'This room is not self-paced.');
         $this->assertNull($this->opened);
     }
 
-    public static function schonGeoeffnet(): array {
+    public static function alreadyOpened(): array {
         return [
             'offen' => [self::NOW - 100, 0, 0, 0],
             'geschlossen' => [self::NOW - 100, 0, self::NOW - 1, 0],
@@ -119,8 +119,8 @@ class PaceWindowTest extends TestCase {
         ];
     }
 
-    #[DataProvider('schonGeoeffnet')]
-    public function testOeffnenNurAusDemEntwurf(int $openedAt, int $closesAt, int $closedAt, int $releasedAt): void {
+    #[DataProvider('alreadyOpened')]
+    public function testOpenOnlyFromDraft(int $openedAt, int $closesAt, int $closedAt, int $releasedAt): void {
         $this->locked = $this->room($openedAt, $closesAt, $closedAt, $releasedAt);
         $this->conflict(
             fn () => $this->service->openWindow($this->room(), 0, null, null),
@@ -129,13 +129,13 @@ class PaceWindowTest extends TestCase {
         $this->assertNull($this->opened);
     }
 
-    public function testOeffnenMitLeeremDeckGehtNicht(): void {
+    public function testOpenWithEmptyDeckFails(): void {
         $this->deck = [];
         $this->invalid(fn () => $this->service->openWindow($this->room(), 0, null, null), 'Add at least one question first.');
         $this->assertNull($this->opened);
     }
 
-    public static function fristen(): array {
+    public static function deadlines(): array {
         return [
             'eine Sekunde zu früh' => [self::NOW + 59, false],
             'genau eine Minute' => [self::NOW + 60, true],
@@ -146,8 +146,8 @@ class PaceWindowTest extends TestCase {
         ];
     }
 
-    #[DataProvider('fristen')]
-    public function testFristgrenzenBeimOeffnen(int $closesAt, bool $ok): void {
+    #[DataProvider('deadlines')]
+    public function testDeadlineBoundsOnOpen(int $closesAt, bool $ok): void {
         if (!$ok) {
             $this->invalid(
                 fn () => $this->service->openWindow($this->room(), $closesAt, null, null),
@@ -160,34 +160,34 @@ class PaceWindowTest extends TestCase {
         $this->assertSame($closesAt, $this->opened[3]);
     }
 
-    public function testVorgabenRennen(): void {
+    public function testDefaultsForRace(): void {
         $this->ok(fn () => $this->service->openWindow($this->room(), 0, null, null));
         // Order = current deck, the cursor is reset in the same UPDATE.
         $this->assertSame([5, '[11,12,13]', self::NOW, 0, true, 'each'], $this->opened);
     }
 
-    public function testVorgabenHausaufgabe(): void {
+    public function testDefaultsForHomework(): void {
         $this->ok(fn () => $this->service->openWindow($this->room(), self::NOW + 3600, null, null));
         $this->assertSame([5, '[11,12,13]', self::NOW, self::NOW + 3600, false, 'end'], $this->opened);
     }
 
-    public function testAusdruecklicheEinstellungenGewinnen(): void {
+    public function testExplicitSettingsWin(): void {
         $this->ok(fn () => $this->service->openWindow($this->room(), 0, false, 'end'));
         $this->assertSame([5, '[11,12,13]', self::NOW, 0, false, 'end'], $this->opened);
     }
 
-    public function testProbelaufErzwingtSofortigeRueckmeldung(): void {
+    public function testPracticeRunForcesImmediateFeedback(): void {
         $this->locked->setPractice(true);
         $this->ok(fn () => $this->service->openWindow($this->room(), self::NOW + 3600, null, 'end'));
         $this->assertSame('each', $this->opened[5]);
     }
 
-    public function testUnbekannteRueckmeldungIstEinEingabefehler(): void {
+    public function testUnknownFeedbackIsAnInputError(): void {
         $this->invalid(fn () => $this->service->openWindow($this->room(), 0, null, 'later'), 'Unknown feedback setting.');
         $this->assertNull($this->opened);
     }
 
-    public function testZweiterTabWarSchnellerIstEinKonflikt(): void {
+    public function testSecondTabBeingFasterIsAConflict(): void {
         $this->openResult = false;
         $this->conflict(
             fn () => $this->service->openWindow($this->room(), 0, null, null),
@@ -195,7 +195,7 @@ class PaceWindowTest extends TestCase {
         );
     }
 
-    public function testOeffnenLiefertDenFrischGeladenenRaum(): void {
+    public function testOpenReturnsTheFreshlyLoadedRoom(): void {
         // openIfDraft writes past the entity — what comes back is the DB row.
         $this->reloaded = $this->room(self::NOW);
         $result = $this->ok(fn () => $this->service->openWindow($this->room(), 0, null, null));
@@ -204,7 +204,7 @@ class PaceWindowTest extends TestCase {
 
     // ── State on the locked row ────────────────────────────────────────────
 
-    public function testZustandZaehltAnDerGesperrtenZeileNichtAmUebergebenenRaum(): void {
+    public function testStateCountsOnTheLockedRowNotOnThePassedInRoom(): void {
         // The room passed in says "draft", the locked row has long been open.
         $this->locked = $this->room(self::NOW - 100);
         $this->conflict(
@@ -213,13 +213,13 @@ class PaceWindowTest extends TestCase {
         );
     }
 
-    public function testVeralteterUebergebenerRaumHindertNicht(): void {
+    public function testStalePassedInRoomDoesNotBlock(): void {
         // The other way round: passed in "open" (stale), locked back in draft.
         $this->ok(fn () => $this->service->openWindow($this->room(self::NOW - 100), 0, null, null));
         $this->assertNotNull($this->opened);
     }
 
-    public function testSchreibfehlerRolltZurueck(): void {
+    public function testWriteErrorRollsBack(): void {
         $this->locked = $this->room(self::NOW - 100);
         $this->rooms->method('update')->willThrowException(new \RuntimeException('DB weg'));
         try {
@@ -234,7 +234,7 @@ class PaceWindowTest extends TestCase {
     // ── Closing ────────────────────────────────────────────────────────────
 
     // (without `release`: old clients)
-    public function testSchliessenOhneFristGibtZugleichFrei(): void {
+    public function testCloseWithoutDeadlineReleasesAtTheSameTime(): void {
         $this->locked = $this->room(self::NOW - 100);
         $this->expectUpdate();
         $this->ok(fn () => $this->service->closeWindow($this->room()));
@@ -242,7 +242,7 @@ class PaceWindowTest extends TestCase {
         $this->assertSame(self::NOW, $this->locked->getReleasedAt());
     }
 
-    public function testSchliessenMitFristGibtNichtFrei(): void {
+    public function testCloseWithDeadlineDoesNotRelease(): void {
         $this->locked = $this->room(self::NOW - 100, self::NOW + 3600);
         $this->expectUpdate();
         $this->ok(fn () => $this->service->closeWindow($this->room()));
@@ -251,29 +251,29 @@ class PaceWindowTest extends TestCase {
         $this->assertSame(self::NOW + 3600, $this->locked->getClosesAt());
     }
 
-    public function testSchliessenImGeschlossenenFensterIstNoOp(): void {
+    public function testCloseInAClosedWindowIsNoOp(): void {
         $this->locked = $this->room(self::NOW - 100, self::NOW + 3600, self::NOW - 10);
         $this->rooms->expects($this->never())->method('update');
         $this->ok(fn () => $this->service->closeWindow($this->room()));
         $this->assertSame(self::NOW - 10, $this->locked->getClosedAt());
     }
 
-    public function testSchliessenNachAbgelaufenerFristIstNoOp(): void {
+    public function testCloseAfterExpiredDeadlineIsNoOp(): void {
         $this->locked = $this->room(self::NOW - 100, self::NOW - 1);
         $this->rooms->expects($this->never())->method('update');
         $this->ok(fn () => $this->service->closeWindow($this->room()));
     }
 
-    public function testSchliessenImEntwurfIstEinKonflikt(): void {
+    public function testCloseInDraftIsAConflict(): void {
         $this->conflict(fn () => $this->service->closeWindow($this->room()), 'The quiz is not open.');
     }
 
-    public function testSchliessenNachFreigabeIstEinKonflikt(): void {
+    public function testCloseAfterReleaseIsAConflict(): void {
         $this->locked = $this->room(self::NOW - 100, 0, self::NOW - 1, self::NOW - 1);
         $this->conflict(fn () => $this->service->closeWindow($this->room()), 'Results have already been released.');
     }
 
-    public function testSchliessenImModeriertenRaumIstEinKonflikt(): void {
+    public function testCloseInModeratedRoomIsAConflict(): void {
         $this->locked->setPace('live');
         $this->conflict(fn () => $this->service->closeWindow($this->room()), 'This room is not self-paced.');
     }
@@ -281,7 +281,7 @@ class PaceWindowTest extends TestCase {
     // ── Closing with an explicit choice (release) ──────────────────────────
 
     /** closesAt, release, releasedAt afterwards */
-    public static function freigabeWahl(): array {
+    public static function releaseChoices(): array {
         return [
             'Rennen, release false' => [0, false, 0],
             'Rennen, release true' => [0, true, self::NOW],
@@ -290,8 +290,8 @@ class PaceWindowTest extends TestCase {
         ];
     }
 
-    #[DataProvider('freigabeWahl')]
-    public function testSchliessenMitAusdruecklicherWahl(int $closesAt, bool $release, int $releasedAt): void {
+    #[DataProvider('releaseChoices')]
+    public function testCloseWithExplicitChoice(int $closesAt, bool $release, int $releasedAt): void {
         $this->locked = $this->room(self::NOW - 100, $closesAt);
         $this->expectUpdate();
         $this->ok(fn () => $this->service->closeWindow($this->room(), $release));
@@ -302,7 +302,7 @@ class PaceWindowTest extends TestCase {
     }
 
     /** closesAt, release — the window is already closed */
-    public static function schonGeschlossen(): array {
+    public static function alreadyClosed(): array {
         return [
             'Rennen gestoppt, ohne Angabe' => [0, null],
             'Rennen gestoppt, release true' => [0, true],
@@ -311,8 +311,8 @@ class PaceWindowTest extends TestCase {
         ];
     }
 
-    #[DataProvider('schonGeschlossen')]
-    public function testReleaseAendertEinGeschlossenesFensterNicht(int $closesAt, ?bool $release): void {
+    #[DataProvider('alreadyClosed')]
+    public function testReleaseDoesNotChangeAClosedWindow(int $closesAt, ?bool $release): void {
         $this->locked = $this->room(self::NOW - 100, $closesAt, self::NOW - 10);
         $this->rooms->expects($this->never())->method('update');
         $this->ok(fn () => $this->service->closeWindow($this->room(), $release));
@@ -321,7 +321,7 @@ class PaceWindowTest extends TestCase {
         $this->assertSame(0, $this->locked->getReleasedAt());
     }
 
-    public function testNachDemStoppenGibtFreigebenFrei(): void {
+    public function testAfterStoppingReleaseReleases(): void {
         $this->locked = $this->room(self::NOW - 100, 0, self::NOW - 10);
         $this->expectUpdate();
         $this->ok(fn () => $this->service->releaseWindow($this->room()));
@@ -329,7 +329,7 @@ class PaceWindowTest extends TestCase {
         $this->assertSame(self::NOW, $this->locked->getReleasedAt());
     }
 
-    public function testNachDemStoppenOeffnetVerlaengernWiederAlsRennen(): void {
+    public function testAfterStoppingExtendReopensAsRace(): void {
         $this->locked = $this->room(self::NOW - 100, 0, self::NOW - 10);
         $this->expectUpdate();
         $this->ok(fn () => $this->service->extendWindow($this->room(), 0));
@@ -340,16 +340,16 @@ class PaceWindowTest extends TestCase {
 
     // ── Extending ──────────────────────────────────────────────────────────
 
-    public function testVerlaengernNachFreigabeIstEinKonflikt(): void {
+    public function testExtendAfterReleaseIsAConflict(): void {
         $this->locked = $this->room(self::NOW - 100, 0, self::NOW - 1, self::NOW - 1);
         $this->conflict(fn () => $this->service->extendWindow($this->room(), self::NOW + 3600), 'Results have already been released.');
     }
 
-    public function testVerlaengernImEntwurfIstEinKonflikt(): void {
+    public function testExtendInDraftIsAConflict(): void {
         $this->conflict(fn () => $this->service->extendWindow($this->room(), self::NOW + 3600), 'The quiz is not open.');
     }
 
-    public function testVerlaengernOeffnetEinGeschlossenesFensterWieder(): void {
+    public function testExtendReopensAClosedWindow(): void {
         $this->locked = $this->room(self::NOW - 100, self::NOW + 3600, self::NOW - 10);
         $this->locked->setTimed(false);
         $this->locked->setFeedback('end');
@@ -367,14 +367,14 @@ class PaceWindowTest extends TestCase {
         $this->assertSame('[13,11,12]', $this->locked->getDeckOrder());
     }
 
-    public function testVerlaengernNachAbgelaufenerFrist(): void {
+    public function testExtendAfterExpiredDeadline(): void {
         $this->locked = $this->room(self::NOW - 100, self::NOW - 1);
         $this->expectUpdate();
         $this->ok(fn () => $this->service->extendWindow($this->room(), self::NOW + 120));
         $this->assertSame('open', PaceService::deriveState($this->locked, self::NOW));
     }
 
-    public function testVerlaengernOhneFristHeisstOffenBisManuell(): void {
+    public function testExtendWithoutDeadlineMeansOpenUntilClosedManually(): void {
         $this->locked = $this->room(self::NOW - 100, self::NOW + 3600);
         $this->expectUpdate();
         $this->ok(fn () => $this->service->extendWindow($this->room(), 0));
@@ -382,7 +382,7 @@ class PaceWindowTest extends TestCase {
         $this->assertSame(0, $this->locked->getClosedAt());
     }
 
-    public function testVerlaengernPrueftDieFristgrenzen(): void {
+    public function testExtendChecksTheDeadlineBounds(): void {
         $this->locked = $this->room(self::NOW - 100, self::NOW + 3600);
         $this->rooms->expects($this->never())->method('update');
         $this->invalid(
@@ -393,7 +393,7 @@ class PaceWindowTest extends TestCase {
 
     // ── Releasing ──────────────────────────────────────────────────────────
 
-    public function testFreigebenAusDemOffenenFensterSchliesstZugleich(): void {
+    public function testReleaseFromTheOpenWindowClosesAtTheSameTime(): void {
         $this->locked = $this->room(self::NOW - 100, self::NOW + 3600);
         $this->expectUpdate();
         $this->ok(fn () => $this->service->releaseWindow($this->room()));
@@ -401,7 +401,7 @@ class PaceWindowTest extends TestCase {
         $this->assertSame(self::NOW, $this->locked->getReleasedAt());
     }
 
-    public function testFreigebenNachFristablaufSchreibtDieFristAlsSchluss(): void {
+    public function testReleaseAfterDeadlineExpiryWritesTheDeadlineAsClose(): void {
         $this->locked = $this->room(self::NOW - 100, self::NOW - 40);
         $this->expectUpdate();
         $this->ok(fn () => $this->service->releaseWindow($this->room()));
@@ -409,7 +409,7 @@ class PaceWindowTest extends TestCase {
         $this->assertSame(self::NOW, $this->locked->getReleasedAt());
     }
 
-    public function testFreigebenNachManuellemSchliessenBehaeltDenSchluss(): void {
+    public function testReleaseAfterManualCloseKeepsTheClose(): void {
         $this->locked = $this->room(self::NOW - 100, self::NOW + 3600, self::NOW - 10);
         $this->expectUpdate();
         $this->ok(fn () => $this->service->releaseWindow($this->room()));
@@ -417,14 +417,14 @@ class PaceWindowTest extends TestCase {
         $this->assertSame(self::NOW, $this->locked->getReleasedAt());
     }
 
-    public function testFreigebenIstIdempotent(): void {
+    public function testReleaseIsIdempotent(): void {
         $this->locked = $this->room(self::NOW - 100, 0, self::NOW - 10, self::NOW - 10);
         $this->rooms->expects($this->never())->method('update');
         $this->ok(fn () => $this->service->releaseWindow($this->room()));
         $this->assertSame(self::NOW - 10, $this->locked->getReleasedAt());
     }
 
-    public function testFreigebenImEntwurfIstEinKonflikt(): void {
+    public function testReleaseInDraftIsAConflict(): void {
         $this->conflict(fn () => $this->service->releaseWindow($this->room()), 'The quiz is not open.');
     }
 

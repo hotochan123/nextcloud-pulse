@@ -146,10 +146,10 @@ class ControllerInputTest extends TestCase {
 
     /**
      * Every public action of the moderator controller: [method, arguments,
-     * self-paced room?]. testJedeAktionIstAbgedeckt keeps the list
+     * self-paced room?]. testEveryActionIsCovered keeps the list
      * complete — a new action without a row here is caught there.
      */
-    public static function moderatorAktionen(): array {
+    public static function moderatorActions(): array {
         $c = ['ABCDEF'];
         $p = ['ABCDEF', 7];
         return [
@@ -186,8 +186,8 @@ class ControllerInputTest extends TestCase {
         ];
     }
 
-    #[DataProvider('moderatorAktionen')]
-    public function testModeratorAktionMitListeInJedemParameter(string $method, array $args, bool $self): void {
+    #[DataProvider('moderatorActions')]
+    public function testModeratorActionWithListInEveryParameter(string $method, array $args, bool $self): void {
         $this->room = $self ? $this->selfRoom() : $this->quizRoom();
 
         $response = $this->moderator()->$method(...$args);
@@ -196,29 +196,29 @@ class ControllerInputTest extends TestCase {
         $this->assertLessThan(500, $response->getStatus(), $method);
     }
 
-    public function testJedeAktionIstAbgedeckt(): void {
+    public function testEveryActionIsCovered(): void {
         $declared = [];
         foreach ((new \ReflectionClass(RoomApiController::class))->getMethods(\ReflectionMethod::IS_PUBLIC) as $m) {
             if ($m->getDeclaringClass()->getName() === RoomApiController::class && $m->getName() !== '__construct') {
                 $declared[] = $m->getName();
             }
         }
-        $covered = array_keys(self::moderatorAktionen());
+        $covered = array_keys(self::moderatorActions());
         sort($declared);
         sort($covered);
-        $this->assertSame($declared, $covered, 'Neue Moderator-Aktion? Eine Zeile in moderatorAktionen() ergänzen.');
+        $this->assertSame($declared, $covered, 'Neue Moderator-Aktion? Eine Zeile in moderatorActions() ergänzen.');
     }
 
     // ── /pace ──────────────────────────────────────────────────────────────
 
-    public function testFristAlsListeIst400(): void {
+    public function testDeadlineAsListIs400(): void {
         $response = $this->paceAction('open', ['closesAt' => self::HOSTILE]);
 
         $this->assertBadRequest($response, 'The deadline must be between one minute and 30 days from now.');
         $this->assertSame([], $this->paceCalls);
     }
 
-    public function testFristUnendlichIst400(): void {
+    public function testInfiniteDeadlineIs400(): void {
         // JSON 1e999 arrives in PHP as float INF.
         $response = $this->paceAction('open', ['closesAt' => INF]);
 
@@ -226,7 +226,7 @@ class ControllerInputTest extends TestCase {
         $this->assertSame([], $this->paceCalls);
     }
 
-    public function testVerlaengernMitFristAlsListeIst400(): void {
+    public function testExtendWithDeadlineAsListIs400(): void {
         // Silently "no deadline" would mean, when extending: open until someone closes.
         $response = $this->paceAction('extend', ['closesAt' => self::HOSTILE]);
 
@@ -234,58 +234,58 @@ class ControllerInputTest extends TestCase {
         $this->assertSame([], $this->paceCalls);
     }
 
-    public function testTimerSchalterAlsListeIst400(): void {
+    public function testTimerSwitchAsListIs400(): void {
         $response = $this->paceAction('open', ['timed' => self::HOSTILE]);
 
         $this->assertBadRequest($response, 'Invalid request.');
         $this->assertSame([], $this->paceCalls);
     }
 
-    public function testRueckmeldungAlsListeKommtLeerBeimDienstAn(): void {
+    public function testFeedbackAsListArrivesEmptyAtTheService(): void {
         // The service checks it anyway: '' -> "Unknown feedback setting."
         $this->paceAction('open', ['feedback' => self::HOSTILE]);
 
         $this->assertSame([['openWindow', [0, null, '']]], $this->paceCalls);
     }
 
-    public function testOeffnenOhneEinstellungenNimmtDieVorgaben(): void {
+    public function testOpenWithoutSettingsTakesTheDefaults(): void {
         $this->paceAction('open', []);
 
         $this->assertSame([['openWindow', [0, null, null]]], $this->paceCalls);
     }
 
-    public function testFristAlsZiffernText(): void {
+    public function testDeadlineAsDigitString(): void {
         $this->paceAction('open', ['closesAt' => '1800003600']);
 
         $this->assertSame([['openWindow', [1800003600, null, null]]], $this->paceCalls);
     }
 
-    public function testFristMitNachkommastellenWirdAbgeschnitten(): void {
+    public function testDeadlineWithDecimalPlacesIsTruncated(): void {
         $this->paceAction('open', ['closesAt' => 1800003600.7]);
 
         $this->assertSame([['openWindow', [1800003600, null, null]]], $this->paceCalls);
     }
 
-    public function testTempoAlsListeKommtLeerBeimDienstAn(): void {
+    public function testPaceAsListArrivesEmptyAtTheService(): void {
         $this->paceAction('set', ['pace' => self::HOSTILE]);
 
         $this->assertSame([['setPace', ['']]], $this->paceCalls);
     }
 
-    public function testSpielerAlsListeIstKeiner(): void {
+    public function testPlayerAsListIsNone(): void {
         $this->paceAction('removePlayer', ['playerId' => self::HOSTILE]);
 
         $this->assertSame([['removePlayer', [0]]], $this->paceCalls);
     }
 
-    public function testAktionAlsListeIstUnbekannt(): void {
+    public function testActionAsListIsUnknown(): void {
         $response = $this->paceAction(self::HOSTILE, []);
 
         $this->assertBadRequest($response, 'Unknown action.');
         $this->assertSame([], $this->paceCalls);
     }
 
-    public static function paceAktionen(): array {
+    public static function paceActions(): array {
         return [
             'set' => ['set'],
             'open' => ['open'],
@@ -298,8 +298,8 @@ class ControllerInputTest extends TestCase {
         ];
     }
 
-    #[DataProvider('paceAktionen')]
-    public function testPaceAktionMitListenInAllenAnderenParametern(string $action): void {
+    #[DataProvider('paceActions')]
+    public function testPaceActionWithListsInAllOtherParameters(string $action): void {
         $this->room = $this->selfRoom();
         $this->params = ['action' => $action];
 
@@ -311,7 +311,7 @@ class ControllerInputTest extends TestCase {
     // ── close {release} ────────────────────────────────────────────────────
 
     /** sent -> what closeWindow receives (null = rule based on the deadline) */
-    public static function gueltigesRelease(): array {
+    public static function validRelease(): array {
         return [
             'fehlt' => [[], null],
             'JSON null' => [['release' => null], null],
@@ -328,15 +328,15 @@ class ControllerInputTest extends TestCase {
         ];
     }
 
-    #[DataProvider('gueltigesRelease')]
-    public function testReleaseGehtAnCloseWindow(array $params, ?bool $expected): void {
+    #[DataProvider('validRelease')]
+    public function testReleaseGoesToCloseWindow(array $params, ?bool $expected): void {
         $response = $this->paceAction('close', $params);
 
         $this->assertSame(Http::STATUS_OK, $response->getStatus());
         $this->assertSame([['closeWindow', [$expected]]], $this->paceCalls);
     }
 
-    public static function ungueltigesRelease(): array {
+    public static function invalidRelease(): array {
         return [
             'Liste' => [['x']],
             'Objekt' => [['a' => 1]],
@@ -346,8 +346,8 @@ class ControllerInputTest extends TestCase {
         ];
     }
 
-    #[DataProvider('ungueltigesRelease')]
-    public function testUngueltigesReleaseIst400OhneSchliessen(mixed $release): void {
+    #[DataProvider('invalidRelease')]
+    public function testInvalidReleaseIs400WithoutClosing(mixed $release): void {
         // Never silently the old rule: in a race it would mean "release".
         $response = $this->paceAction('close', ['release' => $release]);
 
@@ -355,7 +355,7 @@ class ControllerInputTest extends TestCase {
         $this->assertSame([], $this->paceCalls);
     }
 
-    public function testReleaseZaehltNurBeiClose(): void {
+    public function testReleaseCountsOnlyOnClose(): void {
         $response = $this->paceAction('release', ['release' => ['x']]);
         $this->assertSame(Http::STATUS_OK, $response->getStatus());
         $this->assertSame([['releaseWindow', []]], $this->paceCalls);
@@ -368,7 +368,7 @@ class ControllerInputTest extends TestCase {
 
     // ── Grading free text ──────────────────────────────────────────────────
 
-    public function testBewertungBehaeltNul(): void {
+    public function testGradingKeepsNul(): void {
         // The vote "Pa\0ris" keeps its NUL (normalizeValue); the moderator
         // sends exactly this text back. Without the NUL gradeText would never find
         // the group, and the answer would stay "Being checked" forever.
@@ -380,7 +380,7 @@ class ControllerInputTest extends TestCase {
         $this->assertSame([[7, "Pa\0ris", true]], $this->callsTo('gradeTextAnswer'));
     }
 
-    public function testBewertungMitListenKommtLeerAn(): void {
+    public function testGradingWithListsArrivesEmpty(): void {
         // The service then reports "Empty answer." (400).
         $this->params = ['answer' => self::HOSTILE, 'correct' => self::HOSTILE];
 
@@ -391,7 +391,7 @@ class ControllerInputTest extends TestCase {
 
     // ── Cursor ─────────────────────────────────────────────────────────────
 
-    public function testCursorAlsListeIst400(): void {
+    public function testCursorAsListIs400(): void {
         $this->fallback = null;
         $this->params = ['pollId' => self::HOSTILE];
 
@@ -401,7 +401,7 @@ class ControllerInputTest extends TestCase {
         $this->assertSame([], $this->callsTo('setCurrent'));
     }
 
-    public function testCursorRiesigIst400(): void {
+    public function testHugeCursorIs400(): void {
         $this->fallback = null;
         $this->params = ['pollId' => 1e100];
 
@@ -411,7 +411,7 @@ class ControllerInputTest extends TestCase {
         $this->assertSame([], $this->callsTo('setCurrent'));
     }
 
-    public function testCursorFehltHeisstPraesentationRuht(): void {
+    public function testMissingCursorMeansPresentationIsIdle(): void {
         $this->fallback = null;
 
         $response = $this->moderator()->setCurrent('ABCDEF');
@@ -422,9 +422,9 @@ class ControllerInputTest extends TestCase {
 
     // ── Public ─────────────────────────────────────────────────────────────
 
-    public static function oeffentlicheAktionen(): array {
+    public static function publicActions(): array {
         $rows = [];
-        foreach (['moderiert' => false, 'eigenes Tempo' => true] as $raum => $self) {
+        foreach (['moderiert' => false, 'eigenes Tempo' => true] as $roomKind => $self) {
             foreach ([
                 'state' => ['ABCDEF'],
                 'summary' => ['ABCDEF'],
@@ -433,14 +433,14 @@ class ControllerInputTest extends TestCase {
                 'vote' => ['ABCDEF'],
                 'next' => ['ABCDEF'],
             ] as $method => $args) {
-                $rows["$method, $raum"] = [$method, $args, $self];
+                $rows["$method, $roomKind"] = [$method, $args, $self];
             }
         }
         return $rows;
     }
 
-    #[DataProvider('oeffentlicheAktionen')]
-    public function testOeffentlicheAktionMitListeInJedemParameter(string $method, array $args, bool $self): void {
+    #[DataProvider('publicActions')]
+    public function testPublicActionWithListInEveryParameter(string $method, array $args, bool $self): void {
         $this->room = $self ? $this->selfRoom() : $this->quizRoom();
 
         $response = $this->public()->$method(...$args);
@@ -449,7 +449,7 @@ class ControllerInputTest extends TestCase {
         $this->assertLessThan(500, $response->getStatus(), $method);
     }
 
-    public static function kaputteCookies(): array {
+    public static function brokenCookies(): array {
         return [
             'Objekt (pulse_vt[x][]=y)' => [self::HOSTILE],
             'Liste (pulse_vt[]=a)' => [['a']],
@@ -461,8 +461,8 @@ class ControllerInputTest extends TestCase {
         ];
     }
 
-    #[DataProvider('kaputteCookies')]
-    public function testKaputtesCookieGiltAlsKeins(mixed $cookie): void {
+    #[DataProvider('brokenCookies')]
+    public function testBrokenCookieCountsAsNone(mixed $cookie): void {
         $this->fallback = null;
         $this->cookie = $cookie;
 
@@ -482,7 +482,7 @@ class ControllerInputTest extends TestCase {
         $this->assertBadRequest($this->public()->next('ABCDEF'), 'Please choose a name first.');
     }
 
-    public function testGueltigesCookieBleibt(): void {
+    public function testValidCookieStays(): void {
         $this->fallback = null;
         $this->cookie = str_repeat('Anna', 8);
         $this->params = ['nickname' => 'Anna'];
@@ -493,7 +493,7 @@ class ControllerInputTest extends TestCase {
         $this->assertSame(0, $this->issued, 'kein neues Token vergeben');
     }
 
-    public function testNameAlsListeKommtLeerAn(): void {
+    public function testNameAsListArrivesEmpty(): void {
         // The service then reports "Please enter a name." (400).
         $this->params = ['nickname' => self::HOSTILE];
 
@@ -502,7 +502,7 @@ class ControllerInputTest extends TestCase {
         $this->assertSame([[self::FRESH, '']], $this->callsTo('quizJoin'));
     }
 
-    public function testStimmeMitRiesigerFrageIdGiltAlsOhne(): void {
+    public function testVoteWithHugePollIdCountsAsWithout(): void {
         $this->fallback = null;
         $this->params = ['value' => 'AA', 'pollId' => 1e100];
 
@@ -513,7 +513,7 @@ class ControllerInputTest extends TestCase {
 
     // ── Source-code guard ──────────────────────────────────────────────────
 
-    public function testKeinRoherCastAufRequestWerte(): void {
+    public function testNoRawCastOnRequestValues(): void {
         $files = glob(dirname(__DIR__, 2) . '/lib/Controller/*.php');
         $this->assertNotEmpty($files);
         foreach ($files as $file) {

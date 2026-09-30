@@ -21,7 +21,7 @@ use PHPUnit\Framework\TestCase;
 #[CoversClass(Application::class)]
 class ProtocolConstantTest extends TestCase {
 
-    public function testBundleNenntDieServerNummer(): void {
+    public function testBundleStatesTheServerNumber(): void {
         $source = file_get_contents(dirname(__DIR__, 2) . '/src/util/protocol.js');
         $this->assertNotFalse($source, 'src/util/protocol.js nicht lesbar');
 
@@ -30,7 +30,7 @@ class ProtocolConstantTest extends TestCase {
         $this->assertSame(Application::PROTOCOL, (int)$m[1][0]);
     }
 
-    public function testNummerLiegtUeberDemAltstand(): void {
+    public function testNumberIsAboveTheLegacyValue(): void {
         // 1 = everything before 0.19.0 (bundles without a protocol field).
         $this->assertGreaterThanOrEqual(2, Application::PROTOCOL);
     }

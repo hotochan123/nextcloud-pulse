@@ -89,7 +89,7 @@ class PaceGuardTest extends TestCase {
     }
 
     /** Window states: [openedAt, closesAt, closedAt, releasedAt] */
-    public static function zustaende(): array {
+    public static function windowStates(): array {
         return [
             'Entwurf' => ['draft', [0, 0, 0, 0]],
             'offen' => ['open', [self::NOW - 100, 0, 0, 0]],
@@ -102,8 +102,8 @@ class PaceGuardTest extends TestCase {
 
     // ── assertDeckEditable ─────────────────────────────────────────────────
 
-    #[DataProvider('zustaende')]
-    public function testDeckNurImEntwurfBearbeitbar(string $state, array $window): void {
+    #[DataProvider('windowStates')]
+    public function testDeckEditableOnlyInTheDraft(string $state, array $window): void {
         $room = $this->room(...$window);
         $this->assertSame($state, PaceService::deriveState($room, self::NOW));
         if ($state === 'draft') {
@@ -116,8 +116,8 @@ class PaceGuardTest extends TestCase {
         $this->service->assertDeckEditable($room);
     }
 
-    #[DataProvider('zustaende')]
-    public function testModeriertIstDasDeckImmerBearbeitbar(string $state, array $window): void {
+    #[DataProvider('windowStates')]
+    public function testModeratedTheDeckIsAlwaysEditable(string $state, array $window): void {
         $room = $this->room(...$window);
         $room->setPace('live');
         $this->service->assertDeckEditable($room);
@@ -129,8 +129,8 @@ class PaceGuardTest extends TestCase {
 
     // ── assertLiveControl ──────────────────────────────────────────────────
 
-    #[DataProvider('zustaende')]
-    public function testCursorSteuerungGibtEsImEigenenTempoNie(string $state, array $window): void {
+    #[DataProvider('windowStates')]
+    public function testCursorControlNeverExistsInSelfPacedMode(string $state, array $window): void {
         $this->expectException(ConflictException::class);
         $this->expectExceptionMessage('Not available while the quiz runs at its own pace.');
         $this->service->assertLiveControl($this->room(...$window));
@@ -138,8 +138,8 @@ class PaceGuardTest extends TestCase {
 
     // ── assertNotOpen ──────────────────────────────────────────────────────
 
-    #[DataProvider('zustaende')]
-    public function testLeerenNurBeiNichtOffenemFenster(string $state, array $window): void {
+    #[DataProvider('windowStates')]
+    public function testEmptyingOnlyWhenTheWindowIsNotOpen(string $state, array $window): void {
         $room = $this->room(...$window);
         if ($state !== 'open') {
             $this->service->assertNotOpen($room);
@@ -153,7 +153,7 @@ class PaceGuardTest extends TestCase {
 
     // ── setPace ────────────────────────────────────────────────────────────
 
-    public function testGleichesTempoLeertNichts(): void {
+    public function testSamePaceEmptiesNothing(): void {
         $this->roomService->expects($this->never())->method('resetRoom');
         $this->rooms->expects($this->never())->method('update');
 
@@ -164,7 +164,7 @@ class PaceGuardTest extends TestCase {
         $this->assertSame(['beginTransaction', 'commit'], $this->tx);
     }
 
-    public function testAnderesTempoSchreibtUndLeertDenGesperrtenRaum(): void {
+    public function testOtherPaceWritesAndEmptiesTheLockedRoom(): void {
         $this->locked = $this->room(self::NOW - 100, 0, self::NOW - 1, self::NOW - 1);
         $calls = [];
         $this->rooms->expects($this->once())->method('update')->with($this->identicalTo($this->locked))
@@ -186,7 +186,7 @@ class PaceGuardTest extends TestCase {
         $this->assertSame(['beginTransaction', 'commit'], $this->tx);
     }
 
-    public function testAufEigenesTempoUmschaltenLeertAuch(): void {
+    public function testSwitchingToSelfPacedAlsoEmpties(): void {
         $this->locked->setPace('live');
         $this->locked->resetUpdatedFields();
         $this->rooms->expects($this->once())->method('update')->willReturnArgument(0);
@@ -197,7 +197,7 @@ class PaceGuardTest extends TestCase {
         $this->assertSame('self', $this->locked->getPace());
     }
 
-    public function testUmfrageRaumKannNichtImEigenenTempoLaufen(): void {
+    public function testPollRoomCannotRunInSelfPacedMode(): void {
         $this->locked->setMode('poll');
         $this->locked->setPace('live');
         $this->roomService->expects($this->never())->method('resetRoom');
@@ -211,22 +211,22 @@ class PaceGuardTest extends TestCase {
         $this->assertSame(['beginTransaction', 'rollBack'], $this->tx);
     }
 
-    public function testUnbekanntesTempo(): void {
+    public function testUnknownPace(): void {
         $this->roomService->expects($this->never())->method('resetRoom');
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('Unknown pace.');
         $this->service->setPace($this->room(), 'turbo');
     }
 
-    public static function zielTempo(): array {
+    public static function targetPaces(): array {
         return [
             'auf live' => ['live'],
             'gleiches Tempo' => ['self'],
         ];
     }
 
-    #[DataProvider('zielTempo')]
-    public function testBeiOffenemFensterKeinUmschalten(string $pace): void {
+    #[DataProvider('targetPaces')]
+    public function testNoSwitchingWhileTheWindowIsOpen(string $pace): void {
         // The same value too: the "open" state decides (table §3.3 in the design notes, not in
         // the public repository), not the value.
         $this->locked = $this->room(self::NOW - 100);

@@ -76,7 +76,7 @@ class DeckUpdatePollTest extends TestCase {
         }
     }
 
-    public function testNichtLaufendeQuizfrageGiltDanachAlsNieGezeigt(): void {
+    public function testNonRunningQuizQuestionCountsAsNeverShownAfterwards(): void {
         $this->given('locked', 1234);
         $this->votes->expects($this->once())->method('deleteByPoll')->with(7);
 
@@ -86,7 +86,7 @@ class DeckUpdatePollTest extends TestCase {
         $this->assertSame(0, $this->poll->getStartedAt());
     }
 
-    public function testNichtLaufendeBeendeteFrageBehaeltDasEnde(): void {
+    public function testNonRunningEndedQuestionKeepsTheEnd(): void {
         // After /end and "Back to the deck": a typo fix on the ended
         // question must not reopen the quiz. The votes go
         // anyway — the content is new.
@@ -99,7 +99,7 @@ class DeckUpdatePollTest extends TestCase {
         $this->assertSame(1234, $this->poll->getStartedAt());
     }
 
-    public function testNichtLaufendeUmfragefrageGiltDanachAlsNieGezeigt(): void {
+    public function testNonRunningPollQuestionCountsAsNeverShownAfterwards(): void {
         $this->given('locked', 1234);
 
         $this->service->updatePoll($this->room('poll', active: 3), 7, $this->pollData());
@@ -108,7 +108,7 @@ class DeckUpdatePollTest extends TestCase {
         $this->assertSame(0, $this->poll->getStartedAt());
     }
 
-    public function testLaufendeOffeneQuizfrageStartetNeu(): void {
+    public function testRunningOpenQuizQuestionRestarts(): void {
         // The votes are gone — whoever had already answered gets the
         // full time once more.
         $this->given('active', 1234);
@@ -119,7 +119,7 @@ class DeckUpdatePollTest extends TestCase {
         $this->assertSame(5000, $this->poll->getStartedAt(), 'Timer neu gestartet');
     }
 
-    public function testLaufendeGesperrteQuizfrageBleibtGesperrt(): void {
+    public function testRunningLockedQuizQuestionStaysLocked(): void {
         // In a quiz, locked means: answers closed, possibly already revealed.
         // Editing does not reopen it and starts no timer.
         $this->given('locked', 1234);
@@ -130,7 +130,7 @@ class DeckUpdatePollTest extends TestCase {
         $this->assertSame(1234, $this->poll->getStartedAt(), 'Startzeit unverändert');
     }
 
-    public function testLaufendeBeendeteQuizfrageBleibtBeendet(): void {
+    public function testRunningEndedQuizQuestionStaysEnded(): void {
         // /end sits on the running question — the final standings stay.
         $this->given('ended', 1234);
 
@@ -140,7 +140,7 @@ class DeckUpdatePollTest extends TestCase {
         $this->assertSame(1234, $this->poll->getStartedAt(), 'Startzeit unverändert');
     }
 
-    public function testLaufendeUmfragefrageBehaeltIhrenStatus(): void {
+    public function testRunningPollQuestionKeepsItsStatus(): void {
         // Paused stays paused; the first time it was shown stays as well.
         $this->given('locked', 1234);
 
@@ -150,7 +150,7 @@ class DeckUpdatePollTest extends TestCase {
         $this->assertSame(1234, $this->poll->getStartedAt());
     }
 
-    public function testLaufendeOffeneUmfragefrageBleibtOffen(): void {
+    public function testRunningOpenPollQuestionStaysOpen(): void {
         $this->given('active', 1234);
 
         $this->service->updatePoll($this->room('poll', active: 7), 7, $this->pollData());
@@ -159,7 +159,7 @@ class DeckUpdatePollTest extends TestCase {
         $this->assertSame(1234, $this->poll->getStartedAt());
     }
 
-    public function testStandWirdMitGespeichert(): void {
+    public function testStateIsSavedWithTheUpdate(): void {
         // The reset has to happen BEFORE update(), otherwise it never reaches the DB.
         $this->given('locked', 1234);
         $this->polls = $this->createMock(PollMapper::class);
@@ -172,7 +172,7 @@ class DeckUpdatePollTest extends TestCase {
         $this->service->updatePoll($this->room('quiz', active: 3), 7, $this->quizData());
     }
 
-    public function testUngueltigeEingabeAendertNichts(): void {
+    public function testInvalidInputChangesNothing(): void {
         $this->given('locked', 1234);
         $this->polls = $this->createMock(PollMapper::class);
         $this->polls->method('find')->willReturnCallback(fn (): Poll => $this->poll);

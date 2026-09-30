@@ -53,7 +53,7 @@ class VoteStampTest extends TestCase {
         $this->mapper = $this->mapper(fn () => $this->cache);
     }
 
-    public function testOhneSchreibenStabilUndOhneStimmenZuLesen(): void {
+    public function testWithoutWritesStableAndWithoutReadingVotes(): void {
         $a = $this->mapper->changeStamp(7);
         $b = $this->mapper->changeStamp(7);
 
@@ -62,7 +62,7 @@ class VoteStampTest extends TestCase {
         $this->assertSame(0, $this->reads, 'keine Stimme gelesen');
     }
 
-    public function testJederSchreibwegAendertDenStempel(): void {
+    public function testEveryWritePathChangesTheStamp(): void {
         $seen = [$this->mapper->changeStamp(7)];
         $writes = [
             'insert' => fn () => $this->mapper->insert($this->vote(null)),
@@ -83,7 +83,7 @@ class VoteStampTest extends TestCase {
         $this->assertSame(0, $this->reads);
     }
 
-    public function testAndereFrageBleibtUnberuehrt(): void {
+    public function testOtherQuestionStaysUntouched(): void {
         $seven = $this->mapper->changeStamp(7);
         $eight = $this->mapper->changeStamp(8);
 
@@ -93,7 +93,7 @@ class VoteStampTest extends TestCase {
         $this->assertNotSame($eight, $this->mapper->changeStamp(8));
     }
 
-    public function testVerdraengterEintragGibtNeuenNieGesehenenWert(): void {
+    public function testEvictedEntryGivesANewNeverSeenValue(): void {
         // Eviction or expiry: every client refetches once — none keeps an old
         // value that could come back (a counter restarting at 0 could).
         $seen = [];
@@ -105,7 +105,7 @@ class VoteStampTest extends TestCase {
         $this->assertCount(20, array_unique($seen));
     }
 
-    public function testZweiWorkerTeilenDenStempel(): void {
+    public function testTwoWorkersShareTheStamp(): void {
         // A second request (another PHP worker) with its own mapper, same cache.
         $other = $this->mapper(fn () => $this->cache);
 
@@ -117,7 +117,7 @@ class VoteStampTest extends TestCase {
         $this->assertNotSame($a, $this->mapper->changeStamp(7), 'der Schreiber im anderen Worker entwertet ihn');
     }
 
-    public function testParallelerErsterPollEinigtSichAufEinenWert(): void {
+    public function testParallelFirstPollAgreesOnOneValue(): void {
         // Between our get and our add another worker seeded its generation:
         // add fails, its value counts.
         $cache = $this->createMock(IMemcache::class);
@@ -127,7 +127,7 @@ class VoteStampTest extends TestCase {
         $this->assertSame('gfremd', $this->mapper(fn () => $cache)->changeStamp(7));
     }
 
-    public function testSchreibenInTransaktionHaeltDenExaktenStempelBisZumAblauf(): void {
+    public function testWriteInTransactionKeepsTheExactStampUntilExpiry(): void {
         $before = $this->mapper->changeStamp(7);
 
         $this->inTransaction = true;
@@ -153,7 +153,7 @@ class VoteStampTest extends TestCase {
         $this->assertNotContains($after, [$before, $during, $committed]);
     }
 
-    public function testOhneTransaktionKeineMarke(): void {
+    public function testWithoutTransactionNoMarker(): void {
         $this->mapper->changeStamp(7);
         $this->mapper->insert($this->vote(null));
 
@@ -161,7 +161,7 @@ class VoteStampTest extends TestCase {
         $this->assertStringStartsWith('g', $this->mapper->changeStamp(7));
     }
 
-    public function testOhneGeteiltenCacheExakterStempel(): void {
+    public function testWithoutSharedCacheExactStamp(): void {
         $this->cacheAvailable = false;
         $mapper = $this->mapper(fn () => $this->cache);
 
@@ -175,7 +175,7 @@ class VoteStampTest extends TestCase {
         $this->assertSame(3, $this->reads);
     }
 
-    public function testKaputterCacheExakterStempelUndSchreibenGehtTrotzdem(): void {
+    public function testBrokenCacheExactStampAndWritingStillWorks(): void {
         $cache = $this->createMock(IMemcache::class);
         $cache->method('get')->willThrowException(new \RuntimeException('Redis weg'));
         $cache->method('remove')->willThrowException(new \RuntimeException('Redis weg'));

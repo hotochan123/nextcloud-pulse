@@ -67,7 +67,7 @@ class QuizFixWindowTest extends TestCase {
         }
     }
 
-    public function testKorrekturImFensterErsetztDieAntwort(): void {
+    public function testCorrectionInTheWindowReplacesTheAnswer(): void {
         $old = $this->existingVote(['value' => 'AA', 'points' => 900, 'correct' => false, 'elapsed' => 1], at: 998);
         $this->votes->method('insert')->willThrowException($this->uniqueViolation());
         $this->votes->method('findByPollAndToken')->willReturn($old);
@@ -88,7 +88,7 @@ class QuizFixWindowTest extends TestCase {
         $this->assertSame(10, $payload['elapsed']);
     }
 
-    public function testZweiteKorrekturWirdAbgelehnt(): void {
+    public function testSecondCorrectionIsRejected(): void {
         $old = $this->existingVote(['value' => 'AA', 'points' => 0, 'correct' => false, 'elapsed' => 1, 'fixed' => true], at: 999);
         $this->votes->method('insert')->willThrowException($this->uniqueViolation());
         $this->votes->method('findByPollAndToken')->willReturn($old);
@@ -98,7 +98,7 @@ class QuizFixWindowTest extends TestCase {
         $this->service->recordVote($this->room(), 'tok', 'BB');
     }
 
-    public function testNachDemFensterWirdAbgelehnt(): void {
+    public function testCorrectionAfterTheWindowIsRejected(): void {
         $old = $this->existingVote(['value' => 'AA', 'points' => 0, 'correct' => false, 'elapsed' => 1], at: 995);
         $this->votes->method('insert')->willThrowException($this->uniqueViolation());
         $this->votes->method('findByPollAndToken')->willReturn($old);
@@ -108,7 +108,7 @@ class QuizFixWindowTest extends TestCase {
         $this->service->recordVote($this->room(), 'tok', 'BB');
     }
 
-    public function testTastaturbedienungHatDasLaengereFenster(): void {
+    public function testKeyboardUseHasTheLongerWindow(): void {
         // The same five seconds as in the test above — allowed via keyboard.
         $old = $this->existingVote(['value' => 'AA', 'points' => 0, 'correct' => false, 'elapsed' => 1], at: 995);
         $this->votes->method('insert')->willThrowException($this->uniqueViolation());

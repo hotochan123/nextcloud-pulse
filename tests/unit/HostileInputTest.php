@@ -103,7 +103,7 @@ class HostileInputTest extends TestCase {
     // ── DeckService: every template, every field ───────────────────────────
 
     /** Valid questions per mode — each field in them is made unusable once. */
-    public static function vorlagen(): array {
+    public static function templates(): array {
         $options = ['A', 'B'];
         $pairs = [['left' => 'a', 'right' => '1'], ['left' => 'b', 'right' => '2']];
         $axis = ['title' => 'Achse', 'poleLow' => 'links', 'poleHigh' => 'rechts'];
@@ -125,8 +125,8 @@ class HostileInputTest extends TestCase {
         ];
     }
 
-    #[DataProvider('vorlagen')]
-    public function testJedesFeldUnbrauchbar(string $mode, array $valid): void {
+    #[DataProvider('templates')]
+    public function testEveryFieldMadeUnusable(string $mode, array $valid): void {
         $type = $valid['type'];
         // The template itself must be valid, otherwise the loop proves nothing.
         $this->assertInstanceOf(Poll::class, $this->deck->addPoll($this->room($mode), $valid));
@@ -156,7 +156,7 @@ class HostileInputTest extends TestCase {
         }
     }
 
-    public function testOptionAlsListeOderObjektFaelltRaus(): void {
+    public function testOptionAsListOrObjectIsDropped(): void {
         $poll = $this->deck->addPoll($this->room('poll'), [
             'type' => 'choice',
             'question' => 'Q?',
@@ -166,18 +166,18 @@ class HostileInputTest extends TestCase {
         $this->assertSame(['A', 'B'], array_column($poll->getOptionsArray(), 'label'));
     }
 
-    public function testFrageMitKaputtemUtf8IstLeer(): void {
+    public function testQuestionWithBrokenUtf8IsEmpty(): void {
         $this->expectExceptionMessage('The question must not be empty.');
         $this->deck->addPoll($this->room('poll'), ['type' => 'choice', 'question' => "\xFF\xFE", 'options' => ['A', 'B']]);
     }
 
-    public function testNulInDerFrageFaelltWeg(): void {
+    public function testNulInTheQuestionIsDropped(): void {
         $poll = $this->deck->addPoll($this->room('poll'), ['type' => 'choice', 'question' => "a\0b", 'options' => ['A', 'B']]);
 
         $this->assertSame('ab', $poll->getQuestion());
     }
 
-    public function testZielzahlUnendlichIstKeineZahl(): void {
+    public function testInfiniteTargetNumberIsNoNumber(): void {
         foreach (['1e999', INF] as $target) {
             try {
                 $this->deck->addPoll($this->room('quiz'), ['type' => 'number', 'question' => 'N?', 'target' => $target, 'timeLimit' => 30]);
@@ -188,31 +188,31 @@ class HostileInputTest extends TestCase {
         }
     }
 
-    public function testToleranzUnendlichWirdNull(): void {
+    public function testInfiniteToleranceBecomesZero(): void {
         $poll = $this->deck->addPoll($this->room('quiz'), ['type' => 'number', 'question' => 'N?', 'target' => 5, 'tolerance' => INF, 'timeLimit' => 30]);
 
         $this->assertSame(['target' => 5, 'tolerance' => 0], $poll->getAnswerKeyArray());
     }
 
-    public function testZeitlimitRiesigNimmtDieVorgabe(): void {
+    public function testHugeTimeLimitTakesTheDefault(): void {
         $poll = $this->deck->addPoll($this->room('quiz'), ['type' => 'choice', 'question' => 'Q?', 'options' => ['A', 'B'], 'correctIndex' => 0, 'timeLimit' => 1e100]);
 
         $this->assertSame(30, $poll->getTimeLimit());
     }
 
-    public function testRichtigeAntwortRiesigIstKeine(): void {
+    public function testHugeCorrectAnswerIsNone(): void {
         $this->expectExceptionMessage('Please mark the correct answer.');
         $this->deck->addPoll($this->room('quiz'), ['type' => 'choice', 'question' => 'Q?', 'options' => ['A', 'B'], 'correctIndex' => 1e100, 'timeLimit' => 30]);
     }
 
-    public function testReihenfolgeAlsObjektZaehltInSeinerReihenfolge(): void {
+    public function testOrderAsObjectCountsInItsOwnOrder(): void {
         // JSON object instead of a list: the keys would be text (setPosition(int, int)).
         $this->deck->reorder($this->room('poll'), ['a' => 12, 'b' => 11]);
 
         $this->assertSame([[12, 0], [11, 1]], $this->positions);
     }
 
-    public function testReihenfolgeVerschachteltIstUngueltig(): void {
+    public function testNestedOrderIsInvalid(): void {
         try {
             $this->deck->reorder($this->room('poll'), [[11]]);
             $this->fail('verschachtelte Reihenfolge angenommen');
@@ -224,23 +224,23 @@ class HostileInputTest extends TestCase {
 
     // ── VoteService: every question type, every vote value ─────────────────
 
-    public function testAuswahl(): void {
+    public function testChoice(): void {
         $this->probe($this->choicePoll('choice'), static fn (): array => []);
     }
 
-    public function testWahrFalsch(): void {
+    public function testTrueFalse(): void {
         $this->probe($this->choicePoll('truefalse'), static fn (): array => []);
     }
 
-    public function testMehrfachauswahl(): void {
+    public function testMultipleAnswers(): void {
         $this->probe($this->choicePoll('multi'), static fn (mixed $h): array => [[$h, 'OA']]);
     }
 
-    public function testReihenfolge(): void {
+    public function testRanking(): void {
         $this->probe($this->choicePoll('rank'), static fn (mixed $h): array => [[$h, 'OA']]);
     }
 
-    public function testZuordnung(): void {
+    public function testMatching(): void {
         $poll = $this->poll('match', [
             'items' => [['id' => 'I1', 'label' => 'a'], ['id' => 'I2', 'label' => 'b']],
             'targets' => [['id' => 'T1', 'label' => '1'], ['id' => 'T2', 'label' => '2']],
@@ -248,33 +248,33 @@ class HostileInputTest extends TestCase {
         $this->probe($poll, static fn (mixed $h): array => [['I1' => $h, 'I2' => 'T2']]);
     }
 
-    public function testSchaetzfrage(): void {
+    public function testNumberGuess(): void {
         $this->probe($this->poll('number', []), static fn (): array => []);
     }
 
-    public function testFreitext(): void {
+    public function testFreeText(): void {
         $this->probe($this->poll('text', []), static fn (): array => []);
     }
 
-    public function testWoerter(): void {
+    public function testWords(): void {
         $poll = $this->poll('words', []);
         $poll->setMaxWords(3);
         $this->probe($poll, static fn (mixed $h): array => [[$h, 'ok']]);
     }
 
-    public function testSkalaEinzeln(): void {
+    public function testScaleSingle(): void {
         $this->probe($this->singlePoll(), static fn (): array => []);
     }
 
-    public function testSkalaSpektrum(): void {
+    public function testScaleSpectrum(): void {
         $this->probe($this->spectrumPoll(), static fn (mixed $h): array => [['S1' => $h, 'S2' => 1, 'S3' => 2]]);
     }
 
-    public function testSkalaKompass(): void {
+    public function testScaleCompass(): void {
         $this->probe($this->compassPoll(), static fn (mixed $h): array => [['x' => $h, 'y' => 0]]);
     }
 
-    public function testSchaetzungUnendlichIstKeineZahl(): void {
+    public function testInfiniteGuessIsNoNumber(): void {
         foreach (['1e999', INF] as $value) {
             try {
                 $this->votes->normalizeValue($this->poll('number', []), $value);
@@ -285,24 +285,24 @@ class HostileInputTest extends TestCase {
         }
     }
 
-    public function testSkalenwertRiesigIstUngueltig(): void {
+    public function testHugeScaleValueIsInvalid(): void {
         $this->expectExceptionMessage('Invalid value.');
         $this->votes->normalizeValue($this->singlePoll(), 1e100);
     }
 
-    public function testSpektrumwertRiesigIstUngueltig(): void {
+    public function testHugeSpectrumValueIsInvalid(): void {
         $this->expectExceptionMessage('Invalid value.');
         $this->votes->normalizeValue($this->spectrumPoll(), ['S1' => 1e100, 'S2' => 1, 'S3' => 2]);
     }
 
-    public function testKompassRiesigIstUngueltig(): void {
+    public function testHugeCompassValueIsInvalid(): void {
         $this->expectExceptionMessage('Invalid position.');
         $this->votes->normalizeValue($this->compassPoll(), ['x' => 1e100, 'y' => 0]);
     }
 
     // ── Image upload ───────────────────────────────────────────────────────
 
-    public function testBildfeldAlsListeIstKeinBild(): void {
+    public function testImageFieldAsListIsNoImage(): void {
         $l10n = $this->createMock(IL10N::class);
         $l10n->method('t')->willReturnArgument(0);
         $images = (new \ReflectionClass(PollImageService::class))->newInstanceWithoutConstructor();

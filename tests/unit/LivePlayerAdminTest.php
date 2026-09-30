@@ -108,7 +108,7 @@ class LivePlayerAdminTest extends TestCase {
 
     // ── Lock joining ───────────────────────────────────────────────────────
 
-    public function testBeitrittSperrenImLiveQuiz(): void {
+    public function testLockJoiningInLiveQuiz(): void {
         $this->rooms->expects($this->once())->method('update')
             ->with($this->identicalTo($this->locked))->willReturnArgument(0);
 
@@ -118,7 +118,7 @@ class LivePlayerAdminTest extends TestCase {
         $this->assertSame(['beginTransaction', 'commit'], $this->tx);
     }
 
-    public function testBeitrittWiederOeffnenImLiveQuiz(): void {
+    public function testReopenJoiningInLiveQuiz(): void {
         $this->locked->setJoinsLocked(true);
         $this->locked->resetUpdatedFields();
         $this->rooms->expects($this->once())->method('update')->willReturnArgument(0);
@@ -128,7 +128,7 @@ class LivePlayerAdminTest extends TestCase {
 
     // ── Remove ─────────────────────────────────────────────────────────────
 
-    public function testEntfernenNimmtStimmenAufAllenFragenDesRaums(): void {
+    public function testRemoveTakesVotesOnAllQuestionsOfTheRoom(): void {
         $this->recordRemoval();
 
         $this->service->removePlayer($this->room(), 32);
@@ -142,7 +142,7 @@ class LivePlayerAdminTest extends TestCase {
         $this->assertSame(['beginTransaction', 'commit'], $this->tx);
     }
 
-    public function testEntfernenAuchNachDemQuizende(): void {
+    public function testRemoveAlsoAfterTheQuizEnd(): void {
         // A renamed squatter on the final podium: nothing about the state stops it.
         $this->locked->setActivePollId(23);
         $this->recordRemoval();
@@ -153,7 +153,7 @@ class LivePlayerAdminTest extends TestCase {
         $this->assertSame(['beginTransaction', 'commit'], $this->tx);
     }
 
-    public function testFremdeIdIstEinEingabefehler(): void {
+    public function testForeignIdIsAnInputError(): void {
         $this->players->expects($this->never())->method('delete');
 
         $this->expectExceptionMessage('Player not found.');
@@ -162,7 +162,7 @@ class LivePlayerAdminTest extends TestCase {
 
     // ── Moderator leaderboard with IDs ─────────────────────────────────────
 
-    public function testModeratorRanglisteTraegtAufWunschDieSpielerId(): void {
+    public function testModeratorLeaderboardCarriesThePlayerIdOnRequest(): void {
         $votes = $this->leaderboardService();
 
         $rows = $votes->leaderboardFor($this->room(), null, [], true);
@@ -171,7 +171,7 @@ class LivePlayerAdminTest extends TestCase {
         $this->assertSame([32, 31], array_column($rows, 'playerId'));
     }
 
-    public function testOhneWunschKeineSpielerId(): void {
+    public function testNoPlayerIdWithoutRequest(): void {
         // Public views (phones, projector) never get the IDs.
         $votes = $this->leaderboardService();
 

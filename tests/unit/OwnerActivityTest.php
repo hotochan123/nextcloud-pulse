@@ -43,7 +43,7 @@ class OwnerActivityTest extends TestCase {
 
     private const NOW = 1_800_000_000;
     /** Actions without a room: they must not touch anything. */
-    private const OHNE_RAUM = ['index', 'create'];
+    private const WITHOUT_ROOM = ['index', 'create'];
 
     private Room $room;
     private bool $foreign = false;
@@ -56,9 +56,9 @@ class OwnerActivityTest extends TestCase {
 
     /**
      * Every action that names a room: [method, arguments]. index and create
-     * name none; testJedeAktionIstEingeordnet keeps both lists complete.
+     * name none; testEveryActionIsClassified keeps both lists complete.
      */
-    public static function raumAktionen(): array {
+    public static function roomActions(): array {
         $c = ['ABCDEF'];
         $p = ['ABCDEF', 7];
         return [
@@ -93,8 +93,8 @@ class OwnerActivityTest extends TestCase {
         ];
     }
 
-    #[DataProvider('raumAktionen')]
-    public function testJedeRaumAktionZaehltGenauEinmalAuchModeriert(string $method, array $args): void {
+    #[DataProvider('roomActions')]
+    public function testEveryRoomActionCountsExactlyOnceInModeratedRoomsToo(string $method, array $args): void {
         $response = $this->controller()->$method(...$args);
 
         $this->assertInstanceOf(Response::class, $response);
@@ -102,8 +102,8 @@ class OwnerActivityTest extends TestCase {
         $this->assertSame([[5, self::NOW]], $this->touches, $method . ' must record owner activity once');
     }
 
-    #[DataProvider('raumAktionen')]
-    public function testJedeRaumAktionZaehltGenauEinmalImEigenenTempo(string $method, array $args): void {
+    #[DataProvider('roomActions')]
+    public function testEveryRoomActionCountsExactlyOnceInSelfPacedMode(string $method, array $args): void {
         $this->room = $this->selfRoom();
 
         $this->controller()->$method(...$args);
@@ -111,7 +111,7 @@ class OwnerActivityTest extends TestCase {
         $this->assertSame([[5, self::NOW]], $this->touches, $method);
     }
 
-    public function testOeffnenEinesModeriertenRaumsZaehlt(): void {
+    public function testOpeningAModeratedRoomCounts(): void {
         // The decisive case: GET /rooms/{code} in a moderated room used to
         // record nothing.
         $response = $this->controller()->show('ABCDEF');
@@ -120,7 +120,7 @@ class OwnerActivityTest extends TestCase {
         $this->assertSame([[5, self::NOW]], $this->touches);
     }
 
-    public function testListeUndNeuanlageZaehlenNicht(): void {
+    public function testListAndCreateDoNotCount(): void {
         // Merely opening the app must not keep every room alive.
         $controller = $this->controller();
         $controller->index();
@@ -129,7 +129,7 @@ class OwnerActivityTest extends TestCase {
         $this->assertSame([], $this->touches);
     }
 
-    public function testFremderRaumZaehltNicht(): void {
+    public function testForeignRoomDoesNotCount(): void {
         $this->foreign = true;
 
         $response = $this->controller()->show('ABCDEF');
@@ -139,7 +139,7 @@ class OwnerActivityTest extends TestCase {
         $this->assertSame([], $this->touches);
     }
 
-    public static function frischeBesuche(): array {
+    public static function freshVisits(): array {
         return [
             'vor zehn Minuten' => [self::NOW - 600, false],
             'vor genau einer Stunde' => [self::NOW - RoomMapper::TOUCH_INTERVAL, false],
@@ -148,8 +148,8 @@ class OwnerActivityTest extends TestCase {
         ];
     }
 
-    #[DataProvider('frischeBesuche')]
-    public function testHoechstensStuendlichEinSchreibzugriff(int $touchedAt, bool $writes): void {
+    #[DataProvider('freshVisits')]
+    public function testAtMostOneWriteAnHour(int $touchedAt, bool $writes): void {
         // The same boundary as the WHERE in RoomMapper::touch — only here
         // the presenter's polls of results and progress do not even send the
         // UPDATE.
@@ -160,20 +160,20 @@ class OwnerActivityTest extends TestCase {
         $this->assertSame($writes ? [[5, self::NOW]] : [], $this->touches);
     }
 
-    public function testJedeAktionIstEingeordnet(): void {
+    public function testEveryActionIsClassified(): void {
         $declared = [];
         foreach ((new \ReflectionClass(RoomApiController::class))->getMethods(\ReflectionMethod::IS_PUBLIC) as $m) {
             if ($m->getDeclaringClass()->getName() === RoomApiController::class && $m->getName() !== '__construct') {
                 $declared[] = $m->getName();
             }
         }
-        $known = array_merge(array_keys(self::raumAktionen()), self::OHNE_RAUM);
+        $known = array_merge(array_keys(self::roomActions()), self::WITHOUT_ROOM);
         sort($declared);
         sort($known);
-        $this->assertSame($declared, $known, 'New moderator action? Add it to raumAktionen() or OHNE_RAUM.');
+        $this->assertSame($declared, $known, 'New moderator action? Add it to roomActions() or WITHOUT_ROOM.');
     }
 
-    public function testRaeumeWerdenNurUeberOwnedRoomGeladen(): void {
+    public function testRoomsAreLoadedOnlyThroughOwnedRoom(): void {
         // Source guard: a new action that called getOwnedRoom itself would
         // silently skip the touch.
         $source = (string)file_get_contents(dirname(__DIR__, 2) . '/lib/Controller/RoomApiController.php');
@@ -181,7 +181,7 @@ class OwnerActivityTest extends TestCase {
         $this->assertSame(1, substr_count($source, '->roomMapper->touch('), 'only touch() may write touched_at');
     }
 
-    public function testBesuchStehtInKeinerAntwort(): void {
+    public function testVisitAppearsInNoResponse(): void {
         // A touch must not change what a client sees — no payload, no
         // version hash. Room::jsonSerialize is the moderator payload (roomView);
         // everything else builds its fields by hand, so the guard is: nobody

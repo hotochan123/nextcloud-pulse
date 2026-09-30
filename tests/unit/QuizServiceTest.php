@@ -27,35 +27,35 @@ class QuizServiceTest extends TestCase {
 
     // ── points() ────────────────────────────────────────────────────────────
 
-    public function testSofortRichtigGibtVollePunktzahl(): void {
+    public function testImmediatelyCorrectGivesFullScore(): void {
         $this->assertSame(1000, $this->service->points(0, 20));
     }
 
-    public function testAmZeitlimitGibtHalbePunktzahl(): void {
+    public function testAtTheTimeLimitGivesHalfScore(): void {
         $this->assertSame(500, $this->service->points(20, 20));
     }
 
-    public function testHalbeZeitGibtDreiviertelPunkte(): void {
+    public function testHalfTheTimeGivesThreeQuarterPoints(): void {
         $this->assertSame(750, $this->service->points(10, 20));
     }
 
-    public function testOhneZeitlimitFlacheVollePunktzahl(): void {
+    public function testWithoutTimeLimitFlatFullScore(): void {
         $this->assertSame(1000, $this->service->points(99, 0));
     }
 
-    public function testUeberzogeneZeitFaelltNichtUnterDieHaelfte(): void {
+    public function testOverrunTimeDoesNotFallBelowHalf(): void {
         // The fraction is capped at 1.0, so it never costs more than half.
         $this->assertSame(500, $this->service->points(999, 20));
     }
 
-    public function testNegativeZeitZaehltAlsSofort(): void {
+    public function testNegativeTimeCountsAsImmediate(): void {
         // Clock skew must not produce points above BASE.
         $this->assertSame(1000, $this->service->points(-5, 20));
     }
 
     // ── leaderboard() ───────────────────────────────────────────────────────
 
-    public function testSortiertNachPunkten(): void {
+    public function testSortsByPoints(): void {
         $rows = $this->service->leaderboard(
             [$this->player('Ada'), $this->player('Bob')],
             ['t_Ada' => 3000, 't_Bob' => 2000],
@@ -65,7 +65,7 @@ class QuizServiceTest extends TestCase {
         $this->assertSame(['Ada#1', 'Bob#2'], $this->ranks($rows));
     }
 
-    public function testBeiPunktgleichstandGewinntDieKuerzereZeit(): void {
+    public function testOnAPointsTieTheShorterTimeWins(): void {
         $rows = $this->service->leaderboard(
             [$this->player('Ada'), $this->player('Bob')],
             ['t_Ada' => 2000, 't_Bob' => 2000],
@@ -75,7 +75,7 @@ class QuizServiceTest extends TestCase {
         $this->assertSame(['Bob#1', 'Ada#2'], $this->ranks($rows));
     }
 
-    public function testGleichePunkteUndZeitTeilenDenRangUndDerNaechsteSpringt(): void {
+    public function testEqualPointsAndTimeShareTheRankAndTheNextSkips(): void {
         $rows = $this->service->leaderboard(
             [$this->player('Ada'), $this->player('Bea'), $this->player('Cid'), $this->player('Dan')],
             ['t_Ada' => 3000, 't_Bea' => 2000, 't_Cid' => 2000, 't_Dan' => 1000],
@@ -86,7 +86,7 @@ class QuizServiceTest extends TestCase {
         $this->assertSame(['Ada#1', 'Bea#2', 'Cid#2', 'Dan#4'], $this->ranks($rows));
     }
 
-    public function testPunktloseTeilenDenRangUnabhaengigVonDerZeit(): void {
+    public function testPlayersWithoutPointsShareTheRankRegardlessOfTime(): void {
         // Someone who never answered (time 0) must not rank ahead of someone who
         // answered wrongly, but quickly. Names deliberately chosen so that
         // the time order (Zeno 0 before Ada 9) contradicts the alphabetical one:
@@ -100,7 +100,7 @@ class QuizServiceTest extends TestCase {
         $this->assertSame(['Ada#1', 'Zeno#1'], $this->ranks($rows));
     }
 
-    public function testPunktloseStehenHinterJedemPunktenden(): void {
+    public function testPlayersWithoutPointsRankBehindEveryScorer(): void {
         $rows = $this->service->leaderboard(
             [$this->player('Ada'), $this->player('Nix'), $this->player('Schnell')],
             ['t_Ada' => 500, 't_Nix' => 0, 't_Schnell' => 0],
@@ -110,7 +110,7 @@ class QuizServiceTest extends TestCase {
         $this->assertSame(['Ada#1', 'Nix#2', 'Schnell#2'], $this->ranks($rows));
     }
 
-    public function testOhneZeitenWirdAlphabetischGeteilt(): void {
+    public function testWithoutTimesTheRankIsSharedAlphabetically(): void {
         $rows = $this->service->leaderboard(
             [$this->player('Bob'), $this->player('Ada')],
             ['t_Ada' => 100, 't_Bob' => 100],
@@ -119,7 +119,7 @@ class QuizServiceTest extends TestCase {
         $this->assertSame(['Ada#1', 'Bob#1'], $this->ranks($rows));
     }
 
-    public function testRichtigAntwortenWerdenDurchgereicht(): void {
+    public function testCorrectAnswersArePassedThrough(): void {
         $rows = $this->service->leaderboard(
             [$this->player('Ada')],
             ['t_Ada' => 2000],
@@ -130,7 +130,7 @@ class QuizServiceTest extends TestCase {
         $this->assertSame(2000, $rows[0]['score']);
     }
 
-    public function testPersonOhneStimmenBekommtNullen(): void {
+    public function testPersonWithoutVotesGetsZeros(): void {
         $rows = $this->service->leaderboard([$this->player('Leer')], [], [], []);
         $this->assertSame(['score' => 0, 'correct' => 0, 'time' => 0, 'rank' => 1], [
             'score' => $rows[0]['score'],
@@ -140,14 +140,14 @@ class QuizServiceTest extends TestCase {
         ]);
     }
 
-    public function testZeileTraegtDasTokenIntern(): void {
+    public function testRowCarriesTheTokenInternally(): void {
         // The caller (VoteService::leaderboardFor) MUST remove it before responding;
         // this only records that it comes along at all.
         $rows = $this->service->leaderboard([$this->player('Ada')], [], [], []);
         $this->assertSame('t_Ada', $rows[0]['token']);
     }
 
-    public function testLeereRanglisteBleibtLeer(): void {
+    public function testEmptyLeaderboardStaysEmpty(): void {
         $this->assertSame([], $this->service->leaderboard([], [], [], []));
     }
 

@@ -24,14 +24,14 @@ use PHPUnit\Framework\Attributes\CoversClass;
 #[CoversClass(StateService::class)]
 class SelfImageVisibleTest extends PaceStateTestCase {
 
-    public function testOhneCookieNie(): void {
+    public function testWithoutCookieNever(): void {
         $this->row(11, 'tok-anna', self::NOW - 5);
 
         $this->assertFalse($this->visible(11, null));
         $this->assertFalse($this->visible(11, ''));
     }
 
-    public function testMitErreichterFrage(): void {
+    public function testWithAReachedQuestion(): void {
         $this->row(11, 'tok-anna', self::NOW - 20, self::NOW - 10);
         $this->row(12, 'tok-anna', self::NOW - 10);
 
@@ -41,7 +41,7 @@ class SelfImageVisibleTest extends PaceStateTestCase {
         $this->assertFalse($this->visible(12, 'tok-ben'), 'fremde Zeile zählt nicht');
     }
 
-    public function testNachDerFreigabeNurErreichte(): void {
+    public function testAfterTheReleaseOnlyReachedOnes(): void {
         $this->row(11, 'tok-anna', self::NOW - 20);
         $this->release();
 
@@ -50,7 +50,7 @@ class SelfImageVisibleTest extends PaceStateTestCase {
         $this->assertFalse($this->visible(11, 'tok-fremd'));
     }
 
-    public function testModeriertUnveraendert(): void {
+    public function testModeratedUnchanged(): void {
         // Without a cookie as before: running question yes, next no, revealed yes.
         $paceState = $this->createMock(PaceStateService::class);
         $paceState->expects($this->never())->method($this->anything());

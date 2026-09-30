@@ -44,9 +44,9 @@ use ReflectionProperty;
 class UnicodeTextTest extends TestCase {
 
     /** Persian "I want": ZWNJ between prefix and stem. */
-    private const PERSISCH = "\u{0645}\u{06CC}\u{200C}\u{062E}\u{0648}\u{0627}\u{0647}\u{0645}";
+    private const PERSIAN = "\u{0645}\u{06CC}\u{200C}\u{062E}\u{0648}\u{0627}\u{0647}\u{0645}";
     /** 🏴 + tag sequence "gbsct" + terminator. */
-    private const SCHOTTLAND = "\u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}";
+    private const SCOTLAND = "\u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}";
     /** 🏴 + tag sequence "gbeng" + terminator. */
     private const ENGLAND = "\u{1F3F4}\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}";
 
@@ -86,7 +86,7 @@ class UnicodeTextTest extends TestCase {
 
     // ── cleanText ──────────────────────────────────────────────────────────
 
-    public static function bereinigteTexte(): array {
+    public static function cleanedTexts(): array {
         return [
             'Nullbreite am Ende' => ["Kaffee\u{200B}", 'Kaffee'],
             'Nullbreite mittendrin' => ["Kaf\u{200B}fee", 'Kaffee'],
@@ -105,85 +105,85 @@ class UnicodeTextTest extends TestCase {
             'NFD wird NFC' => ["Cafe\u{0301}", "Caf\u{00E9}"],
             'Emoji mit Verbinder bleibt' => ["\u{1F469}\u{200D}\u{1F4BB}", "\u{1F469}\u{200D}\u{1F4BB}"],
             'Verbinder am Rand fällt' => ["\u{200D}Tee\u{200D}", 'Tee'],
-            'ZWNJ im persischen Wort bleibt' => [self::PERSISCH, self::PERSISCH],
-            'ZWNJ am Rand fällt' => ["\u{200C}" . self::PERSISCH . "\u{200C}", self::PERSISCH],
-            'Schottland-Flagge bleibt ganz' => [self::SCHOTTLAND, self::SCHOTTLAND],
+            'ZWNJ im persischen Wort bleibt' => [self::PERSIAN, self::PERSIAN],
+            'ZWNJ am Rand fällt' => ["\u{200C}" . self::PERSIAN . "\u{200C}", self::PERSIAN],
+            'Schottland-Flagge bleibt ganz' => [self::SCOTLAND, self::SCOTLAND],
             'Flagge mit Leerraum drumherum' => ["\u{00A0}" . self::ENGLAND . "\u{200B}", self::ENGLAND],
             'nur Unsichtbares' => ["\u{200B}\u{00A0}\u{FEFF}\u{3000}\u{200D}", ''],
             'normaler Text unverändert' => ['Grüße, Welt!', 'Grüße, Welt!'],
         ];
     }
 
-    #[DataProvider('bereinigteTexte')]
+    #[DataProvider('cleanedTexts')]
     public function testCleanText(string $in, string $out): void {
         $this->assertSame($out, TallyService::cleanText($in));
     }
 
-    public function testNormalizeWordVereintNfdUndNfc(): void {
+    public function testNormalizeWordUnitesNfdAndNfc(): void {
         $this->assertSame("caf\u{00E9}", TallyService::normalizeWord("CAFE\u{0301}"));
         $this->assertSame(TallyService::normalizeWord("caf\u{00E9}"), TallyService::normalizeWord("Cafe\u{0301}\u{200B}"));
     }
 
-    public function testNormalizeWordMitUnsichtbaremRand(): void {
+    public function testNormalizeWordWithInvisibleEdges(): void {
         $this->assertSame('kaffee', TallyService::normalizeWord("\u{3000}KAFFEE\u{00A0}\u{200B}"));
     }
 
     // ── Word cloud: vote validation ────────────────────────────────────────
 
-    public function testNurUnsichtbaresIstKeinWort(): void {
+    public function testOnlyInvisibleCharactersAreNoWord(): void {
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('Please enter at least one word.');
         $this->service->normalizeValue($this->wordsPoll(3), ["\u{200B}", "\u{00A0}", "\u{FEFF}\u{200D}"]);
     }
 
-    public function testUnsichtbareVariantenSindEinWort(): void {
+    public function testInvisibleVariantsAreOneWord(): void {
         $words = $this->service->normalizeValue($this->wordsPoll(3), ['Kaffee', "Kaffee\u{200B}", "\u{00A0}KAFFEE"]);
 
         $this->assertSame(['Kaffee'], $words);
     }
 
-    public function testGespeichertWirdDieBereinigteForm(): void {
+    public function testTheCleanedFormIsStored(): void {
         $words = $this->service->normalizeValue($this->wordsPoll(3), ["\u{200B}Cafe\u{0301}\u{3000}"]);
 
         $this->assertSame(["Caf\u{00E9}"], $words);
     }
 
-    public function testEmojiMitVerbinderBleibtEinWort(): void {
+    public function testEmojiWithJoinerStaysOneWord(): void {
         $words = $this->service->normalizeValue($this->wordsPoll(3), ["\u{1F469}\u{200D}\u{1F4BB}"]);
 
         $this->assertSame(["\u{1F469}\u{200D}\u{1F4BB}"], $words);
     }
 
-    public function testPersischesWortMitZwnjBleibtEinWort(): void {
+    public function testPersianWordWithZwnjStaysOneWord(): void {
         // Without the ZWNJ it would be a different (misspelled) word.
-        $words = $this->service->normalizeValue($this->wordsPoll(3), [self::PERSISCH, "\u{200B}" . self::PERSISCH]);
+        $words = $this->service->normalizeValue($this->wordsPoll(3), [self::PERSIAN, "\u{200B}" . self::PERSIAN]);
 
-        $this->assertSame([self::PERSISCH], $words);
+        $this->assertSame([self::PERSIAN], $words);
         $this->assertStringContainsString("\u{200C}", $words[0]);
     }
 
-    public function testSchottlandFlaggeBleibtEinWort(): void {
-        $words = $this->service->normalizeValue($this->wordsPoll(3), [self::SCHOTTLAND]);
+    public function testScotlandFlagStaysOneWord(): void {
+        $words = $this->service->normalizeValue($this->wordsPoll(3), [self::SCOTLAND]);
 
-        $this->assertSame([self::SCHOTTLAND], $words);
+        $this->assertSame([self::SCOTLAND], $words);
     }
 
-    public function testEnglandUndSchottlandSindZweiWoerter(): void {
+    public function testEnglandAndScotlandAreTwoWords(): void {
         // With \p{Cf}, only 🏴 was left of both — the cloud would have merged them.
-        $this->assertNotSame(TallyService::normalizeWord(self::ENGLAND), TallyService::normalizeWord(self::SCHOTTLAND));
+        $this->assertNotSame(TallyService::normalizeWord(self::ENGLAND), TallyService::normalizeWord(self::SCOTLAND));
 
-        $words = $this->service->normalizeValue($this->wordsPoll(3), [self::ENGLAND, self::SCHOTTLAND]);
+        $words = $this->service->normalizeValue($this->wordsPoll(3), [self::ENGLAND, self::SCOTLAND]);
 
-        $this->assertSame([self::ENGLAND, self::SCHOTTLAND], $words);
+        $this->assertSame([self::ENGLAND, self::SCOTLAND], $words);
     }
 
-    public function testNichtSkalareWerteWerdenUebersprungen(): void {
+    public function testNonScalarValuesAreSkipped(): void {
         $words = $this->service->normalizeValue($this->wordsPoll(3), [['Kaffee'], null, 'Tee', ['x' => 'y']]);
 
         $this->assertSame(['Tee'], $words);
     }
 
-    public function testKuerzungEndetNichtAufLeerraum(): void {
+    public function testCutDoesNotEndOnWhitespace(): void {
         // Character 40 is a space — cleaning runs again after the cut.
         $word = str_repeat('x', 39) . ' Rest';
         $words = $this->service->normalizeValue($this->wordsPoll(3), [$word]);
@@ -191,7 +191,7 @@ class UnicodeTextTest extends TestCase {
         $this->assertSame([str_repeat('x', 39)], $words);
     }
 
-    public function testKuerzungEndetNichtAufNbsp(): void {
+    public function testCutDoesNotEndOnNbsp(): void {
         $word = str_repeat('x', 39) . "\u{00A0}Rest";
         $words = $this->service->normalizeValue($this->wordsPoll(3), [$word]);
 
@@ -200,7 +200,7 @@ class UnicodeTextTest extends TestCase {
 
     // ── Player names ───────────────────────────────────────────────────────
 
-    public static function vergebeneNamenMitUnsichtbarem(): array {
+    public static function takenNamesWithInvisibleCharacters(): array {
         return [
             'Nullbreite hinten' => ["Anna\u{200B}"],
             'Nullbreite mittendrin' => ["An\u{200B}na"],
@@ -215,8 +215,8 @@ class UnicodeTextTest extends TestCase {
         ];
     }
 
-    #[DataProvider('vergebeneNamenMitUnsichtbarem')]
-    public function testUnsichtbarVarianteEinesVergebenenNamensWirdAbgelehnt(string $name): void {
+    #[DataProvider('takenNamesWithInvisibleCharacters')]
+    public function testInvisibleVariantOfATakenNameIsRejected(string $name): void {
         $this->players->expects($this->never())->method('register');
 
         $this->expectException(\InvalidArgumentException::class);
@@ -224,7 +224,7 @@ class UnicodeTextTest extends TestCase {
         $this->service->quizJoin($this->room(), 'tok-neu', $name);
     }
 
-    public function testAltbestandMitUnsichtbaremNamenKollidiert(): void {
+    public function testLegacyNameWithInvisibleCharacterCollides(): void {
         // A name from before the cleanup ("Ben\u{200B}") takes "Ben".
         $players = $this->createMock(PlayerMapper::class);
         $players->method('findByRoom')->willReturn([$this->player('tok-ben', "Ben\u{200B}")]);
@@ -235,7 +235,7 @@ class UnicodeTextTest extends TestCase {
         $this->service->quizJoin($this->room(), 'tok-neu', 'ben');
     }
 
-    public function testNullbreiteZwischenLeerzeichenGibtEinLeerzeichen(): void {
+    public function testZeroWidthBetweenSpacesGivesOneSpace(): void {
         // Invisible characters go first, then whitespace is collapsed — otherwise
         // a double space would remain that looks like a single one in the browser.
         $this->players->expects($this->once())->method('register')
@@ -245,7 +245,7 @@ class UnicodeTextTest extends TestCase {
         $this->service->quizJoin($this->room(), 'tok-neu', "Anna \u{200B} Lena");
     }
 
-    public function testAltbestandMitDoppeltemLeerzeichenKollidiert(): void {
+    public function testLegacyNameWithDoubleSpaceCollides(): void {
         $players = $this->createMock(PlayerMapper::class);
         $players->method('findByRoom')->willReturn([$this->player('tok-al', 'Anna  Lena')]);
         $players->expects($this->never())->method('register');
@@ -255,13 +255,13 @@ class UnicodeTextTest extends TestCase {
         $this->service->quizJoin($this->room(), 'tok-neu', 'anna lena');
     }
 
-    public function testVerbinderVorAkzentGibtDenselbenNamen(): void {
+    public function testJoinerBeforeAccentGivesTheSameName(): void {
         // The joiner blocks NFC; without it, "René" must come out.
         $this->assertSame(TallyService::nameKey("Ren\u{00E9}"), TallyService::nameKey("Rene\u{034F}\u{0301}"));
         $this->assertSame(TallyService::wordKey("Caf\u{00E9}"), TallyService::wordKey("Cafe\u{FE0F}\u{0301}"));
     }
 
-    public function testNameNurAusVariantenwaehlernWirdAbgelehnt(): void {
+    public function testNameOfOnlyVariationSelectorsIsRejected(): void {
         $this->players->expects($this->never())->method('register');
 
         $this->expectException(\InvalidArgumentException::class);
@@ -269,26 +269,26 @@ class UnicodeTextTest extends TestCase {
         $this->service->quizJoin($this->room(), 'tok-neu', "\u{FE0F}\u{034F}");
     }
 
-    public function testNameNurAusBrailleLeerfeldWirdAbgelehnt(): void {
+    public function testNameOfOnlyBrailleBlanksIsRejected(): void {
         $this->players->expects($this->never())->method('register');
 
         $this->expectExceptionMessage('Please enter a name.');
         $this->service->quizJoin($this->room(), 'tok-neu', "\u{2800}\u{2800}");
     }
 
-    public function testWortAusVariantenwaehlerUndVerbinderIstKeinWort(): void {
+    public function testWordOfVariationSelectorAndJoinerIsNoWord(): void {
         $words = $this->service->normalizeValue($this->wordsPoll(1), ["\u{FE0F}\u{200D}\u{FE0F}", "\u{2800}", 'Kaffee']);
 
         $this->assertSame(['Kaffee'], $words);
     }
 
-    public function testWortNurAusVariantenwaehlerBelegtKeinenPlatz(): void {
+    public function testWordOfOnlyAVariationSelectorTakesNoSlot(): void {
         $words = $this->service->normalizeValue($this->wordsPoll(1), ["\u{034F}", 'Kaffee']);
 
         $this->assertSame(['Kaffee'], $words);
     }
 
-    public function testNameAusNurUnsichtbaremWirdAbgelehnt(): void {
+    public function testNameOfOnlyInvisibleCharactersIsRejected(): void {
         $this->players->expects($this->never())->method('register');
 
         $this->expectException(\InvalidArgumentException::class);
@@ -296,7 +296,7 @@ class UnicodeTextTest extends TestCase {
         $this->service->quizJoin($this->room(), 'tok-neu', "\u{200B}\u{00A0}\u{3000}\u{FEFF}");
     }
 
-    public function testLeerraumArtenWerdenEinLeerzeichen(): void {
+    public function testKindsOfWhitespaceBecomeOneSpace(): void {
         $this->players->expects($this->once())->method('register')
             ->with(1, 'tok-neu', 'Anna Lena Maria', 1000)
             ->willReturn($this->player('tok-neu', 'Anna Lena Maria'));
@@ -304,7 +304,7 @@ class UnicodeTextTest extends TestCase {
         $this->service->quizJoin($this->room(), 'tok-neu', "Anna\u{00A0}\u{00A0}Lena\u{3000}Maria\u{200B}");
     }
 
-    public function testKuerzungAuf24ZeichenEndetNichtAufLeerzeichen(): void {
+    public function testCutTo24CharactersDoesNotEndOnASpace(): void {
         // Character 24 is the space before the surname.
         $first = str_repeat('a', 23);
         $this->players->expects($this->once())->method('register')
@@ -314,7 +314,7 @@ class UnicodeTextTest extends TestCase {
         $this->service->quizJoin($this->room(), 'tok-neu', $first . ' Lena');
     }
 
-    public function testKuerzungZaehltZeichenNichtBytes(): void {
+    public function testCutCountsCharactersNotBytes(): void {
         $name = str_repeat('Ä', 30);
         $this->players->expects($this->once())->method('register')
             ->with(1, 'tok-neu', str_repeat('Ä', 24), 1000)

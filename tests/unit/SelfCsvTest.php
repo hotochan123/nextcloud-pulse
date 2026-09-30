@@ -21,7 +21,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 #[CoversClass(PaceStateService::class)]
 class SelfCsvTest extends PaceStateTestCase {
 
-    public function testAntwortenZeitNurMitLimit(): void {
+    public function testAnswersTimeOnlyWithLimit(): void {
         $this->row(11, 'tok-anna', self::NOW - 90, self::NOW - 60);
         $this->vote(11, 'tok-anna', 'AA', 900, true, self::NOW - 80, elapsed: 10);
         $this->row(12, 'tok-anna', self::NOW - 60, self::NOW - 30);
@@ -35,7 +35,7 @@ class SelfCsvTest extends PaceStateTestCase {
         $this->assertCount(3, $lines, 'eine Zeile je Stimme');
     }
 
-    public function testAntwortenNachFrageDannNameUndErgebnis(): void {
+    public function testAnswersByQuestionThenNameAndResult(): void {
         $this->row(11, 'tok-cem', self::NOW - 90);
         $this->vote(11, 'tok-cem', 'BB', 0, false, self::NOW - 80);
         $this->row(11, 'tok-anna', self::NOW - 90);
@@ -51,7 +51,7 @@ class SelfCsvTest extends PaceStateTestCase {
         ));
     }
 
-    public function testAntwortenLesbar(): void {
+    public function testAnswersReadable(): void {
         $this->room->setDeckOrder('[11,12,13,14,15]');
         $multi = $this->choicePoll();
         $multi->setId(14);
@@ -72,7 +72,7 @@ class SelfCsvTest extends PaceStateTestCase {
         $this->assertSame('\'=HYPERLINK("x")', $answers['3'], 'Freitext aus dem Publikum wird keine Formel');
     }
 
-    public function testSpielerOhneTimerZeitLeer(): void {
+    public function testPlayersWithoutTimerTimeEmpty(): void {
         $this->room->setTimed(false);
         $this->row(11, 'tok-anna', self::NOW - 90_000, self::NOW - 80_000);
         $this->vote(11, 'tok-anna', 'AA', 1000, true, self::NOW - 85_000, elapsed: 5000, limit: 0);
@@ -83,7 +83,7 @@ class SelfCsvTest extends PaceStateTestCase {
         $this->assertSame('1000', $anna[2]);
     }
 
-    public function testSpielerMitTimerZeitSummeEndgueltiger(): void {
+    public function testPlayersWithTimerTimeIsSumOfFinalVotes(): void {
         $this->row(11, 'tok-anna', self::NOW - 90, self::NOW - 60);
         $this->vote(11, 'tok-anna', 'AA', 900, true, self::NOW - 80, elapsed: 10);
         $this->row(12, 'tok-anna', self::NOW - 60);
@@ -94,7 +94,7 @@ class SelfCsvTest extends PaceStateTestCase {
         $this->assertSame(['1', 'Anna', '900', '1', '2', '2 / 3', 'no', 'T' . (self::NOW - 90), 'T' . (self::NOW - 2), '10'], $anna);
     }
 
-    public function testFertigNachIsFinished(): void {
+    public function testFinishedFollowsIsFinished(): void {
         // Answered the last question, never tapped "I’m done", window closed -> finished.
         $this->row(11, 'tok-anna', self::NOW - 90, self::NOW - 60);
         $this->row(12, 'tok-anna', self::NOW - 60, self::NOW - 30);
@@ -114,7 +114,7 @@ class SelfCsvTest extends PaceStateTestCase {
         $this->assertSame('no', $this->playerLine('Cem')[6], 'nie gestartet');
     }
 
-    public function testSpielerInRanglistenReihenfolgeMitBom(): void {
+    public function testPlayersInLeaderboardOrderWithBom(): void {
         $this->row(11, 'tok-cem', self::NOW - 90, self::NOW - 60);
         $this->vote(11, 'tok-cem', 'AA', 900, true, self::NOW - 80);
 
@@ -128,7 +128,7 @@ class SelfCsvTest extends PaceStateTestCase {
         $this->assertSame('0 / 3', $lines[2][5]);
     }
 
-    public function testUnbekannteSicht(): void {
+    public function testUnknownView(): void {
         $this->expectException(\InvalidArgumentException::class);
 
         $this->service->exportCsv($this->room, 'results');

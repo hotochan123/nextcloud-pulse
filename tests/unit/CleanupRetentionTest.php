@@ -97,7 +97,7 @@ class CleanupRetentionTest extends TestCase {
 
     // ── self-paced ─────────────────────────────────────────────────────────
 
-    public function testHausaufgabeMitFristInZwanzigTagenBleibt(): void {
+    public function testHomeworkWithDeadlineInTwentyDaysStays(): void {
         // Created and opened 60 days ago, nobody there since — but the
         // deadline is still in the future.
         $this->selfRoom(1, opened: -59, closes: +20);
@@ -107,7 +107,7 @@ class CleanupRetentionTest extends TestCase {
         $this->assertSame([], $this->deletedRooms);
     }
 
-    public function testVorVierzigTagenGeschlossenOhneNeuerePraesenzWirdGeloescht(): void {
+    public function testClosedFortyDaysAgoWithoutNewerPresenceIsDeleted(): void {
         // Race: closing without a deadline = releasing (both 40 days ago).
         $this->selfRoom(2, opened: -41, closed: -40, released: -40);
         $this->lastSeen[2] = $this->ago(40);
@@ -117,7 +117,7 @@ class CleanupRetentionTest extends TestCase {
         $this->assertSame([2], $this->deletedProgress, 'der Fortschritt geht mit dem Raum');
     }
 
-    public function testSpaeteFreigabeHaeltDenRaum(): void {
+    public function testLateReleaseKeepsTheRoom(): void {
         // Deadline expired 40 days ago, released only 5 days ago
         // (releaseWindow pins closed_at = closes_at in the process).
         $this->selfRoom(3, opened: -50, closes: -40, closed: -40, released: -5);
@@ -126,7 +126,7 @@ class CleanupRetentionTest extends TestCase {
         $this->assertSame(0, $this->cleanup());
     }
 
-    public function testBesitzerbesuchHaeltDenRaum(): void {
+    public function testOwnerVisitKeepsTheRoom(): void {
         // Deadline 40 days ago, never released — but the teacher looked at
         // the progress just 5 days ago.
         $this->selfRoom(4, opened: -50, closes: -40, touched: -5);
@@ -135,7 +135,7 @@ class CleanupRetentionTest extends TestCase {
         $this->assertSame(0, $this->cleanup());
     }
 
-    public function testEntwurfOhneJedesLebenszeichenWirdGeloescht(): void {
+    public function testDraftWithoutAnySignOfLifeIsDeleted(): void {
         // Switched to "Self-paced", never opened, never visited.
         $this->selfRoom(5);
 
@@ -145,21 +145,21 @@ class CleanupRetentionTest extends TestCase {
 
     // ── moderated: equivalence to the old rule ─────────────────────────────
 
-    public function testModerierterRaumMitPraesenzVorZehnTagenBleibt(): void {
+    public function testModeratedRoomWithPresenceTenDaysAgoStays(): void {
         $this->liveRoom(10);
         $this->lastSeen[10] = $this->ago(10);
 
         $this->assertSame(0, $this->cleanup());
     }
 
-    public function testModerierterRaumOhnePraesenzWirdGeloescht(): void {
+    public function testModeratedRoomWithoutPresenceIsDeleted(): void {
         $this->liveRoom(11);
 
         $this->assertSame(1, $this->cleanup());
         $this->assertSame([11], $this->deletedRooms);
     }
 
-    public function testModerierterRaumMitBesitzerbesuchVorEinemTagBleibt(): void {
+    public function testModeratedRoomWithOwnerVisitOneDayAgoStays(): void {
         // Created 31 days ago, no audience ever — but the owner edited the
         // deck yesterday. This is the deck the old rule deleted.
         $room = $this->liveRoom(13, created: 31);
@@ -169,7 +169,7 @@ class CleanupRetentionTest extends TestCase {
         $this->assertSame([], $this->deletedRooms);
     }
 
-    public function testModerierterRaumOhneJedeAktivitaetWirdGeloescht(): void {
+    public function testModeratedRoomWithoutAnyActivityIsDeleted(): void {
         // Created 31 days ago, no heartbeat, no owner activity.
         $this->liveRoom(14, created: 31);
 
@@ -177,7 +177,7 @@ class CleanupRetentionTest extends TestCase {
         $this->assertSame([14], $this->deletedRooms);
     }
 
-    public function testModerierterRaumMitBesitzerbesuchVorDemStichtagWirdGeloescht(): void {
+    public function testModeratedRoomWithOwnerVisitBeforeTheCutoffIsDeleted(): void {
         // Owner activity counts like a heartbeat: one second too old is too old.
         $room = $this->liveRoom(15, created: 31);
         $room->setTouchedAt(self::CUTOFF - 1);
@@ -187,14 +187,14 @@ class CleanupRetentionTest extends TestCase {
         $this->assertSame([15], $this->deletedRooms);
     }
 
-    public function testBesitzerbesuchGenauAmStichtagHaeltDenRaum(): void {
+    public function testOwnerVisitExactlyOnTheCutoffKeepsTheRoom(): void {
         $room = $this->liveRoom(16, created: 31);
         $room->setTouchedAt(self::CUTOFF);
 
         $this->assertSame(0, $this->cleanup());
     }
 
-    public static function praesenzAlter(): array {
+    public static function presenceAges(): array {
         return [
             'gestern' => [self::NOW - self::DAY],
             'genau am Stichtag' => [self::CUTOFF],
@@ -204,8 +204,8 @@ class CleanupRetentionTest extends TestCase {
         ];
     }
 
-    #[DataProvider('praesenzAlter')]
-    public function testModeriertEntscheidetWieCountActiveSeitStichtag(int $lastSeen): void {
+    #[DataProvider('presenceAges')]
+    public function testModeratedDecidesLikeCountActiveSinceCutoff(int $lastSeen): void {
         $this->liveRoom(12);
         $this->lastSeen[12] = $lastSeen;
 
@@ -216,7 +216,7 @@ class CleanupRetentionTest extends TestCase {
         $this->assertSame($keptBefore, $this->deletedRooms === []);
     }
 
-    public function testGemischteKandidatenWerdenEinzelnEntschieden(): void {
+    public function testMixedCandidatesAreDecidedIndividually(): void {
         $this->liveRoom(20);
         $this->lastSeen[20] = $this->ago(3);
         $this->liveRoom(21);

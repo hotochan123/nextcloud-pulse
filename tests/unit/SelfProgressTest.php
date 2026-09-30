@@ -21,7 +21,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 #[CoversClass(PaceStateService::class)]
 class SelfProgressTest extends PaceStateTestCase {
 
-    public function testRueckmeldungAmEndeVerdecktPunkte(): void {
+    public function testFeedbackAtEndHidesPoints(): void {
         $this->room->setFeedback('end');
         $this->race();
 
@@ -39,7 +39,7 @@ class SelfProgressTest extends PaceStateTestCase {
         $this->assertSame(2, $data['players'][0]['answered'], 'Beantwortet bleibt sichtbar');
     }
 
-    public function testSchalterZeigtPunkte(): void {
+    public function testSwitchShowsPoints(): void {
         $this->room->setFeedback('end');
         $this->race();
 
@@ -52,7 +52,7 @@ class SelfProgressTest extends PaceStateTestCase {
         $this->assertSame(['Ben' => 950, 'Anna' => 900, 'Cem' => 0], self::column($data['leaderboard'], 'score'));
     }
 
-    public function testNachDerFreigabeImmerSichtbar(): void {
+    public function testAlwaysVisibleAfterRelease(): void {
         $this->room->setFeedback('end');
         $this->race();
         $this->release();
@@ -64,7 +64,7 @@ class SelfProgressTest extends PaceStateTestCase {
         $this->assertSame(900, $data['players'][0]['score']);
     }
 
-    public function testNurEndgueltigeStimmenZaehlen(): void {
+    public function testOnlyFinalVotesCount(): void {
         $this->race();
         // Cem has just answered correctly: still inside the correction window.
         $this->vote(11, 'tok-cem', 'AA', 990, true, self::NOW - 1);
@@ -77,7 +77,7 @@ class SelfProgressTest extends PaceStateTestCase {
         $this->assertSame(3, $data['questions'][0]['answered']);
     }
 
-    public function testUebersprungenZaehltVerlasseneOhneStimme(): void {
+    public function testSkippedCountsLeftQuestionsWithoutVote(): void {
         $this->race();
         // Throwaway player clicks through without answering.
         $this->players[] = $this->player(34, 'tok-dora', 'Dora');
@@ -92,7 +92,7 @@ class SelfProgressTest extends PaceStateTestCase {
         $this->assertSame(1, $players['Ben']['skipped'], 'Q2 ohne Antwort verlassen');
     }
 
-    public function testOnlineAusDemPraesenzFenster(): void {
+    public function testOnlineFromThePresenceWindow(): void {
         $this->race();
         $this->seen = ['tok-anna' => self::NOW - 15, 'tok-ben' => self::NOW - 16];
 
@@ -105,7 +105,7 @@ class SelfProgressTest extends PaceStateTestCase {
         $this->assertSame(0, $players['Cem']['lastSeen']);
     }
 
-    public function testSpielerzeilen(): void {
+    public function testPlayerRows(): void {
         $this->race();
 
         $data = $this->service->progress($this->room);
@@ -124,7 +124,7 @@ class SelfProgressTest extends PaceStateTestCase {
         $this->assertStringNotContainsString('tok-', json_encode($data), 'kein Token verlässt den Server');
     }
 
-    public function testFragenzeilenUndOffeneFreitexte(): void {
+    public function testQuestionRowsAndOpenFreeTexts(): void {
         $this->race();
         $this->row(13, 'tok-ben', self::NOW - 10);
         $this->vote(13, 'tok-ben', 'Saturn', 0, false, self::NOW - 8, pending: true);
@@ -144,7 +144,7 @@ class SelfProgressTest extends PaceStateTestCase {
         $this->assertSame([['pollId' => 13, 'k' => 3, 'answer' => 'Saturn', 'count' => 2]], $data['pendingAnswers'], 'erste Schreibweise, keine Lösung');
     }
 
-    public function testProbelaufRanglisteLeer(): void {
+    public function testPracticeRunLeaderboardEmpty(): void {
         $this->room->setPractice(true);
         $this->race();
 

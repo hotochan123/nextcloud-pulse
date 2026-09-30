@@ -28,7 +28,7 @@ class SelfSummaryGateTest extends PaceStateTestCase {
     }
 
     #[DataProvider('cookies')]
-    public function testOhneZeilenVorDerFreigabeNichts(?string $token): void {
+    public function testWithoutRowsNothingBeforeRelease(?string $token): void {
         $this->annaReachedTwo();
 
         foreach (['offen' => fn () => null, 'geschlossen' => fn () => $this->close()] as $state => $apply) {
@@ -43,7 +43,7 @@ class SelfSummaryGateTest extends PaceStateTestCase {
     }
 
     #[DataProvider('cookies')]
-    public function testOhneZeilenNachDerFreigabeNurDerEndstand(?string $token): void {
+    public function testWithoutRowsOnlyFinalStandingsAfterRelease(?string $token): void {
         $this->annaReachedTwo();
         $this->release();
 
@@ -55,7 +55,7 @@ class SelfSummaryGateTest extends PaceStateTestCase {
         $this->assertNotContains(true, array_column($summary['leaderboard'], 'me'));
     }
 
-    public function testOffenNurVerlasseneFragenOhneLoesung(): void {
+    public function testOpenOnlyLeftQuestionsWithoutSolution(): void {
         $this->annaReachedTwo();
 
         $summary = $this->service->publicSummary($this->room, 'tok-anna');
@@ -74,7 +74,7 @@ class SelfSummaryGateTest extends PaceStateTestCase {
         $this->assertNoSolution($summary);
     }
 
-    public function testGeschlossenAlleErreichtenOhneLoesung(): void {
+    public function testClosedAllReachedWithoutSolution(): void {
         $this->annaReachedTwo();
         $this->close();
 
@@ -86,7 +86,7 @@ class SelfSummaryGateTest extends PaceStateTestCase {
         $this->assertNoSolution($summary);
     }
 
-    public function testRueckmeldungAmEndeOhneUrteil(): void {
+    public function testFeedbackAtEndWithoutVerdict(): void {
         $this->room->setFeedback('end');
         $this->annaReachedTwo();
 
@@ -97,7 +97,7 @@ class SelfSummaryGateTest extends PaceStateTestCase {
         $this->assertNull($summary['myScore']);
     }
 
-    public function testNachDerFreigabeGenauDieErreichtenMitLoesungUndAuszaehlung(): void {
+    public function testAfterReleaseExactlyTheReachedOnesWithSolutionAndTally(): void {
         $this->annaReachedTwo();
         $this->release();
 
@@ -116,7 +116,7 @@ class SelfSummaryGateTest extends PaceStateTestCase {
         $this->assertStringNotContainsString('Größter Planet', json_encode($summary, JSON_UNESCAPED_UNICODE));
     }
 
-    public function testProbelaufNieEineRangliste(): void {
+    public function testPracticeRunNeverHasALeaderboard(): void {
         $this->room->setPractice(true);
         $this->annaReachedTwo();
         $this->release();
@@ -127,7 +127,7 @@ class SelfSummaryGateTest extends PaceStateTestCase {
         $this->assertFalse($withoutCookie['available']);
     }
 
-    public function testKopf(): void {
+    public function testHeader(): void {
         $summary = $this->service->publicSummary($this->room, null);
 
         $this->assertSame('quiz', $summary['mode']);

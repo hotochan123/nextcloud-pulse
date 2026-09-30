@@ -38,7 +38,7 @@ class RetentionGraceMigrationTest extends TestCase {
     /** @var list<string> IOutput::info lines */
     private array $info = [];
 
-    public function testOhneJobBekommenRaeumeOhneBesitzeraktivitaetEineFrist(): void {
+    public function testWithoutJobRoomsWithoutOwnerActivityGetAGracePeriod(): void {
         // Installed fresh on an earlier version: the job was never registered.
         $this->migrate([], changed: 4);
 
@@ -52,7 +52,7 @@ class RetentionGraceMigrationTest extends TestCase {
         $this->assertStringContainsString('4 existing rooms', $this->info[0]);
     }
 
-    public function testJobAngemeldetAberNieGelaufen(): void {
+    public function testJobRegisteredButNeverRun(): void {
         // Registered but never run (for example no cron): the first run is
         // still ahead, so the grace period applies as well.
         $this->migrate([0], changed: 1);
@@ -60,7 +60,7 @@ class RetentionGraceMigrationTest extends TestCase {
         $this->assertContains('executeStatement', $this->sql);
     }
 
-    public function testJobLiefSchonAendertNichts(): void {
+    public function testJobAlreadyRanChangesNothing(): void {
         // Production-like: the job runs daily. Moderated rooms keep being
         // judged by the old rule until their owner opens them again.
         $this->migrate([self::NOW - 3600], changed: 0);
@@ -69,13 +69,13 @@ class RetentionGraceMigrationTest extends TestCase {
         $this->assertSame([], $this->info);
     }
 
-    public function testDoppelterEintragZaehltWennEinerLief(): void {
+    public function testDuplicateEntryCountsIfOneRan(): void {
         $this->migrate([0, self::NOW - 86_400], changed: 0);
 
         $this->assertSame([], $this->sql);
     }
 
-    public function testKeinRaumBetroffenKeineMeldung(): void {
+    public function testNoRoomAffectedNoMessage(): void {
         $this->migrate([], changed: 0);
 
         $this->assertContains('executeStatement', $this->sql);

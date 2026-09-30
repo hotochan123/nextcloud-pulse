@@ -29,13 +29,13 @@ use PHPUnit\Framework\Attributes\CoversClass;
 #[CoversClass(StateService::class)]
 class SelfVersionTest extends PaceStateTestCase {
 
-    public function testVersionIst24HexZeichen(): void {
+    public function testVersionIs24HexCharacters(): void {
         $this->assertMatchesRegularExpression('/^[0-9a-f]{24}$/', $this->phoneVersion());
         $this->assertMatchesRegularExpression('/^[0-9a-f]{24}$/', $this->beamerVersion());
         $this->assertMatchesRegularExpression('/^[0-9a-f]{24}$/', $this->service->version($this->service->progress($this->room)));
     }
 
-    public function testFristLaeuftAbOhneDatenbankAenderung(): void {
+    public function testDeadlinePassesWithoutADatabaseChange(): void {
         $this->room->setClosesAt(self::NOW + 1);
         $this->row(11, 'tok-anna', self::NOW - 5);
         $before = $this->phoneVersion();
@@ -49,7 +49,7 @@ class SelfVersionTest extends PaceStateTestCase {
         $this->assertNotSame($beamerBefore, $this->beamerVersion(), 'Beamer: die Frist steht im Cache-Schlüssel');
     }
 
-    public function testStimmeWirdEndgueltig(): void {
+    public function testVoteBecomesFinal(): void {
         $this->row(11, 'tok-anna', self::NOW - 10);
         $this->vote(11, 'tok-anna', 'AA', 900, true, self::NOW);
 
@@ -60,7 +60,7 @@ class SelfVersionTest extends PaceStateTestCase {
         $this->assertNotSame($pending, $this->phoneVersion(), 'created+fw -> +fw+1');
     }
 
-    public function testSekundenOhneEreignisAendernNichts(): void {
+    public function testSecondsWithoutAnEventChangeNothing(): void {
         $this->row(11, 'tok-anna', self::NOW - 5);
         $this->vote(11, 'tok-anna', 'AA', 900, true, self::NOW - 30);
         $first = $this->phoneVersion();
@@ -71,7 +71,7 @@ class SelfVersionTest extends PaceStateTestCase {
         $this->assertNotSame(self::NOW, $this->phone()['serverNow'], 'nur serverNow läuft');
     }
 
-    public function testZeitUmKipptGenauEinmal(): void {
+    public function testTimeUpFlipsExactlyOnce(): void {
         $this->row(11, 'tok-anna', self::NOW - 20);
         $running = $this->phoneVersion();
 
@@ -83,7 +83,7 @@ class SelfVersionTest extends PaceStateTestCase {
         $this->assertSame($up, $this->phoneVersion());
     }
 
-    public function testPraesenzNurImEntwurfUndAufDemBeamer(): void {
+    public function testPresenceOnlyInTheDraftAndOnTheProjector(): void {
         $this->row(11, 'tok-anna', self::NOW - 5);
         $phone = $this->phoneVersion();
         $beamer = $this->beamerVersion();
@@ -102,7 +102,7 @@ class SelfVersionTest extends PaceStateTestCase {
         $this->assertNotSame($lobby, $this->phoneVersion(), 'Wartezustand: „N dabei"');
     }
 
-    public function testFortschrittZuletztGesehenNichtImHash(): void {
+    public function testProgressLastSeenIsNotInTheHash(): void {
         $this->row(11, 'tok-anna', self::NOW - 5);
         $this->seen = ['tok-anna' => self::NOW - 1];
         $first = $this->service->version($this->service->progress($this->room));
@@ -114,7 +114,7 @@ class SelfVersionTest extends PaceStateTestCase {
         $this->assertNotSame($first, $this->service->version($this->service->progress($this->room)), 'offline');
     }
 
-    public function testBeamerImSelbenEimerEinBau(): void {
+    public function testProjectorInTheSameBucketOneBuild(): void {
         $this->row(11, 'tok-anna', self::NOW - 5);
         $first = $this->beamer();
         $built = $this->calls['progress.findByRoom']; // projector aggregate + leaderboard
@@ -134,7 +134,7 @@ class SelfVersionTest extends PaceStateTestCase {
         $this->assertNotSame($this->service->version($first), $this->service->version($third));
     }
 
-    public function testVersionOhneServerNowUndVersion(): void {
+    public function testVersionWithoutServerNowAndVersion(): void {
         $state = $this->phone();
 
         $this->assertSame(
@@ -145,7 +145,7 @@ class SelfVersionTest extends PaceStateTestCase {
 
     // ── StateService ───────────────────────────────────────────────────────
 
-    public function testStateServiceDelegiertImEigenenTempo(): void {
+    public function testStateServiceDelegatesInSelfPacedMode(): void {
         $this->row(11, 'tok-anna', self::NOW - 5);
         $state = $this->stateService();
 
@@ -155,7 +155,7 @@ class SelfVersionTest extends PaceStateTestCase {
         $this->assertSame($this->phone(), $state->publicState($this->room, 'tok-anna'));
     }
 
-    public function testModeriertFasstDenNeuenDienstNieAn(): void {
+    public function testModeratedNeverTouchesTheNewService(): void {
         $paceState = $this->createMock(PaceStateService::class);
         $paceState->expects($this->never())->method($this->anything());
         $roomService = $this->createMock(RoomService::class);

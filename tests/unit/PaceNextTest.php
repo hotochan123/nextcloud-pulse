@@ -114,7 +114,7 @@ class PaceNextTest extends TestCase {
 
     // ── Protocol ───────────────────────────────────────────────────────────
 
-    public function testErstesNextStartetFrageEins(): void {
+    public function testFirstNextStartsQuestionOne(): void {
         $this->progress->expects($this->never())->method('closeIfOpen');
         $this->progress->expects($this->once())->method('start')
             ->with(5, 11, self::TOK, 0, self::NOW)->willReturn(true);
@@ -122,7 +122,7 @@ class PaceNextTest extends TestCase {
         $this->service->next($this->room(), self::TOK, 0);
     }
 
-    public function testDoppeltesNextNullBeiOffenerErsterFrageTutNichts(): void {
+    public function testDoubleNextZeroWithOpenFirstQuestionDoesNothing(): void {
         $this->rows = [$this->row(1, 11, 0, self::NOW - 2)];
         $this->progress->expects($this->never())->method('closeIfOpen');
         $this->progress->expects($this->never())->method('start');
@@ -130,7 +130,7 @@ class PaceNextTest extends TestCase {
         $this->service->next($this->room(), self::TOK, 0);
     }
 
-    public function testBeantworteteOffeneFrageSchliesstDannStartetDieNaechste(): void {
+    public function testAnsweredOpenQuestionClosesThenStartsTheNext(): void {
         $this->rows = [$this->row(1, 11, 0, self::NOW - 5)];
         $this->answered[11] = true;
         $calls = [];
@@ -150,7 +150,7 @@ class PaceNextTest extends TestCase {
         $this->assertSame(['close', 'start'], $calls);
     }
 
-    public function testVerlorenesCompareAndSetStartetNichts(): void {
+    public function testLostCompareAndSetStartsNothing(): void {
         // Another tab has just closed the row and starts on its own.
         $this->rows = [$this->row(1, 11, 0, self::NOW - 5)];
         $this->answered[11] = true;
@@ -160,7 +160,7 @@ class PaceNextTest extends TestCase {
         $this->service->next($this->room(), self::TOK, 11);
     }
 
-    public function testSelbstheilungOhneOffeneZeileStartetDenNachfolger(): void {
+    public function testSelfHealingWithoutOpenRowStartsTheSuccessor(): void {
         // Abort between closing (Q1) and starting (Q2).
         $this->rows = [$this->row(1, 11, 0, self::NOW - 30, self::NOW - 10)];
         $this->progress->expects($this->never())->method('closeIfOpen');
@@ -170,7 +170,7 @@ class PaceNextTest extends TestCase {
         $this->service->next($this->room(), self::TOK, 11);
     }
 
-    public function testVeraltetesAfterOhneOffeneZeileTutNichts(): void {
+    public function testStaleAfterWithoutOpenRowDoesNothing(): void {
         $this->rows = [
             $this->row(1, 11, 0, self::NOW - 30, self::NOW - 20),
             $this->row(2, 12, 1, self::NOW - 20, self::NOW - 10),
@@ -183,7 +183,7 @@ class PaceNextTest extends TestCase {
         $this->service->next($this->room(), self::TOK, 13); // future
     }
 
-    public function testVeraltetesAfterBeiOffenerZeileTutNichts(): void {
+    public function testStaleAfterWithOpenRowDoesNothing(): void {
         $this->rows = [
             $this->row(1, 11, 0, self::NOW - 30, self::NOW - 20),
             $this->row(2, 12, 1, self::NOW - 20),
@@ -196,7 +196,7 @@ class PaceNextTest extends TestCase {
         $this->service->next($this->room(), self::TOK, 13);
     }
 
-    public function testLetzteFrageWirdNurGeschlossen(): void {
+    public function testLastQuestionIsOnlyClosed(): void {
         $this->rows = [
             $this->row(1, 11, 0, self::NOW - 30, self::NOW - 20),
             $this->row(2, 12, 1, self::NOW - 20, self::NOW - 10),
@@ -209,7 +209,7 @@ class PaceNextTest extends TestCase {
         $this->service->next($this->room(), self::TOK, 13);
     }
 
-    public function testUniqueVerstossBeimStartenWirdGeschluckt(): void {
+    public function testUniqueViolationOnStartIsSwallowed(): void {
         // A parallel tab has already started Q1: start() reports false, no error.
         $this->progress->expects($this->once())->method('start')->willReturn(false);
 
@@ -218,7 +218,7 @@ class PaceNextTest extends TestCase {
 
     // ── Rejections ─────────────────────────────────────────────────────────
 
-    public static function geschlosseneFenster(): array {
+    public static function closedWindows(): array {
         return [
             'Entwurf' => [0, 0, 0, 0, 'The quiz has not started yet.'],
             'manuell geschlossen' => [self::NOW - 100, 0, self::NOW - 1, 0, 'The quiz is closed.'],
@@ -227,8 +227,8 @@ class PaceNextTest extends TestCase {
         ];
     }
 
-    #[DataProvider('geschlosseneFenster')]
-    public function testNurBeiOffenemFenster(int $openedAt, int $closesAt, int $closedAt, int $releasedAt, string $message): void {
+    #[DataProvider('closedWindows')]
+    public function testOnlyWithOpenWindow(int $openedAt, int $closesAt, int $closedAt, int $releasedAt, string $message): void {
         $room = $this->room();
         $room->setOpenedAt($openedAt);
         $room->setClosesAt($closesAt);
@@ -241,7 +241,7 @@ class PaceNextTest extends TestCase {
         $this->service->next($room, self::TOK, 0);
     }
 
-    public function testOhneNamenKeinStart(): void {
+    public function testNoStartWithoutName(): void {
         $this->hasPlayer = false;
         $this->progress->expects($this->never())->method('start');
 
@@ -250,13 +250,13 @@ class PaceNextTest extends TestCase {
         $this->service->next($this->room(), self::TOK, 0);
     }
 
-    public function testNegativesAfterIstUngueltig(): void {
+    public function testNegativeAfterIsInvalid(): void {
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('Invalid request.');
         $this->service->next($this->room(), self::TOK, -1);
     }
 
-    public function testModerierterRaumKenntKeinNext(): void {
+    public function testModeratedRoomKnowsNoNext(): void {
         $room = $this->room();
         $room->setPace('live');
 
@@ -267,7 +267,7 @@ class PaceNextTest extends TestCase {
 
     // ── Preview lock ───────────────────────────────────────────────────────
 
-    public function testMitTimerUnbeantwortetBisZumZeitablaufGesperrt(): void {
+    public function testWithTimerUnansweredLockedUntilTimeIsUp(): void {
         // Boundary as in /vote: at elapsed = limit the time is still running.
         $this->rows = [$this->row(1, 11, 0, self::NOW - self::LIMIT)];
         $this->progress->expects($this->never())->method('closeIfOpen');
@@ -276,7 +276,7 @@ class PaceNextTest extends TestCase {
         $this->service->next($this->room(), self::TOK, 11);
     }
 
-    public function testMitTimerUnbeantwortetNachZeitablaufWeiter(): void {
+    public function testWithTimerUnansweredMovesOnAfterTimeIsUp(): void {
         $this->rows = [$this->row(1, 11, 0, self::NOW - self::LIMIT - 1)];
         $this->progress->expects($this->once())->method('closeIfOpen')->with(1, self::NOW)->willReturn(true);
         $this->progress->expects($this->once())->method('start')->with(5, 12, self::TOK, 1, self::NOW)->willReturn(true);
@@ -284,7 +284,7 @@ class PaceNextTest extends TestCase {
         $this->service->next($this->room(), self::TOK, 11);
     }
 
-    public function testMitTimerBeantwortetSofortWeiter(): void {
+    public function testWithTimerAnsweredMovesOnImmediately(): void {
         $this->rows = [$this->row(1, 11, 0, self::NOW)];
         $this->answered[11] = true;
         $this->progress->expects($this->once())->method('closeIfOpen')->willReturn(true);
@@ -293,7 +293,7 @@ class PaceNextTest extends TestCase {
         $this->service->next($this->room(), self::TOK, 11);
     }
 
-    public function testOhneTimerUnbeantwortetSofortWeiter(): void {
+    public function testWithoutTimerUnansweredMovesOnImmediately(): void {
         $room = $this->room();
         $room->setTimed(false);
         $this->rows = [$this->row(1, 11, 0, self::NOW)];
@@ -303,7 +303,7 @@ class PaceNextTest extends TestCase {
         $this->service->next($room, self::TOK, 11);
     }
 
-    public function testGeloeschteOffeneFrageWirdOhneSperreVerlassen(): void {
+    public function testDeletedOpenQuestionIsLeftWithoutLock(): void {
         // Defence: the open row's question no longer exists — nobody gets stuck.
         $this->deck = [$this->poll(12), $this->poll(13)];
         $this->rows = [$this->row(1, 11, 0, self::NOW)];
@@ -315,7 +315,7 @@ class PaceNextTest extends TestCase {
 
     // ── Removed while /next was in flight ──────────────────────────────────
 
-    public function testGestarteteZeileWirdGegenDasEntfernenGeprueft(): void {
+    public function testStartedRowIsCheckedAgainstRemoval(): void {
         // Re-read with a lock, but without a room lock (the normal case stays per token).
         $this->progress->method('start')->willReturn(true);
         $this->players->expects($this->once())->method('existsForUpdate')->with(5, self::TOK);
@@ -324,14 +324,14 @@ class PaceNextTest extends TestCase {
         $this->service->next($this->room(), self::TOK, 0);
     }
 
-    public function testOhneNeueZeileKeineNachpruefung(): void {
+    public function testNoRecheckWithoutNewRow(): void {
         $this->progress->method('start')->willReturn(false);
         $this->players->expects($this->never())->method('existsForUpdate');
 
         $this->service->next($this->room(), self::TOK, 0);
     }
 
-    public function testEntferntWaehrendDesStartsWirdDieZeileWiederGeloescht(): void {
+    public function testRemovedDuringStartTheRowIsDeletedAgain(): void {
         // removePlayer committed between the player check and start(): otherwise
         // a row without a player would remain, and after joining again the cookie
         // would start in the middle of the deck with an old clock.

@@ -106,7 +106,7 @@ class PacePlayerAdminTest extends TestCase {
 
     // ── Lock joins ─────────────────────────────────────────────────────────
 
-    public function testBeitrittSperrenNurImQuiz(): void {
+    public function testLockingJoinsOnlyInQuiz(): void {
         // Moderated quizzes can lock joining too (LivePlayerAdminTest), a poll has no players.
         $this->locked->setMode('poll');
         $this->locked->setPace('live');
@@ -121,7 +121,7 @@ class PacePlayerAdminTest extends TestCase {
         $this->assertSame(['beginTransaction', 'rollBack'], $this->tx);
     }
 
-    public function testBeitrittSperrenSetztDasFlag(): void {
+    public function testLockingJoinsSetsTheFlag(): void {
         $this->rooms->expects($this->once())->method('update')
             ->with($this->identicalTo($this->locked))->willReturnArgument(0);
 
@@ -131,7 +131,7 @@ class PacePlayerAdminTest extends TestCase {
         $this->assertSame(['beginTransaction', 'commit'], $this->tx);
     }
 
-    public function testBeitrittWiederOeffnen(): void {
+    public function testReopeningJoins(): void {
         $this->locked->setJoinsLocked(true);
         $this->locked->resetUpdatedFields();
         $this->rooms->expects($this->once())->method('update')->willReturnArgument(0);
@@ -141,7 +141,7 @@ class PacePlayerAdminTest extends TestCase {
 
     // ── Remove person ──────────────────────────────────────────────────────
 
-    public function testUnbekannteOderFremdeIdIstEinEingabefehler(): void {
+    public function testUnknownOrForeignIdIsAnInputError(): void {
         // A player ID from another room does not show up in findByRoom.
         $this->players->expects($this->never())->method('delete');
         $this->votes->expects($this->never())->method('deleteByPollsAndToken');
@@ -155,7 +155,7 @@ class PacePlayerAdminTest extends TestCase {
         $this->assertSame(['beginTransaction', 'rollBack'], $this->tx);
     }
 
-    public function testEntfernenRaeumtAllesVomTokenInFesterReihenfolge(): void {
+    public function testRemovingClearsEverythingOfTheTokenInFixedOrder(): void {
         $this->recordRemoval([12, 15, 13]);
 
         $this->service->removePlayer($this->room(), 32);
@@ -169,7 +169,7 @@ class PacePlayerAdminTest extends TestCase {
         $this->assertSame(['beginTransaction', 'commit'], $this->tx);
     }
 
-    public function testEntfernenAuchNachDerFreigabe(): void {
+    public function testRemovingAlsoAfterRelease(): void {
         $this->locked = $this->room(self::NOW - 100, self::NOW - 1, self::NOW - 1);
         $this->recordRemoval([12, 15, 13]);
 
@@ -180,7 +180,7 @@ class PacePlayerAdminTest extends TestCase {
         $this->assertSame(['beginTransaction', 'commit'], $this->tx);
     }
 
-    public function testEntfernenImEntwurfNimmtDasAktuelleDeck(): void {
+    public function testRemovingInDraftTakesTheCurrentDeck(): void {
         $this->locked = $this->room();
         $this->recordRemoval(null);
 
@@ -189,7 +189,7 @@ class PacePlayerAdminTest extends TestCase {
         $this->assertSame('votes:21,22:tok-anna', $this->calls[1]);
     }
 
-    public function testEntfernenNurImQuiz(): void {
+    public function testRemovingOnlyInQuiz(): void {
         $this->locked->setMode('poll');
         $this->locked->setPace('live');
         $this->players->expects($this->never())->method('delete');

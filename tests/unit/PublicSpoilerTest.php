@@ -97,16 +97,16 @@ class PublicSpoilerTest extends TestCase {
 
     // ── Ordering: no spoiler via the option order ──────────────────────────
 
-    public function testQuizRangfolgeVorDemAufloesenGemischt(): void {
+    public function testQuizRankingShuffledBeforeReveal(): void {
         $state = $this->stateFor($this->room('quiz', active: 7), $this->rankPoll('active'));
         $served = $state['poll']['options'];
 
         $this->assertFalse($state['poll']['revealed']);
         $this->assertIsPermutation(self::RANK, $served);
-        $this->assertSame(self::hashFolge(7, self::RANK, $this->secret), $served);
+        $this->assertSame(self::hashOrder(7, self::RANK, $this->secret), $served);
     }
 
-    public function testQuizRangfolgeNachDemAufloesenInGespeicherterFolge(): void {
+    public function testQuizRankingInStoredOrderAfterReveal(): void {
         // Per-question reveal: 'locked' means revealed.
         $state = $this->stateFor($this->room('quiz', active: 7), $this->rankPoll('locked'));
 
@@ -114,28 +114,28 @@ class PublicSpoilerTest extends TestCase {
         $this->assertSame(['ZZ9A', 'AB12', 'M3K0'], array_column($state['poll']['options'], 'id'));
     }
 
-    public function testQuizAufloesungAmEndeBleibtBeiLockedGemischt(): void {
+    public function testQuizRevealAtEndStaysShuffledWhenLocked(): void {
         // "Reveal at the end": 'locked' is only paused, only 'ended' reveals.
         $room = $this->room('quiz', active: 7, revealAtEnd: true);
 
         $locked = $this->stateFor($room, $this->rankPoll('locked'));
         $this->assertSame('locked', $locked['poll']['status']);
         $this->assertFalse($locked['poll']['revealed']);
-        $this->assertSame(self::hashFolge(7, self::RANK, $this->secret), $locked['poll']['options']);
+        $this->assertSame(self::hashOrder(7, self::RANK, $this->secret), $locked['poll']['options']);
 
         $ended = $this->stateFor($room, $this->rankPoll('ended'));
         $this->assertTrue($ended['poll']['revealed']);
         $this->assertSame(['ZZ9A', 'AB12', 'M3K0'], array_column($ended['poll']['options'], 'id'));
     }
 
-    public function testUmfrageRangfolgeBleibtInGespeicherterFolge(): void {
+    public function testPollRankingStaysInStoredOrder(): void {
         // A poll has no solution — the moderator's order applies.
         $state = $this->stateFor($this->room('poll', active: 7), $this->rankPoll('active'));
 
         $this->assertSame(['ZZ9A', 'AB12', 'M3K0'], array_column($state['poll']['options'], 'id'));
     }
 
-    public function testQuizZuordnungMischtNurDieZiele(): void {
+    public function testQuizMatchingShufflesOnlyTheTargets(): void {
         $items = [['id' => 'QQ01', 'label' => 'Hund'], ['id' => 'AA01', 'label' => 'Katze'], ['id' => 'MM01', 'label' => 'Kuh']];
         // Target i belongs to item i — so what is stored is the solution.
         $targets = [['id' => 'TC03', 'label' => 'bellt'], ['id' => 'TA01', 'label' => 'miaut'], ['id' => 'TB02', 'label' => 'muht']];
@@ -145,11 +145,11 @@ class PublicSpoilerTest extends TestCase {
 
         $this->assertSame($items, $match['items'], 'Items behalten ihre Folge');
         $this->assertIsPermutation($targets, $match['targets']);
-        $this->assertSame(self::hashFolge(7, $targets, $this->secret), $match['targets']);
+        $this->assertSame(self::hashOrder(7, $targets, $this->secret), $match['targets']);
         $this->assertSame(['TA01', 'TB02', 'TC03'], array_column($match['targets'], 'id'), 'hier nicht die Lösungsfolge');
     }
 
-    public function testQuizZuordnungNachDemAufloesenUnveraendert(): void {
+    public function testQuizMatchingUnchangedAfterReveal(): void {
         $poll = $this->poll(7, 'match', 'locked', 900, [
             'items' => [['id' => 'QQ01', 'label' => 'Hund'], ['id' => 'AA01', 'label' => 'Katze']],
             'targets' => [['id' => 'ZT01', 'label' => 'bellt'], ['id' => 'BT01', 'label' => 'miaut']],
@@ -160,7 +160,7 @@ class PublicSpoilerTest extends TestCase {
         $this->assertSame(['ZT01', 'BT01'], array_column($state['poll']['match']['targets'], 'id'));
     }
 
-    public function testMischungIstFuerAlleBetrachterGleich(): void {
+    public function testShuffleIsTheSameForAllViewers(): void {
         // Projector and phones fetch separately — the order must not jump,
         // neither between two fetches nor between tokens nor between the
         // live view and the overall summary.
@@ -180,7 +180,7 @@ class PublicSpoilerTest extends TestCase {
         }
     }
 
-    public function testMischungHaengtAnGeheimnisUndFrage(): void {
+    public function testShuffleDependsOnSecretAndQuestion(): void {
         // The same option IDs, the same solution: another instance (another
         // secret) or another question shuffles differently. The IDs are
         // chosen so that the orders actually differ.
@@ -196,7 +196,7 @@ class PublicSpoilerTest extends TestCase {
 
     // ── Overall summary: only questions that were shown ────────────────────
 
-    public function testSummaryLaesstNieGezeigteFragenWeg(): void {
+    public function testSummaryLeavesOutNeverShownQuestions(): void {
         $room = $this->room('poll', active: 2);
         $this->polls->method('findByRoom')->willReturn([
             $this->poll(1, 'choice', 'active', 900),   // shown earlier
@@ -210,7 +210,7 @@ class PublicSpoilerTest extends TestCase {
         $this->assertStringNotContainsString('Frage 3', json_encode($summary), 'kein Text der nächsten Frage');
     }
 
-    public function testSummaryBehaeltAktiveFrageOhneStartzeitpunkt(): void {
+    public function testSummaryKeepsActiveQuestionWithoutStartTime(): void {
         // Poll room from before the start time existed: the running question has 0.
         $room = $this->room('poll', active: 3);
         $this->polls->method('findByRoom')->willReturn([$this->poll(3, 'choice', 'active', 0)]);
@@ -218,7 +218,7 @@ class PublicSpoilerTest extends TestCase {
         $this->assertCount(1, $this->service->publicSummary($room, null)['items']);
     }
 
-    public function testSummaryBehaeltAlteGesperrteUmfragefrage(): void {
+    public function testSummaryKeepsOldLockedPollQuestion(): void {
         // Legacy data: locked, but never given a start time — it was
         // shown nonetheless (otherwise nobody could have locked it).
         $room = $this->room('poll', active: 0);
@@ -233,7 +233,7 @@ class PublicSpoilerTest extends TestCase {
         $this->assertSame([1, 2], array_map(static fn (array $i): int => $i['poll']['id'], $summary['items']));
     }
 
-    public function testQuizSummaryZeigtKeineFolgefragenUndMischtOffeneRangfolge(): void {
+    public function testQuizSummaryShowsNoLaterQuestionsAndShufflesOpenRanking(): void {
         // Quiz per question: question 1 revealed, question 2 running, question 3 still to come.
         $room = $this->room('quiz', active: 2);
         $this->polls->method('findByRoom')->willReturn([
@@ -248,13 +248,13 @@ class PublicSpoilerTest extends TestCase {
         $this->assertSame([1, 2], array_map(static fn (array $i): int => $i['poll']['id'], $summary['items']));
         $this->assertFalse($summary['items'][1]['revealed']);
         $this->assertFalse($summary['items'][1]['poll']['revealed']);
-        $this->assertSame(self::hashFolge(2, self::RANK, $this->secret), $summary['items'][1]['poll']['options'],
+        $this->assertSame(self::hashOrder(2, self::RANK, $this->secret), $summary['items'][1]['poll']['options'],
             'auch in der Gesamtauswertung verrät die Folge nichts');
         $this->assertNotSame(array_column(self::RANK, 'id'), array_column($summary['items'][1]['poll']['options'], 'id'),
             'hier nicht die Lösungsfolge');
     }
 
-    public function testQuizSummaryAmEndeOhneNieGezeigteFragen(): void {
+    public function testQuizSummaryAtTheEndWithoutNeverShownQuestions(): void {
         // "Reveal at the end" after /end: the deck is uncovered — but only
         // what was actually shown. Skipped questions stay out.
         $room = $this->room('quiz', active: 2, revealAtEnd: true);
@@ -282,7 +282,7 @@ class PublicSpoilerTest extends TestCase {
      * @param list<array{id:string,label:string}> $list
      * @return list<array{id:string,label:string}>
      */
-    private static function hashFolge(int $pollId, array $list, string $secret): array {
+    private static function hashOrder(int $pollId, array $list, string $secret): array {
         usort($list, static fn (array $a, array $b): int => strcmp(
             hash_hmac('sha256', $pollId . ':' . $a['id'], 'pulse-order:' . $secret),
             hash_hmac('sha256', $pollId . ':' . $b['id'], 'pulse-order:' . $secret),

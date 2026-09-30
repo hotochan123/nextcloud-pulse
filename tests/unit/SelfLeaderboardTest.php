@@ -107,7 +107,7 @@ class SelfLeaderboardTest extends TestCase {
 
     // ── Only final votes ───────────────────────────────────────────────────
 
-    public function testStimmeImKorrekturfensterZaehltNochNicht(): void {
+    public function testVoteInTheCorrectionWindowDoesNotCountYet(): void {
         $this->rows = [$this->row(11, 'tok-anna')];
         $this->deckVotes = [$this->vote(11, 'tok-anna', 900, true, 5, createdAt: self::NOW - 3)];
 
@@ -117,28 +117,28 @@ class SelfLeaderboardTest extends TestCase {
         $this->assertSame(900, $this->score('Anna'), 'danach endgültig');
     }
 
-    public function testLaengeresFensterDerErstenAntwortGilt(): void {
+    public function testLongerWindowOfTheFirstAnswerApplies(): void {
         $this->rows = [$this->row(11, 'tok-anna')];
         $this->deckVotes = [$this->vote(11, 'tok-anna', 900, true, 5, createdAt: self::NOW - 5, fw: 6)];
 
         $this->assertSame(0, $this->score('Anna'));
     }
 
-    public function testKorrigierteStimmeZaehltSofort(): void {
+    public function testCorrectedVoteCountsImmediately(): void {
         $this->rows = [$this->row(11, 'tok-anna')];
         $this->deckVotes = [$this->vote(11, 'tok-anna', 900, true, 5, createdAt: self::NOW, fixed: true)];
 
         $this->assertSame(900, $this->score('Anna'));
     }
 
-    public function testVerlasseneFrageZaehltSofort(): void {
+    public function testLeftQuestionCountsImmediately(): void {
         $this->rows = [$this->row(11, 'tok-anna', leftAt: self::NOW)];
         $this->deckVotes = [$this->vote(11, 'tok-anna', 900, true, 5, createdAt: self::NOW)];
 
         $this->assertSame(900, $this->score('Anna'), 'nach /next ist nichts mehr zu korrigieren');
     }
 
-    public function testGeschlossenesFensterZaehltSofort(): void {
+    public function testClosedWindowCountsImmediately(): void {
         // "Close" = final standings are in immediately, without waiting for fw.
         $this->rows = [$this->row(11, 'tok-anna')];
         $this->deckVotes = [$this->vote(11, 'tok-anna', 900, true, 5, createdAt: self::NOW)];
@@ -149,7 +149,7 @@ class SelfLeaderboardTest extends TestCase {
         $this->assertSame(900, $this->scoreIn($room, 'Anna'));
     }
 
-    public function testAbgelaufeneFristZaehltSofort(): void {
+    public function testExpiredDeadlineCountsImmediately(): void {
         $this->rows = [$this->row(11, 'tok-anna')];
         $this->deckVotes = [$this->vote(11, 'tok-anna', 900, true, 5, createdAt: self::NOW)];
         $room = $this->room();
@@ -158,7 +158,7 @@ class SelfLeaderboardTest extends TestCase {
         $this->assertSame(900, $this->scoreIn($room, 'Anna'));
     }
 
-    public function testPunkteRichtigeUndGeteilterRangBeiNullPunkten(): void {
+    public function testPointsCorrectAnswersAndSharedRankAtZeroPoints(): void {
         $this->rows = [$this->row(11, 'tok-anna', leftAt: self::NOW), $this->row(12, 'tok-anna', leftAt: self::NOW), $this->row(11, 'tok-ben', leftAt: self::NOW)];
         $this->deckVotes = [
             $this->vote(11, 'tok-anna', 900, true, 5, createdAt: self::NOW - 20),
@@ -175,7 +175,7 @@ class SelfLeaderboardTest extends TestCase {
 
     // ── Ties ───────────────────────────────────────────────────────────────
 
-    public function testOhneTimerGleichePunkteGleicherRang(): void {
+    public function testWithoutTimerSamePointsSameRank(): void {
         $this->bothRight(annaTime: 5, benTime: 5000);
         $room = $this->room();
         $room->setTimed(false);
@@ -185,7 +185,7 @@ class SelfLeaderboardTest extends TestCase {
         $this->assertSame(['Anna' => 1, 'Ben' => 1], array_column(array_slice($rows, 0, 2), 'rank', 'nickname'));
     }
 
-    public function testMitTimerEntscheidetDieZeit(): void {
+    public function testWithTimerTheTimeDecides(): void {
         $this->bothRight(annaTime: 9, benTime: 4);
 
         $rows = $this->service->selfLeaderboard($this->room(), null);
@@ -198,20 +198,20 @@ class SelfLeaderboardTest extends TestCase {
 
     // ── Queries, cut-off, cache ────────────────────────────────────────────
 
-    public function testEineAbfrageFuersEingefroreneDeck(): void {
+    public function testOneQueryForTheFrozenDeck(): void {
         $this->service->selfLeaderboard($this->room(), null);
 
         $this->assertSame([[11, 12, 13]], $this->queries);
     }
 
-    public function testLimitSchneidetAb(): void {
+    public function testLimitCutsOff(): void {
         $this->players = array_map(fn (int $i): Player => $this->player('tok-' . $i, 'P' . $i), range(1, 10));
 
         $this->assertCount(8, $this->service->selfLeaderboard($this->room(), null, 8));
         $this->assertCount(10, $this->service->selfLeaderboard($this->room(), null));
     }
 
-    public function testImSelbenEimerNurEinmalGerechnet(): void {
+    public function testComputedOnlyOnceInTheSameBucket(): void {
         $first = $this->service->selfLeaderboard($this->room(), 'tok-anna', 0, true);
         $this->now = self::NOW + 1;
         $second = $this->service->selfLeaderboard($this->room(), 'tok-ben', 0, true);
@@ -224,7 +224,7 @@ class SelfLeaderboardTest extends TestCase {
         $this->assertArrayNotHasKey('token', $second[0]);
     }
 
-    public function testNaechsterEimerRechnetNeu(): void {
+    public function testNextBucketRecomputes(): void {
         $this->service->selfLeaderboard($this->room(), null, 0, true);
         $this->now = self::NOW + 2;
         $this->service->selfLeaderboard($this->room(), null, 0, true);
@@ -232,7 +232,7 @@ class SelfLeaderboardTest extends TestCase {
         $this->assertCount(2, $this->queries);
     }
 
-    public function testFensterwechselGreiftSofort(): void {
+    public function testWindowChangeTakesEffectImmediately(): void {
         $this->service->selfLeaderboard($this->room(), null, 0, true);
         $closed = $this->room();
         $closed->setClosedAt(self::NOW);
@@ -241,7 +241,7 @@ class SelfLeaderboardTest extends TestCase {
         $this->assertCount(2, $this->queries, 'anderes closed_at, anderer Schlüssel');
     }
 
-    public function testAblaufendeFristGreiftSofort(): void {
+    public function testExpiringDeadlineTakesEffectImmediately(): void {
         // Without a DB change: in the second of closes_at the window is closed. The
         // effective close is part of the key, the final standings don't wait for a bucket.
         $room = $this->room();
@@ -253,7 +253,7 @@ class SelfLeaderboardTest extends TestCase {
         $this->assertCount(2, $this->queries);
     }
 
-    public function testUngecachtFasstDenCacheNieAn(): void {
+    public function testUncachedNeverTouchesTheCache(): void {
         $this->cacheFactory->expects($this->never())->method('createLocal');
 
         $this->service->selfLeaderboard($this->room(), null);
@@ -262,7 +262,7 @@ class SelfLeaderboardTest extends TestCase {
         $this->assertCount(2, $this->queries);
     }
 
-    public function testOhneLokalenCacheWirdJedesMalGerechnet(): void {
+    public function testWithoutLocalCacheIsComputedEveryTime(): void {
         // NullCache (no APCu): get always returns null.
         $null = $this->createMock(ICache::class);
         $null->method('get')->willReturn(null);
@@ -276,7 +276,7 @@ class SelfLeaderboardTest extends TestCase {
         $this->assertCount(2, $this->queries);
     }
 
-    public function testImEntwurfKeineStimmen(): void {
+    public function testNoVotesInDraft(): void {
         // Before opening there is no order (findByPolls([]) does not query).
         $room = $this->room();
         $room->setOpenedAt(0);
@@ -288,7 +288,7 @@ class SelfLeaderboardTest extends TestCase {
         $this->assertSame([0, 0, 0], array_column($rows, 'score'));
     }
 
-    public function testLeaderboardForVerzweigtImEigenenTempo(): void {
+    public function testLeaderboardForBranchesInSelfPacedMode(): void {
         // The skipped question plays no role — there is no running question for everyone.
         $this->rows = [$this->row(11, 'tok-anna', leftAt: self::NOW)];
         $this->deckVotes = [$this->vote(11, 'tok-anna', 900, true, 5, createdAt: self::NOW - 20)];

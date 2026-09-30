@@ -51,7 +51,7 @@ class UserDeletedListenerTest extends TestCase {
     /** @var list<array{0: string, 1: string, 2: array}> [level, message, context] */
     private array $log = [];
 
-    public function testLoeschtJedenRaumDesKontos(): void {
+    public function testDeletesEveryRoomOfTheAccount(): void {
         $this->owned['anna'] = [$this->room(1, 'AAAAAA'), $this->room(2, 'BBBBBB')];
         $this->owned['ben'] = [$this->room(3, 'CCCCCC')];
 
@@ -64,7 +64,7 @@ class UserDeletedListenerTest extends TestCase {
         ], $this->log);
     }
 
-    public function testRaumGehtMitAllemWasDazugehoert(): void {
+    public function testRoomGoesWithEverythingThatBelongsToIt(): void {
         // Through the real RoomService::deleteRoom: questions, votes, players,
         // presence, progress and images go along — not just the room row. The
         // rows in one transaction, so a failure leaves the room complete.
@@ -134,7 +134,7 @@ class UserDeletedListenerTest extends TestCase {
         );
     }
 
-    public function testKontoOhneRaeumeSchreibtKeineZeile(): void {
+    public function testAccountWithoutRoomsWritesNoLogLine(): void {
         // Most accounts never had a room — no log line for each of them.
         $this->listener($this->mockedRooms())->handle($this->deletedEvent('carla'));
 
@@ -143,7 +143,7 @@ class UserDeletedListenerTest extends TestCase {
         $this->assertSame([], $this->log);
     }
 
-    public function testKaputterRaumHaeltDieAnderenNichtAuf(): void {
+    public function testBrokenRoomDoesNotStopTheOthers(): void {
         $this->owned['anna'] = [$this->room(1, 'AAAAAA'), $this->room(2, 'BBBBBB'), $this->room(3, 'CCCCCC')];
         $this->broken = ['BBBBBB'];
 
@@ -160,7 +160,7 @@ class UserDeletedListenerTest extends TestCase {
         $this->assertSame(['info', 'Pulse: deleted {count} rooms of deleted user {uid}.', ['count' => 2, 'uid' => 'anna']], $this->log[1]);
     }
 
-    public function testNachschlagenScheitertOhneAusnahme(): void {
+    public function testLookupFailsWithoutAnException(): void {
         $mapper = $this->createMock(RoomMapper::class);
         $mapper->method('findByOwner')->willThrowException(new \RuntimeException('database gone'));
         $rooms = $this->createMock(RoomService::class);
@@ -173,7 +173,7 @@ class UserDeletedListenerTest extends TestCase {
         $this->assertSame('anna', $this->log[0][2]['uid']);
     }
 
-    public function testFremdesEreignisWirdIgnoriert(): void {
+    public function testForeignEventIsIgnored(): void {
         $this->owned['anna'] = [$this->room(1, 'AAAAAA')];
 
         $this->listener($this->mockedRooms())->handle(new Event());
@@ -182,7 +182,7 @@ class UserDeletedListenerTest extends TestCase {
         $this->assertSame([], $this->deleted);
     }
 
-    public function testAnwendungMeldetDenListenerAn(): void {
+    public function testApplicationRegistersTheListener(): void {
         $context = $this->createMock(IRegistrationContext::class);
         $context->expects($this->once())
             ->method('registerEventListener')

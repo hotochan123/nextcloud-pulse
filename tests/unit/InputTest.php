@@ -22,7 +22,7 @@ class InputTest extends TestCase {
 
     // ── str ────────────────────────────────────────────────────────────────
 
-    public static function texte(): array {
+    public static function texts(): array {
         return [
             'Text bleibt' => ['Grüß Gott', 'Grüß Gott'],
             'Ganzzahl' => [12, '12'],
@@ -39,28 +39,28 @@ class InputTest extends TestCase {
         ];
     }
 
-    #[DataProvider('texte')]
-    public function testStr(mixed $roh, string $erwartet): void {
-        $this->assertSame($erwartet, Input::str($roh, 'DEF'));
+    #[DataProvider('texts')]
+    public function testStr(mixed $raw, string $expected): void {
+        $this->assertSame($expected, Input::str($raw, 'DEF'));
     }
 
     // ── rawStr: like str, except that NUL stays ────────────────────────────
 
-    #[DataProvider('texte')]
-    public function testRawStrWieStrOhneNul(mixed $roh, string $erwartet): void {
-        if (is_string($roh) && str_contains($roh, "\0")) {
-            $erwartet = $roh;
+    #[DataProvider('texts')]
+    public function testRawStrLikeStrExceptNul(mixed $raw, string $expected): void {
+        if (is_string($raw) && str_contains($raw, "\0")) {
+            $expected = $raw;
         }
-        $this->assertSame($erwartet, Input::rawStr($roh, 'DEF'));
+        $this->assertSame($expected, Input::rawStr($raw, 'DEF'));
     }
 
-    public function testRawStrBehaeltNulInnenUndAmRand(): void {
+    public function testRawStrKeepsNulInsideAndAtTheEdges(): void {
         $this->assertSame("\0Pa\0ris\0", Input::rawStr("\0Pa\0ris\0"));
     }
 
     // ── number ─────────────────────────────────────────────────────────────
 
-    public static function zahlen(): array {
+    public static function numbers(): array {
         return [
             'Ganzzahl' => [5, 5],
             'Text' => ['5', 5],
@@ -81,14 +81,14 @@ class InputTest extends TestCase {
         ];
     }
 
-    #[DataProvider('zahlen')]
-    public function testNumber(mixed $roh, int|float|null $erwartet): void {
-        $this->assertSame($erwartet, Input::number($roh));
+    #[DataProvider('numbers')]
+    public function testNumber(mixed $raw, int|float|null $expected): void {
+        $this->assertSame($expected, Input::number($raw));
     }
 
     // ── int ────────────────────────────────────────────────────────────────
 
-    public static function ganzzahlen(): array {
+    public static function integers(): array {
         return [
             'Kommazahl als Text wird abgeschnitten' => ['5.9', 5],
             'negative Kommazahl' => [-2.7, -2],
@@ -107,14 +107,14 @@ class InputTest extends TestCase {
         ];
     }
 
-    #[DataProvider('ganzzahlen')]
-    public function testInt(mixed $roh, ?int $erwartet): void {
-        $this->assertSame($erwartet, Input::int($roh));
+    #[DataProvider('integers')]
+    public function testInt(mixed $raw, ?int $expected): void {
+        $this->assertSame($expected, Input::int($raw));
     }
 
     // ── flag ───────────────────────────────────────────────────────────────
 
-    public static function schalter(): array {
+    public static function flags(): array {
         return [
             'true' => [true, true],
             'false' => [false, false],
@@ -137,8 +137,8 @@ class InputTest extends TestCase {
         ];
     }
 
-    #[DataProvider('schalter')]
-    public function testFlag(mixed $roh, ?bool $erwartet): void {
-        $this->assertSame($erwartet, Input::flag($roh));
+    #[DataProvider('flags')]
+    public function testFlag(mixed $raw, ?bool $expected): void {
+        $this->assertSame($expected, Input::flag($raw));
     }
 }

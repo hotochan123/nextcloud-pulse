@@ -73,7 +73,7 @@ class QuizJoinNameTest extends TestCase {
         }
     }
 
-    public static function vergebeneNamen(): array {
+    public static function takenNames(): array {
         return [
             'gleich geschrieben' => ['Anna'],
             'mit Leerraum und klein' => [' anna '],
@@ -82,8 +82,8 @@ class QuizJoinNameTest extends TestCase {
         ];
     }
 
-    #[DataProvider('vergebeneNamen')]
-    public function testNameEinesAnderenTokensWirdAbgelehnt(string $name): void {
+    #[DataProvider('takenNames')]
+    public function testNameOfAnotherTokenIsRejected(string $name): void {
         $this->players->expects($this->never())->method('register');
 
         $this->expectException(\InvalidArgumentException::class);
@@ -91,7 +91,7 @@ class QuizJoinNameTest extends TestCase {
         $this->service->quizJoin($this->room(), 'tok-neu', $name);
     }
 
-    public function testEigenesTokenDarfDenNamenUmschreiben(): void {
+    public function testOwnTokenMayRewriteTheName(): void {
         $this->players->expects($this->once())->method('register')
             ->with(1, 'tok-anna', 'ANNA', 1000)
             ->willReturn($this->player('tok-anna', 'ANNA'));
@@ -99,7 +99,7 @@ class QuizJoinNameTest extends TestCase {
         $this->assertSame('ANNA', $this->service->quizJoin($this->room(), 'tok-anna', 'ANNA')->getNickname());
     }
 
-    public function testEigenesTokenDarfDenNamenBehalten(): void {
+    public function testOwnTokenMayKeepTheName(): void {
         $this->players->expects($this->once())->method('register')
             ->with(1, 'tok-anna', 'Anna', 1000)
             ->willReturn($this->player('tok-anna', 'Anna'));
@@ -107,7 +107,7 @@ class QuizJoinNameTest extends TestCase {
         $this->service->quizJoin($this->room(), 'tok-anna', 'Anna');
     }
 
-    public function testFreierNameWirdBereinigtRegistriert(): void {
+    public function testFreeNameIsRegisteredCleanedUp(): void {
         // The check runs on the cleaned-up name — and exactly that one is stored.
         $this->players->expects($this->once())->method('register')
             ->with(1, 'tok-neu', 'Anna Lena', 1000)
@@ -116,7 +116,7 @@ class QuizJoinNameTest extends TestCase {
         $this->service->quizJoin($this->room(), 'tok-neu', "  Anna \t Lena ");
     }
 
-    public function testUmbenennenAufVergebenenNamenWirdAbgelehnt(): void {
+    public function testRenameToTakenNameIsRejected(): void {
         // Renaming is joining too: Özil must not become "anna".
         $this->players->expects($this->never())->method('register');
 
@@ -124,7 +124,7 @@ class QuizJoinNameTest extends TestCase {
         $this->service->quizJoin($this->room(), 'tok-oezil', 'anna');
     }
 
-    public function testMeldungIstUebersetzt(): void {
+    public function testMessageIsTranslated(): void {
         $de = json_decode((string)file_get_contents(__DIR__ . '/../../l10n/de.json'), true);
 
         $this->assertArrayHasKey(self::TAKEN, $de['translations'] ?? []);

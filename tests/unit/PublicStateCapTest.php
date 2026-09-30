@@ -91,7 +91,7 @@ class PublicStateCapTest extends TestCase {
         }
     }
 
-    public function testWortwolkeOeffentlichGekapptBeimModeratorVoll(): void {
+    public function testWordCloudPubliclyCappedFullForTheModerator(): void {
         $this->current = $this->poll('words', 'active');
         for ($i = 0; $i < 150; $i++) {
             $this->votes[] = $this->vote($i, ['wort' . $i, 'alle']);
@@ -111,7 +111,7 @@ class PublicStateCapTest extends TestCase {
         $this->assertSame(1 + 151, $csvRows, 'CSV: Kopfzeile + jedes Wort');
     }
 
-    public function testFreitextUndKompassOeffentlichGekappt(): void {
+    public function testFreeTextAndCompassPubliclyCapped(): void {
         $this->current = $this->poll('text', 'active');
         for ($i = 0; $i < 250; $i++) {
             $this->votes[] = $this->vote($i, 'Antwort ' . $i);
@@ -132,7 +132,7 @@ class PublicStateCapTest extends TestCase {
         $this->assertCount(2000, $this->service->results($this->room('poll'), 1)['points']);
     }
 
-    public function testQuizRanglisteZehnPlusEigeneZeile(): void {
+    public function testQuizLeaderboardTenPlusOwnRow(): void {
         $this->current = $this->poll('choice', 'ended');
         $rows = self::board(30, me: 20);
         $this->voteService->method('leaderboardFor')->willReturnCallback(
@@ -154,7 +154,7 @@ class PublicStateCapTest extends TestCase {
         $this->assertCount(30, $this->service->results($room, 1)['leaderboard'], 'Moderator: die volle Rangliste');
     }
 
-    public function testQuizVorDerAufloesungLeereZusatzfelder(): void {
+    public function testQuizBeforeTheRevealEmptyExtraFields(): void {
         $this->current = $this->poll('choice', 'active');
 
         $state = $this->service->publicState($this->room('quiz'), 'tok-me');
@@ -165,7 +165,7 @@ class PublicStateCapTest extends TestCase {
         $this->assertSame([], $state['leaderboardAround']);
     }
 
-    public function testUmfrageOhneRanglistenfelder(): void {
+    public function testPollWithoutLeaderboardFields(): void {
         $this->current = $this->poll('choice', 'active');
 
         $state = $this->service->publicState($this->room('poll'), null);

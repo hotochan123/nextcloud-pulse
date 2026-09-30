@@ -143,31 +143,31 @@ class SelfVoteTest extends TestCase {
 
     // ── Which question, which clock ────────────────────────────────────────
 
-    public function testOhnePollIdBitteNeuLaden(): void {
+    public function testWithoutPollIdPleaseReload(): void {
         // Old bundle: without the cursor the server would not know which question is meant.
         $this->open = $this->row(11, self::NOW - 5);
 
         $this->assertRejected('Please reload the page.', fn () => $this->vote('BB', pollId: null));
     }
 
-    public function testAndereFrageAlsDieOffeneZeileIstZu(): void {
+    public function testOtherQuestionThanTheOpenRowIsClosed(): void {
         $this->open = $this->row(11, self::NOW - 5);
 
         $this->assertRejected('This question is closed.', fn () => $this->vote('BB', pollId: 12));
     }
 
-    public function testOhneOffeneZeileIstDieFrageZu(): void {
+    public function testWithoutAnOpenRowTheQuestionIsClosed(): void {
         // The person has already left the question (/next) or never reached it.
         $this->assertRejected('This question is closed.', fn () => $this->vote('BB', pollId: 11));
     }
 
-    public function testGeloeschteFrageDerOffenenZeileIstZu(): void {
+    public function testDeletedQuestionOfTheOpenRowIsClosed(): void {
         $this->open = $this->row(12, self::NOW - 5);
 
         $this->assertRejected('This question is closed.', fn () => $this->vote('BB', pollId: 12));
     }
 
-    public function testZeitLaeuftAbDemPersoenlichenStart(): void {
+    public function testTimeRunsFromThePersonalStart(): void {
         // poll.startedAt is meaningless in self-paced mode (moderated, the time would long be up).
         $this->polls[11]->setStartedAt(self::NOW - 1000);
         $this->open = $this->row(11, self::NOW - 5);
@@ -180,13 +180,13 @@ class SelfVoteTest extends TestCase {
         $this->assertSame(self::NOW, $this->inserted->getCreatedAt());
     }
 
-    public function testNachDemLimitIstDieZeitUm(): void {
+    public function testAfterTheLimitTimeIsUp(): void {
         $this->open = $this->row(11, self::NOW - 21);
 
         $this->assertRejected('Time is up.', fn () => $this->vote('BB'));
     }
 
-    public function testGenauAmLimitGehtEsNoch(): void {
+    public function testExactlyAtTheLimitItStillWorks(): void {
         // Same boundary as moderated: elapsed > limit.
         $this->open = $this->row(11, self::NOW - 20);
 
@@ -195,7 +195,7 @@ class SelfVoteTest extends TestCase {
         $this->assertSame((int)(QuizService::BASE_POINTS / 2), $this->payload($this->inserted)['points']);
     }
 
-    public function testOhneTimerKeinLimitUndFlachePunkte(): void {
+    public function testWithoutTimerNoLimitAndFlatPoints(): void {
         // Homework: a whole night can pass between /next and the answer.
         $this->open = $this->row(11, self::NOW - 50_000);
 
@@ -207,7 +207,7 @@ class SelfVoteTest extends TestCase {
         $this->assertSame(50_000, $payload['elapsed']);
     }
 
-    public function testPayloadTraegtLimitUndFensterInFesterReihenfolge(): void {
+    public function testPayloadCarriesLimitAndWindowInFixedOrder(): void {
         $this->open = $this->row(11, self::NOW - 5);
 
         $this->vote('AA');
@@ -218,7 +218,7 @@ class SelfVoteTest extends TestCase {
         );
     }
 
-    public function testTastaturbedienungSpeichertDasLaengereFenster(): void {
+    public function testKeyboardInputStoresTheLongerWindow(): void {
         $this->open = $this->row(11, self::NOW - 5);
 
         $this->vote('AA', keyboard: true);
@@ -226,7 +226,7 @@ class SelfVoteTest extends TestCase {
         $this->assertSame(VoteService::FIX_WINDOW_KEYBOARD, $this->payload($this->inserted)['fw']);
     }
 
-    public function testUngueltigerWertWirdNichtGespeichert(): void {
+    public function testInvalidValueIsNotSaved(): void {
         $this->open = $this->row(11, self::NOW - 5);
         $this->votes->expects($this->never())->method('insert');
 
@@ -235,7 +235,7 @@ class SelfVoteTest extends TestCase {
 
     // ── Correction ─────────────────────────────────────────────────────────
 
-    public function testExploitKorrekturMitTastaturflagNachDemErstenFenster(): void {
+    public function testExploitCorrectionWithKeyboardFlagAfterTheFirstWindow(): void {
         // First answer by tap (fw 3), verdict seen after 3 s, then "correct" it
         // with keyboard:true (6 s) — the window of the FIRST answer counts.
         $this->now = self::NOW + 4;
@@ -246,7 +246,7 @@ class SelfVoteTest extends TestCase {
         $this->assertRejected('You have already answered this question.', fn () => $this->vote('BB', keyboard: true));
     }
 
-    public function testKorrekturImFensterBehaeltDasErsteFenster(): void {
+    public function testCorrectionInTheWindowKeepsTheFirstWindow(): void {
         $this->now = self::NOW + 3;
         $this->open = $this->row(11, self::NOW - 5);
         $this->existing = $this->vote11(['value' => 'AA', 'points' => 0, 'correct' => false, 'elapsed' => 5, 'limit' => 20, 'fw' => 3], self::NOW);
@@ -266,7 +266,7 @@ class SelfVoteTest extends TestCase {
         $this->assertSame(self::NOW + 3, $this->updated->getCreatedAt());
     }
 
-    public function testKorrekturMitLaengeremErstenFensterGehtNochBeiSechsSekunden(): void {
+    public function testCorrectionWithALongerFirstWindowStillWorksAtSixSeconds(): void {
         $this->now = self::NOW + 6;
         $this->open = $this->row(11, self::NOW - 5);
         $this->existing = $this->vote11(['value' => 'AA', 'points' => 0, 'correct' => false, 'elapsed' => 5, 'limit' => 20, 'fw' => 6], self::NOW);
@@ -276,7 +276,7 @@ class SelfVoteTest extends TestCase {
         $this->assertSame(6, $this->payload($this->updated)['fw'], 'das Flag der Korrektur (Tipp) verkürzt es nicht');
     }
 
-    public function testZweiteKorrekturWirdAbgelehnt(): void {
+    public function testSecondCorrectionIsRejected(): void {
         $this->now = self::NOW + 1;
         $this->open = $this->row(11, self::NOW - 5);
         $this->existing = $this->vote11(['value' => 'BB', 'points' => 900, 'correct' => true, 'elapsed' => 5, 'limit' => 20, 'fw' => 3, 'fixed' => true], self::NOW);
@@ -285,7 +285,7 @@ class SelfVoteTest extends TestCase {
         $this->assertRejected('You have already answered this question.', fn () => $this->vote('AA'));
     }
 
-    public function testFehlendesFensterZaehltAlsDreiSekunden(): void {
+    public function testMissingWindowCountsAsThreeSeconds(): void {
         $this->now = self::NOW + 4;
         $this->open = $this->row(11, self::NOW - 5);
         $this->existing = $this->vote11(['value' => 'AA', 'points' => 0, 'correct' => false, 'elapsed' => 5], self::NOW);
@@ -293,7 +293,7 @@ class SelfVoteTest extends TestCase {
         $this->assertRejected('You have already answered this question.', fn () => $this->vote('BB', keyboard: true));
     }
 
-    public function testAndererDatenbankfehlerFliegtWeiter(): void {
+    public function testOtherDatabaseErrorPropagates(): void {
         $this->open = $this->row(11, self::NOW - 5);
         $error = $this->createMock(Exception::class);
         $error->method('getReason')->willReturn(Exception::REASON_CONNECTION_LOST);
@@ -308,7 +308,7 @@ class SelfVoteTest extends TestCase {
 
     // ── Free text ──────────────────────────────────────────────────────────
 
-    public static function freitexte(): array {
+    public static function freeTexts(): array {
         return [
             // answer, correct, pending, points > 0
             'unbekannt: wird geprüft' => ['Saturn', false, true, false],
@@ -317,8 +317,8 @@ class SelfVoteTest extends TestCase {
         ];
     }
 
-    #[DataProvider('freitexte')]
-    public function testFreitextUrteil(string $answer, bool $correct, bool $pending, bool $points): void {
+    #[DataProvider('freeTexts')]
+    public function testFreeTextVerdict(string $answer, bool $correct, bool $pending, bool $points): void {
         $this->open = $this->row(13, self::NOW - 5);
 
         $this->vote($answer, pollId: 13);
@@ -332,7 +332,7 @@ class SelfVoteTest extends TestCase {
 
     // ── Free text vs. simultaneous grading ─────────────────────────────────
 
-    public function testFreitextOhneBewertungDazwischenOhneSperre(): void {
+    public function testFreeTextWithoutGradingInBetweenWithoutLock(): void {
         $this->open = $this->row(13, self::NOW - 5);
         $this->votes->expects($this->never())->method('update');
 
@@ -342,7 +342,7 @@ class SelfVoteTest extends TestCase {
         $this->assertSame(0, $this->locks);
     }
 
-    public function testFreitextMitAltemSchluesselWirdNachgezogen(): void {
+    public function testFreeTextWithAnOldKeyIsBroughtUpToDate(): void {
         // Scored before, saved after the grading pass: without re-reading,
         // "Saturn" would stay at "Being checked" with 0 points.
         $this->open = $this->row(13, self::NOW - 5);
@@ -358,7 +358,7 @@ class SelfVoteTest extends TestCase {
         $this->assertSame((new QuizService())->points(5, 20), $payload['points']);
     }
 
-    public function testFreitextAbgelehntWaehrendDerStimme(): void {
+    public function testFreeTextRejectedDuringTheVote(): void {
         $this->open = $this->row(13, self::NOW - 5);
         $this->keyAfterRead = json_encode(['accepted' => ['Jupiter'], 'rejected' => ['Mars', 'saturn']]);
 
@@ -370,7 +370,7 @@ class SelfVoteTest extends TestCase {
         $this->assertSame(0, $payload['points']);
     }
 
-    public function testFreitextKorrekturUnterDerSperreMitFrischemSchluessel(): void {
+    public function testFreeTextCorrectionUnderTheLockWithAFreshKey(): void {
         // The grading of "Venus" commits while the correction is in flight:
         // the correction scores under the lock with the new key.
         $this->now = self::NOW + 1;
@@ -387,7 +387,7 @@ class SelfVoteTest extends TestCase {
         $this->assertSame(['Venus', true, false, true], [$payload['value'], $payload['correct'], $payload['pending'], $payload['fixed']]);
     }
 
-    public function testKorrekturOhneFreitextOhneSperre(): void {
+    public function testCorrectionWithoutFreeTextWithoutLock(): void {
         $this->now = self::NOW + 1;
         $this->open = $this->row(11, self::NOW - 5);
         $this->existing = $this->vote11(['value' => 'AA', 'points' => 0, 'correct' => false, 'elapsed' => 5, 'limit' => 20, 'fw' => 3], self::NOW);
@@ -400,7 +400,7 @@ class SelfVoteTest extends TestCase {
 
     // ── Window and player ──────────────────────────────────────────────────
 
-    public static function fensterZu(): array {
+    public static function closedWindows(): array {
         return [
             // openedAt, closesAt, closedAt, releasedAt, message
             'Entwurf' => [0, 0, 0, 0, 'The quiz has not started yet.'],
@@ -410,8 +410,8 @@ class SelfVoteTest extends TestCase {
         ];
     }
 
-    #[DataProvider('fensterZu')]
-    public function testNurImOffenenFenster(int $openedAt, int $closesAt, int $closedAt, int $releasedAt, string $message): void {
+    #[DataProvider('closedWindows')]
+    public function testOnlyInTheOpenWindow(int $openedAt, int $closesAt, int $closedAt, int $releasedAt, string $message): void {
         $this->open = $this->row(11, self::NOW - 5);
         $room = $this->room();
         $room->setOpenedAt($openedAt);
@@ -423,7 +423,7 @@ class SelfVoteTest extends TestCase {
         $this->assertRejected($message, fn () => $this->vote('BB', room: $room));
     }
 
-    public function testFristInDerZukunftIstOffen(): void {
+    public function testDeadlineInTheFutureIsOpen(): void {
         $this->open = $this->row(11, self::NOW - 5);
         $room = $this->room();
         $room->setClosesAt(self::NOW + 1);
@@ -433,7 +433,7 @@ class SelfVoteTest extends TestCase {
         $this->assertNotNull($this->inserted);
     }
 
-    public function testNachDemSpeichernWirdDerSpielerNachgeprueft(): void {
+    public function testAfterSavingThePlayerIsCheckedAgain(): void {
         $this->open = $this->row(11, self::NOW - 5);
         $this->pace->expects($this->once())->method('assertStillJoined')
             ->with($this->isInstanceOf(Room::class), self::TOK);
@@ -441,7 +441,7 @@ class SelfVoteTest extends TestCase {
         $this->vote('BB');
     }
 
-    public function testMittenInDerStimmeEntferntIstSieWiederWeg(): void {
+    public function testRemovedInTheMiddleOfTheVoteTheVoteIsGoneAgain(): void {
         // assertStillJoined has cleaned up and reports the same as a removal
         // milliseconds earlier.
         $this->open = $this->row(11, self::NOW - 5);
@@ -453,7 +453,7 @@ class SelfVoteTest extends TestCase {
         $this->vote('BB');
     }
 
-    public function testOhneNamenKeineStimme(): void {
+    public function testWithoutANameNoVote(): void {
         $this->hasPlayer = false;
         $this->open = $this->row(11, self::NOW - 5);
 
@@ -462,7 +462,7 @@ class SelfVoteTest extends TestCase {
 
     // ── Moderated, unchanged ───────────────────────────────────────────────
 
-    public function testModeriertFasstDieNeuenAbhaengigkeitenNieAn(): void {
+    public function testModeratedNeverTouchesTheNewDependencies(): void {
         $pace = $this->createMock(PaceService::class);
         $pace->expects($this->never())->method($this->anything());
         $progress = $this->createMock(ProgressMapper::class);

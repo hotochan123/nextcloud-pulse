@@ -109,7 +109,7 @@ class NameConfusableTest extends TestCase {
 
     // ── nameKey: deterministic fold ────────────────────────────────────────
 
-    public static function gleicheNamen(): array {
+    public static function sameNames(): array {
         return [
             'Vollbreite' => ['Anna', "\u{FF21}\u{FF4E}\u{FF4E}\u{FF41}"],
             'griechisches Alpha' => ['Anna', "\u{0391}nna"],
@@ -128,12 +128,12 @@ class NameConfusableTest extends TestCase {
         ];
     }
 
-    #[DataProvider('gleicheNamen')]
-    public function testDoppelgaengerHabenDenselbenSchluessel(string $a, string $b): void {
+    #[DataProvider('sameNames')]
+    public function testLookalikesHaveTheSameKey(string $a, string $b): void {
         $this->assertSame(TallyService::nameKey($a), TallyService::nameKey($b));
     }
 
-    public static function verschiedeneNamen(): array {
+    public static function differentNames(): array {
         return [
             'Anna / Anne' => ['Anna', 'Anne'],
             'Lea / Lena' => ['Lea', 'Lena'],
@@ -144,18 +144,18 @@ class NameConfusableTest extends TestCase {
         ];
     }
 
-    #[DataProvider('verschiedeneNamen')]
-    public function testEchteUnterschiedeBleiben(string $a, string $b): void {
+    #[DataProvider('differentNames')]
+    public function testRealDifferencesStay(string $a, string $b): void {
         $this->assertNotSame(TallyService::nameKey($a), TallyService::nameKey($b));
     }
 
-    public function testUnsichtbaresBleibtLeer(): void {
+    public function testInvisibleStaysEmpty(): void {
         $this->assertSame('', TallyService::nameKey("\u{FE0F}\u{034F}\u{200D}"));
         $this->assertSame('', TallyService::nameKey("\u{2800}\u{3000}"));
     }
 
     /** Default-ignorable code points that are not assigned yet, and relatives. */
-    public static function unsichtbareReserve(): array {
+    public static function reservedInvisibles(): array {
         return [
             'U+FFF0' => ["\u{FFF0}"],
             'U+FFF8' => ["\u{FFF8}"],
@@ -169,22 +169,22 @@ class NameConfusableTest extends TestCase {
         ];
     }
 
-    #[DataProvider('unsichtbareReserve')]
-    public function testReservierteUnsichtbareZeichenFallenWeg(string $invisible): void {
+    #[DataProvider('reservedInvisibles')]
+    public function testReservedInvisibleCharactersAreDropped(string $invisible): void {
         $this->assertSame('Anna', TallyService::cleanText('Anna' . $invisible));
         $this->assertSame('anna', TallyService::nameKey('An' . $invisible . 'na'));
         $this->assertTrue(TallyService::namesClash('Anna' . $invisible, 'Anna'));
     }
 
-    #[DataProvider('unsichtbareReserve')]
-    public function testReservierteUnsichtbareZeichenImBeitritt(string $invisible): void {
+    #[DataProvider('reservedInvisibles')]
+    public function testReservedInvisibleCharactersOnJoin(string $invisible): void {
         $this->players->expects($this->never())->method('register');
 
         $this->expectExceptionMessage(self::TAKEN);
         $this->service->quizJoin($this->room('live'), 'tok-neu', 'Anna' . $invisible);
     }
 
-    public function testJedesDefaultIgnorableIstFuerNamenUnsichtbar(): void {
+    public function testEveryDefaultIgnorableIsInvisibleForNames(): void {
         // Against Unicode's own list (PCRE: \p{DI}), not against the one in
         // TallyService: planes 0, 1, 2 and 14 hold every such code point.
         if (@preg_match('/\p{DI}/u', 'a') === false) {
@@ -205,7 +205,7 @@ class NameConfusableTest extends TestCase {
         $this->assertSame([], $missed);
     }
 
-    public function testSichtbareSonderzeichenBleiben(): void {
+    public function testVisibleSpecialCharactersStay(): void {
         // U+FFFC/FFFD are drawn (a box, a question mark) — a different name.
         $this->assertFalse(TallyService::namesClash("Anna\u{FFFD}", 'Anna'));
         $this->assertSame("Anna\u{FFFC}", TallyService::cleanText("Anna\u{FFFC}"));
@@ -213,7 +213,7 @@ class NameConfusableTest extends TestCase {
 
     // ── namesClash: Spoofchecker where it exists ───────────────────────────
 
-    public function testSpoofcheckerErkenntGrossesIFuerKleinesL(): void {
+    public function testSpoofcheckerDetectsCapitalIForSmallL(): void {
         if (!class_exists(\Spoofchecker::class)) {
             $this->markTestSkipped('intl without Spoofchecker');
         }
@@ -223,7 +223,7 @@ class NameConfusableTest extends TestCase {
         $this->assertFalse(TallyService::namesClash('Lena', 'Lea'));
     }
 
-    public function testOhneSpoofcheckerGreiftDieTabelle(): void {
+    public function testWithoutSpoofcheckerTheTableApplies(): void {
         (new ReflectionProperty(TallyService::class, 'spoofchecker'))->setValue(null, false);
 
         $this->assertTrue(TallyService::namesClash("\u{0391}nna", 'Anna'));
@@ -232,14 +232,14 @@ class NameConfusableTest extends TestCase {
         $this->assertFalse(TallyService::namesClash('PauI', 'Paul'));
     }
 
-    public function testClashInNenntDenErstenTreffer(): void {
+    public function testClashInReturnsTheFirstMatch(): void {
         $this->assertSame(2, TallyService::clashIn("\u{0410}nna", ['Ben', 'Cem', 'Anna', 'ANNA']));
         $this->assertNull(TallyService::clashIn('Dora', ['Ben', 'Cem']));
     }
 
     // ── Joining ────────────────────────────────────────────────────────────
 
-    public static function doppelgaenger(): array {
+    public static function lookalikeNames(): array {
         return [
             'Vollbreite' => ["\u{FF21}\u{FF4E}\u{FF4E}\u{FF41}"],
             'griechisch' => ["\u{0391}nna"],
@@ -248,30 +248,30 @@ class NameConfusableTest extends TestCase {
         ];
     }
 
-    #[DataProvider('doppelgaenger')]
-    public function testDoppelgaengerImLiveQuizAbgelehnt(string $name): void {
+    #[DataProvider('lookalikeNames')]
+    public function testLookalikeRefusedInLiveQuiz(string $name): void {
         $this->players->expects($this->never())->method('register');
 
         $this->expectExceptionMessage(self::TAKEN);
         $this->service->quizJoin($this->room('live'), 'tok-neu', $name);
     }
 
-    #[DataProvider('doppelgaenger')]
-    public function testDoppelgaengerImEigenenTempoAbgelehnt(string $name): void {
+    #[DataProvider('lookalikeNames')]
+    public function testLookalikeRefusedInSelfPacedQuiz(string $name): void {
         $this->players->expects($this->never())->method('register');
 
         $this->expectExceptionMessage(self::TAKEN);
         $this->service->quizJoin($this->room('self'), 'tok-neu', $name);
     }
 
-    public function testUmbenennenInEinenDoppelgaengerAbgelehnt(): void {
+    public function testRenamingToALookalikeRefused(): void {
         $this->players->expects($this->never())->method('register');
 
         $this->expectExceptionMessage(self::TAKEN);
         $this->service->quizJoin($this->room('live'), 'tok-paul', "\u{0410}nna");
     }
 
-    public function testBestehenderDoppelgaengerBehaeltSeinenNamen(): void {
+    public function testExistingLookalikeKeepsItsName(): void {
         // Joined before this rule: re-sending the own name still works.
         $this->roster[] = $this->player('tok-fake', "\u{0410}nna");
         $this->players->expects($this->once())->method('register')
@@ -281,7 +281,7 @@ class NameConfusableTest extends TestCase {
         $this->service->quizJoin($this->room('live'), 'tok-fake', "\u{0410}nna");
     }
 
-    public function testSpoofcheckerImBeitritt(): void {
+    public function testSpoofcheckerOnJoin(): void {
         if (!class_exists(\Spoofchecker::class)) {
             $this->markTestSkipped('intl without Spoofchecker');
         }
@@ -294,7 +294,7 @@ class NameConfusableTest extends TestCase {
     // ── Other spellings of one's own name ──────────────────────────────────
 
     /** @return array<string, array{string, \Closure(self): void}> */
-    public static function eingefroren(): array {
+    public static function frozen(): array {
         return [
             'live, nach der Antwort' => ['live', static function (self $t): void {
                 $t->voted = ['tok-x'];
@@ -313,8 +313,8 @@ class NameConfusableTest extends TestCase {
         ];
     }
 
-    #[DataProvider('eingefroren')]
-    public function testGleicherSchluesselWirdKeinDoppelgaenger(string $pace, \Closure $freeze): void {
+    #[DataProvider('frozen')]
+    public function testSameKeyDoesNotBecomeALookalike(string $pace, \Closure $freeze): void {
         if (!class_exists(\Spoofchecker::class)) {
             $this->markTestSkipped('intl without Spoofchecker');
         }
@@ -329,8 +329,8 @@ class NameConfusableTest extends TestCase {
         $this->service->quizJoin($this->room($pace), 'tok-x', 'PauI');
     }
 
-    #[DataProvider('eingefroren')]
-    public function testGleicherSchluesselOhneDoppelgaengerBleibtErlaubt(string $pace, \Closure $freeze): void {
+    #[DataProvider('frozen')]
+    public function testSameKeyWithoutLookalikeStaysAllowed(string $pace, \Closure $freeze): void {
         $this->roster[] = $this->player('tok-x', 'paui');
         $freeze($this);
         $this->players->expects($this->once())->method('register')
@@ -340,7 +340,7 @@ class NameConfusableTest extends TestCase {
         $this->service->quizJoin($this->room($pace), 'tok-x', 'PAUI');
     }
 
-    public function testAlterDoppelgaengerDarfSeineSchreibweiseAendern(): void {
+    public function testOldLookalikeMayChangeItsSpelling(): void {
         // Let in by an older rule next to "Anna": another spelling of its own
         // name is checked against everyone else, not against "Anna".
         $this->roster[] = $this->player('tok-fake', "\u{0410}nna");
@@ -352,7 +352,7 @@ class NameConfusableTest extends TestCase {
         $this->service->quizJoin($this->room('live'), 'tok-fake', "\u{0410}NN\u{0410}");
     }
 
-    public function testGespeichertWirdDieEigeneSchreibweise(): void {
+    public function testOwnSpellingIsStored(): void {
         // The fold is only for comparing: "Ｂｅｎ" is stored as typed.
         $this->players->expects($this->once())->method('register')
             ->with(1, 'tok-neu', "\u{FF22}\u{FF45}\u{FF4E}", 1000)

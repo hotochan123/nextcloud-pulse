@@ -109,21 +109,21 @@ class SelfJoinCapTest extends TestCase {
 
     // ── MAX_PLAYERS counts who has started ─────────────────────────────────
 
-    public function testNieGestarteteFuellenDasQuizNichtMehr(): void {
+    public function testNeverStartedPlayersNoLongerFillTheQuiz(): void {
         $this->roster = $this->players(PaceService::MAX_PLAYERS, self::NOW - 60);
         $this->expectRegister('tok-neu', 'Cem');
 
         $this->join('tok-neu', 'Cem');
     }
 
-    public function testDreihundertGestarteteSindVoll(): void {
+    public function testThreeHundredStartedPlayersAreFull(): void {
         $this->roster = $this->players(PaceService::MAX_PLAYERS, self::NOW - 60);
         $this->started = array_map(static fn (Player $p): string => $p->getVoterToken(), $this->roster);
 
         $this->assertRejected('This quiz is full.', 'tok-neu', 'Cem');
     }
 
-    public function testNurGestarteteSpielerZaehlen(): void {
+    public function testOnlyStartedPlayersCount(): void {
         // Progress rows of a removed token (no player any more) do not count.
         $this->roster = $this->players(PaceService::MAX_PLAYERS, self::NOW - 60);
         $this->started = array_map(static fn (Player $p): string => $p->getVoterToken(), array_slice($this->roster, 1));
@@ -133,7 +133,7 @@ class SelfJoinCapTest extends TestCase {
         $this->join('tok-neu', 'Cem');
     }
 
-    public function testBekannteSpielerKommenAuchVollRein(): void {
+    public function testKnownPlayersGetInEvenWhenFull(): void {
         $this->roster = $this->players(PaceService::MAX_PLAYERS, self::NOW - 60);
         $this->started = array_map(static fn (Player $p): string => $p->getVoterToken(), $this->roster);
         $this->limiter->expects($this->never())->method('registerAnonRequest');
@@ -144,7 +144,7 @@ class SelfJoinCapTest extends TestCase {
 
     // ── Ceiling MAX_JOINED ─────────────────────────────────────────────────
 
-    public function testDeckeImEntwurfOhneRaeumen(): void {
+    public function testCeilingInTheDraftWithoutEvicting(): void {
         $this->locked = $this->room(0);
         $this->roster = $this->players(PaceService::MAX_JOINED, self::NOW - 7200);
         $this->players->expects($this->never())->method('delete');
@@ -152,7 +152,7 @@ class SelfJoinCapTest extends TestCase {
         $this->assertRejected('This quiz is full.', 'tok-neu', 'Cem');
     }
 
-    public function testDeckeImOffenenFensterRaeumtAlteNieGestartete(): void {
+    public function testCeilingInTheOpenWindowEvictsOldNeverStartedPlayers(): void {
         $this->roster = array_merge(
             $this->players(PaceService::MAX_JOINED - 2, self::NOW - PaceService::STALE_JOIN - 1, 'alt'),
             $this->players(2, self::NOW - 10, 'frisch'),
@@ -169,7 +169,7 @@ class SelfJoinCapTest extends TestCase {
         $this->assertContains('evict:tok-alt2', $this->calls);
     }
 
-    public function testGenauAmStichtagWirdGeraeumt(): void {
+    public function testExactlyAtTheCutoffTheyAreEvicted(): void {
         $this->roster = $this->players(PaceService::MAX_JOINED, self::NOW - PaceService::STALE_JOIN, 'alt');
         $this->expectRegister('tok-neu', 'Cem');
 
@@ -178,21 +178,21 @@ class SelfJoinCapTest extends TestCase {
         $this->assertContains('evict:tok-alt1', $this->calls);
     }
 
-    public function testNurFrischeNieGestarteteBleibtVoll(): void {
+    public function testOnlyFreshNeverStartedPlayersStaysFull(): void {
         $this->roster = $this->players(PaceService::MAX_JOINED, self::NOW - PaceService::STALE_JOIN + 1);
 
         $this->assertRejected('This quiz is full.', 'tok-neu', 'Cem');
         $this->assertSame([], $this->calls);
     }
 
-    public function testGeraeumterNameIstWiederFrei(): void {
+    public function testEvictedNameIsFreeAgain(): void {
         $this->roster = $this->players(PaceService::MAX_JOINED, self::NOW - 7200);
         $this->expectRegister('tok-neu', 'P5');
 
         $this->join('tok-neu', 'P5');
     }
 
-    public function testUnterDreihundertKeinBlickInDenFortschritt(): void {
+    public function testBelowThreeHundredNoLookAtTheProgress(): void {
         $progress = $this->createMock(ProgressMapper::class);
         $progress->expects($this->never())->method('findByRoom');
         (new ReflectionProperty(VoteService::class, 'progressMapper'))->setValue($this->service, $progress);
@@ -202,7 +202,7 @@ class SelfJoinCapTest extends TestCase {
         $this->join('tok-neu', 'Cem');
     }
 
-    public function testDeckeFolgtDerAppConfig(): void {
+    public function testCeilingFollowsTheAppConfig(): void {
         // occ config:app:set pulse max_players_per_room --value 100: in the
         // draft the ceiling alone decides, below MAX_PLAYERS as well.
         $this->limitConfig[\OCA\Pulse\Service\Limits::PLAYERS_PER_ROOM] = 100;
@@ -212,7 +212,7 @@ class SelfJoinCapTest extends TestCase {
         $this->assertRejected('This quiz is full.', 'tok-neu', 'Cem');
     }
 
-    public function testNiedrigeDeckeRaeumtImOffenenFenster(): void {
+    public function testLowCeilingEvictsInTheOpenWindow(): void {
         $this->limitConfig[\OCA\Pulse\Service\Limits::PLAYERS_PER_ROOM] = 100;
         $this->roster = $this->players(100, self::NOW - PaceService::STALE_JOIN - 1, 'alt');
         $this->expectRegister('tok-neu', 'Cem');
@@ -222,7 +222,7 @@ class SelfJoinCapTest extends TestCase {
         $this->assertCount(100, array_filter($this->calls, static fn (string $c): bool => str_starts_with($c, 'evict:')));
     }
 
-    public function testHoehereDeckeRaeumtBeiSechshundertNochNicht(): void {
+    public function testHigherCeilingDoesNotEvictAtSixHundredYet(): void {
         $this->limitConfig[\OCA\Pulse\Service\Limits::PLAYERS_PER_ROOM] = 1000;
         $this->roster = $this->players(PaceService::MAX_JOINED, self::NOW - 7200);
         $this->players->expects($this->never())->method('delete');
@@ -233,7 +233,7 @@ class SelfJoinCapTest extends TestCase {
 
     // ── New players per address ────────────────────────────────────────────
 
-    public function testNeueSpielerProAdresseFolgenDerAppConfig(): void {
+    public function testNewPlayersPerAddressFollowTheAppConfig(): void {
         $this->limitConfig[\OCA\Pulse\Service\Limits::NEW_PLAYERS_PER_ADDRESS] = 7;
         $this->limiter->expects($this->once())->method('registerAnonRequest')
             ->with('pulse-player-5', 7, PaceService::JOIN_PERIOD, self::IP);
@@ -242,13 +242,13 @@ class SelfJoinCapTest extends TestCase {
         $this->join('tok-neu', 'Cem', self::IP);
     }
 
-    public function testStandardSindSovieleNeueWieFrueherAnfragen(): void {
+    public function testDefaultIsAsManyNewPlayersAsFormerRequests(): void {
         // The old flood guard allowed 120 join requests per address and room;
         // as many new names get in now, retries free on top.
         $this->assertSame(120, PaceService::NEW_PLAYER_LIMIT);
     }
 
-    public function testNeuerSpielerZaehltGegenSeineAdresse(): void {
+    public function testNewPlayerCountsAgainstTheirAddress(): void {
         $this->limiter->expects($this->once())->method('registerAnonRequest')
             ->with('pulse-player-5', PaceService::NEW_PLAYER_LIMIT, PaceService::JOIN_PERIOD, self::IP)
             ->willReturnCallback(function (): void {
@@ -265,7 +265,7 @@ class SelfJoinCapTest extends TestCase {
         $this->assertSame(['count', 'forget:tok-neu', 'register'], $this->calls);
     }
 
-    public function testErschoepfteAdresseBekommtJoinLimit(): void {
+    public function testExhaustedAddressGetsJoinLimit(): void {
         $this->limiter->method('registerAnonRequest')
             ->willThrowException(new class('') extends \Exception implements IRateLimitExceededException {
             });
@@ -281,14 +281,14 @@ class SelfJoinCapTest extends TestCase {
         }
     }
 
-    public function testVergebenerNameKostetNichts(): void {
+    public function testTakenNameCostsNothing(): void {
         $this->roster = [$this->player('tok-anna', 'Anna', self::NOW - 60)];
         $this->limiter->expects($this->never())->method('registerAnonRequest');
 
         $this->assertRejected('This name is already taken. Please choose another one.', 'tok-neu', 'anna', self::IP);
     }
 
-    public function testBekanntesTokenKostetNichts(): void {
+    public function testKnownTokenCostsNothing(): void {
         $this->roster = [$this->player('tok-anna', 'Anna', self::NOW - 60)];
         $this->limiter->expects($this->never())->method('registerAnonRequest');
         $this->expectRegister('tok-anna', 'Anna');
@@ -296,14 +296,14 @@ class SelfJoinCapTest extends TestCase {
         $this->join('tok-anna', 'Anna', self::IP);
     }
 
-    public function testGesperrtKostetNichts(): void {
+    public function testLockedCostsNothing(): void {
         $this->limiter->expects($this->never())->method('registerAnonRequest');
         $this->locked->setJoinsLocked(true);
 
         $this->assertRejected('Joining is closed for this quiz.', 'tok-neu', 'Cem', self::IP);
     }
 
-    public function testVollKostetNichts(): void {
+    public function testFullCostsNothing(): void {
         $this->limiter->expects($this->never())->method('registerAnonRequest');
         $this->roster = $this->players(PaceService::MAX_PLAYERS, self::NOW - 60);
         $this->started = array_map(static fn (Player $p): string => $p->getVoterToken(), $this->roster);
@@ -311,7 +311,7 @@ class SelfJoinCapTest extends TestCase {
         $this->assertRejected('This quiz is full.', 'tok-neu', 'Cem', self::IP);
     }
 
-    public function testOhneAdresseKeinZaehler(): void {
+    public function testWithoutAnAddressNoCount(): void {
         // Callers that do not pass the address (older controller): no count.
         $this->limiter->expects($this->never())->method('registerAnonRequest');
         $this->expectRegister('tok-neu', 'Cem');

@@ -32,7 +32,7 @@ class SelfStateCapTest extends PaceStateTestCase {
         $this->release();
     }
 
-    public function testHandyNachFreigabeZehnPlusEigeneZeile(): void {
+    public function testPhoneAfterReleaseTenPlusOwnRow(): void {
         $this->crowdedRelease();
 
         $state = $this->phone('tok-anna');
@@ -45,7 +45,7 @@ class SelfStateCapTest extends PaceStateTestCase {
         $this->assertContains('Anna', array_column($state['leaderboardAround'], 'nickname'));
     }
 
-    public function testBeamerUndUebersichtGekapptModeratorVoll(): void {
+    public function testProjectorAndSummaryCappedModeratorFull(): void {
         $this->crowdedRelease();
 
         $beamer = $this->beamer();
@@ -65,7 +65,7 @@ class SelfStateCapTest extends PaceStateTestCase {
         $this->assertCount(17, $this->service->progress($this->room, true)['leaderboard'], 'Moderator: alle');
     }
 
-    public function testVorDerFreigabeLeereZusatzfelder(): void {
+    public function testBeforeReleaseEmptyExtraFields(): void {
         $state = $this->phone('tok-anna');
 
         $this->assertNull($state['leaderboard']);

@@ -103,7 +103,7 @@ class PaceStillJoinedTest extends TestCase {
 
     // ── assertStillJoined ──────────────────────────────────────────────────
 
-    public function testNochDabeiKostetKeineRaumsperre(): void {
+    public function testStillJoinedCostsNoRoomLock(): void {
         $this->joined = [true];
         $this->rooms->expects($this->never())->method('lockForUpdate');
 
@@ -113,7 +113,7 @@ class PaceStillJoinedTest extends TestCase {
         $this->assertSame([], $this->tx);
     }
 
-    public function testEntferntRaeumtStimmenUndFortschrittUnterDerSperre(): void {
+    public function testRemovedCleansUpVotesAndProgressUnderTheLock(): void {
         $this->joined = [false, false];
         $this->rooms->expects($this->once())->method('lockForUpdate')->with(5)
             ->willReturnCallback(fn (): Room => $this->room());
@@ -124,7 +124,7 @@ class PaceStillJoinedTest extends TestCase {
         $this->assertSame(['beginTransaction', 'commit'], $this->tx);
     }
 
-    public function testInzwischenNeuBeigetretenBleibtUnberuehrt(): void {
+    public function testRejoinedInTheMeantimeStaysUntouched(): void {
         // The cookie is already back in: selfJoin has cleaned up, and whatever is
         // there now belongs to the new identity. The old request still fails.
         $this->joined = [false, true];
@@ -135,7 +135,7 @@ class PaceStillJoinedTest extends TestCase {
         $this->assertSame([], $this->calls);
     }
 
-    public function testRaumGeloeschtRaeumtOhneSperreUndMeldetNichtGefunden(): void {
+    public function testRoomDeletedCleansUpWithoutLockAndReportsNotFound(): void {
         // deleteRoom has already deleted players, votes and progress; the request
         // only cleans up what it wrote afterwards itself (order taken from the
         // passed-in room, which no longer exists).
@@ -154,7 +154,7 @@ class PaceStillJoinedTest extends TestCase {
 
     // ── locked ─────────────────────────────────────────────────────────────
 
-    public function testGesperrtWirdDieFrischeZeile(): void {
+    public function testLockedGetsTheFreshRow(): void {
         $fresh = $this->room();
         $fresh->setJoinsLocked(true);
         $this->rooms->method('lockForUpdate')->willReturn($fresh);
@@ -165,7 +165,7 @@ class PaceStillJoinedTest extends TestCase {
         $this->assertSame(['beginTransaction', 'commit'], $this->tx);
     }
 
-    public function testGeloeschterRaumIstNichtGefundenStattFehler(): void {
+    public function testDeletedRoomIsNotFoundInsteadOfAnError(): void {
         // Another tab or the cleanup job deleted the room after the request
         // had loaded it: 404 in the controllers, not a 500.
         $this->rooms->method('lockForUpdate')->willThrowException(new DoesNotExistException('weg'));
@@ -185,7 +185,7 @@ class PaceStillJoinedTest extends TestCase {
 
     // ── forgetToken ────────────────────────────────────────────────────────
 
-    public function testVergessenLaesstSpielerUndPraesenzStehen(): void {
+    public function testForgettingLeavesPlayerAndPresenceInPlace(): void {
         $this->players->expects($this->never())->method('delete');
 
         $this->service->forgetToken($this->room(), self::TOK);

@@ -32,34 +32,34 @@ class MatchGradingTest extends TestCase {
         $property->setValue($this->service, new QuizService());
     }
 
-    public function testVollstaendigRichtigeZuordnungGibtPunkte(): void {
+    public function testFullyCorrectMatchingGivesPoints(): void {
         $payload = $this->service->quizPayload($this->poll(), ['I1' => 'T1', 'I2' => 'T2'], 0);
 
         $this->assertTrue($payload['correct']);
         $this->assertSame(QuizService::BASE_POINTS, $payload['points']);
     }
 
-    public function testReihenfolgeDerZeilenIstEgal(): void {
+    public function testOrderOfTheRowsDoesNotMatter(): void {
         // The client sends the rows in its own (shuffled) display order.
         $payload = $this->service->quizPayload($this->poll(), ['I2' => 'T2', 'I1' => 'T1'], 0);
 
         $this->assertTrue($payload['correct']);
     }
 
-    public function testEineFalscheZeileKostetDenGanzenPunkt(): void {
+    public function testOneWrongRowCostsAllThePoints(): void {
         $payload = $this->service->quizPayload($this->poll(), ['I1' => 'T2', 'I2' => 'T2'], 0);
 
         $this->assertFalse($payload['correct']);
         $this->assertSame(0, $payload['points']);
     }
 
-    public function testUnvollstaendigeZuordnungIstNichtRichtig(): void {
+    public function testIncompleteMatchingIsNotCorrect(): void {
         $payload = $this->service->quizPayload($this->poll(), ['I1' => 'T1'], 0);
 
         $this->assertFalse($payload['correct']);
     }
 
-    public function testOhneLoesungGibtEsKeinenPunkt(): void {
+    public function testWithoutSolutionThereAreNoPoints(): void {
         // A poll-mode matching has no answerKey — an empty solution must not
         // accidentally match an empty answer.
         $poll = $this->poll();
@@ -68,7 +68,7 @@ class MatchGradingTest extends TestCase {
         $this->assertFalse($this->service->quizPayload($poll, [], 0)['correct']);
     }
 
-    public function testSpaeteAntwortBekommtWenigerPunkte(): void {
+    public function testLateAnswerGetsFewerPoints(): void {
         $poll = $this->poll();
         $poll->setTimeLimit(20);
         $fast = $this->service->quizPayload($poll, ['I1' => 'T1', 'I2' => 'T2'], 0);

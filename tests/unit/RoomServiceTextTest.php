@@ -40,49 +40,49 @@ class RoomServiceTextTest extends TestCase {
 
     // ── sanitizeTitle ──────────────────────────────────────────────────────
 
-    public function testTitelWirdGetrimmt(): void {
+    public function testTitleIsTrimmed(): void {
         $this->assertSame('Retrospektive KW 30', $this->sanitize('   Retrospektive KW 30  '));
     }
 
-    public function testZeilenumbrueccheUndSteuerzeichenWerdenZuEinemLeerzeichen(): void {
+    public function testLineBreaksAndControlCharactersBecomeOneSpace(): void {
         $this->assertSame('Zeile1 Zeile2 Ende', $this->sanitize("Zeile1\nZeile2\t\tEnde\x00"));
     }
 
-    public function testMehrfacheLeerzeichenWerdenZusammengezogen(): void {
+    public function testMultipleSpacesAreCollapsed(): void {
         $this->assertSame('A B', $this->sanitize('A     B'));
     }
 
-    public function testTitelWirdAufAchtzigZeichenGekuerzt(): void {
+    public function testTitleIsCutToEightyCharacters(): void {
         $this->assertSame(80, mb_strlen($this->sanitize(str_repeat('x', 200))));
     }
 
-    public function testKuerzungZaehltZeichenNichtBytes(): void {
+    public function testCutCountsCharactersNotBytes(): void {
         // The column is varchar(80) -> 80 CHARACTERS, umlauts must not count twice.
         $this->assertSame(str_repeat('ä', 80), $this->sanitize(str_repeat('ä', 100)));
     }
 
-    public function testLeererTitelBleibtLeer(): void {
+    public function testEmptyTitleStaysEmpty(): void {
         $this->assertSame('', $this->sanitize('   '));
     }
 
     // ── copyTitle ──────────────────────────────────────────────────────────
 
-    public function testKopieBekommtSuffix(): void {
+    public function testCopyGetsASuffix(): void {
         $this->assertSame('Schulung (copy)', $this->copyTitle('Schulung'));
     }
 
-    public function testKopieOhneTitelBleibtOhneTitel(): void {
+    public function testCopyWithoutTitleStaysWithoutTitle(): void {
         $this->assertSame('', $this->copyTitle(''));
     }
 
-    public function testLangerTitelBehaeltDenVollstaendigenSuffix(): void {
+    public function testLongTitleKeepsTheCompleteSuffix(): void {
         // It is not the suffix that gets cut off, but the name before it.
         $copy = $this->copyTitle(str_repeat('a', 80));
         $this->assertSame(80, mb_strlen($copy));
         $this->assertSame(' (copy)', mb_substr($copy, -7));
     }
 
-    public function testKopieDerKopieBleibtInnerhalbDerSpaltenbreite(): void {
+    public function testCopyOfTheCopyStaysWithinTheColumnWidth(): void {
         $copy = $this->copyTitle($this->copyTitle(str_repeat('a', 80)));
         $this->assertLessThanOrEqual(80, mb_strlen($copy));
         $this->assertSame(' (copy)', mb_substr($copy, -7));
