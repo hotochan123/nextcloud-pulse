@@ -118,9 +118,13 @@ class RoomLockTest extends TestCase {
             $this->log[] = 'executeQuery';
             $rows = $this->roomExists ? [['id' => 5, 'code' => 'ABCDEF', 'owner_uid' => 'alice']] : [];
             $result = $this->createMock(IResult::class);
-            $result->method('fetch')->willReturnCallback(static function () use (&$rows): array|false {
+            $next = static function () use (&$rows): array|false {
                 return array_shift($rows) ?? false;
-            });
+            };
+            // QBMapper::findEntity reads with fetch() up to Nextcloud 34 and
+            // with fetchAssociative() from 35 on.
+            $result->method('fetch')->willReturnCallback($next);
+            $result->method('fetchAssociative')->willReturnCallback($next);
             return $result;
         });
         return $qb;

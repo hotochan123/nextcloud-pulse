@@ -72,8 +72,11 @@ jobs:
             sh -n "$f"
           done
 
+      # ubuntu-latest (24.04) does not ship xmllint.
       - name: Validate info.xml against the App Store schema
         run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends libxml2-utils
           curl -sSL -o /tmp/info.xsd https://apps.nextcloud.com/schema/apps/info.xsd
           xmllint --noout --schema /tmp/info.xsd appinfo/info.xml
 
