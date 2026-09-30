@@ -553,7 +553,7 @@ class PaceStateService {
     /**
      * CSV view for the teacher: `players` (one row per person, in leaderboard
      * order) or `answers` (one row per vote, by question, then
-     * name). `;`-separated + UTF-8 BOM like the moderated export.
+     * name). Written by CsvFormat::document, like the moderated export.
      *
      * @throws \InvalidArgumentException unknown view
      */
@@ -563,15 +563,7 @@ class PaceStateService {
             'answers' => $this->answerLines($room),
             default => throw new \InvalidArgumentException($this->l10n->t('Invalid request.')),
         };
-        $fh = fopen('php://temp', 'r+');
-        foreach ($lines as $line) {
-            // Without backslash escaping (RFC 4180, the way Excel reads it).
-            fputcsv($fh, $line, ';', '"', '');
-        }
-        rewind($fh);
-        $csv = stream_get_contents($fh);
-        fclose($fh);
-        return "\xEF\xBB\xBF" . $csv; // UTF-8 BOM
+        return CsvFormat::document($lines);
     }
 
     /**

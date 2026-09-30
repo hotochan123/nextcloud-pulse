@@ -65,127 +65,179 @@ class StateService {
 
     /**
      * Results of all questions as CSV (long format, one row per answer).
-     * `;`-separated + UTF-8 BOM → opens correctly in Excel, umlauts included; numbers
-     * in the export's language (see num()). Quotes doubled as per RFC 4180,
-     * without backslash escaping (like PaceStateService; PHP 8.4 wants the
-     * escape character stated explicitly).
+     * Numbers in the export's language (see num()); separator, quoting and
+     * BOM as in the self-paced export (CsvFormat::document).
      */
     public function exportCsv(Room $room): string {
-        $fh = fopen('php://temp', 'r+');
-        fputcsv($fh, [
+        $rows = [[
             $this->l10n->t('No.'),
             $this->l10n->t('Question'),
             $this->l10n->t('Type'),
             $this->l10n->t('Answer'),
             $this->l10n->t('Votes'),
             $this->l10n->t('Share'),
-        ], ';', '"', '');
+        ]];
 
         $nr = 0;
         foreach ($this->deckService->deck($room) as $poll) {
             $nr++;
             $tally = $this->tallyService->tally($poll, $this->voteMapper->findByPoll($poll->getId()));
-            $total = (int)$tally['total'];
-            $question = $poll->getQuestion();
-            $typeLabel = $this->typeLabel($poll->getType());
+            array_push($rows, ...$this->csvRows($nr, $poll, $tally));
+        }
+        return CsvFormat::document($rows);
+    }
 
-            // Spectrum: one row per aspect (mean + answer count) instead of value/share.
-            if ($poll->getType() === 'scale' && ($tally['mode'] ?? 'single') === 'spectrum') {
-                foreach ($tally['results'] as $row) {
-                    $avg = $this->num($row['average']);
-                    $label = $this->l10n->t('%s · average', [$row['label']]);
-                    fputcsv($fh, [$nr, $question, $typeLabel, $label, $avg, $row['n']], ';', '"', '');
-                }
-                if (count($tally['results']) === 0) {
-                    fputcsv($fh, [$nr, $question, $typeLabel, $this->l10n->t('(no aspects)'), 0, ''], ';', '"', '');
-                }
-                continue;
-            }
+    /**
+     * The rows of one question: number, question and type, followed by
+     * answer, votes and share from the row builder for its type (the same
+     * split as TallyService::tally). Every builder returns those last three
+     * cells per row.
+     *
+     * @param array $tally result of TallyService::tally
+     * @return list<list<int|string>>
+     */
+    private function csvRows(int $nr, Poll $poll, array $tally): array {
+        $type = $poll->getType();
+        $lead = [$nr, $poll->getQuestion(), $this->typeLabel($type)];
+        $mode = $tally['mode'] ?? 'single';
+        $cells = match (true) {
+            $type === 'scale' && $mode === 'spectrum' => $this->spectrumRows($tally),
+            $type === 'scale' && $mode === 'compass' => $this->compassRows($tally),
+            $type === 'match' => $this->matchRows($tally),
+            $type === 'rank' => $this->rankRows($tally),
+            $type === 'text' => $this->textRows($tally),
+            default => $this->defaultRows($type, $tally),
+        };
+        return array_map(static fn (array $row): array => [...$lead, ...$row], $cells);
+    }
 
-            // Compass: centre of gravity + one point (X / Y) per vote.
-            if ($poll->getType() === 'scale' && ($tally['mode'] ?? 'single') === 'compass') {
-                $c = $tally['centroid'] ?? null;
-                $ct = $c
-                    ? $this->num($c['x']) . ' / ' . $this->num($c['y'])
-                    : '—';
-                fputcsv($fh, [$nr, $question, $typeLabel, $this->l10n->t('Centre of gravity (X / Y)'), $ct, $tally['total']], ';', '"', '');
-                foreach ($tally['points'] as $p) {
-                    fputcsv($fh, [$nr, $question, $typeLabel, $this->l10n->t('Point (X / Y)'), $p['x'] . ' / ' . $p['y'], ''], ';', '"', '');
-                }
-                continue;
-            }
+    /**
+     * Spectrum: one row per aspect (mean + answer count) instead of
+     * value/share.
+     *
+     * @return list<array{0:string, 1:int|string, 2:int|string}>
+     */
+    private function spectrumRows(array $tally): array {
+        $rows = [];
+        foreach ($tally['results'] as $row) {
+            $avg = $this->num($row['average']);
+            $label = $this->l10n->t('%s · average', [$row['label']]);
+            $rows[] = [$label, $avg, $row['n']];
+        }
+        if (count($tally['results']) === 0) {
+            $rows[] = [$this->l10n->t('(no aspects)'), 0, ''];
+        }
+        return $rows;
+    }
 
-            // Matching: one row per pairing "item → target" that was actually chosen.
-            // All combinations would be 64 rows of noise with eight pairs.
-            if ($poll->getType() === 'match') {
-                if ($total === 0) {
-                    fputcsv($fh, [$nr, $question, $typeLabel, $this->l10n->t('(no answers)'), 0, ''], ';', '"', '');
+    /**
+     * Compass: centre of gravity + one point (X / Y) per vote.
+     *
+     * @return list<array{0:string, 1:int|string, 2:int|string}>
+     */
+    private function compassRows(array $tally): array {
+        $c = $tally['centroid'] ?? null;
+        $ct = $c
+            ? $this->num($c['x']) . ' / ' . $this->num($c['y'])
+            : '—';
+        $rows = [[$this->l10n->t('Centre of gravity (X / Y)'), $ct, $tally['total']]];
+        foreach ($tally['points'] as $p) {
+            $rows[] = [$this->l10n->t('Point (X / Y)'), $p['x'] . ' / ' . $p['y'], ''];
+        }
+        return $rows;
+    }
+
+    /**
+     * Matching: one row per pairing "item → target" that was actually chosen.
+     * All combinations would be 64 rows of noise with eight pairs.
+     *
+     * @return list<array{0:string, 1:int|string, 2:int|string}>
+     */
+    private function matchRows(array $tally): array {
+        if ((int)$tally['total'] === 0) {
+            return [[$this->l10n->t('(no answers)'), 0, '']];
+        }
+        $rows = [];
+        foreach ($tally['results'] as $row) {
+            foreach ($row['targets'] as $target) {
+                if ($target['count'] === 0) {
                     continue;
                 }
-                foreach ($tally['results'] as $row) {
-                    foreach ($row['targets'] as $target) {
-                        if ($target['count'] === 0) {
-                            continue;
-                        }
-                        $share = $row['n'] > 0 ? round($target['count'] / $row['n'] * 100) . '%' : '';
-                        $label = $this->l10n->t('%1$s → %2$s', [$row['label'], $target['label']]);
-                        fputcsv($fh, [$nr, $question, $typeLabel, $label, $target['count'], $share], ';', '"', '');
-                    }
-                }
-                continue;
-            }
-
-            // Ranking: one row per option with the mean place and the number of first places.
-            if ($poll->getType() === 'rank') {
-                foreach ($tally['results'] as $rank => $row) {
-                    $avg = $this->num($row['average']);
-                    fputcsv($fh, [
-                        $nr, $question, $typeLabel,
-                        $this->l10n->t('%1$s. %2$s · average place %3$s', [$rank + 1, $row['label'], $avg]),
-                        $row['first'], $row['n'],
-                    ], ';', '"', '');
-                }
-                if (count($tally['results']) === 0) {
-                    fputcsv($fh, [$nr, $question, $typeLabel, $this->l10n->t('(no answers)'), 0, ''], ';', '"', '');
-                }
-                continue;
-            }
-
-            // Free text: one row per answer group (same normal form) in the
-            // spelling of the first answer, as in grading, defused against formulas
-            // (CsvFormat::cell). The tally is called `answers` here,
-            // not `results` — which is why the generic branch below ran into a
-            // TypeError (500).
-            if ($poll->getType() === 'text') {
-                foreach ($tally['answers'] as $row) {
-                    $count = (int)$row['count'];
-                    $share = $total > 0 ? round($count / $total * 100) . '%' : '';
-                    fputcsv($fh, [$nr, $question, $typeLabel, CsvFormat::cell((string)$row['sample']), $count, $share], ';', '"', '');
-                }
-                if (count($tally['answers']) === 0) {
-                    fputcsv($fh, [$nr, $question, $typeLabel, $this->l10n->t('(no answers)'), 0, ''], ';', '"', '');
-                }
-                continue;
-            }
-
-            foreach ($tally['results'] as $row) {
-                $count = (int)$row['count'];
-                $share = $total > 0 ? round($count / $total * 100) . '%' : '';
-                fputcsv($fh, [$nr, $question, $typeLabel, $this->answerLabel($poll->getType(), $row), $count, $share], ';', '"', '');
-            }
-            if ($poll->getType() === 'scale') {
-                fputcsv($fh, [$nr, $question, $typeLabel, $this->l10n->t('Average'), $this->num($tally['average']), ''], ';', '"', '');
-            }
-            if (count($tally['results']) === 0) {
-                // Word cloud without answers -> the question is still visible in the export.
-                fputcsv($fh, [$nr, $question, $typeLabel, $this->l10n->t('(no answers)'), 0, ''], ';', '"', '');
+                $share = $row['n'] > 0 ? round($target['count'] / $row['n'] * 100) . '%' : '';
+                $label = $this->l10n->t('%1$s → %2$s', [$row['label'], $target['label']]);
+                $rows[] = [$label, $target['count'], $share];
             }
         }
+        return $rows;
+    }
 
-        rewind($fh);
-        $csv = stream_get_contents($fh);
-        fclose($fh);
-        return "\xEF\xBB\xBF" . $csv; // UTF-8 BOM
+    /**
+     * Ranking: one row per option with the mean place and the number of
+     * first places.
+     *
+     * @return list<array{0:string, 1:int|string, 2:int|string}>
+     */
+    private function rankRows(array $tally): array {
+        $rows = [];
+        foreach ($tally['results'] as $rank => $row) {
+            $avg = $this->num($row['average']);
+            $rows[] = [
+                $this->l10n->t('%1$s. %2$s · average place %3$s', [$rank + 1, $row['label'], $avg]),
+                $row['first'], $row['n'],
+            ];
+        }
+        if (count($tally['results']) === 0) {
+            $rows[] = [$this->l10n->t('(no answers)'), 0, ''];
+        }
+        return $rows;
+    }
+
+    /**
+     * Free text: one row per answer group (same normal form) in the
+     * spelling of the first answer, as in grading, defused against formulas
+     * (CsvFormat::cell). The tally is called `answers` here,
+     * not `results` — which is why the generic rows (defaultRows) ran into a
+     * TypeError (500).
+     *
+     * @return list<array{0:string, 1:int|string, 2:int|string}>
+     */
+    private function textRows(array $tally): array {
+        $total = (int)$tally['total'];
+        $rows = [];
+        foreach ($tally['answers'] as $row) {
+            $count = (int)$row['count'];
+            $share = $total > 0 ? round($count / $total * 100) . '%' : '';
+            $rows[] = [CsvFormat::cell((string)$row['sample']), $count, $share];
+        }
+        if (count($tally['answers']) === 0) {
+            $rows[] = [$this->l10n->t('(no answers)'), 0, ''];
+        }
+        return $rows;
+    }
+
+    /**
+     * Every other type (choice, true/false, multiple answers, word cloud,
+     * number guess, single scale): one row per result with its share of
+     * all votes; a scale adds its average.
+     *
+     * @return list<array{0:string, 1:int|string, 2:int|string}>
+     */
+    private function defaultRows(string $type, array $tally): array {
+        $total = (int)$tally['total'];
+        $rows = [];
+        foreach ($tally['results'] as $row) {
+            $count = (int)$row['count'];
+            $share = $total > 0 ? round($count / $total * 100) . '%' : '';
+            $rows[] = [$this->answerLabel($type, $row), $count, $share];
+        }
+        if ($type === 'scale') {
+            $rows[] = [$this->l10n->t('Average'), $this->num($tally['average']), ''];
+        }
+        if (count($tally['results']) === 0) {
+            // Word cloud without answers -> the question is still visible in the export.
+            $rows[] = [$this->l10n->t('(no answers)'), 0, ''];
+        }
+        return $rows;
     }
 
     /** A number in the export's language (rule in CsvFormat::number). */

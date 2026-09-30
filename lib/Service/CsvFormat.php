@@ -11,9 +11,28 @@ use OCP\IL10N;
 
 /**
  * Formatting for the CSV exports. Static, so that the moderated and the
- * self-paced export write the same numbers and labels.
+ * self-paced export write the same file format, numbers and labels.
  */
 class CsvFormat {
+    /**
+     * The CSV file of an export, one line per row. `;`-separated + UTF-8
+     * BOM → opens correctly in Excel, umlauts included. Quotes doubled as
+     * per RFC 4180, without backslash escaping (the way Excel reads it; PHP
+     * 8.4 wants the escape character stated explicitly).
+     *
+     * @param iterable<list<int|string>> $rows
+     */
+    public static function document(iterable $rows): string {
+        $fh = fopen('php://temp', 'r+');
+        foreach ($rows as $row) {
+            fputcsv($fh, $row, ';', '"', '');
+        }
+        rewind($fh);
+        $csv = stream_get_contents($fh);
+        fclose($fh);
+        return "\xEF\xBB\xBF" . $csv; // UTF-8 BOM
+    }
+
     /**
      * Formats a number for the export in the export's language. Without
      * this the German export writes a dot and Excel reads the column as
