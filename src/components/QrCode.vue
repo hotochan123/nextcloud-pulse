@@ -30,10 +30,10 @@ export default {
 
 <style scoped>
 .qr { width: 100%; line-height: 0; }
-.qr >>> svg { width: 100%; height: auto; display: block; }
+.qr :deep(svg) { width: 100%; height: auto; display: block; }
 /* The lib renders <rect fill="white"> as the background and <path fill="black"> as the
    modules. Do NOT give both the same colour, or the modules disappear. */
 /* Deliberately FIXED white/dark (not theme-dependent) — otherwise not scannable on a dark NC theme. */
-.qr >>> rect { fill: #fff; }
-.qr >>> path { fill: #141225; }
+.qr :deep(rect) { fill: #fff; }
+.qr :deep(path) { fill: #141225; }
 </style>

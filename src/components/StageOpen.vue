@@ -58,10 +58,9 @@
  * who looks up should be able to read what to do on the phone — without the
  * screen anticipating the result (E1/E4).
  */
+import { hasTallLabel } from '../util/format.js'
 import { withPalette } from '../util/palette.js'
 import StageRow from './StageRow.vue'
-
-const TALL_LABEL_CHARS = 34
 
 export default {
 	name: 'StageOpen',
@@ -106,7 +105,7 @@ export default {
 			return []
 		},
 		tall() {
-			return this.rows.some((r) => (r.label || '').length > TALL_LABEL_CHARS)
+			return hasTallLabel(this.rows)
 		},
 		matchItems() {
 			return (this.poll.match && this.poll.match.items) || []

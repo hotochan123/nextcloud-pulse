@@ -156,41 +156,6 @@
 	color: var(--opt-ink, var(--pulse-text));
 }
 
-/* ══ Result grammar — base bar, entirely in `em` ════════════════════════════
-   The container's font-size controls the size (phone small / projector large). Child
-   elements NOT in px, otherwise the projector scaling breaks (this is the fix
-   for §4.9 "reveal stays too small" in the design notes, not in the public repository). */
-.pulse-rbar { margin-bottom: .55em; }
-.pulse-rbar-top {
-	display: flex;
-	align-items: center;
-	gap: .5em;
-	font-size: .9em;
-	margin-bottom: .3em;
-}
-.pulse-rbar-top .pulse-badge { width: 1.6em; height: 1.6em; border-radius: .4em; font-size: .85em; }
-.pulse-rbar-name { font-weight: 700; }
-.pulse-rbar-pct { margin-left: auto; font-variant-numeric: tabular-nums; color: var(--pulse-text-2); }
-.pulse-rbar-track {
-	height: 1.6em;
-	border-radius: .5em;
-	background: var(--pulse-fill);
-	overflow: hidden;
-}
-.pulse-rbar-fill {
-	height: 100%;
-	border-radius: .5em;
-	background: var(--opt-fill, var(--pulse-primary));
-	transition: width .4s ease;
-}
-.pulse-rbar.is-correct .pulse-rbar-name::after {
-	content: " ✓ richtig";
-	color: var(--pulse-success);
-	font-size: .8em;
-	font-weight: 700;
-	white-space: nowrap;
-}
-
 /* ══ Stage row model (design notes §2.4, not in the public repository) ══════
    ONE row per option: the bar IS the row, badge/label/value sit
    on top of it. Solves two findings at once — the double height per option (the stage
@@ -375,7 +340,6 @@
 
 @media (prefers-reduced-motion: reduce) {
 	.pulse-chip-dot { animation: none; }
-	.pulse-rbar-fill { transition: none; }
 	/* The race changes every 2 s, for the whole session (§3.3). */
 	.pace-race-row .srow-fill { transition: none; }
 	.pulse-btn { transition: none; }

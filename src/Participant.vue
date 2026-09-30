@@ -678,10 +678,6 @@ export default {
 			const top = (1 - (this.compassY / R + 1) / 2) * 100
 			return { left: left + '%', top: top + '%' }
 		},
-		compassReadout() {
-			const x = this.compassX, y = this.compassY
-			return `X ${x > 0 ? '+' : ''}${x} · Y ${y > 0 ? '+' : ''}${y}`
-		},
 		compassAria() {
 			if (!this.poll || !this.poll.scale || !this.poll.scale.axisX) return ''
 			const sc = this.poll.scale
@@ -1473,13 +1469,6 @@ export default {
 </script>
 
 <style scoped>
-/* Matching: per row the item on the left, the choice on the right — stacked
-   on narrow phones, side by side otherwise. */
-.match-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
-.match-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.match-label { flex: 1 1 8em; min-width: 0; font-weight: 600; }
-.match-sel { flex: 1 1 10em; min-width: 0; }
-
 .pulse-part {
 	/* Must fill the row flex container #content, otherwise the internal
 	   justify-content:center does not apply and the card sticks to the left. */
@@ -1627,7 +1616,6 @@ export default {
 	50% { transform: scale(1.3); opacity: 1; }
 }
 
-.q-img { display: block; width: 100%; max-height: 34vh; object-fit: contain; margin: 0 0 10px; border-radius: var(--pulse-r-card, 14px); }
 .q { font-size: var(--t-h2); line-height: 1.25; margin: 0 0 24px; }
 
 /* Practice-run chip (replaces .practice-tag) */
@@ -1654,19 +1642,8 @@ export default {
 .verdict.is-no .verdict-text { color: var(--pulse-error); }
 .verdict-points { font-size: var(--t-body); margin-top: 2px; }
 .verdict-sub { font-size: var(--t-sm); color: var(--pulse-text-2); }
-.verdict-none { margin-bottom: 24px; }
 .myrank { text-align: center; margin: 20px 0; font-size: 17px; }
 .myrank b { color: var(--pulse-primary); font-variant-numeric: tabular-nums; }
-
-/* Tick after voting (success-coloured) */
-.check { width: 64px; height: 64px; display: block; margin: 0 auto 12px; }
-.check-ring { fill: none; stroke: var(--pulse-border-strong); stroke-width: 2; }
-.check-mark {
-	stroke: var(--pulse-success); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round;
-	stroke-dasharray: 48; stroke-dashoffset: 48;
-	animation: draw 0.45s cubic-bezier(.65, 0, .45, 1) forwards;
-}
-@keyframes draw { to { stroke-dashoffset: 0; } }
 
 /* ── Phone answer option (letter + colour A–H, selection = border + tick) ── */
 /* Grid instead of a flex column: grid-auto-rows: 1fr makes all cards as tall
@@ -1694,10 +1671,6 @@ export default {
 	color: var(--opt-ink, var(--pulse-on-primary));
 	font-weight: 700;
 }
-/* Ring on the INSIDE — required, not taste: overflow-y:auto forces overflow-x
-   to auto as well, and the scroll container clips an outer
-   shadow on all four edges (§8.2). */
-.choice.is-picked { box-shadow: inset 0 0 0 3px var(--pulse-text); font-weight: 800; }
 .choice.is-dim { filter: saturate(.25); opacity: 0.72; }
 .choice-badge { flex: 0 0 32px; width: 32px; height: 32px; border-radius: 8px; font-size: 15px; }
 .choice.is-quiz .choice-badge { background: var(--opt-ink, var(--pulse-on-primary)); color: var(--opt-fill, var(--pulse-primary)); }
@@ -1709,33 +1682,10 @@ export default {
    colour away from your own chosen card in the "sent" state. The OTHER cards
    (.is-dim) are the ones to dim, not your own. */
 .choice:disabled { opacity: 1 !important; cursor: default; }
-/* Multiple choice: checkbox square on the right, chosen = filled. */
+/* Ring on the INSIDE — required, not taste: overflow-y:auto forces overflow-x
+   to auto as well, and the scroll container clips an outer
+   shadow on all four edges (§8.2). */
 .choice.is-picked { border-color: var(--pulse-primary); box-shadow: 0 0 0 2px var(--pulse-primary) inset; font-weight: 800; }
-.choice-box {
-	margin-left: auto; flex: 0 0 auto; width: 26px; height: 26px;
-	border: 2px solid var(--pulse-border-strong); border-radius: 7px;
-	display: grid; place-items: center; color: var(--pulse-on-primary);
-}
-.choice.is-picked .choice-box { background: var(--pulse-primary); border-color: var(--pulse-primary); }
-
-/* True/False: two coded columns. */
-.tf { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.tf-btn {
-	appearance: none; -webkit-appearance: none;
-	display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
-	min-height: 128px; padding: 20px 14px;
-	border: 2px solid var(--pulse-border); border-radius: var(--pulse-r-card);
-	background: var(--pulse-bg); color: var(--pulse-text); box-shadow: none;
-	font-size: var(--t-lead); font-weight: 800; cursor: pointer;
-	transition: transform 0.08s ease, border-color 0.12s ease;
-}
-/* NEUTRAL during voting: ✓/✗ only carry "yes/no", no judgement
-   (green = True would suggest "True = correct" in the quiz). Green/red only at
-   the reveal — which comes via the result bars (§5/§11). */
-.tf-mark { width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; background: var(--pulse-fill); color: var(--pulse-text-2); }
-.tf-btn:hover:not(:disabled) { border-color: var(--pulse-border-strong); }
-.tf-btn:active:not(:disabled) { transform: translateY(2px); }
-.tf-btn:disabled { opacity: 0.5; }
 
 /* Estimation question / free text / word cloud: input field + submit */
 .free-vote, .words { display: flex; flex-direction: column; gap: 14px; }
@@ -1766,7 +1716,6 @@ export default {
 }
 .rank-label { flex: 1; min-width: 0; font-size: 17px; font-weight: 600; overflow-wrap: anywhere; }
 .rank-move { display: flex; gap: 6px; flex: 0 0 auto; }
-.words-hint { margin: 0 0 2px; font-size: var(--t-sm); color: var(--pulse-text-2); }
 .word-field { display: block; }
 .word-count { display: block; margin-top: 4px; font-size: var(--t-cap); color: var(--pulse-text-2); text-align: right; }
 
@@ -1786,12 +1735,6 @@ export default {
 .val-unit { font-family: var(--pulse-mono); font-weight: 700; font-size: var(--t-lead); color: var(--pulse-text-2); }
 /* "Nothing chosen yet": grey dash, submit locked (see template). */
 .val-readout.is-empty .val-num { color: var(--pulse-text-2); opacity: 0.55; }
-
-/* Compass readout: same prominence as the single number (previously a grey body-text line). */
-.val-xy { display: flex; justify-content: center; align-items: baseline; gap: 18px; padding: 6px 0 2px; flex-wrap: wrap; }
-.val-ax { display: inline-flex; align-items: baseline; gap: 6px; min-width: 0; }
-.val-key { font-size: var(--t-cap); font-weight: 700; color: var(--pulse-text-2); text-transform: uppercase; letter-spacing: 0.08em; }
-.val-num--xy { font-size: 30px; color: var(--pulse-self); }
 
 .scale-range { -webkit-appearance: none; appearance: none; width: 100%; height: 44px; background: transparent; cursor: pointer; margin: 0; }
 .scale-range:disabled { cursor: default; opacity: 0.6; }
@@ -1817,10 +1760,6 @@ export default {
 .scale-ends { display: flex; justify-content: space-between; font-size: var(--t-cap); color: var(--pulse-text-2); gap: 12px; }
 .scale-ends span { max-width: 45%; }
 .scale-ends span:last-child { text-align: right; }
-.field-hint { margin: 0; font-size: var(--t-cap); color: var(--pulse-text-2); text-align: center; }
-.field-hint--left { font-size: var(--t-sm); text-align: left; }
-/* Footer with safe area: "Submit" must not sit under the Android bar. */
-.sticky-foot { display: flex; flex-direction: column; gap: 8px; padding-bottom: max(0px, env(safe-area-inset-bottom, 0px)); }
 
 /* Spectrum: BIPOLAR sliders — fill from the neutral mark to the thumb (§3.1).
    The mark sits on the neutral value, not flatly at 50 %. */
@@ -1879,7 +1818,6 @@ export default {
 
 /* Submit button (voting) + join submit */
 .submit-btn { width: 100%; margin-top: 4px; }
-.change-btn { display: flex; width: fit-content; margin: 18px auto 0; }
 .submit {
 	appearance: none !important;
 	border: none !important;
@@ -1894,7 +1832,6 @@ export default {
 .submit:hover:not(:disabled) { background: var(--pulse-primary-hover) !important; }
 .submit:disabled { opacity: 0.45; }
 
-.thanks { font-size: var(--t-body); color: var(--pulse-text-2); margin: 0 0 20px; text-align: center; }
 .conn-off { text-align: center; font-size: var(--t-sm); color: var(--pulse-error); margin-top: 24px; }
 
 /* ── Bands, correction window, picker sheet (§8.0/§8.3/§8.5/§8.7) ─────── */
@@ -1997,9 +1934,8 @@ export default {
 @media (prefers-reduced-motion: reduce) {
 	.fix-line { transition: none; }
 	.wait-dot { animation: none; }
-	.check-mark { animation: none; stroke-dashoffset: 0; }
 	.timer.is-low .timer-num { animation: none; }
-	.choice, .tf-btn { transition: none; }
+	.choice { transition: none; }
 	.scale-range.is-uni::-moz-range-progress { transition: none; }
 	.timer-fill { transition: none; }
 }

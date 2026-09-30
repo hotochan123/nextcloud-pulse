@@ -322,7 +322,7 @@
  * self-paced quiz, which are not in the public repository (see "References in
  * code comments" in the README).
  */
-import { fmtNum } from '../util/format.js'
+import { fmtNum, hasTallLabel } from '../util/format.js'
 import { option, rampStep, withPalette } from '../util/palette.js'
 import PulseIcon from './ui/PulseIcon.vue'
 import StageCompass from './StageCompass.vue'
@@ -332,10 +332,6 @@ import StageRow from './StageRow.vue'
 import StageStack from './StageStack.vue'
 import TextGrading from './TextGrading.vue'
 import VizEmpty from './ui/VizEmpty.vue'
-
-// From this label length on, rows are laid out on two lines — for ALL rows
-// of the stage together, so the row grid does not jump (§2.6).
-const TALL_LABEL_CHARS = 34
 
 export default {
 	name: 'ResultsView',
@@ -352,7 +348,7 @@ export default {
 		mine: { type: Object, default: null },
 		// Spectrum: own submitted values (aspectId -> value) for the "You" polygon.
 		mineAspects: { type: Object, default: null },
-		// Projector layout (wide): chart bound to the height + figures column on the right.
+		// Projector layout (wide): stage rows and Stage* charts fill the stage height; no figures column, notes or vote total.
 		wide: { type: Boolean, default: false },
 		// Moderator's preview panel: narrow, but saying the same as the
 		// big screen. Matching shows one stacked row per pair here instead of
@@ -385,8 +381,7 @@ export default {
 		},
 		// Two-line row height for the whole stage as soon as ONE label is long.
 		tallLabels() {
-			const rows = (this.results && this.results.results) || []
-			return rows.some((r) => (r.label || '').length > TALL_LABEL_CHARS)
+			return hasTallLabel((this.results && this.results.results) || [])
 		},
 		// Choice/multi rows with a stable palette (letter + colour A–H) —
 		// the same mapping as the live tile (projector) and the phone (util/palette.js).
@@ -800,8 +795,6 @@ export default {
 .matchres.is-dense .mres-head { margin-bottom: 0.25em; }
 .matchres.is-dense .mres-lead { margin-left: auto; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .matchres.is-dense :deep(.sstack) { height: 1.9em; }
-.matchres.is-wide .bar-row { margin-bottom: 0.45em; }
-.matchres.is-wide .mres-head { margin-bottom: 0.25em; }
 
 /* All sizes in em -> the component scales via the container font-size:
    small on the phone, large on the projector (§5.4, the fix for "reveal stays too small"). */
@@ -811,11 +804,7 @@ export default {
    among themselves — four options fill the screen, eight shrink down to the minimum
    and after that the shrink loop takes over. */
 .bars--stage { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
-/* Figures keep their height, the rows get the rest. */
-.bars--stage .dist-metrics { flex: 0 0 auto; }
 .matchres.is-wide { flex: 1 1 auto; min-height: 0; }
-.matchres.is-wide .mres-row { min-width: 0; }
-.matchres.is-wide .mres-item { font-weight: 700; }
 
 /* Stacked stage rows (§7.5/§7.6): like .srows--stretch they share the
    remaining height, so that four pairs fill the screen and eight still fit. */
@@ -941,28 +930,15 @@ export default {
 /* Number discs at the spoke end — replace the text at the edge (no clipping). */
 .rnum-bg { fill: var(--pulse-viz); stroke: var(--pulse-bg); stroke-width: 2; }
 .rnum { fill: var(--pulse-bg); font-family: var(--pulse-mono); font-weight: 800; font-size: 15px; }
-/* Figures column: number → aspect → avg. On the projector (is-wide) to the right of the
-   chart -> uses the width; on the phone below it. */
+/* Figures column: number → aspect → avg., below the chart. */
 .viz-col { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.4em; min-width: 0; }
 .viz-item { display: flex; align-items: baseline; gap: 0.55em; min-width: 0; }
 .viz-num { flex: 0 0 auto; width: 1.7em; height: 1.7em; align-self: center; border-radius: 50%; display: inline-grid; place-items: center; background: var(--pulse-viz); color: var(--pulse-bg); font-family: var(--pulse-mono); font-weight: 800; font-size: 0.72em; }
 .viz-label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
 .viz-val { flex: 0 0 auto; font-variant-numeric: tabular-nums; font-weight: 800; color: var(--pulse-viz); white-space: nowrap; }
 
-/* Projector layout: chart sized by the height (square), figures column on the right. */
+/* Projector: the container takes the rest of the stage height; StageRadar and StageCompass size the chart. */
 .spectrum-radar.is-wide, .compass-result.is-wide { flex: 1 1 auto; min-height: 0; }
-.is-wide .radar-main, .is-wide .compass-main { flex: 1 1 auto; min-height: 0; flex-direction: row; align-items: center; gap: clamp(1em, 3vw, 3em); }
-/* Width from the height: the SVG does carry a viewBox aspect ratio,
-   but Firefox resolves width:auto on a flex item to 0 — radar and
-   compass field disappeared completely on the projector. With aspect-ratio the
-   width is fixed before the SVG is measured. */
-.is-wide .radar-wrap, .is-wide .compass-wrap { flex: 0 1 auto; width: auto; height: 100%; display: flex; align-items: center; justify-content: center; }
-.is-wide .radar-wrap { aspect-ratio: 1 / 1; }
-.is-wide .compass-wrap { aspect-ratio: 460 / 440; }
-.is-wide .radar-wrap svg, .is-wide .compass-wrap svg { width: 100%; height: 100%; max-width: 100%; max-height: 100%; margin: 0; }
-.is-wide .viz-col { flex: 1 1 auto; min-height: 0; justify-content: center; gap: 0.7em; font-size: 1.2em; }
-.rlabel { fill: var(--pulse-text); font-weight: 800; font-size: 16px; }
-.rval { fill: var(--pulse-viz); font-weight: 800; font-size: 13px; }
 .rlegend { display: flex; flex-wrap: wrap; gap: 1em; justify-content: center; margin-top: 0.6em; font-size: 0.8em; color: var(--pulse-text-2); }
 .rsw { display: inline-block; width: 1.1em; height: 0.8em; border-radius: 0.2em; vertical-align: -0.1em; margin-right: 0.4em; }
 .rsw-avg { background: var(--pulse-viz); }
@@ -977,7 +953,6 @@ export default {
 .compass-wrap svg { width: 100%; max-width: 40em; height: auto; display: block; margin: 0 auto; }
 /* Compass figures: centre of gravity + "You" as a large X/Y readout. */
 .compass-readout { align-items: center; gap: 0.9em; }
-.is-wide .compass-readout { align-items: flex-start; }
 .viz-kpi { display: flex; flex-direction: column; gap: 0.05em; }
 .viz-kpi-lbl { font-size: 0.8em; color: var(--pulse-text-2); font-weight: 700; }
 .viz-kpi-val { font-family: var(--pulse-mono); font-weight: 800; font-size: 1.5em; color: var(--pulse-viz); font-variant-numeric: tabular-nums; }

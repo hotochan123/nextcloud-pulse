@@ -67,11 +67,12 @@ export function fmtDeadline(ts) {
 }
 
 /**
- * "5 min ago": the same texts as Moderator.ago(), but computed against
- * SERVER time: timestamps from /progress come from the server, and a skewed
- * laptop clock would otherwise turn "just now" into "3 min ago".
+ * "5 min ago", computed against the given now. The run view passes SERVER
+ * time: timestamps from /progress come from the server, and a skewed laptop
+ * clock would otherwise turn "just now" into "3 min ago". Moderator's room
+ * list (Moderator.ago()) passes the laptop clock.
  * @param {number} ts Unix seconds (server)
- * @param {number} nowServer now in server time (required)
+ * @param {number} nowServer now in Unix seconds, server time in the run view (required)
  * @return {string} '' without a timestamp
  */
 export function fmtAgo(ts, nowServer) {
@@ -119,4 +120,18 @@ export function fmtDuration(sec) {
 	const hours = d * 24 + h
 	if (hours < 48) return n('pulse', '%n hour', '%n hours', hours) + (m ? ', ' + minutes() : '')
 	return n('pulse', '%n day', '%n days', d) + (h ? ', ' + n('pulse', '%n hour', '%n hours', h) : '')
+}
+
+// From this label length on, rows are laid out on two lines — for ALL rows
+// of the stage together, so the row grid does not jump (§2.6).
+const TALL_LABEL_CHARS = 34
+
+/**
+ * Does one of the stage rows have a label long enough for the two-line row
+ * height? Shared by the open stage (StageOpen) and the reveal (ResultsView).
+ * @param {Array<{label: string}>} rows stage rows
+ * @return {boolean}
+ */
+export function hasTallLabel(rows) {
+	return rows.some((r) => (r.label || '').length > TALL_LABEL_CHARS)
 }

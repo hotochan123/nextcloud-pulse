@@ -11,7 +11,6 @@ import './styles/pulse-ds.css'
 import Participant from './Participant.vue'
 import Screen from './Screen.vue'
 
-Vue.prototype.OC = window.OC
 // Translations global: t/n are available in template and script (app ID
 // "pulse"). On the public page the language comes from the browser
 // (Accept-Language), not from an account.

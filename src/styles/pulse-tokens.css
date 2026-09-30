@@ -64,13 +64,6 @@
 	   tabular figures -> the number does not change width while dragging. */
 	--pulse-mono: ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
 
-	/* ── Projector scale (readable from afar, relative to the viewport) ───── */
-	--b-meta: clamp(15px, 1.4vw, 26px);
-	--b-body: clamp(20px, 2.2vw, 40px);
-	--b-tile: clamp(22px, 2.4vw, 46px);
-	--b-q:    clamp(34px, 4.2vw, 84px);
-	--b-huge: clamp(64px, 9vw, 168px);
-
 	/* ── Stage typography (redesign §2.2) ─────────────────────────────────
 	   (Design notes, not in the public repository.)
 	   Calculated, not guessed: reference projection 3.0 m image width at
@@ -126,7 +119,6 @@
 	   (review 28.09.). In dark mode the surface is #c3d2e4 and the text #0d1620. */
 	--pulse-state-done-ink: #ffffff;
 	--pulse-solution-ring: var(--pulse-success);
-	--pulse-solution-mark: var(--pulse-success);
 	--pulse-countdown-urgent: var(--pulse-error);
 	/* Image question (§7.8): in light mode the image sits on a calm surface; in dark
 	   mode that surface, together with the slight dimming, takes the glare out of
@@ -148,12 +140,10 @@
 	   AA rule: colour is never the only carrier — "You"/centroid/rank always
 	   also as text or shape. */
 	--pulse-self:      #c2255c;
-	--pulse-self-ink:  #ffffff;
 	--pulse-self-soft: rgba(194, 37, 92, .12);
 
 	--pulse-viz:       #0e7c8b; /* Ø / outline / bar  */
 	--pulse-viz-2:     #7ac6d2; /* spread / area      */
-	--pulse-viz-soft:  rgba(14, 124, 139, .14);
 	/* Text ON a viz surface (race bar, self-paced): #fff on #0e7c8b = 4.91:1. */
 	--pulse-viz-ink:   #ffffff;
 
@@ -184,11 +174,9 @@
 	--pulse-quiz-on:   #1c0a2b;
 	--pulse-quiz-soft: rgba(181, 127, 224, .20);
 	--pulse-self:      #f2699b;
-	--pulse-self-ink:  #2a0a17;
 	--pulse-self-soft: rgba(242, 105, 155, .20);
 	--pulse-viz:       #43c3d8;
 	--pulse-viz-2:     #9fe0ea;
-	--pulse-viz-soft:  rgba(67, 195, 216, .18);
 	--pulse-viz-ink:   #062a30; /* on #43c3d8 = 7.26:1 */
 	--pulse-state-done-ink: #0d1620; /* on readout #c3d2e4 = 11.9:1 (race row "Finished") */
 	--pulse-readout:   #c3d2e4;
@@ -212,11 +200,9 @@
 		--pulse-quiz-on:   #1c0a2b;
 		--pulse-quiz-soft: rgba(181, 127, 224, .20);
 		--pulse-self:      #f2699b;
-		--pulse-self-ink:  #2a0a17;
 		--pulse-self-soft: rgba(242, 105, 155, .20);
 		--pulse-viz:       #43c3d8;
 		--pulse-viz-2:     #9fe0ea;
-		--pulse-viz-soft:  rgba(67, 195, 216, .18);
 		--pulse-viz-ink:   #062a30; /* on #43c3d8 = 7.26:1 */
 		--pulse-state-done-ink: #0d1620; /* on readout #c3d2e4 = 11.9:1 (race row "Finished") */
 		--pulse-readout:   #c3d2e4;

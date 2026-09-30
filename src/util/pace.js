@@ -18,12 +18,6 @@
  * the README).
  */
 
-// Feature switch: the "Self-paced" toggle in the deck menu of every quiz.
-// Until step 4.6 it only appeared with ?pace=1 in the moderator URL, while
-// phone and projector could not handle the mode yet; since the rollout, always.
-// Rooms that already run self-paced are shown by the UI anyway.
-export const PACE_UI = true
-
 // Deadline bounds as on the server (PaceService::MIN_LEAD / MAX_LEAD): [now+60 s, now+30 days].
 export const DEADLINE_MIN = 60
 export const DEADLINE_MAX = 2592000

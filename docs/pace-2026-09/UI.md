@@ -14,7 +14,8 @@ history) and in the CHANGELOG.
 
 **Status:** 2026-09-28 · steps 4.0–4.6 done, **live**
 (`PACE_UI = true`, protocol 3). The product questions F1–F5 are built as
-described below under "Decisions".
+described below under "Decisions". The 2026-10 refactor round has since
+removed the `PACE_UI` switch; the "Self-paced" menu entry is unconditional.
 
 **Engine follow-up round (2026-09-28):** three items after the go-live — see
 the section "Engine follow-up round" before "Known and open".
@@ -55,7 +56,7 @@ room.pace === 'self'`; phone/projector: `data.room.pace === 'self'`).
 
 | Area | File |
 |---|---|
-| Pure rules without a browser: window state, deadlines, presets, phone cards, `canNext`, polling intervals, race rows, feature flag `PACE_UI` | `src/util/pace.js` (test: `dev/unit/pace.test.mjs`) |
+| Pure rules without a browser: window state, deadlines, presets, phone cards, `canNext`, polling intervals, race rows | `src/util/pace.js` (test: `dev/unit/pace.test.mjs`) |
 | CSV with the request token in the query (otherwise 412) | `src/util/csv.js` |
 | Deadlines, durations, "x min ago", state chip | `src/util/format.js` (`fmtDeadline`, `fmtDuration`, `fmtAgo`, `paceStateChip`) |
 | Switch, locks, deck header, counts for confirmations, errors/409 | `src/Moderator.vue` (`deckMenu`, `paceLock`, `deckPrimary`, `fetchCounts`, `lossText`, `failWrite`, `refreshRoom`) |
@@ -161,7 +162,8 @@ By hand, in three windows (moderator, phone, projector at
 
 - `PACE_UI = true` in `src/util/pace.js`: the switch is in every quiz deck,
   `?pace=1` has no meaning any more (the screenshot harness no longer needs it
-  either).
+  either). The 2026-10 refactor round removed the constant and its check in
+  `deckMenu`; the entry is now unconditional.
 - `Application::PROTOCOL` and `src/util/protocol.js` from 2 to 3. A phone or
   projector tab with a bundle from before would have shown a self-paced room
   forever as "Waiting for the next question …" or "Starting shortly"; with the
@@ -362,8 +364,8 @@ and after every run, afterwards no room of `pulse-shots` left.
 
 **Clean-up**
 
-- Switch the moderator's presentation preview to `ScreenPreview`;
-  `Moderator.ago()` to `fmtAgo`.
+- Switch the moderator's presentation preview to `ScreenPreview`.
+  (`Moderator.ago()` to `fmtAgo`: done in the 2026-10 refactor round.)
 - `prefers-reduced-motion` globally for `.srow-fill` (today only the race
   rows).
 - The moderated correction mode stays open after a rejected correction (400).
@@ -372,8 +374,8 @@ and after every run, afterwards no room of `pulse-shots` left.
 - The German wording of "This question is closed." (currently "Diese
   Abstimmung ist beendet.", a shared server key) and the lowercase "du/dich" in
   existing German strings (e.g. "Nur für dich").
-- `PACE_UI` is now a constant `true`. It can be removed together with its check
-  in `deckMenu` once it is certain that it will not be turned back.
+- Done in the 2026-10 refactor round: `PACE_UI` (a constant `true` since the
+  go-live) is removed together with its check in `deckMenu`.
 - The `moderator` track does not open a quiz deck menu; only `overview` (and
   `pace-mod`) cover the new item. Anyone who wants a sharper baseline adds a
   capture of the open quiz menu to `moderator`.

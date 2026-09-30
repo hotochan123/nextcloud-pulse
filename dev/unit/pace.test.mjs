@@ -17,7 +17,7 @@
 // the README).
 import assert from 'node:assert/strict'
 import {
-	PACE_UI, DEADLINE_MIN, DEADLINE_MAX, CLOSING_SOON, STOP_LEAD,
+	DEADLINE_MIN, DEADLINE_MAX, CLOSING_SOON, STOP_LEAD,
 	isPacedRoom, windowState, stopDeadline, toLocalInput, fromLocalInput, defaultDeadline,
 	deadlinePresets, splitDuration, raceRows, paceCard, canNext, phoneDelay, progressDelay,
 } from '../../src/util/pace.js'
@@ -46,8 +46,7 @@ const utc = (y, mo, d, h = 0, mi = 0) => Date.UTC(y, mo - 1, d, h, mi) / 1000
 
 // ── Constants, detection, window ─────────────────────────────────────────
 
-test('Konstanten wie der Server; PACE_UI freigeschaltet', () => {
-	assert.equal(PACE_UI, true)
+test('Konstanten wie der Server', () => {
 	assert.equal(DEADLINE_MIN, 60)
 	assert.equal(DEADLINE_MAX, 30 * 86400)
 	assert.equal(CLOSING_SOON, 900)

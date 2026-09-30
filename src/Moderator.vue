@@ -367,7 +367,6 @@
 		<PaceRun v-else-if="phase === 'pace'"
 			:key="room.code"
 			:room="room"
-			:join-url="joinUrl"
 			:join-url-full="joinUrlFull"
 			:join-path="joinPath"
 			:focus-title="paceFocus"
@@ -532,9 +531,9 @@ import PulseMenu from './components/ui/PulseMenu.vue'
 import CountdownRing from './components/CountdownRing.vue'
 import IntakeBoard from './components/IntakeBoard.vue'
 import { pulseConfirm } from './util/confirm.js'
-import { formatCode, remainingSecs, paceStateChip } from './util/format.js'
+import { formatCode, remainingSecs, paceStateChip, fmtAgo } from './util/format.js'
 import { csvUrl } from './util/csv.js'
-import { PACE_UI, isPacedRoom, windowState } from './util/pace.js'
+import { isPacedRoom, windowState } from './util/pace.js'
 import pollingMixin from './mixins/polling.js'
 import { progressCounts } from './mixins/progress-poll.js'
 import PaceOpenDialog from './components/PaceOpenDialog.vue'
@@ -1008,11 +1007,7 @@ export default {
 				}
 				// Ending the practice run also works while closed (only test data is lost).
 				items.push({ key: 'practice', label: t('pulse', 'Practice run'), icon: 'warning', checked: this.isPractice, act: this.togglePractice, ...this.paceLock(!this.isPractice) })
-				// PACE_UI has been on since the rollout (4.6); until then the
-				// switch needed ?pace=1. A self-paced room shows it in any case.
-				if (PACE_UI || paced) {
-					items.push({ key: 'pace', label: t('pulse', 'Self-paced'), checked: paced, act: this.togglePace, ...this.paceLock(true) })
-				}
+				items.push({ key: 'pace', label: t('pulse', 'Self-paced'), checked: paced, act: this.togglePace, ...this.paceLock(true) })
 			}
 			// Self-paced until the release; a moderated quiz at any time (L1).
 			if (this.isQuiz && (!paced || this.paceState !== 'released')) {
@@ -1242,15 +1237,9 @@ export default {
 		spaced(code) {
 			return formatCode(code)
 		},
+		// Room list: fmtAgo's texts, against the laptop clock.
 		ago(ts) {
-			const s = Math.max(0, Math.floor(Date.now() / 1000) - ts)
-			if (s < 90) return t('pulse', 'just now')
-			const m = Math.floor(s / 60)
-			if (m < 60) return t('pulse', '{count} min ago', { count: m })
-			const h = Math.floor(m / 60)
-			if (h < 24) return t('pulse', '{count} h ago', { count: h })
-			const d = Math.floor(h / 24)
-			return n('pulse', '%n day ago', '%n days ago', d)
+			return fmtAgo(ts, Date.now() / 1000)
 		},
 		async fetchMyRooms() {
 			try {
@@ -2352,11 +2341,9 @@ export default {
 .myrooms-head { font-size: 15px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--pulse-text-2); margin: 0 0 12px; }
 .myrooms-list { list-style: none; margin: 0; padding: 0; }
 .myroom {
-	display: flex; align-items: center; gap: 14px;
-	background: var(--pulse-hover);
+	display: flex; align-items: center;
 	border: 2px solid var(--pulse-border);
-	border-radius: var(--border-radius-container, 12px);
-	padding: 12px 16px; margin-bottom: 10px;
+	margin-bottom: 10px;
 }
 .myroom-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .myroom-title { font-size: 19px; font-weight: 700; line-height: 1.25; overflow-wrap: anywhere; }
@@ -2404,24 +2391,19 @@ export default {
 .deck-rename { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 /* Inherits border/focus from .pinput; only the title look and width here. */
 .deck-rename-input { font-size: 20px; font-weight: 700; width: min(380px, 60vw); }
-.deck-head-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 .deck-list { list-style: none; margin: 0 0 16px; padding: 0; }
 .deck-item {
 	display: flex; align-items: center; gap: 14px;
-	background: var(--pulse-hover);
-	border-radius: var(--border-radius-container, 12px);
 	padding: 12px 16px; margin-bottom: 10px;
 	border: 2px solid var(--pulse-border);
 }
-.deck-item.is-current { border-color: var(--pulse-primary); }
-.drag-handle { cursor: grab; color: var(--pulse-text-2); font-size: 18px; line-height: 1; user-select: none; }
+.drag-handle { cursor: grab; font-size: 18px; line-height: 1; user-select: none; }
 .drag-handle:active { cursor: grabbing; }
 .deck-item.sortable-chosen { opacity: 0.9; }
 .deck-item.sortable-ghost { opacity: 0.4; border-color: var(--pulse-primary); }
 .deck-num { font-weight: 800; color: var(--pulse-text-2); font-variant-numeric: tabular-nums; min-width: 20px; }
 .edit-note { color: var(--pulse-warning); font-size: 13px; margin: 0 0 14px; }
 .deck-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.deck-q { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .deck-type { font-size: 12px; color: var(--pulse-text-2); display: flex; align-items: center; gap: 0.5em; flex-wrap: wrap; }
 /* Type tag in the deck (MC/WC/SC/…): SC carries the "you" magenta of the scale family. */
 .deck-tico {
@@ -2463,9 +2445,6 @@ export default {
 .summary-num { font-weight: 800; color: var(--pulse-text-2); font-variant-numeric: tabular-nums; }
 .summary-qtext { flex: 1; min-width: 0; }
 .summary-type { font-size: 12px; font-weight: 400; color: var(--pulse-text-2); }
-
-/* Final standings */
-.lb-view { max-width: 640px; margin: 0 auto; }
 
 /* Presentation — status/chips/notice now come from the DS (2nd block).
    Only the layout leftovers remain here. */
@@ -2559,7 +2538,7 @@ export default {
 .img-input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .img-hint { font-size: 12px; color: var(--pulse-text-2); }
 .composer-actions { display: flex; gap: 10px; margin-top: 20px; }
-.composer { background: var(--pulse-hover); border-radius: var(--border-radius-container, 14px); padding: 20px; border: 1px solid var(--pulse-border); }
+.composer { padding: 20px; border: 1px solid var(--pulse-border); }
 
 /* Type ▸ mode (§4): the scale mode is a sub-choice of "Scale" — indented,
    with a connector and smaller chip switches (not a second segmented control). */
@@ -2584,10 +2563,6 @@ export default {
 
 /* Inputs */
 .pinput {
-	background: var(--pulse-bg) !important;
-	color: var(--pulse-text);
-	border: 2px solid var(--pulse-border-strong);
-	border-radius: var(--border-radius-element, 8px);
 	padding: 11px 14px;
 	font-size: 16px;
 	width: 100%;
@@ -2595,7 +2570,6 @@ export default {
 }
 /* Uniform, visible focus ring on all input fields (§8). */
 .pinput:focus-visible { outline: 2px solid var(--pulse-primary); outline-offset: 1px; border-color: var(--pulse-primary); }
-.pinput:focus { border-color: var(--pulse-primary); }
 .pinput--q { font-size: 20px; margin-bottom: 18px; }
 /* NC gives <select> a fixed height globally -> with our padding the line gets
    cut off at the bottom. Lift the fixed height so the box grows with its content. */
@@ -2608,7 +2582,6 @@ export default {
 .aspect-poles { display: flex; gap: 6px; }
 .aspect-poles .pinput--pole { width: 100%; font-size: var(--t-sm); }
 .axis-block { border: 1px solid var(--pulse-border); border-radius: var(--pulse-r-el); padding: 10px 12px; margin-bottom: 10px; display: flex; flex-direction: column; gap: 6px; }
-.pinput::placeholder { color: var(--pulse-text-2); }
 
 .ic-flip { transform: scaleX(-1); }
 

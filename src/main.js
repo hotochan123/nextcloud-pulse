@@ -10,7 +10,6 @@ import './styles/pulse-tokens.css'
 import './styles/pulse-ds.css'
 import Moderator from './Moderator.vue'
 
-Vue.prototype.OC = window.OC
 // Translations globally: t/n are available in template and script (app id
 // "pulse"). Nextcloud loads the language file l10n/<lang>.js before this bundle.
 Vue.prototype.t = t

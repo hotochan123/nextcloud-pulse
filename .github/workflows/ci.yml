@@ -46,11 +46,14 @@ jobs:
       - name: Translations complete
         run: npm run l10n:check
 
-      # The rules of the self-paced quiz (src/util/pace.js), in plain Node.
-      # The daylight-saving cases need Europe/Berlin; without it the test
-      # aborts with exit 2.
+      # The rules of the self-paced quiz (src/util/pace.js) and the shared
+      # helpers of src/util/format.js, in plain Node. The daylight-saving
+      # cases of pace.test need Europe/Berlin; without it that test aborts
+      # with exit 2.
       - name: JS unit tests
-        run: TZ=Europe/Berlin node dev/unit/pace.test.mjs
+        run: |
+          TZ=Europe/Berlin node dev/unit/pace.test.mjs
+          node dev/unit/format.test.mjs
 
       # The simulation and the screenshot harness only ever run against a
       # live instance, so CI at least parses them, the build scripts and the

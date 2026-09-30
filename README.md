@@ -321,6 +321,7 @@ Vote  = { value: {"<itemId>": "<targetId>"} }    # match (every row assigned)
 tests/run.sh          # PHPUnit inside the Nextcloud container (see tests/README.md)
 npm run l10n:check    # translation coverage, exit 1 on gaps
 TZ=Europe/Berlin node dev/unit/pace.test.mjs   # self-paced rules (deadlines, phone cards, polling rate)
+node dev/unit/format.test.mjs                  # shared formatting helpers (tall labels, "x min ago")
 dev/sim/run.sh        # HTTP simulation of complete runs against the running instance (dev/sim/README.md)
 ```
 

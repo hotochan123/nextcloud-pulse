@@ -223,7 +223,6 @@ export default {
 	mixins: [progressPoll],
 	props: {
 		room: { type: Object, required: true },
-		joinUrl: { type: String, default: '' },
 		joinUrlFull: { type: String, default: '' },
 		joinPath: { type: String, default: '' },
 		// Arrived here by a click (Moderator.enterPace): focus on the title.
