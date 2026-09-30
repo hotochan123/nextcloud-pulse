@@ -495,6 +495,10 @@ described under "Security notes" and "Known limits" in the README.
   Longer text used to be cut on saving without a word. The compass field for
   the heat-map threshold now also goes up to 9999 with its arrows, the value
   saving always accepted.
+- On the projector, the four corner labels of a compass question sat upside
+  down: the two top labels were drawn at the bottom and the other way round,
+  each next to answers it did not describe. They now sit in the corners the
+  editor and the phone show them in.
 
 ### Removed
 - `office-addin/manifest.xml`. It is generated now, and a second editable copy

@@ -565,6 +565,9 @@ export default {
 				right: { x: r1(sx(R) + 10), y: cy + 4, t: ax.poleHigh || '' },
 				left: { x: r1(sx(-R) - 10), y: cy + 4, t: ax.poleLow || '' },
 			}
+			// Stored order [bottom-left, bottom-right, top-left, top-right]
+			// (DeckService::buildCorners), the same on the projector
+			// (StageCompass); dev/unit/question-types.test.mjs compares them.
 			const cl = this.results.cornerLabels || []
 			const corners = []
 			if (cl[0]) corners.push({ x: r1(sx(-R) + 6), y: r1(sy(-R) - 8), anchor: 'start', t: cl[0] })

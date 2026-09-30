@@ -15,6 +15,9 @@
 // - typeOptionsFor(): the question types each room mode offers in the
 //   composer, checked against the server's lists (DeckService TYPES_POLL /
 //   TYPES_QUIZ in lib/Service/DeckService.php).
+// - The compass corner labels: the order toBody sends is the one the
+//   composer's inputs, the phone and moderator field (ResultsView) and the
+//   projector (StageCompass) place in the same corners (read from the sources).
 // - The deck's type labels, tags and answer hints, and lossText(), the loss
 //   sentence of the destructive confirmations.
 //
@@ -449,6 +452,49 @@ test('scale compass: round trip', () => {
 		body: { type: 'scale', question: 'Where?', scaleMode: 'compass', scaleMax: 5, range: 7, axisX: X, axisY: Y, cornerLabels: ['a', 'b', 'c', 'd'], heatmapThreshold: 60 },
 		fails: [],
 	})
+})
+
+// cornerLabels keep the order the server stores, [bottom-left, bottom-right,
+// top-left, top-right] (DeckService::buildCorners). The projector once drew
+// that order as [top-left, top-right, bottom-left, bottom-right], upside
+// down. Read from the sources: every view puts each index in the same
+// corner, and both charts draw +X to the right and +Y at the top, so a
+// label sits in the quadrant of the answers it names.
+test('scale compass: each corner label sits in the same corner in the composer, the results and on the projector', () => {
+	const src = (rel) => readFileSync(new URL('../../' + rel, import.meta.url), 'utf8')
+	const STORED = ['bl', 'br', 'tl', 'tr']
+	const byIndex = (pairs, name) => {
+		assert.equal(pairs.length, 4, name + ': four corners found')
+		const out = []
+		for (const [i, corner] of pairs) out[Number(i)] = corner
+		return out
+	}
+
+	const doc = src('lib/Service/DeckService.php').match(/Compass corner labels:[^[]*\[([^\]]*)\]/)
+	assert.ok(doc, 'order in the DeckService::buildCorners docblock')
+	assert.deepEqual(doc[1].split(',').map((s) => s.trim().split('-').map((w) => w[0]).join('')), STORED, 'DeckService')
+
+	const composer = [...src('src/Moderator.vue').matchAll(/t\('pulse', '(Top|Bottom) (left|right)'\) \}\}<\/span><input v-model="draft\.cornerLabels\[(\d)\]"/g)]
+		.map((m) => [m[3], m[1][0].toLowerCase() + m[2][0]])
+	assert.deepEqual(byIndex(composer, 'Moderator'), STORED, 'composer (Moderator.vue)')
+
+	const rv = src('src/components/ResultsView.vue')
+	assert.match(rv, /const sx = \(x\) => r1\(cx \+ /, 'ResultsView: +X to the right')
+	assert.match(rv, /const sy = \(y\) => r1\(cy - /, 'ResultsView: +Y at the top')
+	const field = [...rv.matchAll(/if \(cl\[(\d)\]\) corners\.push\(\{ x: r1\(sx\((-?)R\)[^}]*?y: r1\(sy\((-?)R\)/g)]
+		.map((m) => [m[1], (m[3] ? 'b' : 't') + (m[2] ? 'l' : 'r')])
+	assert.deepEqual(byIndex(field, 'ResultsView'), STORED, 'phone and moderator (ResultsView.vue)')
+
+	const sc = src('src/components/StageCompass.vue')
+	assert.match(sc, /sx\(x\) \{\s*return Math\.round\(\(50 \+ /, 'StageCompass: +X to the right')
+	assert.match(sc, /sy\(y\) \{\s*return Math\.round\(\(50 - /, 'StageCompass: +Y at the top')
+	const stage = [...sc.matchAll(/<span v-if="corners\[(\d)\]" class="splot-corner splot-corner--([tb][lr])">\{\{ corners\[(\d)\] \}\}/g)]
+	for (const m of stage) assert.equal(m[1], m[3], 'StageCompass: v-if and text read the same label')
+	assert.deepEqual(byIndex(stage.map((m) => [m[1], m[2]]), 'StageCompass'), STORED, 'projector (StageCompass.vue)')
+	// The class names mean what they say.
+	for (const [c, v, h] of [['tl', 'top', 'left'], ['tr', 'top', 'right'], ['bl', 'bottom', 'left'], ['br', 'bottom', 'right']]) {
+		assert.match(sc, new RegExp('\\.splot-corner--' + c + ' \\{ ' + h + ': [^;]+; ' + v + ': '), 'StageCompass: .splot-corner--' + c)
+	}
 })
 
 // ── words ────────────────────────────────────────────────────────────────

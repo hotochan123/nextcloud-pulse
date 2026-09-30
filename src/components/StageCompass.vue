@@ -27,10 +27,13 @@
 			<span v-if="axisY.poleLow" class="splot-spoke splot-pole splot-pole--bottom">{{ axisY.poleLow }}</span>
 			<span v-if="axisX.poleLow" class="splot-spoke splot-pole splot-pole--left">{{ axisX.poleLow }}</span>
 			<span v-if="axisX.poleHigh" class="splot-spoke splot-pole splot-pole--right">{{ axisX.poleHigh }}</span>
-			<span v-if="corners[0]" class="splot-corner splot-corner--tl">{{ corners[0] }}</span>
-			<span v-if="corners[1]" class="splot-corner splot-corner--tr">{{ corners[1] }}</span>
-			<span v-if="corners[2]" class="splot-corner splot-corner--bl">{{ corners[2] }}</span>
-			<span v-if="corners[3]" class="splot-corner splot-corner--br">{{ corners[3] }}</span>
+			<!-- Stored order [bottom-left, bottom-right, top-left, top-right]
+			     (DeckService::buildCorners), as in the composer and ResultsView;
+			     dev/unit/question-types.test.mjs compares all three. -->
+			<span v-if="corners[2]" class="splot-corner splot-corner--tl">{{ corners[2] }}</span>
+			<span v-if="corners[3]" class="splot-corner splot-corner--tr">{{ corners[3] }}</span>
+			<span v-if="corners[0]" class="splot-corner splot-corner--bl">{{ corners[0] }}</span>
+			<span v-if="corners[1]" class="splot-corner splot-corner--br">{{ corners[1] }}</span>
 			<span v-if="centre" class="splot-centre" :style="centre.style">{{ t('pulse', 'Centre of gravity') }}</span>
 		</div>
 		<div class="splot-legend">
