@@ -12,6 +12,8 @@ use OCA\Pulse\Db\PollMapper;
 use OCA\Pulse\Db\Room;
 use OCA\Pulse\Db\RoomMapper;
 use OCA\Pulse\Service\DeckService;
+use OCA\Pulse\Service\PollNotFoundException;
+use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\IL10N;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -26,6 +28,9 @@ use ReflectionProperty;
  * Poll: no timer — but the FIRST jump records "was shown", so that
  * the public overall results can leave out questions that were never shown
  * (StateService::wasShown). Later jumps leave the timestamp alone.
+ *
+ * A missing question and one from another room are refused before anything
+ * is written, with PollNotFoundException (the moderator API's 404).
  */
 #[CoversClass(DeckService::class)]
 class DeckSetCurrentTest extends TestCase {
@@ -34,6 +39,8 @@ class DeckSetCurrentTest extends TestCase {
     private RoomMapper&MockObject $rooms;
     private DeckService $service;
     private Poll $poll;
+    /** find() answers DoesNotExistException, as for a deleted question */
+    private bool $gone = false;
 
     protected function setUp(): void {
         $this->poll = new Poll();
@@ -42,7 +49,7 @@ class DeckSetCurrentTest extends TestCase {
         $this->poll->setType('choice');
 
         $this->polls = $this->createMock(PollMapper::class);
-        $this->polls->method('find')->willReturnCallback(fn (): Poll => $this->poll);
+        $this->polls->method('find')->willReturnCallback(fn (): Poll => $this->gone ? throw new DoesNotExistException('gone') : $this->poll);
         $this->rooms = $this->createMock(RoomMapper::class);
         $this->rooms->method('update')->willReturnArgument(0);
 
@@ -168,13 +175,26 @@ class DeckSetCurrentTest extends TestCase {
         $this->assertSame(0, $room->getActivePollId());
     }
 
+    // ── Missing or foreign question: PollNotFoundException (404 in the API) ──
+
     public function testQuestionFromAnotherRoomIsRejected(): void {
         $this->poll->setRoomId(99);
         $this->polls->expects($this->never())->method('update');
         $this->rooms->expects($this->never())->method('update');
 
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(PollNotFoundException::class);
+        $this->expectExceptionMessage('This question does not belong to this room.');
         $this->service->setCurrent($this->room('poll'), 7);
+    }
+
+    public function testMissingQuestionIsRejected(): void {
+        $this->gone = true;
+        $this->polls->expects($this->never())->method('update');
+        $this->rooms->expects($this->never())->method('update');
+
+        $this->expectException(PollNotFoundException::class);
+        $this->expectExceptionMessage('Question not found.');
+        $this->service->setCurrent($this->room('quiz'), 7);
     }
 
     private function given(string $status, int $startedAt): void {

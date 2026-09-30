@@ -17,6 +17,7 @@ use OCA\Pulse\Service\Limits;
 use OCA\Pulse\Service\PaceService;
 use OCA\Pulse\Service\PaceStateService;
 use OCA\Pulse\Service\PollImageService;
+use OCA\Pulse\Service\PollNotFoundException;
 use OCA\Pulse\Service\RoomService;
 use OCA\Pulse\Service\StateService;
 use OCA\Pulse\Service\VoteService;
@@ -40,11 +41,14 @@ use PHPUnit\Framework\TestCase;
  *
  * Sixteen actions answer a service's InvalidArgumentException with its
  * message — some with 400, some with 404 (withRoom's status argument, or a
- * catch of their own). The split is not a rule (the same failing
- * requirePollInRoom is 400 on upload and 404 on delete), but the frontend
- * and old cached bundles branch on these statuses (results 404, progress
- * 204/404/409), so it is pinned here exactly, odd cases included. Fixing it
- * is a product decision, not a refactoring.
+ * catch of their own). That split is not a rule, but the frontend and old
+ * cached bundles branch on these statuses (results 404, progress
+ * 204/404/409), so it is pinned here exactly, odd cases included.
+ *
+ * One case is a rule: a missing question, or one from another room
+ * (PollNotFoundException), is 404 with its message in every action that
+ * looks one up — except gradeAnswer, which stays 400 because the run view
+ * reads a 404 on /grade as "room deleted".
  *
  * In every other action it escapes (a 500), and so it does in results and
  * gradeAnswer when the question disappears after the read they answer for.
@@ -67,8 +71,17 @@ class RoomApiErrorMapTest extends TestCase {
         'resetRoom', 'practice', 'reveal', 'endQuiz', 'progress', 'showImage', 'demoClear',
     ];
 
+    /**
+     * Actions in invalidArgument() that look up no existing question by ID,
+     * so they have no case in missingPoll() (demoSeed finds the running
+     * question through the cursor and answers "No active question." itself).
+     */
+    private const WITHOUT_QUESTION_LOOKUP = ['addPoll', 'create', 'demoSeed', 'duplicate', 'pace'];
+
     /** 'service::method' that throws InvalidArgumentException('x'); '' = none. */
     private string $throwAt = '';
+    /** 'service::method' that throws PollNotFoundException('x'); '' = none. */
+    private string $missingAt = '';
     /** @var list<string> every stubbed service call, as 'service::method' */
     private array $calls = [];
     /** @var array<string, mixed> request parameters; missing ones get the default */
@@ -172,7 +185,6 @@ class RoomApiErrorMapTest extends TestCase {
             'updatePoll' => ['updatePoll', ['ABCDEF', 7], 'deck::updatePoll', Http::STATUS_BAD_REQUEST],
             'reorder' => ['reorder', ['ABCDEF'], 'deck::reorder', Http::STATUS_BAD_REQUEST],
             'gradeAnswer' => ['gradeAnswer', ['ABCDEF', 7], 'votes::gradeTextAnswer', Http::STATUS_BAD_REQUEST],
-            'uploadImage: unknown question' => ['uploadImage', ['ABCDEF', 7], 'deck::requirePollInRoom', Http::STATUS_BAD_REQUEST],
             'uploadImage: unusable image' => ['uploadImage', ['ABCDEF', 7], 'images::store', Http::STATUS_BAD_REQUEST],
             'demoSeed' => ['demoSeed', ['ABCDEF'], 'demo::seedDemoVotes', Http::STATUS_BAD_REQUEST],
             // 404
@@ -180,7 +192,6 @@ class RoomApiErrorMapTest extends TestCase {
             'deletePoll' => ['deletePoll', ['ABCDEF', 7], 'deck::deletePoll', Http::STATUS_NOT_FOUND],
             'results' => ['results', ['ABCDEF', 7], 'state::resultsVersion', Http::STATUS_NOT_FOUND],
             'resetPoll' => ['resetPoll', ['ABCDEF', 7], 'deck::resetPoll', Http::STATUS_NOT_FOUND],
-            'deleteImage: unknown question' => ['deleteImage', ['ABCDEF', 7], 'deck::requirePollInRoom', Http::STATUS_NOT_FOUND],
             'deleteImage: removal fails' => ['deleteImage', ['ABCDEF', 7], 'images::remove', Http::STATUS_NOT_FOUND],
             'lockPoll' => ['lockPoll', ['ABCDEF', 7], 'deck::lockPoll', Http::STATUS_NOT_FOUND],
             'unlockPoll' => ['unlockPoll', ['ABCDEF', 7], 'deck::unlockPoll', Http::STATUS_NOT_FOUND],
@@ -214,13 +225,81 @@ class RoomApiErrorMapTest extends TestCase {
     }
 
     public function testShowImageAnswersNotFoundWithItsOwnMessage(): void {
-        $this->throwAt = 'deck::requirePollInRoom';
+        $this->missingAt = 'deck::requirePollInRoom';
 
         $response = $this->controller()->showImage('ABCDEF', 7);
 
         $this->assertInstanceOf(JSONResponse::class, $response);
         $this->assertSame(Http::STATUS_NOT_FOUND, $response->getStatus());
         $this->assertSame(['message' => 'Not found.'], $response->getData());
+    }
+
+    // ── A missing question → 404 (gradeAnswer: 400) ─────────────────────
+
+    /**
+     * Every action that looks up a question by ID, with the lookup failing
+     * (DeckService::requirePollInRoom: missing, or from another room) — the
+     * ID in the path or, for reorder and setCurrent, in the body. Always 404
+     * with the message; gradeAnswer stays 400, because PaceRun reads a 404
+     * on /grade as "room deleted" and leaves for the start screen.
+     */
+    public static function missingPoll(): array {
+        return [
+            'updatePoll' => ['updatePoll', ['ABCDEF', 7], 'deck::updatePoll', Http::STATUS_NOT_FOUND],
+            'reorder' => ['reorder', ['ABCDEF'], 'deck::reorder', Http::STATUS_NOT_FOUND],
+            'uploadImage' => ['uploadImage', ['ABCDEF', 7], 'deck::requirePollInRoom', Http::STATUS_NOT_FOUND],
+            'deleteImage' => ['deleteImage', ['ABCDEF', 7], 'deck::requirePollInRoom', Http::STATUS_NOT_FOUND],
+            'setCurrent' => ['setCurrent', ['ABCDEF'], 'deck::setCurrent', Http::STATUS_NOT_FOUND],
+            'deletePoll' => ['deletePoll', ['ABCDEF', 7], 'deck::deletePoll', Http::STATUS_NOT_FOUND],
+            'resetPoll' => ['resetPoll', ['ABCDEF', 7], 'deck::resetPoll', Http::STATUS_NOT_FOUND],
+            'lockPoll' => ['lockPoll', ['ABCDEF', 7], 'deck::lockPoll', Http::STATUS_NOT_FOUND],
+            'unlockPoll' => ['unlockPoll', ['ABCDEF', 7], 'deck::unlockPoll', Http::STATUS_NOT_FOUND],
+            'results' => ['results', ['ABCDEF', 7], 'state::resultsVersion', Http::STATUS_NOT_FOUND],
+            // the documented exception
+            'gradeAnswer' => ['gradeAnswer', ['ABCDEF', 7], 'votes::gradeTextAnswer', Http::STATUS_BAD_REQUEST],
+        ];
+    }
+
+    #[DataProvider('missingPoll')]
+    public function testMissingQuestionAnswersWithTheServiceMessage(string $method, array $args, string $missingAt, int $status): void {
+        $this->missingAt = $missingAt;
+
+        $response = $this->controller()->$method(...$args);
+
+        $this->assertInstanceOf(JSONResponse::class, $response);
+        $this->assertSame($status, $response->getStatus());
+        $this->assertSame(['message' => 'x'], $response->getData());
+    }
+
+    public function testEveryQuestionLookupHasAMissingCase(): void {
+        $catching = array_values(array_unique(array_column(self::invalidArgument(), 0)));
+        $lookups = array_column(self::missingPoll(), 0);
+        $without = array_values(array_diff($catching, $lookups));
+        sort($without);
+        $this->assertSame(self::WITHOUT_QUESTION_LOOKUP, $without,
+            'Action that looks up a question? Add it to missingPoll(), otherwise to WITHOUT_QUESTION_LOOKUP.');
+        $this->assertSame([], array_values(array_diff($lookups, $catching)), 'missingPoll() names an action invalidArgument() does not know');
+    }
+
+    /**
+     * results and gradeAnswer answer for one read; a question that
+     * disappears after it (StateService::results) still escapes as a 500
+     * rather than turning into withRoom's 404.
+     */
+    public static function missingAfterTheRead(): array {
+        return [
+            'results: question gone before the tally' => ['results'],
+            'gradeAnswer: question gone after grading' => ['gradeAnswer'],
+        ];
+    }
+
+    #[DataProvider('missingAfterTheRead')]
+    public function testMissingQuestionAfterTheReadStillEscapes(string $method): void {
+        $this->missingAt = 'state::results';
+
+        $this->expectException(PollNotFoundException::class);
+        $this->expectExceptionMessage('x');
+        $this->controller()->$method('ABCDEF', 7);
     }
 
     // ── InvalidArgumentException that escapes (500) ──────────────────────
@@ -333,7 +412,8 @@ class RoomApiErrorMapTest extends TestCase {
 
     /**
      * Stub $answers on $mock and record each call; the call named by
-     * $this->throwAt throws InvalidArgumentException('x') instead.
+     * $this->throwAt throws InvalidArgumentException('x') instead, the one
+     * named by $this->missingAt PollNotFoundException('x').
      *
      * @param array<string, \Closure(): mixed> $answers
      */
@@ -343,6 +423,9 @@ class RoomApiErrorMapTest extends TestCase {
                 $this->calls[] = $service . '::' . $method;
                 if ($this->throwAt === $service . '::' . $method) {
                     throw new \InvalidArgumentException('x');
+                }
+                if ($this->missingAt === $service . '::' . $method) {
+                    throw new PollNotFoundException('x');
                 }
                 return $answer();
             });

@@ -709,6 +709,50 @@ async function editRunning() {
 	check(r.status === 200, 'Bearbeitet: Stimme mit den neuen IDs geht durch', r.status)
 }
 
+// A question deleted in another tab, or one from another room: every
+// moderator route that looks it up answers 404 WITH its message — the message
+// tells it apart from the bare 404 of a stale route cache after a deploy — and
+// writes nothing. Grading stays 400: the run view (PaceRun) reads a 404 on
+// /grade as "room deleted".
+async function missingQuestion() {
+	console.log('\n=== Deck: gelöschte und fremde Frage ===')
+	const { code } = await newRoom('quiz', 'SIM Missing')
+	const { code: other } = await newRoom('quiz', 'SIM Missing Other')
+	const text = QUIZ_QS.find((x) => x.type === 'text')
+	const k1 = await modOk('POST', '/' + code + '/polls', text)
+	const k2 = await modOk('POST', '/' + code + '/polls', QUIZ_QS[0])
+	const gone = await modOk('POST', '/' + code + '/polls', text)
+	const foreign = await modOk('POST', '/' + other + '/polls', text)
+	await modOk('DELETE', `/${code}/polls/${gone.id}`)
+	const msg = (r) => (r.data && r.data.message) || ''
+	// Multipart like the deck editor; the lookup fails before the file is read.
+	const bnd = 'simmissing'
+	const png = '--' + bnd + '\r\nContent-Disposition: form-data; name="image"; filename="a.png"\r\nContent-Type: image/png\r\n\r\nx\r\n--' + bnd + '--\r\n'
+	const upload = (id) => request(BASE + '/api/1.0/rooms/' + code + '/polls/' + id + '/image', {
+		method: 'POST',
+		headers: { Authorization: AUTH, 'OCS-APIRequest': 'true', 'Content-Type': 'multipart/form-data; boundary=' + bnd, 'Content-Length': Buffer.byteLength(png), Accept: 'application/json' },
+		body: png,
+	})
+	for (const [label, id, want] of [
+		['gelöscht', gone.id, 'Question not found.'],
+		['fremd', foreign.id, 'This question does not belong to this room.'],
+	]) {
+		const put = await mod('PUT', `/${code}/polls/${id}`, { ...text, question: 'Überschrieben?' })
+		check(put.status === 404 && msg(put) === want, `Fehlende Frage (${label}): Bearbeiten -> 404 mit Meldung`, [put.status, msg(put)])
+		const img = await upload(id)
+		check(img.status === 404 && msg(img) === want, `Fehlende Frage (${label}): Bild hochladen -> 404 mit Meldung`, [img.status, msg(img)])
+		const order = await mod('POST', '/' + code + '/deck/order', { order: [k2.id, id, k1.id] })
+		check(order.status === 404 && msg(order) === want, `Fehlende Frage (${label}): Reihenfolge -> 404 mit Meldung`, [order.status, msg(order)])
+		const grade = await mod('POST', `/${code}/polls/${id}/grade`, { answer: 'Saturn', correct: true })
+		check(grade.status === 400 && msg(grade) === want, `Fehlende Frage (${label}): Bewerten -> 400 mit Meldung (nicht 404 = „Raum gelöscht“)`, [grade.status, msg(grade)])
+	}
+	// Nothing written: the deck keeps its order, the other room its question.
+	const deck = (await modOk('GET', '/' + code)).polls
+	check(idsOf(deck).join() === [k1.id, k2.id].join(), 'Fehlende Frage: Reihenfolge unverändert (erst alle prüfen, dann schreiben)', idsOf(deck))
+	const theirs = (await modOk('GET', '/' + other)).polls[0] || {}
+	check(theirs.question === text.question && theirs.image === '' && !(theirs.answerKey?.accepted || []).includes('Saturn'), 'Fehlende Frage: fremde Frage unberührt (Text, Bild, Lösung)', { q: theirs.question, img: theirs.image, key: theirs.answerKey })
+}
+
 async function practiceToggle() {
 	console.log('\n=== Quiz: Probelauf -> Echtlauf ===')
 	const { code } = await newRoom('quiz', 'SIM Practice')
@@ -1664,6 +1708,7 @@ try {
 	await skippedQuestion()
 	await wordKeys()
 	await editRunning()
+	await missingQuestion()
 	await practiceToggle()
 	await livePlayers()
 	await liveJoinBurst()

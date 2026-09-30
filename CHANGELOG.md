@@ -507,6 +507,11 @@ described under "Security notes" and "Known limits" in the README.
 - On the phone, moving an item of a ranking question down with its arrow button
   keeps the keyboard focus on that item. The focus fell back to the top of the
   page, so a keyboard user had to find the list again after every step.
+- API: editing a question, uploading its image and reordering the deck answer
+  404 "Question not found." (or "This question does not belong to this room.")
+  when the question no longer exists or belongs to another room, like every
+  other question action, instead of 400. Grading a free-text answer stays at
+  400, which the run view relies on.
 
 ### Removed
 - `office-addin/manifest.xml`. It is generated now, and a second editable copy

@@ -98,7 +98,8 @@ class DeckService {
      * Edit an existing question. Since choice options get new IDs, the
      * existing votes of this question are discarded (otherwise they would point nowhere).
      *
-     * @throws \InvalidArgumentException
+     * @throws PollNotFoundException the question is missing or belongs to another room
+     * @throws \InvalidArgumentException invalid input
      */
     public function updatePoll(Room $room, int $pollId, array $data): Poll {
         $poll = $this->requirePollInRoom($room, $pollId);
@@ -130,7 +131,8 @@ class DeckService {
      * but requirePollInRoom throws per foreign ID -> the caller sends the real deck).
      *
      * @param array<mixed> $pollIds
-     * @throws \InvalidArgumentException foreign ID or a non-number in the deck
+     * @throws PollNotFoundException a missing or foreign ID
+     * @throws \InvalidArgumentException a non-number in the deck
      */
     public function reorder(Room $room, array $pollIds): void {
         // Check all first, then write -> no partial change on a foreign ID.
@@ -457,7 +459,7 @@ class DeckService {
      * Set the cursor: which question is on right now (0 = none / presentation at rest).
      * Only the current question accepts votes (recordVote resolves via active_poll_id).
      *
-     * @throws \InvalidArgumentException the question does not belong to the room
+     * @throws PollNotFoundException the question is missing or belongs to another room
      */
     public function setCurrent(Room $room, int $pollId): void {
         if ($pollId !== 0) {
@@ -553,15 +555,15 @@ class DeckService {
 
     // ── internal ────────────────────────────────────────────────────────────
 
-    /** @throws \InvalidArgumentException */
+    /** @throws PollNotFoundException */
     public function requirePollInRoom(Room $room, int $pollId): Poll {
         try {
             $poll = $this->pollMapper->find($pollId);
         } catch (DoesNotExistException) {
-            throw new \InvalidArgumentException($this->l10n->t('Question not found.'));
+            throw new PollNotFoundException($this->l10n->t('Question not found.'));
         }
         if ($poll->getRoomId() !== $room->getId()) {
-            throw new \InvalidArgumentException($this->l10n->t('This question does not belong to this room.'));
+            throw new PollNotFoundException($this->l10n->t('This question does not belong to this room.'));
         }
         return $poll;
     }

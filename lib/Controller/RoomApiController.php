@@ -20,6 +20,7 @@ use OCA\Pulse\Service\NotOwnerException;
 use OCA\Pulse\Service\PaceService;
 use OCA\Pulse\Service\PaceStateService;
 use OCA\Pulse\Service\PollImageService;
+use OCA\Pulse\Service\PollNotFoundException;
 use OCA\Pulse\Service\RoomGoneException;
 use OCA\Pulse\Service\RoomService;
 use OCA\Pulse\Service\StateService;
@@ -409,8 +410,10 @@ class RoomApiController extends Controller {
             // With NUL, exactly as the vote is stored (Input::rawStr).
             $answer = Input::rawStr($this->request->getParam('answer'));
             $correct = Input::flag($this->request->getParam('correct')) ?? false;
-            // Its own catch rather than withRoom's 400: only the grading
-            // answers 400; a question deleted before results() below stays a 500.
+            // Its own catch rather than withRoom's map: only the grading
+            // answers, and with 400 even for a missing question (PaceRun reads
+            // a 404 on /grade as "room deleted"); a question deleted before
+            // results() below stays a 500.
             try {
                 $this->voteService->gradeTextAnswer($room, $pollId, $answer, $correct);
             } catch (\InvalidArgumentException $e) {
@@ -583,11 +586,20 @@ class RoomApiController extends Controller {
      * room lock is taken (another tab, cleanup job), it becomes a 404 as when
      * loading.
      *
-     * $invalid is the status with which an \InvalidArgumentException from
-     * $fn answers, carrying its message; null lets it escape (500). Each
-     * action states its own: the split between 400 and 404 is historical,
-     * not a rule (a missing question is 400 on updatePoll, 404 on
-     * deletePoll), and the frontend and cached bundles rely on it.
+     * A missing question, or one from another room (PollNotFoundException,
+     * DeckService::requirePollInRoom), is a 404 with its message in every
+     * action that answers with the message, whether the ID came in the path
+     * (updatePoll, deletePoll, the image routes) or in the body (reorder,
+     * setCurrent).
+     * gradeAnswer catches it itself and stays 400: the run view (PaceRun)
+     * reads a 404 on /grade as "room deleted", in every deployed bundle.
+     *
+     * $invalid is the status with which any other \InvalidArgumentException
+     * from $fn answers, carrying its message. Each action states its own:
+     * the split between 400 and 404 there is historical, not a rule, and the
+     * frontend and cached bundles rely on it. null lets both kinds escape
+     * (500) — so a question that disappears after the read results and
+     * gradeAnswer answer for stays a 500, as before.
      */
     private function withRoom(string $code, callable $fn, ?int $invalid = null): Response {
         try {
@@ -601,6 +613,11 @@ class RoomApiController extends Controller {
             return new JSONResponse(['message' => $e->getMessage()], Http::STATUS_CONFLICT);
         } catch (RoomGoneException) {
             return $this->roomNotFound();
+        } catch (PollNotFoundException $e) {
+            if ($invalid === null) {
+                throw $e;
+            }
+            return new JSONResponse(['message' => $e->getMessage()], Http::STATUS_NOT_FOUND);
         } catch (\InvalidArgumentException $e) {
             if ($invalid === null) {
                 throw $e;
