@@ -168,7 +168,8 @@ lib/Controller/   PageController (moderator SPA), RoomApiController (moderator A
 lib/Db/           Room, Poll, Vote, Player, Presence, Progress + QBMapper
 lib/Service/      RoomService (rooms), DeckService (questions), VoteService (votes),
                   StateService (read views + CSV), TallyService (tallying),
-                  QuizService (points), PollImageService (images), DemoService, CodeGenerator,
+                  AnswerRules (per-type answer checks + grading), QuizService (points),
+                  PollImageService (images), DemoService, CodeGenerator,
                   PaceService + PaceStateService (self-paced quiz: window, read views),
                   PublicPayload (capped public views), Limits (caps per account)
 lib/SetupCheck/   EmbedFraming (setup check for the PowerPoint embed)

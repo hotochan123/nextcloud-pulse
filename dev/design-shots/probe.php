@@ -652,7 +652,7 @@ if ($cmd === 'store') {
 	 */
 	$voteMapper = \OCP\Server::get(\OCA\Pulse\Db\VoteMapper::class);
 	$playerMapper = \OCP\Server::get(\OCA\Pulse\Db\PlayerMapper::class);
-	$voteService = \OCP\Server::get(\OCA\Pulse\Service\VoteService::class);
+	$answers = \OCP\Server::get(\OCA\Pulse\Service\AnswerRules::class);
 	$names = ['Mira', 'Jonas', 'Aiko', 'Tomás', 'Lena', 'Omar', 'Nils', 'Fatou', 'Ida', 'Ben', 'Rosa', 'Yusuf'];
 	$sheet = ['11111', '11110', '11101', '10111', '11100', '10110',
 		'01101', '10100', '01010', '00101', '10000', '00010'];
@@ -663,12 +663,12 @@ if ($cmd === 'store') {
 		foreach ($quizPolls as $q => $meta) {
 			$poll = $pollMapper->find($meta['id']);
 			$raw = storeAnswer($poll, $sheet[$i][$q] === '1', $i + $q);
-			$normalized = $voteService->normalizeValue($poll, $raw);
+			$normalized = $answers->normalizeValue($poll, $raw);
 			$elapsed = 2 + $i;
 			$vote = new \OCA\Pulse\Db\Vote();
 			$vote->setPollId($poll->getId());
 			$vote->setVoterToken($token);
-			$vote->setPayload((string)json_encode($voteService->quizPayload($poll, $normalized, $elapsed)));
+			$vote->setPayload((string)json_encode($answers->quizPayload($poll, $normalized, $elapsed)));
 			$vote->setCreatedAt($now + $i);
 			$voteMapper->insert($vote);
 		}

@@ -13,7 +13,9 @@ use OCA\Pulse\Db\Poll;
 use OCA\Pulse\Db\PollMapper;
 use OCA\Pulse\Db\Room;
 use OCA\Pulse\Db\VoteMapper;
+use OCA\Pulse\Service\AnswerRules;
 use OCA\Pulse\Service\PaceService;
+use OCA\Pulse\Service\QuizService;
 use OCA\Pulse\Service\TallyService;
 use OCA\Pulse\Service\VoteService;
 use OCP\AppFramework\Utility\ITimeFactory;
@@ -40,6 +42,7 @@ use ReflectionProperty;
  * At the edges, ZWNJ/ZWJ are dropped like whitespace.
  */
 #[CoversClass(TallyService::class)]
+#[CoversClass(AnswerRules::class)]
 #[CoversClass(VoteService::class)]
 class UnicodeTextTest extends TestCase {
 
@@ -51,6 +54,7 @@ class UnicodeTextTest extends TestCase {
     private const ENGLAND = "\u{1F3F4}\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}";
 
     private PlayerMapper&MockObject $players;
+    private AnswerRules $rules;
     private VoteService $service;
 
     protected function setUp(): void {
@@ -62,6 +66,8 @@ class UnicodeTextTest extends TestCase {
 
         $l10n = $this->createMock(IL10N::class);
         $l10n->method('t')->willReturnArgument(0);
+
+        $this->rules = new AnswerRules($l10n, new QuizService());
 
         // Joining runs under the room lock (here: straight through) and looks
         // at the room's questions for the name freeze (none here).
@@ -133,37 +139,37 @@ class UnicodeTextTest extends TestCase {
     public function testOnlyInvisibleCharactersAreNoWord(): void {
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('Please enter at least one word.');
-        $this->service->normalizeValue($this->wordsPoll(3), ["\u{200B}", "\u{00A0}", "\u{FEFF}\u{200D}"]);
+        $this->rules->normalizeValue($this->wordsPoll(3), ["\u{200B}", "\u{00A0}", "\u{FEFF}\u{200D}"]);
     }
 
     public function testInvisibleVariantsAreOneWord(): void {
-        $words = $this->service->normalizeValue($this->wordsPoll(3), ['Kaffee', "Kaffee\u{200B}", "\u{00A0}KAFFEE"]);
+        $words = $this->rules->normalizeValue($this->wordsPoll(3), ['Kaffee', "Kaffee\u{200B}", "\u{00A0}KAFFEE"]);
 
         $this->assertSame(['Kaffee'], $words);
     }
 
     public function testTheCleanedFormIsStored(): void {
-        $words = $this->service->normalizeValue($this->wordsPoll(3), ["\u{200B}Cafe\u{0301}\u{3000}"]);
+        $words = $this->rules->normalizeValue($this->wordsPoll(3), ["\u{200B}Cafe\u{0301}\u{3000}"]);
 
         $this->assertSame(["Caf\u{00E9}"], $words);
     }
 
     public function testEmojiWithJoinerStaysOneWord(): void {
-        $words = $this->service->normalizeValue($this->wordsPoll(3), ["\u{1F469}\u{200D}\u{1F4BB}"]);
+        $words = $this->rules->normalizeValue($this->wordsPoll(3), ["\u{1F469}\u{200D}\u{1F4BB}"]);
 
         $this->assertSame(["\u{1F469}\u{200D}\u{1F4BB}"], $words);
     }
 
     public function testPersianWordWithZwnjStaysOneWord(): void {
         // Without the ZWNJ it would be a different (misspelled) word.
-        $words = $this->service->normalizeValue($this->wordsPoll(3), [self::PERSIAN, "\u{200B}" . self::PERSIAN]);
+        $words = $this->rules->normalizeValue($this->wordsPoll(3), [self::PERSIAN, "\u{200B}" . self::PERSIAN]);
 
         $this->assertSame([self::PERSIAN], $words);
         $this->assertStringContainsString("\u{200C}", $words[0]);
     }
 
     public function testScotlandFlagStaysOneWord(): void {
-        $words = $this->service->normalizeValue($this->wordsPoll(3), [self::SCOTLAND]);
+        $words = $this->rules->normalizeValue($this->wordsPoll(3), [self::SCOTLAND]);
 
         $this->assertSame([self::SCOTLAND], $words);
     }
@@ -172,13 +178,13 @@ class UnicodeTextTest extends TestCase {
         // With \p{Cf}, only 🏴 was left of both — the cloud would have merged them.
         $this->assertNotSame(TallyService::normalizeWord(self::ENGLAND), TallyService::normalizeWord(self::SCOTLAND));
 
-        $words = $this->service->normalizeValue($this->wordsPoll(3), [self::ENGLAND, self::SCOTLAND]);
+        $words = $this->rules->normalizeValue($this->wordsPoll(3), [self::ENGLAND, self::SCOTLAND]);
 
         $this->assertSame([self::ENGLAND, self::SCOTLAND], $words);
     }
 
     public function testNonScalarValuesAreSkipped(): void {
-        $words = $this->service->normalizeValue($this->wordsPoll(3), [['Kaffee'], null, 'Tee', ['x' => 'y']]);
+        $words = $this->rules->normalizeValue($this->wordsPoll(3), [['Kaffee'], null, 'Tee', ['x' => 'y']]);
 
         $this->assertSame(['Tee'], $words);
     }
@@ -186,14 +192,14 @@ class UnicodeTextTest extends TestCase {
     public function testCutDoesNotEndOnWhitespace(): void {
         // Character 40 is a space — cleaning runs again after the cut.
         $word = str_repeat('x', 39) . ' Rest';
-        $words = $this->service->normalizeValue($this->wordsPoll(3), [$word]);
+        $words = $this->rules->normalizeValue($this->wordsPoll(3), [$word]);
 
         $this->assertSame([str_repeat('x', 39)], $words);
     }
 
     public function testCutDoesNotEndOnNbsp(): void {
         $word = str_repeat('x', 39) . "\u{00A0}Rest";
-        $words = $this->service->normalizeValue($this->wordsPoll(3), [$word]);
+        $words = $this->rules->normalizeValue($this->wordsPoll(3), [$word]);
 
         $this->assertSame([str_repeat('x', 39)], $words);
     }
@@ -277,13 +283,13 @@ class UnicodeTextTest extends TestCase {
     }
 
     public function testWordOfVariationSelectorAndJoinerIsNoWord(): void {
-        $words = $this->service->normalizeValue($this->wordsPoll(1), ["\u{FE0F}\u{200D}\u{FE0F}", "\u{2800}", 'Kaffee']);
+        $words = $this->rules->normalizeValue($this->wordsPoll(1), ["\u{FE0F}\u{200D}\u{FE0F}", "\u{2800}", 'Kaffee']);
 
         $this->assertSame(['Kaffee'], $words);
     }
 
     public function testWordOfOnlyAVariationSelectorTakesNoSlot(): void {
-        $words = $this->service->normalizeValue($this->wordsPoll(1), ["\u{034F}", 'Kaffee']);
+        $words = $this->rules->normalizeValue($this->wordsPoll(1), ["\u{034F}", 'Kaffee']);
 
         $this->assertSame(['Kaffee'], $words);
     }

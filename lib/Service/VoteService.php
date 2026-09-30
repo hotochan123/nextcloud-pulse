@@ -25,10 +25,11 @@ use OCP\Security\RateLimiting\ILimiter;
 use OCP\Security\RateLimiting\IRateLimitExceededException;
 
 /**
- * Votes: check incoming values against the question type, store them (poll:
- * changeable via upsert; quiz: immediately with speed points, one correction
- * within the window), grade free text afterwards and derive the leaderboard
- * from the votes. Plus joining a quiz (nickname on the anonymous token).
+ * Votes: check incoming values against the question type (AnswerRules),
+ * store them (poll: changeable via upsert; quiz: immediately with speed
+ * points, one correction within the window), grade free text afterwards and
+ * derive the leaderboard from the votes. Plus joining a quiz (nickname on
+ * the anonymous token).
  *
  * Self-paced quiz (PaceService::isSelf): vote, join and leaderboard each
  * branch off into their own path in the first line. The dependencies this
@@ -56,16 +57,13 @@ class VoteService {
 
     /** Longest nickname in characters (the join form's maxlength as well). */
     private const NICKNAME_MAX = 24;
-    /** Word cloud: a single raw word is cut to this many characters before it is cleaned. */
-    private const WORD_RAW_MAX = 200;
-    /** Word cloud: more list entries than this (or 2 × maxWords) are not a vote. */
-    private const WORD_ITEMS_MIN = 20;
 
     public function __construct(
         private PollMapper $pollMapper,
         private VoteMapper $voteMapper,
         private PlayerMapper $playerMapper,
         private QuizService $quizService,
+        private AnswerRules $answers,
         private DeckService $deckService,
         private ITimeFactory $timeFactory,
         private IL10N $l10n,
@@ -125,7 +123,7 @@ class VoteService {
             throw new \InvalidArgumentException($this->l10n->t('This question is closed.'));
         }
 
-        $payload = json_encode(['value' => $this->normalizeValue($poll, $value)]);
+        $payload = json_encode(['value' => $this->answers->normalizeValue($poll, $value)]);
 
         try {
             $existing = $this->voteMapper->findByPollAndToken($poll->getId(), $voterToken);
@@ -444,8 +442,8 @@ class VoteService {
         }
 
         // normalizeValue checks the value against the question type; quizPayload grades it.
-        $normalized = $this->normalizeValue($poll, $value);
-        $payload = json_encode($this->quizPayload($poll, $normalized, $elapsed));
+        $normalized = $this->answers->normalizeValue($poll, $value);
+        $payload = json_encode($this->answers->quizPayload($poll, $normalized, $elapsed));
 
         $vote = new Vote();
         $vote->setPollId($poll->getId());
@@ -550,7 +548,7 @@ class VoteService {
             throw new \InvalidArgumentException($this->l10n->t('Time is up.'));
         }
 
-        $normalized = $this->normalizeValue($poll, $value);
+        $normalized = $this->answers->normalizeValue($poll, $value);
         $data = $this->selfPayload($poll, $normalized, $elapsed, $limit, $keyboard ? self::FIX_WINDOW_KEYBOARD : self::FIX_WINDOW);
 
         $vote = new Vote();
@@ -591,9 +589,9 @@ class VoteService {
      * @param int $fw correction window of the first answer
      */
     private function selfPayload(Poll $poll, #[\SensitiveParameter] mixed $normalized, int $elapsed, int $limit, int $fw): array {
-        $data = $this->quizPayload($poll, $normalized, $elapsed, $limit);
+        $data = $this->answers->quizPayload($poll, $normalized, $elapsed, $limit);
         if ($poll->getType() === 'text') {
-            $data['pending'] = !$data['correct'] && !$this->textRejected($poll, (string)$data['norm']);
+            $data['pending'] = !$data['correct'] && !$this->answers->textRejected($poll, (string)$data['norm']);
         }
         $data['limit'] = $limit;
         $data['fw'] = $fw;
@@ -645,7 +643,7 @@ class VoteService {
         } catch (DoesNotExistException) {
             return; // room just deleted — the vote goes with it
         }
-        if ($this->textVerdict($poll, (string)($data['norm'] ?? '')) === [$data['correct'], !empty($data['pending'])]) {
+        if ($this->answers->textVerdict($poll, (string)($data['norm'] ?? '')) === [$data['correct'], !empty($data['pending'])]) {
             return;
         }
         $this->paceService->locked($room, function () use ($pollId, $voterToken): void {
@@ -659,7 +657,7 @@ class VoteService {
                 return;
             }
             $poll = $this->pollMapper->find($pollId);
-            [$correct, $pending] = $this->textVerdict($poll, (string)($d['norm'] ?? ''));
+            [$correct, $pending] = $this->answers->textVerdict($poll, (string)($d['norm'] ?? ''));
             if ($correct === !empty($d['correct']) && $pending === !empty($d['pending'])) {
                 return; // a grading was faster and has already updated it
             }
@@ -669,95 +667,6 @@ class VoteService {
             $vote->setPayload(json_encode($d));
             $this->voteMapper->update($vote);
         });
-    }
-
-    /**
-     * Vote payload of a quiz answer: checks correctness per type, awards
-     * speed points. Free text whose answer is not (yet) in the accepted list
-     * starts as correct=false and is updated when grading.
-     *
-     * @param ?int $limit time limit for the speed points; null = the question's
-     *        (moderated). Self-paced 0 without a timer -> flat points.
-     * @return array{value:mixed, points:int, correct:bool, elapsed:int, norm?:string}
-     */
-    public function quizPayload(Poll $poll, #[\SensitiveParameter] mixed $normalized, int $elapsed, ?int $limit = null): array {
-        $limit ??= $poll->getTimeLimit();
-        $type = $poll->getType();
-        $correct = false;
-        $extra = [];
-        if ($type === 'choice' || $type === 'truefalse') {
-            $correct = is_string($normalized) && $normalized !== '' && $normalized === $poll->getCorrectOption();
-        } elseif ($type === 'multi') {
-            $want = $poll->getAnswerKeyArray()['correct'] ?? [];
-            sort($want);
-            $got = is_array($normalized) ? $normalized : [];
-            sort($got);
-            $correct = $got === $want; // all-or-nothing
-        } elseif ($type === 'rank') {
-            // All-or-nothing as with multiple choice: the order must match
-            // exactly. Partial credit (e.g. Kendall tau) would water down "correct"
-            // in the leaderboard — deliberately not.
-            $want = $poll->getAnswerKeyArray()['order'] ?? [];
-            $correct = is_array($normalized) && $normalized === $want && $want !== [];
-        } elseif ($type === 'match') {
-            // Like multiple choice and ranking: all-or-nothing. Every
-            // assignment has to be right, otherwise there is no point.
-            $want = $poll->getAnswerKeyArray()['map'] ?? [];
-            $got = is_array($normalized) ? $normalized : [];
-            ksort($want);
-            ksort($got);
-            $correct = $want !== [] && $got === $want;
-        } elseif ($type === 'number') {
-            $key = $poll->getAnswerKeyArray();
-            $target = (float)($key['target'] ?? 0);
-            $tol = (float)($key['tolerance'] ?? 0);
-            $correct = is_numeric($normalized) && abs((float)$normalized - $target) <= $tol;
-        } elseif ($type === 'text') {
-            $norm = TallyService::normalizeText((string)$normalized);
-            $correct = $this->textAccepted($poll, $norm);
-            $extra['norm'] = $norm;
-        }
-        $points = $correct ? $this->quizService->points($elapsed, $limit) : 0;
-        return array_merge([
-            'value' => $normalized,
-            'points' => $points,
-            'correct' => $correct,
-            'elapsed' => $elapsed,
-        ], $extra);
-    }
-
-    /** Free text: is the normalised form in the (growing) accepted list? */
-    private function textAccepted(Poll $poll, string $norm): bool {
-        foreach (($poll->getAnswerKeyArray()['accepted'] ?? []) as $a) {
-            if (TallyService::normalizeText((string)$a) === $norm) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * Counterpart: already graded as wrong? Self-paced, anything that is in
-     * neither of the two lists is "Being checked" (pending).
-     */
-    private function textRejected(Poll $poll, string $norm): bool {
-        foreach (($poll->getAnswerKeyArray()['rejected'] ?? []) as $r) {
-            if (TallyService::normalizeText((string)$r) === $norm) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * Verdict on a free-text normalised form according to the current key, as
-     * selfPayload stores it.
-     *
-     * @return array{0: bool, 1: bool} [correct, being checked]
-     */
-    private function textVerdict(Poll $poll, string $norm): array {
-        $correct = $this->textAccepted($poll, $norm);
-        return [$correct, !$correct && !$this->textRejected($poll, $norm)];
     }
 
     /**
@@ -1023,7 +932,7 @@ class VoteService {
         // "Anna ␣ZWSP␣ Bob" would leave a double space that HTML shows as one.
         // Then cut to 24 characters and clean once more: if the cut ends on a
         // space, "Anna " and "Anna" would otherwise be two names.
-        $nickname = self::clip($nickname, 4 * self::NICKNAME_MAX);
+        $nickname = Input::clip($nickname, 4 * self::NICKNAME_MAX);
         $nickname = preg_replace('/[\x00-\x1F\x7F]+/u', ' ', $nickname) ?? '';
         $nickname = preg_replace('/[\s\p{Z}]+/u', ' ', TallyService::cleanText($nickname)) ?? '';
         $nickname = TallyService::cleanText(mb_substr($nickname, 0, self::NICKNAME_MAX));
@@ -1032,221 +941,5 @@ class VoteService {
             throw new \InvalidArgumentException($this->l10n->t('Please enter a name.'));
         }
         return $nickname;
-    }
-
-    /**
-     * Checks and normalises the incoming vote value against the question type.
-     *
-     * @return string|list<string> optionId (choice) or words (words)
-     * @throws \InvalidArgumentException
-     */
-    public function normalizeValue(Poll $poll, #[\SensitiveParameter] mixed $value): mixed {
-        $type = $poll->getType();
-
-        // choice + true/false: one valid option ID.
-        if ($type === 'choice' || $type === 'truefalse') {
-            if (!is_string($value)) {
-                throw new \InvalidArgumentException($this->l10n->t('Invalid selection.'));
-            }
-            $validIds = array_column($poll->getOptionsArray(), 'id');
-            if (!in_array($value, $validIds, true)) {
-                throw new \InvalidArgumentException($this->l10n->t('No such option.'));
-            }
-            return $value;
-        }
-
-        // Multiple choice: subset of valid IDs, deduplicated + sorted.
-        if ($type === 'multi') {
-            if (!is_array($value)) {
-                throw new \InvalidArgumentException($this->l10n->t('Invalid selection.'));
-            }
-            $validIds = array_column($poll->getOptionsArray(), 'id');
-            $chosen = [];
-            foreach ($value as $v) {
-                if (is_string($v) && in_array($v, $validIds, true)) {
-                    $chosen[$v] = true;
-                }
-            }
-            $chosen = array_keys($chosen);
-            if (count($chosen) === 0) {
-                throw new \InvalidArgumentException($this->l10n->t('Please choose at least one option.'));
-            }
-            sort($chosen);
-            return $chosen;
-        }
-
-        // Ranking: a complete permutation of the option IDs. Incomplete or
-        // with duplicates is not a ranking — better reject than guess.
-        if ($type === 'rank') {
-            if (!is_array($value)) {
-                throw new \InvalidArgumentException($this->l10n->t('Invalid order.'));
-            }
-            $validIds = array_column($poll->getOptionsArray(), 'id');
-            $order = [];
-            foreach ($value as $v) {
-                if (!is_string($v) || !in_array($v, $validIds, true) || in_array($v, $order, true)) {
-                    throw new \InvalidArgumentException($this->l10n->t('Invalid order.'));
-                }
-                $order[] = $v;
-            }
-            if (count($order) !== count($validIds)) {
-                throw new \InvalidArgumentException($this->l10n->t('Please sort all answers.'));
-            }
-            return $order;
-        }
-
-        // Matching: exactly one target per item. Targets may occur several times
-        // (in a poll that is a statement, not a mistake), but no item may be
-        // left open — a half assignment could not be evaluated.
-        if ($type === 'match') {
-            if (!is_array($value)) {
-                throw new \InvalidArgumentException($this->l10n->t('Invalid assignment.'));
-            }
-            $cfg = $poll->getMatchConfig();
-            $targetIds = array_column($cfg['targets'], 'id');
-            $assigned = [];
-            foreach ($cfg['items'] as $item) {
-                $pick = $value[$item['id']] ?? null;
-                if (!is_string($pick) || !in_array($pick, $targetIds, true)) {
-                    throw new \InvalidArgumentException($this->l10n->t('Please assign every item.'));
-                }
-                $assigned[$item['id']] = $pick;
-            }
-            if ($assigned === []) {
-                throw new \InvalidArgumentException($this->l10n->t('Invalid assignment.'));
-            }
-            return $assigned;
-        }
-
-        // Estimate question: a finite number (int or float). "1e999" and JSON 1e999
-        // become INF in PHP — not an estimate, and json_encode fails on it.
-        if ($type === 'number') {
-            $n = Input::number($value);
-            if ($n === null) {
-                throw new \InvalidArgumentException($this->l10n->t('Please enter a number.'));
-            }
-            return $n;
-        }
-
-        // Free text: trimmed, whitespace normalised, truncated (stored raw).
-        // The raw input is cut to four times the length before the regex (clip).
-        if ($type === 'text') {
-            if (!is_string($value)) {
-                throw new \InvalidArgumentException($this->l10n->t('Invalid answer.'));
-            }
-            $t = trim(preg_replace('/\s+/u', ' ', self::clip($value, 4 * DeckService::TEXT_MAX)) ?? '');
-            if ($t === '') {
-                throw new \InvalidArgumentException($this->l10n->t('Please enter an answer.'));
-            }
-            return mb_substr($t, 0, DeckService::TEXT_MAX);
-        }
-
-        if ($type === 'scale') {
-            $cfg = $poll->getScaleConfig();
-            // Spectrum: map aspectId -> value (each aspect within min..max).
-            if (($cfg['mode'] ?? 'single') === 'spectrum') {
-                if (!is_array($value)) {
-                    throw new \InvalidArgumentException($this->l10n->t('Invalid answer.'));
-                }
-                $out = [];
-                foreach ($cfg['aspects'] as $asp) {
-                    $v = Input::int($value[$asp['id']] ?? null);
-                    if ($v === null) {
-                        throw new \InvalidArgumentException($this->l10n->t('Invalid value.'));
-                    }
-                    if ($v < $cfg['min'] || $v > $cfg['max']) {
-                        throw new \InvalidArgumentException($this->l10n->t('Value is outside the scale.'));
-                    }
-                    $out[$asp['id']] = $v;
-                }
-                return $out;
-            }
-            // Compass: one point {x,y}, each -range..range (integer).
-            if (($cfg['mode'] ?? 'single') === 'compass') {
-                if (!is_array($value)) {
-                    throw new \InvalidArgumentException($this->l10n->t('Invalid position.'));
-                }
-                $r = (int)$cfg['range'];
-                $ix = Input::int($value['x'] ?? null);
-                $iy = Input::int($value['y'] ?? null);
-                if ($ix === null || $iy === null) {
-                    throw new \InvalidArgumentException($this->l10n->t('Invalid position.'));
-                }
-                if ($ix < -$r || $ix > $r || $iy < -$r || $iy > $r) {
-                    throw new \InvalidArgumentException($this->l10n->t('Position is outside the field.'));
-                }
-                return ['x' => $ix, 'y' => $iy];
-            }
-            $v = Input::int($value);
-            if ($v === null) {
-                throw new \InvalidArgumentException($this->l10n->t('Invalid value.'));
-            }
-            if ($v < $cfg['min'] || $v > $cfg['max']) {
-                throw new \InvalidArgumentException($this->l10n->t('Value is outside the scale.'));
-            }
-            return $v;
-        }
-
-        // words
-        if (is_string($value)) {
-            $value = [$value];
-        }
-        if (!is_array($value)) {
-            throw new \InvalidArgumentException($this->l10n->t('Invalid words.'));
-        }
-        // The phone sends one field per word (maxWords, at most 5). A list far
-        // longer than that is not a vote — rejected before any per-word work:
-        // cleaning costs a dozen Unicode passes per entry, and an anonymous
-        // body of millions of one-letter words would otherwise pin a PHP worker
-        // for seconds. Each entry is cut before it is cleaned (clip), and the
-        // loop stops at maxWords distinct words — the same words as cutting
-        // afterwards, since the first spelling in order wins either way.
-        $max = max(1, $poll->getMaxWords());
-        if (count($value) > max(self::WORD_ITEMS_MIN, 2 * $max)) {
-            throw new \InvalidArgumentException($this->l10n->t('Invalid words.'));
-        }
-        $words = [];
-        foreach ($value as $raw) {
-            if (!is_scalar($raw)) {
-                continue; // nested arrays and the like are not a word
-            }
-            $word = TallyService::cleanText(self::clip((string)$raw, self::WORD_RAW_MAX));
-            if ($word !== '') {
-                // Display truncation (clean again afterwards, otherwise the word
-                // ends on a space); lowercasing only happens when counting.
-                $word = TallyService::cleanText(mb_substr($word, 0, 40));
-                // Detect duplicates via the counting key, so that
-                // "Coffee" + "COFFEE" do not go into the cloud twice. The first
-                // spelling stays stored. If nothing remains without variation selectors
-                // and joiners, it is not a word and takes up no
-                // slot (the same test as for the name).
-                if (TallyService::nameKey($word) !== '') {
-                    $words[TallyService::wordKey($word)] ??= $word;
-                    if (count($words) >= $max) {
-                        break;
-                    }
-                }
-            }
-        }
-        $words = array_values($words);
-        if (count($words) === 0) {
-            throw new \InvalidArgumentException($this->l10n->t('Please enter at least one word.'));
-        }
-        return $words;
-    }
-
-    /**
-     * Raw client text cut to $max characters BEFORE the Unicode regexes and
-     * normalisers run over it: their cost grows with the input, and the body
-     * of a public request is bounded nowhere else. What fits in $max bytes
-     * fits in $max characters and stays untouched. Longer broken UTF-8
-     * becomes '' — as before, when the /u regexes dropped it (mb_substr
-     * would turn it into '?' instead).
-     */
-    private static function clip(string $s, int $max): string {
-        if (strlen($s) <= $max) {
-            return $s;
-        }
-        return mb_check_encoding($s, 'UTF-8') ? mb_substr($s, 0, $max, 'UTF-8') : '';
     }
 }

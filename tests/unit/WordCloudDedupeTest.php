@@ -9,33 +9,31 @@ namespace OCA\Pulse\Tests\Unit;
 
 use OCA\Pulse\Db\Poll;
 use OCA\Pulse\Db\Vote;
+use OCA\Pulse\Service\AnswerRules;
+use OCA\Pulse\Service\QuizService;
 use OCA\Pulse\Service\TallyService;
-use OCA\Pulse\Service\VoteService;
 use OCP\IL10N;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use ReflectionProperty;
 
 /**
  * Word cloud: "Kaffee" and "KAFFEE" from one person are ONE word.
  *
  * Two places must use the same normal form (TallyService::normalizeWord):
- * vote validation (VoteService::normalizeValue), which does not even store
+ * vote validation (AnswerRules::normalizeValue), which does not even store
  * duplicates, and the tally, which heals old votes from before the validation.
  */
-#[CoversClass(VoteService::class)]
+#[CoversClass(AnswerRules::class)]
 #[CoversClass(TallyService::class)]
 class WordCloudDedupeTest extends TestCase {
 
-    private VoteService $service;
+    private AnswerRules $rules;
 
     protected function setUp(): void {
         $l10n = $this->createMock(IL10N::class);
         $l10n->method('t')->willReturnArgument(0);
 
-        // normalizeValue touches no mapper for words — only l10n.
-        $this->service = (new \ReflectionClass(VoteService::class))->newInstanceWithoutConstructor();
-        (new ReflectionProperty(VoteService::class, 'l10n'))->setValue($this->service, $l10n);
+        $this->rules = new AnswerRules($l10n, new QuizService());
     }
 
     // ── normalizeWord: the ONE source ──────────────────────────────────────
@@ -51,13 +49,13 @@ class WordCloudDedupeTest extends TestCase {
     // ── Vote validation ────────────────────────────────────────────────────
 
     public function testCaseVariantsBecomeOneWordAndTheFirstSpellingStays(): void {
-        $words = $this->service->normalizeValue($this->poll(3), ['Kaffee', 'KAFFEE', ' kaffee ']);
+        $words = $this->rules->normalizeValue($this->poll(3), ['Kaffee', 'KAFFEE', ' kaffee ']);
 
         $this->assertSame(['Kaffee'], $words, 'one entry, stored as first written');
     }
 
     public function testFirstSpellingStaysEvenWhenItIsUppercase(): void {
-        $words = $this->service->normalizeValue($this->poll(3), ['TEE', 'Tee', 'Kaffee']);
+        $words = $this->rules->normalizeValue($this->poll(3), ['TEE', 'Tee', 'Kaffee']);
 
         $this->assertSame(['TEE', 'Kaffee'], $words, 'order of first mention stays');
     }
@@ -65,7 +63,7 @@ class WordCloudDedupeTest extends TestCase {
     public function testCapAppliesOnlyAfterDeduplication(): void {
         // Four inputs, but only three distinct words — with maxWords 2
         // the duplicates must not take up a slot.
-        $words = $this->service->normalizeValue($this->poll(2), ['Kaffee', 'KAFFEE', 'Tee', 'Wasser']);
+        $words = $this->rules->normalizeValue($this->poll(2), ['Kaffee', 'KAFFEE', 'Tee', 'Wasser']);
 
         $this->assertSame(['Kaffee', 'Tee'], $words);
     }
@@ -73,19 +71,19 @@ class WordCloudDedupeTest extends TestCase {
     public function testNumericWordStaysAString(): void {
         // As an array key "42" becomes an integer — but what has to be stored
         // is still the text, otherwise the tally (strings only) does not count it.
-        $words = $this->service->normalizeValue($this->poll(3), ['42', ' 42', 7]);
+        $words = $this->rules->normalizeValue($this->poll(3), ['42', ' 42', 7]);
 
         $this->assertSame(['42', '7'], $words);
     }
 
     public function testSingleStringBecomesAList(): void {
-        $this->assertSame(['Kaffee'], $this->service->normalizeValue($this->poll(3), '  Kaffee  '));
+        $this->assertSame(['Kaffee'], $this->rules->normalizeValue($this->poll(3), '  Kaffee  '));
     }
 
     public function testOnlyEmptyInputsAreRejected(): void {
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('Please enter at least one word.');
-        $this->service->normalizeValue($this->poll(3), ['', '   ']);
+        $this->rules->normalizeValue($this->poll(3), ['', '   ']);
     }
 
     public function testCutBeforeTheComparison(): void {
@@ -93,7 +91,7 @@ class WordCloudDedupeTest extends TestCase {
         // as the same word in the cloud — so one entry.
         $a = str_repeat('x', 40) . 'A';
         $b = str_repeat('X', 40) . 'B';
-        $words = $this->service->normalizeValue($this->poll(3), [$a, $b]);
+        $words = $this->rules->normalizeValue($this->poll(3), [$a, $b]);
 
         $this->assertSame([str_repeat('x', 40)], $words);
     }
@@ -124,13 +122,13 @@ class WordCloudDedupeTest extends TestCase {
     // ── Word key: variation selectors, whitespace ──────────────────────────
 
     public function testVariationSelectorMakesNoNewWord(): void {
-        $words = $this->service->normalizeValue($this->poll(3), ["\u{2764}\u{FE0F}", "\u{2764}", "\u{2764}\u{FE0E}"]);
+        $words = $this->rules->normalizeValue($this->poll(3), ["\u{2764}\u{FE0F}", "\u{2764}", "\u{2764}\u{FE0E}"]);
 
         $this->assertSame(["\u{2764}\u{FE0F}"], $words, 'one entry, the colourful spelling stays stored');
     }
 
     public function testDoubleWhitespaceMakesNoNewWord(): void {
-        $words = $this->service->normalizeValue($this->poll(3), ['guter  Kaffee', 'guter Kaffee']);
+        $words = $this->rules->normalizeValue($this->poll(3), ['guter  Kaffee', 'guter Kaffee']);
 
         $this->assertSame(['guter  Kaffee'], $words);
     }

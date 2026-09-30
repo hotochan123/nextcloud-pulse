@@ -18,6 +18,7 @@ use OCA\Pulse\Db\ProgressMapper;
 use OCA\Pulse\Db\Room;
 use OCA\Pulse\Db\Vote;
 use OCA\Pulse\Db\VoteMapper;
+use OCA\Pulse\Service\AnswerRules;
 use OCA\Pulse\Service\DeckService;
 use OCA\Pulse\Service\PaceService;
 use OCA\Pulse\Service\PaceStateService;
@@ -189,6 +190,7 @@ abstract class PaceStateTestCase extends TestCase {
             'voteMapper' => $voteMapper,
             'playerMapper' => $playerMapper,
             'quizService' => new QuizService(),
+            'answers' => new AnswerRules($l10n, new QuizService()),
             'deckService' => $deck,
             'timeFactory' => $time,
             'l10n' => $l10n,

@@ -35,7 +35,7 @@ class Input {
      * stored data and at most stored JSON-encoded
      * (json_encode writes \u0000 — PostgreSQL never sees a NUL): the
      * free-text answer when grading. The vote keeps its NUL
-     * (VoteService::normalizeValue), and the moderator sends exactly that text
+     * (AnswerRules::normalizeValue), and the moderator sends exactly that text
      * back — without the NUL the normal form would never match the group, and
      * the answer would stay "Being checked" forever.
      */
@@ -86,5 +86,20 @@ class Input {
             return null;
         }
         return filter_var($v, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+    }
+
+    /**
+     * Raw client text cut to $max characters BEFORE the Unicode regexes and
+     * normalisers run over it: their cost grows with the input, and the body
+     * of a public request is bounded nowhere else. What fits in $max bytes
+     * fits in $max characters and stays untouched. Longer broken UTF-8
+     * becomes '' — as before, when the /u regexes dropped it (mb_substr
+     * would turn it into '?' instead).
+     */
+    public static function clip(string $s, int $max): string {
+        if (strlen($s) <= $max) {
+            return $s;
+        }
+        return mb_check_encoding($s, 'UTF-8') ? mb_substr($s, 0, $max, 'UTF-8') : '';
     }
 }

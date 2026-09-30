@@ -27,7 +27,7 @@ use OCP\IL10N;
 class DeckService {
     private const TYPES_POLL = ['choice', 'words', 'scale', 'rank', 'match'];
     private const TYPES_QUIZ = ['choice', 'truefalse', 'multi', 'number', 'text', 'rank', 'match'];
-    /** Free text: upper limit for one answer (characters). VoteService truncates to it as well. */
+    /** Free text: upper limit for one answer (characters). AnswerRules (the vote) and VoteService (grading) truncate to it as well. */
     public const TEXT_MAX = 100;
     private const MIN_OPTIONS = 2;
     private const MAX_OPTIONS = 8;

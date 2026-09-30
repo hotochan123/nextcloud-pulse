@@ -35,7 +35,7 @@ class DemoService {
         private VoteMapper $voteMapper,
         private PlayerMapper $playerMapper,
         private ProgressMapper $progressMapper,
-        private VoteService $voteService,
+        private AnswerRules $answers,
         private CodeGenerator $codeGenerator,
         private ITimeFactory $timeFactory,
         private IL10N $l10n,
@@ -73,7 +73,7 @@ class DemoService {
         $seeded = 0;
         for ($i = 0; $i < $count; $i++) {
             try {
-                $normalized = $this->voteService->normalizeValue($poll, $this->randomDemoValue($poll));
+                $normalized = $this->answers->normalizeValue($poll, $this->randomDemoValue($poll));
             } catch (\InvalidArgumentException) {
                 continue; // a single outlier should not abort the run
             }
@@ -83,7 +83,7 @@ class DemoService {
                 $this->playerMapper->register($room->getId(), $token, $this->demoNickname($i), $now);
                 $limit = $poll->getTimeLimit();
                 $elapsed = $limit > 0 ? random_int(1, $limit) : random_int(1, 8);
-                $payload = json_encode($this->voteService->quizPayload($poll, $normalized, $elapsed));
+                $payload = json_encode($this->answers->quizPayload($poll, $normalized, $elapsed));
             } else {
                 $payload = json_encode(['value' => $normalized]);
             }

@@ -141,4 +141,24 @@ class InputTest extends TestCase {
     public function testFlag(mixed $raw, ?bool $expected): void {
         $this->assertSame($expected, Input::flag($raw));
     }
+
+    // ── clip: raw text bounded before the Unicode work ─────────────────────
+
+    public static function clips(): array {
+        return [
+            'short text stays' => ['Kaffee', 10, 'Kaffee'],
+            'exactly max bytes stays' => [str_repeat('x', 10), 10, str_repeat('x', 10)],
+            'cut to max characters' => [str_repeat('x', 11), 10, str_repeat('x', 10)],
+            'more bytes than max, not more characters' => [str_repeat('ä', 10), 10, str_repeat('ä', 10)],
+            'multibyte cut by characters' => [str_repeat('ä', 15), 10, str_repeat('ä', 10)],
+            'short broken UTF-8 is left to the caller' => ["\xFF\xFE", 10, "\xFF\xFE"],
+            'long broken UTF-8 becomes empty, not a question mark' => [str_repeat("\xFF", 11), 10, ''],
+            'NUL counts like any character' => ["a\0b\0c", 3, "a\0b"],
+        ];
+    }
+
+    #[DataProvider('clips')]
+    public function testClip(string $raw, int $max, string $expected): void {
+        $this->assertSame($expected, Input::clip($raw, $max));
+    }
 }

@@ -10,10 +10,11 @@ namespace OCA\Pulse\Tests\Unit;
 use OCA\Pulse\Db\Poll;
 use OCA\Pulse\Db\PollMapper;
 use OCA\Pulse\Db\Room;
+use OCA\Pulse\Service\AnswerRules;
 use OCA\Pulse\Service\CodeGenerator;
 use OCA\Pulse\Service\DeckService;
 use OCA\Pulse\Service\PollImageService;
-use OCA\Pulse\Service\VoteService;
+use OCA\Pulse\Service\QuizService;
 use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\IL10N;
@@ -26,14 +27,14 @@ use ReflectionProperty;
  * The services behind the controllers fed with hostile values: nested
  * lists and objects, true, 1e300, INF, "1e999", twenty digits, broken
  * UTF-8 and NUL — in every field of every question template (DeckService), in every
- * vote value of every question type (VoteService::normalizeValue) and in the image upload.
+ * vote value of every question type (AnswerRules::normalizeValue) and in the image upload.
  *
  * Exactly two outcomes are allowed: a result that can be stored, or an
  * InvalidArgumentException with a message (400). No PHP warning (phpunit.xml:
  * failOnWarning), no TypeError, no value that makes json_encode fail.
  */
 #[CoversClass(DeckService::class)]
-#[CoversClass(VoteService::class)]
+#[CoversClass(AnswerRules::class)]
 #[CoversClass(PollImageService::class)]
 class HostileInputTest extends TestCase {
 
@@ -51,7 +52,7 @@ class HostileInputTest extends TestCase {
     ];
 
     private DeckService $deck;
-    private VoteService $votes;
+    private AnswerRules $rules;
     /** @var list<array{0: int, 1: int}> PollMapper::setPosition(pollId, position) */
     private array $positions = [];
 
@@ -96,8 +97,7 @@ class HostileInputTest extends TestCase {
             (new ReflectionProperty(DeckService::class, $name))->setValue($this->deck, $value);
         }
 
-        $this->votes = (new \ReflectionClass(VoteService::class))->newInstanceWithoutConstructor();
-        (new ReflectionProperty(VoteService::class, 'l10n'))->setValue($this->votes, $l10n);
+        $this->rules = new AnswerRules($l10n, new QuizService());
     }
 
     // ── DeckService: every template, every field ───────────────────────────
@@ -277,7 +277,7 @@ class HostileInputTest extends TestCase {
     public function testInfiniteGuessIsNoNumber(): void {
         foreach (['1e999', INF] as $value) {
             try {
-                $this->votes->normalizeValue($this->poll('number', []), $value);
+                $this->rules->normalizeValue($this->poll('number', []), $value);
                 $this->fail('guess ' . var_export($value, true) . ' accepted');
             } catch (\InvalidArgumentException $e) {
                 $this->assertSame('Please enter a number.', $e->getMessage());
@@ -287,17 +287,17 @@ class HostileInputTest extends TestCase {
 
     public function testHugeScaleValueIsInvalid(): void {
         $this->expectExceptionMessage('Invalid value.');
-        $this->votes->normalizeValue($this->singlePoll(), 1e100);
+        $this->rules->normalizeValue($this->singlePoll(), 1e100);
     }
 
     public function testHugeSpectrumValueIsInvalid(): void {
         $this->expectExceptionMessage('Invalid value.');
-        $this->votes->normalizeValue($this->spectrumPoll(), ['S1' => 1e100, 'S2' => 1, 'S3' => 2]);
+        $this->rules->normalizeValue($this->spectrumPoll(), ['S1' => 1e100, 'S2' => 1, 'S3' => 2]);
     }
 
     public function testHugeCompassValueIsInvalid(): void {
         $this->expectExceptionMessage('Invalid position.');
-        $this->votes->normalizeValue($this->compassPoll(), ['x' => 1e100, 'y' => 0]);
+        $this->rules->normalizeValue($this->compassPoll(), ['x' => 1e100, 'y' => 0]);
     }
 
     // ── Image upload ───────────────────────────────────────────────────────
@@ -342,7 +342,7 @@ class HostileInputTest extends TestCase {
             foreach ([$h, ...$nested($h)] as $j => $value) {
                 $label = $poll->getType() . "#$i.$j";
                 try {
-                    $out = $this->votes->normalizeValue($poll, $value);
+                    $out = $this->rules->normalizeValue($poll, $value);
                 } catch (\InvalidArgumentException $e) {
                     $this->assertNotSame('', $e->getMessage(), $label);
                     continue;

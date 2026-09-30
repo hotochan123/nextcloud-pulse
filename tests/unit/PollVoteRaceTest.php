@@ -12,6 +12,8 @@ use OCA\Pulse\Db\PollMapper;
 use OCA\Pulse\Db\Room;
 use OCA\Pulse\Db\Vote;
 use OCA\Pulse\Db\VoteMapper;
+use OCA\Pulse\Service\AnswerRules;
+use OCA\Pulse\Service\QuizService;
 use OCA\Pulse\Service\VoteService;
 use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\AppFramework\Utility\ITimeFactory;
@@ -57,6 +59,7 @@ class PollVoteRaceTest extends TestCase {
         foreach ([
             'voteMapper' => $this->votes,
             'pollMapper' => $polls,
+            'answers' => new AnswerRules($l10n, new QuizService()),
             'timeFactory' => $time,
             'l10n' => $l10n,
         ] as $name => $value) {

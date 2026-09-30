@@ -16,6 +16,7 @@ use OCA\Pulse\Db\ProgressMapper;
 use OCA\Pulse\Db\Room;
 use OCA\Pulse\Db\Vote;
 use OCA\Pulse\Db\VoteMapper;
+use OCA\Pulse\Service\AnswerRules;
 use OCA\Pulse\Service\PaceService;
 use OCA\Pulse\Service\QuizService;
 use OCA\Pulse\Service\VoteService;
@@ -131,6 +132,7 @@ class SelfVoteTest extends TestCase {
             'voteMapper' => $this->votes,
             'playerMapper' => $players,
             'quizService' => new QuizService(),
+            'answers' => new AnswerRules($l10n, new QuizService()),
             'timeFactory' => $time,
             'l10n' => $l10n,
             'paceService' => $this->pace,
@@ -328,6 +330,11 @@ class SelfVoteTest extends TestCase {
         $this->assertSame($correct, $payload['correct']);
         $this->assertSame($pending, $payload['pending']);
         $this->assertSame($points, $payload['points'] > 0);
+        // The verdict is right when the vote is saved: the re-check after saving
+        // finds nothing to correct (a rejected answer that went in as `pending`
+        // would only be put right by that re-check, under the lock).
+        $this->assertNull($this->updated, 'saved with the final verdict, not corrected afterwards');
+        $this->assertSame(0, $this->locks);
     }
 
     // ── Free text vs. simultaneous grading ─────────────────────────────────

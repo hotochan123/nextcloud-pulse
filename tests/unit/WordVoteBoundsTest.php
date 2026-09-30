@@ -13,7 +13,9 @@ use OCA\Pulse\Db\Poll;
 use OCA\Pulse\Db\PollMapper;
 use OCA\Pulse\Db\Room;
 use OCA\Pulse\Db\VoteMapper;
+use OCA\Pulse\Service\AnswerRules;
 use OCA\Pulse\Service\PaceService;
+use OCA\Pulse\Service\QuizService;
 use OCA\Pulse\Service\VoteService;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\IL10N;
@@ -33,9 +35,11 @@ use ReflectionProperty;
  * words. Free text and nicknames are cut to four times their length before
  * their regexes. What the phone sends comes out exactly as before.
  */
+#[CoversClass(AnswerRules::class)]
 #[CoversClass(VoteService::class)]
 class WordVoteBoundsTest extends TestCase {
 
+    private AnswerRules $rules;
     private VoteService $service;
     /** @var list<string> nicknames that reached register() */
     private array $registered = [];
@@ -43,6 +47,8 @@ class WordVoteBoundsTest extends TestCase {
     protected function setUp(): void {
         $l10n = $this->createMock(IL10N::class);
         $l10n->method('t')->willReturnArgument(0);
+
+        $this->rules = new AnswerRules($l10n, new QuizService());
 
         $time = $this->createMock(ITimeFactory::class);
         $time->method('getTime')->willReturn(1000);
@@ -81,7 +87,7 @@ class WordVoteBoundsTest extends TestCase {
 
         $start = hrtime(true);
         try {
-            $this->service->normalizeValue($this->wordsPoll(3), $flood);
+            $this->rules->normalizeValue($this->wordsPoll(3), $flood);
             $this->fail('InvalidArgumentException expected');
         } catch (\InvalidArgumentException $e) {
             $this->assertSame('Invalid words.', $e->getMessage());
@@ -94,33 +100,33 @@ class WordVoteBoundsTest extends TestCase {
         // maxWords 3 -> max(20, 6) = 20 entries still count (empty fields and the like).
         $value = array_merge(['Kaffee'], array_fill(0, 19, ''));
 
-        $this->assertSame(['Kaffee'], $this->service->normalizeValue($this->wordsPoll(3), $value));
+        $this->assertSame(['Kaffee'], $this->rules->normalizeValue($this->wordsPoll(3), $value));
     }
 
     public function testTwentyOneEntriesAreNoVote(): void {
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('Invalid words.');
-        $this->service->normalizeValue($this->wordsPoll(3), array_fill(0, 21, 'Kaffee'));
+        $this->rules->normalizeValue($this->wordsPoll(3), array_fill(0, 21, 'Kaffee'));
     }
 
     public function testLimitGrowsWithTwiceMaxWords(): void {
         // A (hand-edited) question with 15 words: 30 entries pass, 31 do not.
         $poll = $this->wordsPoll(15);
-        $this->assertSame(['Kaffee'], $this->service->normalizeValue($poll, array_fill(0, 30, 'Kaffee')));
+        $this->assertSame(['Kaffee'], $this->rules->normalizeValue($poll, array_fill(0, 30, 'Kaffee')));
 
         $this->expectExceptionMessage('Invalid words.');
-        $this->service->normalizeValue($poll, array_fill(0, 31, 'Kaffee'));
+        $this->rules->normalizeValue($poll, array_fill(0, 31, 'Kaffee'));
     }
 
     public function testStopAtMaxWordsGivesTheSameWords(): void {
         // The first maxWords distinct words in order, first spelling — as the old cut afterwards.
-        $words = $this->service->normalizeValue($this->wordsPoll(2), ['Tee', 'TEE', 'Kaffee', 'Kakao', 'Wasser']);
+        $words = $this->rules->normalizeValue($this->wordsPoll(2), ['Tee', 'TEE', 'Kaffee', 'Kakao', 'Wasser']);
 
         $this->assertSame(['Tee', 'Kaffee'], $words);
     }
 
     public function testDuplicatesDoNotCountAsASlot(): void {
-        $words = $this->service->normalizeValue($this->wordsPoll(3), ['Tee', 'tee', ' TEE ', 'Kaffee', "\u{200B}", 'Kakao']);
+        $words = $this->rules->normalizeValue($this->wordsPoll(3), ['Tee', 'tee', ' TEE ', 'Kaffee', "\u{200B}", 'Kakao']);
 
         $this->assertSame(['Tee', 'Kaffee', 'Kakao'], $words);
     }
@@ -128,7 +134,7 @@ class WordVoteBoundsTest extends TestCase {
     // ── Word cloud: one entry ──────────────────────────────────────────────
 
     public function testLongWordIsCutToFortyCharacters(): void {
-        $words = $this->service->normalizeValue($this->wordsPoll(1), str_repeat('x', 1_000_000));
+        $words = $this->rules->normalizeValue($this->wordsPoll(1), str_repeat('x', 1_000_000));
 
         $this->assertSame([str_repeat('x', 40)], $words);
     }
@@ -136,34 +142,34 @@ class WordVoteBoundsTest extends TestCase {
     public function testEntryIsCutBeforeCleaning(): void {
         // 200 invisible characters in front: the cut keeps only those, nothing visible remains.
         $this->expectExceptionMessage('Please enter at least one word.');
-        $this->service->normalizeValue($this->wordsPoll(1), str_repeat("\u{200B}", 200) . 'Kaffee');
+        $this->rules->normalizeValue($this->wordsPoll(1), str_repeat("\u{200B}", 200) . 'Kaffee');
     }
 
     public function testShortBrokenUtf8IsDroppedAsBefore(): void {
-        $this->assertSame(['Kaffee'], $this->service->normalizeValue($this->wordsPoll(2), ["\xFF\xFE", 'Kaffee']));
+        $this->assertSame(['Kaffee'], $this->rules->normalizeValue($this->wordsPoll(2), ["\xFF\xFE", 'Kaffee']));
     }
 
     public function testLongBrokenUtf8DoesNotBecomeAQuestionMark(): void {
         // mb_substr would turn broken bytes into '?' — a word nobody typed.
-        $this->assertSame(['Kaffee'], $this->service->normalizeValue($this->wordsPoll(2), [str_repeat("\xFF", 300), 'Kaffee']));
+        $this->assertSame(['Kaffee'], $this->rules->normalizeValue($this->wordsPoll(2), [str_repeat("\xFF", 300), 'Kaffee']));
     }
 
     // ── Free text ──────────────────────────────────────────────────────────
 
     public function testHugeFreeTextIsCut(): void {
-        $text = $this->service->normalizeValue($this->textPoll(), str_repeat('Antwort ', 500_000));
+        $text = $this->rules->normalizeValue($this->textPoll(), str_repeat('Antwort ', 500_000));
 
         $this->assertSame(mb_substr(str_repeat('Antwort ', 20), 0, 100), $text);
     }
 
     public function testFreeTextWithMultibyteCharactersStaysUncut(): void {
         // 100 characters, 200 bytes: fits the limit in characters, not in bytes.
-        $this->assertSame(str_repeat('ä', 100), $this->service->normalizeValue($this->textPoll(), str_repeat('ä', 100)));
+        $this->assertSame(str_repeat('ä', 100), $this->rules->normalizeValue($this->textPoll(), str_repeat('ä', 100)));
     }
 
     public function testLongBrokenFreeTextIsEmpty(): void {
         $this->expectExceptionMessage('Please enter an answer.');
-        $this->service->normalizeValue($this->textPoll(), str_repeat("\xFF", 1000));
+        $this->rules->normalizeValue($this->textPoll(), str_repeat("\xFF", 1000));
     }
 
     // ── Nickname ───────────────────────────────────────────────────────────

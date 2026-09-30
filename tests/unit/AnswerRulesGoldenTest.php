@@ -8,16 +8,17 @@ declare(strict_types=1);
 namespace OCA\Pulse\Tests\Unit;
 
 use OCA\Pulse\Db\Poll;
+use OCA\Pulse\Service\AnswerRules;
+use OCA\Pulse\Service\DeckService;
 use OCA\Pulse\Service\QuizService;
-use OCA\Pulse\Service\VoteService;
 use OCP\IL10N;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
-use ReflectionProperty;
 
 /**
- * Golden answers of the per-type vote rules, as VoteService has them today:
+ * Golden answers of the per-type vote rules (AnswerRules), pinned while
+ * they still lived in VoteService:
  *
  * - normalizeValue: what it returns for every question type and scale mode
  *   (exact value, type and key order) and the exact message it rejects
@@ -28,21 +29,20 @@ use ReflectionProperty;
  * - the free-text verdict: accepted, being checked, rejected.
  *
  * An unknown type is treated like a word cloud; that fall-through is pinned
- * as well. The three helpers at the end are the one place to point at the
- * rules' new home when they move.
+ * as well, and so is the dispatch: every type a deck can hold reaches its own
+ * rules. The three helpers at the end are the one place to point at the
+ * rules' home when they move again.
  */
-#[CoversClass(VoteService::class)]
+#[CoversClass(AnswerRules::class)]
 class AnswerRulesGoldenTest extends TestCase {
 
-    private VoteService $service;
+    private AnswerRules $rules;
 
     protected function setUp(): void {
         $l10n = $this->createMock(IL10N::class);
         $l10n->method('t')->willReturnArgument(0);
 
-        $this->service = (new \ReflectionClass(VoteService::class))->newInstanceWithoutConstructor();
-        (new ReflectionProperty(VoteService::class, 'l10n'))->setValue($this->service, $l10n);
-        (new ReflectionProperty(VoteService::class, 'quizService'))->setValue($this->service, new QuizService());
+        $this->rules = new AnswerRules($l10n, new QuizService());
     }
 
     // ── normalizeValue: accepted ──────────────────────────────────────────
@@ -138,6 +138,59 @@ class AnswerRulesGoldenTest extends TestCase {
         $this->fail('InvalidArgumentException expected');
     }
 
+    // ── normalizeValue: the dispatch ──────────────────────────────────────
+
+    /**
+     * One row per type a deck can hold (DeckService::TYPES_POLL and
+     * TYPES_QUIZ) with what the unknown option "ZZ" gets there. The outcomes
+     * differ between the rule sets (choice and true/false share one), so a
+     * type sent to the wrong rules, or falling through to the word cloud,
+     * shows up here.
+     */
+    private const DISPATCH = [
+        'choice' => ['choice', ['message' => 'No such option.']],
+        'truefalse' => ['truefalse', ['message' => 'No such option.']],
+        'multi' => ['multi', ['message' => 'Invalid selection.']],
+        'rank' => ['rank', ['message' => 'Invalid order.']],
+        'match' => ['match', ['message' => 'Invalid assignment.']],
+        'number' => ['number', ['message' => 'Please enter a number.']],
+        'text' => ['text', ['value' => 'ZZ']],
+        'scale' => ['single', ['message' => 'Invalid value.']],
+        'words' => ['words', ['value' => ['ZZ']]],
+    ];
+
+    public function testTheDispatchTableCoversEveryDeckType(): void {
+        $types = [];
+        foreach (['TYPES_POLL', 'TYPES_QUIZ'] as $name) {
+            $types = [...$types, ...(new \ReflectionClassConstant(DeckService::class, $name))->getValue()];
+        }
+        $types = array_values(array_unique($types));
+        sort($types);
+        $table = array_keys(self::DISPATCH);
+        sort($table);
+
+        $this->assertSame($types, $table, 'a new question type needs its row in DISPATCH');
+    }
+
+    public static function dispatch(): array {
+        $out = [];
+        foreach (self::DISPATCH as $type => [$kind, $outcome]) {
+            $out[$type] = [$type, $kind, $outcome];
+        }
+        return $out;
+    }
+
+    #[DataProvider('dispatch')]
+    public function testEveryTypeReachesItsOwnRules(string $type, string $kind, array $outcome): void {
+        $poll = self::poll($kind);
+        $this->assertSame($type, $poll->getType());
+        try {
+            $this->assertSame($outcome, ['value' => $this->normalize($poll, 'ZZ')]);
+        } catch (\InvalidArgumentException $e) {
+            $this->assertSame($outcome, ['message' => $e->getMessage()]);
+        }
+    }
+
     // ── quizPayload ───────────────────────────────────────────────────────
 
     /** Time limit of every question: 20 s, so 5 s earn 875 points and 20 s or more 500. */
@@ -223,15 +276,15 @@ class AnswerRulesGoldenTest extends TestCase {
     // ── The rules under test ──────────────────────────────────────────────
 
     private function normalize(Poll $poll, mixed $value): mixed {
-        return $this->service->normalizeValue($poll, $value);
+        return $this->rules->normalizeValue($poll, $value);
     }
 
     private function payload(Poll $poll, mixed $normalized, int $elapsed, ?int $limit): array {
-        return $this->service->quizPayload($poll, $normalized, $elapsed, $limit);
+        return $this->rules->quizPayload($poll, $normalized, $elapsed, $limit);
     }
 
     /** @return array{0: bool, 1: bool} [correct, being checked] */
     private function verdict(Poll $poll, string $norm): array {
-        return (new \ReflectionMethod(VoteService::class, 'textVerdict'))->invoke($this->service, $poll, $norm);
+        return $this->rules->textVerdict($poll, $norm);
     }
 }

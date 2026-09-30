@@ -8,32 +8,30 @@ declare(strict_types=1);
 namespace OCA\Pulse\Tests\Unit;
 
 use OCA\Pulse\Db\Poll;
+use OCA\Pulse\Service\AnswerRules;
 use OCA\Pulse\Service\QuizService;
-use OCA\Pulse\Service\VoteService;
+use OCP\IL10N;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use ReflectionProperty;
 
 /**
  * Grading of matching in a quiz: all-or-nothing, as with multiple choice and
  * ranking. Partial points would water down "correct" in the leaderboard.
  *
- * quizPayload() computes without a DB; the instance is therefore created without a constructor
- * (newInstanceWithoutConstructor), only the points calculation is injected afterwards.
+ * quizPayload() computes without a DB, so AnswerRules is built directly with
+ * the real points calculation.
  */
-#[CoversClass(VoteService::class)]
+#[CoversClass(AnswerRules::class)]
 class MatchGradingTest extends TestCase {
 
-    private VoteService $service;
+    private AnswerRules $rules;
 
     protected function setUp(): void {
-        $this->service = (new \ReflectionClass(VoteService::class))->newInstanceWithoutConstructor();
-        $property = new ReflectionProperty(VoteService::class, 'quizService');
-        $property->setValue($this->service, new QuizService());
+        $this->rules = new AnswerRules($this->createMock(IL10N::class), new QuizService());
     }
 
     public function testFullyCorrectMatchingGivesPoints(): void {
-        $payload = $this->service->quizPayload($this->poll(), ['I1' => 'T1', 'I2' => 'T2'], 0);
+        $payload = $this->rules->quizPayload($this->poll(), ['I1' => 'T1', 'I2' => 'T2'], 0);
 
         $this->assertTrue($payload['correct']);
         $this->assertSame(QuizService::BASE_POINTS, $payload['points']);
@@ -41,20 +39,20 @@ class MatchGradingTest extends TestCase {
 
     public function testOrderOfTheRowsDoesNotMatter(): void {
         // The client sends the rows in its own (shuffled) display order.
-        $payload = $this->service->quizPayload($this->poll(), ['I2' => 'T2', 'I1' => 'T1'], 0);
+        $payload = $this->rules->quizPayload($this->poll(), ['I2' => 'T2', 'I1' => 'T1'], 0);
 
         $this->assertTrue($payload['correct']);
     }
 
     public function testOneWrongRowCostsAllThePoints(): void {
-        $payload = $this->service->quizPayload($this->poll(), ['I1' => 'T2', 'I2' => 'T2'], 0);
+        $payload = $this->rules->quizPayload($this->poll(), ['I1' => 'T2', 'I2' => 'T2'], 0);
 
         $this->assertFalse($payload['correct']);
         $this->assertSame(0, $payload['points']);
     }
 
     public function testIncompleteMatchingIsNotCorrect(): void {
-        $payload = $this->service->quizPayload($this->poll(), ['I1' => 'T1'], 0);
+        $payload = $this->rules->quizPayload($this->poll(), ['I1' => 'T1'], 0);
 
         $this->assertFalse($payload['correct']);
     }
@@ -65,14 +63,14 @@ class MatchGradingTest extends TestCase {
         $poll = $this->poll();
         $poll->setAnswerKey(null);
 
-        $this->assertFalse($this->service->quizPayload($poll, [], 0)['correct']);
+        $this->assertFalse($this->rules->quizPayload($poll, [], 0)['correct']);
     }
 
     public function testLateAnswerGetsFewerPoints(): void {
         $poll = $this->poll();
         $poll->setTimeLimit(20);
-        $fast = $this->service->quizPayload($poll, ['I1' => 'T1', 'I2' => 'T2'], 0);
-        $slow = $this->service->quizPayload($poll, ['I1' => 'T1', 'I2' => 'T2'], 20);
+        $fast = $this->rules->quizPayload($poll, ['I1' => 'T1', 'I2' => 'T2'], 0);
+        $slow = $this->rules->quizPayload($poll, ['I1' => 'T1', 'I2' => 'T2'], 20);
 
         $this->assertSame(QuizService::BASE_POINTS, $fast['points']);
         $this->assertSame((int)(QuizService::BASE_POINTS / 2), $slow['points']);
