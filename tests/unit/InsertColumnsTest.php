@@ -9,6 +9,8 @@ namespace OCA\Pulse\Tests\Unit;
 
 use Doctrine\DBAL\Platforms\MySQL84Platform;
 use Doctrine\DBAL\Schema\Schema;
+use OC\DB\Connection;
+use OC\DB\SchemaWrapper;
 use OCA\Pulse\Db\Player;
 use OCA\Pulse\Db\Poll;
 use OCA\Pulse\Db\PollMapper;
@@ -282,40 +284,16 @@ class InsertColumnsTest extends TestCase {
             return self::$schema;
         }
         $schema = new Schema();
-        $wrapper = new class($schema) implements ISchemaWrapper {
-            public function __construct(
-                private Schema $schema,
-            ) {
-            }
-            public function getTable($tableName) {
-                return $this->schema->getTable($tableName);
-            }
-            public function hasTable($tableName) {
-                return $this->schema->hasTable($tableName);
-            }
-            public function createTable($tableName) {
-                return $this->schema->createTable($tableName);
-            }
-            public function dropTable($tableName) {
-                $this->schema->dropTable($tableName);
-                return $this->schema;
-            }
-            public function getTables() {
-                return $this->schema->getTables();
-            }
-            public function getTableNames() {
-                return array_map(static fn ($t): string => $t->getName(), $this->schema->getTables());
-            }
-            public function getTableNamesWithoutPrefix() {
-                return $this->getTableNames();
-            }
-            public function getDatabasePlatform() {
-                return new MySQL84Platform();
-            }
-            public function dropAutoincrementColumn(string $table, string $column): void {
-                throw new \LogicException('not used by the migrations');
-            }
-        };
+        // The server's own wrapper, exactly what a migration gets on a real
+        // install. A hand-written ISchemaWrapper stops compiling on Nextcloud
+        // 35, which types the interface and reserves it for the server. Its
+        // constructor is the same on 34 and 35. With an empty table prefix
+        // the tables keep the names in ENTITIES; the assertions read the
+        // Doctrine schema itself.
+        $connection = $this->createMock(Connection::class);
+        $connection->method('getPrefix')->willReturn('');
+        $connection->method('getDatabasePlatform')->willReturn(new MySQL84Platform());
+        $wrapper = new SchemaWrapper($connection, $schema);
         $files = glob(dirname(__DIR__, 2) . '/lib/Migration/Version*.php');
         sort($files);
         $this->assertNotEmpty($files);

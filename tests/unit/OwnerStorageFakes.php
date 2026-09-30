@@ -146,6 +146,11 @@ trait OwnerStorageFakes {
             public function newFolder(string $path): ISimpleFolder {
                 throw new \LogicException('not needed');
             }
+            // Part of ISimpleFolder from Nextcloud 35 on; an extra method is
+            // fine on 34, a missing one is a fatal error on 35.
+            public function getOrCreateFolder(string $path, int $maxRetries = 5): ISimpleFolder {
+                throw new \LogicException('not needed');
+            }
         };
     }
 

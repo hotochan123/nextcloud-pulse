@@ -40,10 +40,10 @@ requirements. Not all of them run automatically: CI
 (`.github/workflows/ci.yml`) only builds the bundle, checks that the committed
 bundles in `js/` are exactly what the sources build to, checks the
 translations and `info.xml` against the App Store schema, packs a test release
-archive and runs `php -l` and the PHPUnit suite. The unit tests
-(`dev/unit`), the simulation (`dev/sim`) and the screenshot harness
-(`dev/design-shots`) are run by hand — the last two need a running Nextcloud
-instance — and the fuzzing scripts were one-offs that are not in this
+archive, runs the unit tests (`dev/unit`), `php -l` and the PHPUnit suite, and
+checks that the dev scripts parse. The simulation (`dev/sim`) and the
+screenshot harness (`dev/design-shots`) are run by hand — they need a running
+Nextcloud instance — and the fuzzing scripts were one-offs that are not in this
 repository. There has been no independent human code review and no security
 audit. In September 2026 AI agents of the same kind reviewed the code for
 security problems and fixed what they found (listed under "Security" in
@@ -189,7 +189,8 @@ office-addin/     PowerPoint add-in (guide, Traefik example; the instance genera
                   the manifest itself)
 dev/design-shots/ Screenshot harness for design reviews and store images (headless Firefox)
 dev/sim/          HTTP simulation of complete runs against a running instance
-.github/          CI: bundle (and that js/ matches it), PHPUnit, translations, info.xml schema
+.github/          CI: bundle (and that js/ matches it), PHPUnit, JS unit tests (dev/unit),
+                  script syntax, translations, info.xml schema, test release archive
 screenshots/      Images for the App Store page
 .htaccess         Hides the development folders when a git checkout sits in the web root (Apache)
 ```

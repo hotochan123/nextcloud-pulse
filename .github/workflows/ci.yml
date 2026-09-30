@@ -46,6 +46,25 @@ jobs:
       - name: Translations complete
         run: npm run l10n:check
 
+      # The rules of the self-paced quiz (src/util/pace.js), in plain Node.
+      # The daylight-saving cases need Europe/Berlin; without it the test
+      # aborts with exit 2.
+      - name: JS unit tests
+        run: TZ=Europe/Berlin node dev/unit/pace.test.mjs
+
+      # The simulation and the screenshot harness only ever run against a
+      # live instance, so CI at least parses them, the build scripts and the
+      # shell scripts. node --check does not look inside the browser scripts
+      # that shoot.mjs keeps in template literals.
+      - name: Syntax of the dev, build and shell scripts
+        run: |
+          for f in dev/sim/*.mjs dev/unit/*.mjs dev/design-shots/shoot.mjs build/*.js; do
+            node --check "$f"
+          done
+          for f in tests/run.sh dev/sim/run.sh dev/design-shots/run.sh build/package.sh build/certificate.sh; do
+            sh -n "$f"
+          done
+
       - name: Validate info.xml against the App Store schema
         run: |
           curl -sSL -o /tmp/info.xsd https://apps.nextcloud.com/schema/apps/info.xsd
@@ -66,12 +85,26 @@ jobs:
           retention-days: 7
 
   php:
-    name: PHPUnit (PHP ${{ matrix.php }})
+    name: PHPUnit (${{ matrix.server }}, PHP ${{ matrix.php }})
     runs-on: ubuntu-latest
+    # Nextcloud 35 is ahead of the app's max-version (34 in info.xml): a
+    # failure there shows on its job but does not fail the run.
+    continue-on-error: ${{ matrix.experimental }}
     strategy:
       fail-fast: false
       matrix:
-        php: ['8.2', '8.3']
+        # Nextcloud 34 with the oldest PHP it supports and with the PHP
+        # production runs; Nextcloud 35 (PHP 8.3 to 8.5) with the latter.
+        include:
+          - server: stable34
+            php: '8.2'
+            experimental: false
+          - server: stable34
+            php: '8.5'
+            experimental: false
+          - server: stable35
+            php: '8.5'
+            experimental: true
     steps:
       # The tests don't touch a database, but they do need the server's OCP
       # classes — hence the server checkout, in which the app lives under
@@ -80,7 +113,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           repository: nextcloud/server
-          ref: stable34
+          ref: ${{ matrix.server }}
           submodules: true
           path: server
 
@@ -92,14 +125,24 @@ jobs:
       - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
         with:
           php-version: ${{ matrix.php }}
-          extensions: tokenizer, xmlwriter, gd, zip
+          # intl: the Spoofchecker tests in NameConfusableTest.
+          extensions: tokenizer, xmlwriter, gd, zip, intl
+          # php.ini-production switches this on, which strips the arguments
+          # from every trace, and the two trace tests in
+          # SensitiveParameterTest would skip.
+          ini-values: zend.exception_ignore_args=Off
           tools: phpunit:11
           coverage: none
 
+      # dev/ holds probe.php, which the screenshot harness runs on the
+      # live instance.
       - name: Syntax check
         working-directory: server/apps/pulse
-        run: find lib tests -name '*.php' -print0 | xargs -0 -n1 php -l >/dev/null
+        run: find lib tests dev -name '*.php' -print0 | xargs -0 -n1 php -l >/dev/null
 
+      # A skip is an environment gap (no intl, a PCRE without \p{DI}, traces
+      # without arguments), and each one would hide a security test: here
+      # it fails the job. tests/run.sh keeps PHPUnit's default.
       - name: Unit tests
         working-directory: server/apps/pulse
-        run: phpunit -c phpunit.xml
+        run: phpunit -c phpunit.xml --fail-on-skipped
