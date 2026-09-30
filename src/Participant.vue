@@ -342,8 +342,8 @@
 					<!-- Ordering: ↑/↓ instead of drag — keyboard-proof and accurate -->
 					<div v-else-if="poll.type === 'rank'" class="rank-field">
 						<p class="h-hint">{{ t('pulse', 'Put the answers into your order — place 1 goes on top.') }}</p>
-						<ol class="rank-list">
-							<li v-for="(o, i) in rankOrder" :key="o.id" class="rank-item">
+						<ol ref="rankList" class="rank-list">
+							<li v-for="(o, i) in rankOrder" :key="o.id" class="rank-item" :data-rank-id="o.id">
 								<span class="rank-pos">{{ i + 1 }}</span>
 								<span class="rank-label">{{ o.label }}</span>
 								<span class="rank-move">
@@ -919,6 +919,20 @@ export default {
 			arr[i] = arr[j]
 			arr[j] = tmp
 			this.rankOrder = arr
+			// Keep the keyboard on the item that moved. The keyed patch moves one of
+			// the two <li>s with insertBefore; on "down" that is the one holding the
+			// pressed arrow, and the browser drops the focus to <body>. At the top or
+			// bottom the pressed arrow turns disabled and loses the focus as well;
+			// then the item's other arrow takes it. The item is found by its id.
+			const id = String(tmp.id)
+			this.$nextTick(() => {
+				const list = this.$refs.rankList
+				const li = list ? Array.from(list.children).find((el) => el.dataset.rankId === id) : null
+				if (!li) return
+				const [up, down] = li.querySelectorAll('.rank-arrow')
+				const target = (dir < 0 ? [up, down] : [down, up]).find((b) => b && !b.disabled)
+				if (target) target.focus()
+			})
 		},
 		submitRank() {
 			this.submit(this.rankOrder.map((o) => o.id))

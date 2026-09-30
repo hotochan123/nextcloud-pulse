@@ -115,6 +115,12 @@ compact cloud: the word breaks inside its box, nothing scrolls sideways. A
 finding (`FEHLT`, `ABGESCHNITTEN`, `NICHT 40`, `LÄUFT ÜBER`,
 `WAAGERECHT`) lands in the list at the end of `index.md`.
 
+After them the `phone` pass moves the first item of the poll's ordering
+question by keyboard (focus plus click, as Enter does): three times down to the
+bottom, once up. After every step the focus must be on that item's arrow — at
+the bottom on its "↑", since "↓" is disabled there. The line reads
+`↓ → ↓ → ↑ → ↑`; a lost focus shows as `VERLOREN` and lands in the list too.
+
 ## Brute-force trap
 
 If a room is deleted or reset while a `/s/…` or `/screen/…` page — or the

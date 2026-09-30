@@ -504,6 +504,9 @@ described under "Security notes" and "Known limits" in the README.
   "Verantwortungsbewusstsein". On the projector a word too wide for the cloud
   is now shrunk until it fits instead of being clipped on both sides, and on
   phones and in the moderator view long words wrap inside their box.
+- On the phone, moving an item of a ranking question down with its arrow button
+  keeps the keyboard focus on that item. The focus fell back to the top of the
+  page, so a keyboard user had to find the list again after every step.
 
 ### Removed
 - `office-addin/manifest.xml`. It is generated now, and a second editable copy

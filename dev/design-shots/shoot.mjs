@@ -830,6 +830,43 @@ async function phonePass(s) {
 		})
 		longWordMarks()
 	}
+
+	// Ordering by keyboard: the first item goes down three times to the bottom
+	// and up once. After every step the focus has to be on that item's arrow —
+	// the keyed move of its <li> used to drop it to <body> on "↓" — and at the
+	// bottom, where "↓" is disabled, on its "↑". focus() plus click() is what
+	// Enter on a focused button does.
+	const rank = poll.polls.find((p) => p.label === 'rank')
+	if (rank) {
+		probe('state', poll.code, String(rank.id), 'open')
+		const step = { js: `
+			const a = document.activeElement
+			const li = a && a.closest ? a.closest('.rank-item') : null
+			const mine = li && li.dataset.rankId === window.__rankFocus.id
+			window.__rankFocus.log.push(mine ? (Array.from(li.querySelectorAll('.rank-arrow')).indexOf(a) === 0 ? '↑' : '↓') : 'VERLOREN')
+			if (mine && window.__rankFocus.log.length < 4) { a.click() }
+		` }
+		await shot(s, {
+			name: 'phone-rank-keyboard', url: `/apps/pulse/s/${poll.code}`, size: PHONE,
+			waitSel: '.rank-item',
+			actions: [
+				{ js: `
+					const li = document.querySelector('.rank-item')
+					window.__rankFocus = { id: li.dataset.rankId, log: [] }
+					const down = li.querySelectorAll('.rank-arrow')[1]
+					down.focus()
+					down.click()
+				` },
+				{ sleep: 400 }, step, { sleep: 400 }, step, { sleep: 400 }, step, { sleep: 400 }, step,
+			],
+			note: 'Handy Reihenfolge per Tastatur: erster Eintrag 3× ↓, dann ↑',
+			measure: `return 'Fokus nach jedem Schritt: ' + window.__rankFocus.log.join(' → ') + ' (erwartet ↓ → ↓ → ↑ → ↑)'`,
+		})
+		if (index[index.length - 1].includes('VERLOREN')) { overflow.push(index[index.length - 1].split(' | ')[0].slice(2) + ': Fokus nach Verschieben VERLOREN') }
+		// Back to the state the pass had before, so a full run hands the next
+		// passes (dark photographs the poll room first) the same room as ever.
+		probe('state', poll.code, String(first.id), 'locked')
+	}
 }
 
 /*
