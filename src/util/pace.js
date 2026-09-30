@@ -287,3 +287,25 @@ export function progressDelay(state, players, idleStreak) {
 	}
 	return idle ? 10000 : 5000
 }
+
+/**
+ * Counts from a /progress response — the same shape that
+ * Moderator.fetchCounts delivers and lossText (util/question-types.js) reads
+ * (specification §0.9).
+ * @param {object|null} p /progress payload
+ * @return {object|null} {joined, present, started, finished, answers, pending, state}
+ */
+export function progressCounts(p) {
+	if (!p) return null
+	const players = Array.isArray(p.players) ? p.players : []
+	const sum = (key) => players.reduce((acc, x) => acc + (Number(x[key]) || 0), 0)
+	return {
+		joined: players.length,
+		present: Number(p.present) || 0,
+		started: players.filter((x) => x.started).length,
+		finished: players.filter((x) => x.finished).length,
+		answers: sum('answered'),
+		pending: sum('pending'),
+		state: (p.window && p.window.state) || '',
+	}
+}

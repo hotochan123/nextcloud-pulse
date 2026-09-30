@@ -19,7 +19,7 @@ import assert from 'node:assert/strict'
 import {
 	DEADLINE_MIN, DEADLINE_MAX, CLOSING_SOON, STOP_LEAD,
 	isPacedRoom, windowState, stopDeadline, toLocalInput, fromLocalInput, defaultDeadline,
-	deadlinePresets, splitDuration, raceRows, paceCard, canNext, phoneDelay, progressDelay,
+	deadlinePresets, splitDuration, raceRows, paceCard, canNext, phoneDelay, progressDelay, progressCounts,
 } from '../../src/util/pace.js'
 
 let passed = 0
@@ -409,6 +409,34 @@ test('progressDelay: Tabelle §1.6', () => {
 	assert.equal(progressDelay('released', 10, 2), 5000)
 	assert.equal(progressDelay('closed', 10, 3), 10000)
 	assert.equal(progressDelay('released', 400, 9), 10000)
+})
+
+// ── Counts from /progress (confirmation texts, run view) ─────────────────
+
+test('progressCounts: people, answers and pending gradings from a /progress payload', () => {
+	const p = {
+		present: 2,
+		window: { state: 'open' },
+		players: [
+			{ started: true, finished: false, answered: 3, pending: 1 },
+			{ started: true, finished: true, answered: 5, pending: 0 },
+			{ started: false, finished: false, answered: 0, pending: 0 },
+		],
+	}
+	const counts = progressCounts(p)
+	assert.deepEqual(counts, { joined: 3, present: 2, started: 2, finished: 1, answers: 8, pending: 1, state: 'open' })
+	assert.deepEqual(Object.keys(counts), ['joined', 'present', 'started', 'finished', 'answers', 'pending', 'state'], 'key order')
+})
+
+test('progressCounts: no payload -> null, missing or odd fields count as zero', () => {
+	assert.equal(progressCounts(null), null)
+	assert.equal(progressCounts(undefined), null)
+	assert.deepEqual(progressCounts({}), { joined: 0, present: 0, started: 0, finished: 0, answers: 0, pending: 0, state: '' })
+	assert.deepEqual(progressCounts({ players: 'x', present: 'abc', window: null }),
+		{ joined: 0, present: 0, started: 0, finished: 0, answers: 0, pending: 0, state: '' })
+	// numeric strings count, anything else as 0
+	const odd = progressCounts({ present: '4', window: { state: 'closed' }, players: [{ answered: '3', pending: 'x' }, { answered: null }, {}] })
+	assert.deepEqual(odd, { joined: 3, present: 4, started: 0, finished: 0, answers: 3, pending: 0, state: 'closed' })
 })
 
 console.log(`\n==== pace.js: ${passed} ok / ${failures.length} fehlgeschlagen ====`)

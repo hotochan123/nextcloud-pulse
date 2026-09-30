@@ -181,6 +181,7 @@ src/              Moderator.vue (control desk), Participant.vue (phone), Screen.
                   components/StageRow.vue (stage row model), ResultsView.vue,
                   self-paced: components/Pace*.vue (moderator), StageRace.vue (projector),
                   mixins/pace-phone.js (phone), util/pace.js (pure rules, no browser),
+                  util/question-types.js (composer contract per question type, no browser),
                   styles.js (token layer without Vue — for the embed shell)
 l10n/             Translations (de.json is maintained, de.js is generated from it)
 build/            l10n-build.js (json -> js), l10n-check.js (coverage),
@@ -322,6 +323,7 @@ tests/run.sh          # PHPUnit inside the Nextcloud container (see tests/README
 npm run l10n:check    # translation coverage, exit 1 on gaps
 TZ=Europe/Berlin node dev/unit/pace.test.mjs   # self-paced rules (deadlines, phone cards, polling rate)
 node dev/unit/format.test.mjs                  # shared formatting helpers (tall labels, "x min ago")
+node dev/unit/question-types.test.mjs          # composer contract per question type, deck labels, loss texts
 dev/sim/run.sh        # HTTP simulation of complete runs against the running instance (dev/sim/README.md)
 ```
 

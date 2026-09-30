@@ -56,10 +56,10 @@ room.pace === 'self'`; phone/projector: `data.room.pace === 'self'`).
 
 | Area | File |
 |---|---|
-| Pure rules without a browser: window state, deadlines, presets, phone cards, `canNext`, polling intervals, race rows | `src/util/pace.js` (test: `dev/unit/pace.test.mjs`) |
+| Pure rules without a browser: window state, deadlines, presets, phone cards, `canNext`, polling intervals, race rows, counts from `/progress` | `src/util/pace.js` (test: `dev/unit/pace.test.mjs`) |
 | CSV with the request token in the query (otherwise 412) | `src/util/csv.js` |
 | Deadlines, durations, "x min ago", state chip | `src/util/format.js` (`fmtDeadline`, `fmtDuration`, `fmtAgo`, `paceStateChip`) |
-| Switch, locks, deck header, counts for confirmations, errors/409 | `src/Moderator.vue` (`deckMenu`, `paceLock`, `deckPrimary`, `fetchCounts`, `lossText`, `failWrite`, `refreshRoom`) |
+| Switch, locks, deck header, counts for confirmations, errors/409 | `src/Moderator.vue` (`deckMenu`, `paceLock`, `deckPrimary`, `fetchCounts`, `failWrite`, `refreshRoom`); the loss sentence `lossText` in `src/util/question-types.js` |
 | Open dialog and "Change the end … / Reopen …" | `src/components/PaceOpenDialog.vue` (`mode="open"` / `"extend"`) |
 | "N here · N joined" in the deck, follows the deadline and a second tab | `src/components/PaceDeckStatus.vue` |
 | Run view (phase `pace`): table, grading, menu, main action, status line | `src/components/PaceRun.vue` |
