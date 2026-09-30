@@ -38,13 +38,13 @@
  * README).
  */
 import { t } from '../util/l10n.js'
+import { fitCloud } from '../util/wordcloud.js'
 import PulseIcon from './ui/PulseIcon.vue'
 
 // ── Engine constants (from the framework-free reference, §7) ───────────────
+// The placement constants (gap, margin, top-N cap) live with the layout in
+// util/wordcloud.js.
 const PALETTE_VARS = ['--w1', '--w2', '--w3', '--w4', '--w5', '--w6', '--w7', '--w8']
-const GAP = 9 // minimum gap between word boxes (px)
-const MARGIN = 10 // safety margin to the container (px)
-const MAX_VISIBLE = 90 // hard cap on visible words — the rest shows as "+{count} more"
 // The measuring font must match the rendered font EXACTLY, otherwise
 // canvas measures wrong. We use the same system stack as the .word rule below
 // (no external font -> CSP-safe, and the measurement is right).
@@ -209,76 +209,10 @@ export default {
 		// lower density — "+{count} more" kicks in a little earlier for it.
 		baseT(s) { return 'translate(-50%,-50%) scale(' + s + ')' },
 		measFont(size) { return '700 ' + size + 'px ' + FONT_FAMILY },
-		sizeScale() {
-			const w = this._W || 800
-			const h = this._H || 400
-			// Tie the size to width AND height, so the cloud also fills a tall
-			// projector area instead of staying small in the middle.
-			const MAXS = Math.max(44, Math.min(150, w / 10, h / 3.6))
-			const MINS = Math.max(16, Math.min(34, MAXS * 0.27))
-			return { MINS, MAXS }
-		},
-
-		// ── collision-free spiral placement ────────────────────────────────────
-		// `shrink` scales the size range down globally (fit loop).
-		computeLayout(shrink) {
-			const W = this._W, H = this._H
-			const res = { layout: new Map(), placed: 0, attempted: 0, hidden: 0 }
-			if (!this._words.size || W < 2 || H < 2) return res
-			let entries = [...this._words.entries()].sort((a, b) => b[1] - a[1]) // most frequent first
-			res.hidden = Math.max(0, entries.length - MAX_VISIBLE) // top-N cap (no silent dropping)
-			entries = entries.slice(0, MAX_VISIBLE)
-			res.attempted = entries.length
-			const counts = entries.map((e) => e[1])
-			const min = Math.min(...counts), max = Math.max(...counts)
-			const base = this.sizeScale()
-			const MINS = Math.max(this.minSize, base.MINS * shrink)
-			const MAXS = Math.max(MINS, base.MAXS * shrink)
-			const cx0 = W / 2, cy0 = H / 2
-			const placed = []
-			for (const [word, c] of entries) {
-				// With identical frequency (early/uniform cloud) use a medium size
-				// instead of the maximum — otherwise all count-1 words max out and crowd.
-				const t = (max === min) ? 0.5 : (c - min) / (max - min)
-				const size = MINS + Math.pow(t, 0.72) * (MAXS - MINS)
-				this._measurer.font = this.measFont(size)
-				const suffix = c >= 2 ? ' ·' + c : ''
-				const textW = this._measurer.measureText(word + suffix).width
-				const textH = size * 0.96
-				const w = textW
-				const h = textH
-				let angle = 0, radius = 0, x = cx0, y = cy0, ok = false, iter = 0
-				while (iter < 2600) {
-					x = cx0 + radius * Math.cos(angle)
-					y = cy0 + radius * Math.sin(angle) * 0.82 // ellipse: a bit wider than tall, but fills the area
-					if (x - w / 2 >= MARGIN && x + w / 2 <= W - MARGIN && y - h / 2 >= MARGIN && y + h / 2 <= H - MARGIN) {
-						let hit = false
-						for (const p of placed) {
-							if (Math.abs(x - p.x) < (w + p.w) / 2 + GAP && Math.abs(y - p.y) < (h + p.h) / 2 + GAP) { hit = true; break }
-						}
-						if (!hit) { ok = true; break }
-					}
-					angle += 0.35; radius += 0.9; iter++
-				}
-				if (!ok) {
-					if (placed.length === 0) { x = cx0; y = cy0 } // first word goes to the center if need be
-					else continue // doesn't fit (yet) -> the fit loop shrinks right away
-				}
-				placed.push({ x, y, w, h })
-				res.layout.set(word, { x, y, size })
-				res.placed++
-			}
-			return res
-		},
-		// Fit loop: shrinks the font sizes until ALL words fit,
-		// instead of overlapping them or silently dropping them (like Mentimeter).
-		computeLayoutFitted() {
-			let shrink = 1, res = this.computeLayout(shrink), guard = 0
-			while (res.placed < res.attempted && shrink > 0.5 && guard++ < 6) {
-				shrink = Math.max(0.5, shrink - 0.11)
-				res = this.computeLayout(shrink)
-			}
-			return res
+		// Width of a text in px, set bold at `size` px in the rendered font.
+		measure(text, size) {
+			this._measurer.font = this.measFont(size)
+			return this._measurer.measureText(text).width
 		},
 
 		// ── Rendering & animation ──────────────────────────────────────────────
@@ -294,7 +228,8 @@ export default {
 			this._palCache = PALETTE_VARS.map((v) => cs.getPropertyValue(v).trim())
 
 			const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
-			const fit = this.computeLayoutFitted()
+			// Spiral placement plus fit loop (util/wordcloud.js).
+			const fit = fitCloud(this._words, { W: this._W, H: this._H, minSize: this.minSize, measure: this.measure })
 			const layout = fit.layout
 			const cloud = this.$refs.cloud
 

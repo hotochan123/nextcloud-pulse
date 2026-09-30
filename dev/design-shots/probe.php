@@ -17,6 +17,7 @@ declare(strict_types=1);
  *   php probe.php seed   <code> <n>
  *   php probe.php end    <code>
  *   php probe.php destroy <uid>
+ *   php probe.php add-words <code> <label> [maxWords]
  *
  * Self-paced quiz (stage 4):
  *   php probe.php pace <code> live|self
@@ -444,6 +445,7 @@ if ($cmd === 'countdown') {
  * photographable at 44 and at 46 answers, not "roughly".
  *
  *   php probe.php fixture <code> <pollId> scale-same|scale-one|compass|rank-polar|words [n]
+ *   php probe.php fixture <code> <pollId> words-long [n] [word]
  */
 if ($cmd === 'fixture') {
     $room = $roomMapper->findByCode((string)$argv[2]);
@@ -526,11 +528,36 @@ if ($cmd === 'fixture') {
                 $put([$word]);
             }
         }
+    } elseif ($kind === 'words-long') {
+        // One word of 40 characters, the most AnswerRules keeps, <n> times (default
+        // once). On top of `words` it sits inside a full cloud; with enough
+        // mentions it is the largest word. The shots pass the word in: the phone
+        // pass types the same one, so its own answer and these add up.
+        $word = (string)($argv[6] ?? 'Kraftfahrzeughaftpflichtversicherungsamt');
+        for ($k = 0; $k < max(1, $arg); $k++) {
+            $put([$word]);
+        }
     } else {
         fwrite(STDERR, "Unbekannte Fixture: $kind\n");
         exit(1);
     }
     echo "ok: $i\n";
+    exit(0);
+}
+
+/*
+ * A word-cloud question appended to a room when a pass needs it, not in
+ * `create`: every other pass keeps exactly the rooms and decks it had (the room
+ * list shows the number of questions). Prints the question like `create` does.
+ */
+if ($cmd === 'add-words') {
+    $room = $roomMapper->findByCode((string)$argv[2]);
+    $poll = add($deck, $room, [
+        'type' => 'words',
+        'question' => 'One word: what slowed the project down?',
+        'maxWords' => max(1, (int)($argv[4] ?? 3)),
+    ], (string)($argv[3] ?? 'words'));
+    echo json_encode($poll, JSON_UNESCAPED_UNICODE), "\n";
     exit(0);
 }
 

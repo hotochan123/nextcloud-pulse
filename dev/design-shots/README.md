@@ -101,6 +101,20 @@ By hand, e.g.:
 docker exec -u www-data nextcloud-nextcloud-1 php /var/www/html/apps/pulse/dev/design-shots/probe.php open ABC123 259200 0 end
 ```
 
+## Long words
+
+The `types` and `phone` passes end with a word of 40 characters, the most
+the server keeps and the phone's word field takes. `probe.php add-words`
+appends its questions to the types room only then, so every earlier capture
+and every other pass keeps its rooms and decks. `types` photographs the
+projector cloud with the word alone, inside the 16-word fixture cloud (one
+mention) and as its most frequent word (eight mentions), and measures that
+every word stays inside the cloud area. `phone` types 41 characters (the
+field keeps 40), sends, and after the reveal measures the own answer and the
+compact cloud: the word breaks inside its box, nothing scrolls sideways. A
+finding (`FEHLT`, `ABGESCHNITTEN`, `NICHT 40`, `LÄUFT ÜBER`,
+`WAAGERECHT`) lands in the list at the end of `index.md`.
+
 ## Brute-force trap
 
 If a room is deleted or reset while a `/s/…` or `/screen/…` page — or the

@@ -49,8 +49,9 @@ jobs:
       # The rules of the self-paced quiz (src/util/pace.js), the shared
       # helpers of src/util/format.js, the composer's contract per
       # question type (src/util/question-types.js), the frontend's URLs
-      # (src/util/routes.js, checked against appinfo/routes.php) and the
-      # composer's input limits (checked against DeckService), in plain
+      # (src/util/routes.js, checked against appinfo/routes.php), the
+      # composer's input limits (checked against DeckService) and the
+      # projector's word-cloud layout (src/util/wordcloud.js), in plain
       # Node. The daylight-saving cases of pace.test need Europe/Berlin;
       # without it that test aborts with exit 2.
       - name: JS unit tests
@@ -60,6 +61,7 @@ jobs:
           node dev/unit/question-types.test.mjs
           node dev/unit/routes.test.mjs
           node dev/unit/composer-limits.test.mjs
+          node dev/unit/wordcloud.test.mjs
 
       # The simulation and the screenshot harness only ever run against a
       # live instance, so CI at least parses them, the build scripts and the

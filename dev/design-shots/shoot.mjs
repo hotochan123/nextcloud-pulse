@@ -555,6 +555,76 @@ async function edgePass(s) {
 }
 
 /*
+ * A word of 40 characters: the most the server keeps (AnswerRules) and the
+ * phone's word field takes. It has to fit across the projector's cloud and
+ * break inside the phone's cards. ASCII on purpose: the phone pass types it
+ * through WebDriver, and probe.php gets it passed in (fixture words-long), so
+ * the typed answer and the seeded ones are one word.
+ */
+const LONG_WORD = 'Kraftfahrzeughaftpflichtversicherungsamt'
+
+// Projector cloud: every visible word inside the cloud area (the kiosk clips
+// silently), the long word's size and width, what is left over as "+N more".
+const CLOUD_LONG = `
+	const canvas = document.querySelector('.pl-cloud-canvas')
+	if (!canvas) { return 'Wolke FEHLT' }
+	const c = canvas.getBoundingClientRect()
+	const words = Array.from(canvas.querySelectorAll('.pl-word')).filter((w) => w.style.opacity !== '0')
+	const text = (w) => (w.firstChild ? w.firstChild.textContent : '')
+	const cut = words.filter((w) => {
+		const r = w.getBoundingClientRect()
+		return r.left < c.left - 0.5 || r.right > c.right + 0.5 || r.top < c.top - 0.5 || r.bottom > c.bottom + 0.5
+	})
+	const long = words.find((w) => text(w).length >= 40)
+	const more = document.querySelector('.pl-cloud-overflow')
+	return words.length + ' Wörter gesetzt' + (more ? ', ' + more.textContent.trim() : '')
+		+ ', langes Wort ' + (long ? Math.round(parseFloat(long.style.fontSize)) + ' px, ' + Math.round(long.getBoundingClientRect().width) + ' von ' + Math.round(c.width) + ' px breit' : 'FEHLT')
+		+ (cut.length ? ', ' + cut.length + ' ABGESCHNITTEN (' + cut.map(text).join(', ') + ')' : ', alle ganz im Bild')
+`
+
+// Phone word field: how many characters it holds after typing 41, and the counter.
+const WORD_FIELD = `
+	const input = document.querySelector('.word-field input')
+	const count = document.querySelector('.word-count')
+	if (!input) { return 'Wortfeld FEHLT' }
+	const n = input.value.length
+	return 'Feld hält ' + n + ' Zeichen' + (n === 40 ? '' : ' — NICHT 40') + ' (maxlength ' + input.getAttribute('maxlength')
+		+ '), Zähler „' + (count ? count.textContent.trim() : '—') + '"'
+`
+
+// Phone reveal: the own answer and the compact cloud break the long word inside
+// their box; nothing scrolls sideways. Lines are counted from the text's boxes.
+const PHONE_LONG = `
+	const lines = (el) => {
+		const r = document.createRange()
+		r.selectNodeContents(el)
+		return new Set(Array.from(r.getClientRects()).map((q) => Math.round(q.top))).size
+	}
+	const mine = document.querySelector('.mine-v')
+	const cloud = document.querySelector('.cloud')
+	const words = Array.from(document.querySelectorAll('.cloud-word'))
+	const long = words.find((w) => w.textContent.trim().length >= 40)
+	const cr = cloud ? cloud.getBoundingClientRect() : null
+	const out = cr ? words.filter((w) => { const r = w.getBoundingClientRect(); return r.left < cr.left - 0.5 || r.right > cr.right + 0.5 }).length : 0
+	const sc = document.querySelector('.h-scroll')
+	const de = document.documentElement
+	const pageX = de.scrollWidth - de.clientWidth, scrollX = sc ? sc.scrollWidth - sc.clientWidth : 0
+	return 'eigene Antwort ' + (mine ? (mine.scrollWidth > mine.clientWidth + 1 ? 'LÄUFT ÜBER' : 'im Kasten, ' + lines(mine) + ' Zeilen') : 'FEHLT')
+		+ ', langes Wort in der Wolke ' + (long ? Math.round(parseFloat(getComputedStyle(long).fontSize)) + ' px, ' + lines(long) + ' Zeilen' : 'FEHLT')
+		+ (out ? ', LÄUFT ÜBER: ' + out + ' Wörter ragen aus der Wolke' : ', alle Wörter in der Wolke')
+		+ ', waagerecht Seite ' + pageX + ' px / Antwortbereich ' + scrollX + ' px' + (pageX > 0 || scrollX > 0 ? ' WAAGERECHT' : '')
+`
+
+// Marks of the long-word measurements that count as an anomaly (last index line).
+const LONG_WORD_MARKS = ['FEHLT', 'ABGESCHNITTEN', 'NICHT 40', 'LÄUFT ÜBER', 'WAAGERECHT']
+function longWordMarks() {
+	const line = index[index.length - 1]
+	for (const mark of LONG_WORD_MARKS) {
+		if (line.includes(mark)) { overflow.push(line.split(' | ')[0].slice(2) + ': langes Wort ' + mark) }
+	}
+}
+
+/*
  * Question types revealed (§7.10). The constellations here decide the
  * acceptance of stage 3 and cannot be produced with random votes:
  * Ø ≈ median, all votes on one value, the heatmap threshold at 44 versus
@@ -617,6 +687,27 @@ async function typePass(s) {
 	probe('state', types.code, String(empty.id), 'open')
 	probe('state', types.code, String(empty.id), 'locked')
 	await stage('no-votes', 'Beamer aufgelöst ohne eine einzige Stimme')
+
+	// A word of 40 characters: alone it has to fit across the stage, in a full
+	// cloud it must not push other words off the edge, and as the most frequent
+	// word it is the largest. Questions of their own, added only now: every
+	// capture above keeps its data, and these come last.
+	const alone = JSON.parse(probe('add-words', types.code, 'words-long-alone', '1'))
+	probe('state', types.code, String(alone.id), 'open')
+	probe('fixture', types.code, String(alone.id), 'words-long', '1', LONG_WORD)
+	probe('state', types.code, String(alone.id), 'locked')
+	await stage('words-long-alone', 'Beamer Wortwolke: ein Wort mit 40 Zeichen, allein', { settle: 2500, measure: CLOUD_LONG })
+	longWordMarks()
+	const full = JSON.parse(probe('add-words', types.code, 'words-long-full', '3'))
+	probe('state', types.code, String(full.id), 'open')
+	probe('fixture', types.code, String(full.id), 'words')
+	probe('fixture', types.code, String(full.id), 'words-long', '1', LONG_WORD)
+	probe('state', types.code, String(full.id), 'locked')
+	await stage('words-long-in-cloud', 'Beamer Wortwolke: 16 Wörter plus eines mit 40 Zeichen (1 Nennung)', { settle: 2500, measure: CLOUD_LONG })
+	longWordMarks()
+	probe('fixture', types.code, String(full.id), 'words-long', '7', LONG_WORD)
+	await stage('words-long-top', 'Beamer Wortwolke: das Wort mit 40 Zeichen ist das häufigste (8 Nennungen)', { settle: 2500, measure: CLOUD_LONG })
+	longWordMarks()
 }
 
 /*
@@ -709,6 +800,36 @@ async function phonePass(s) {
 		name: 'phone-quiz-ended-place', url: `/apps/pulse/s/${quiz.code}`, size: PHONE,
 		waitSel: '.big-place', settle: 2000, note: 'Handy Quiz-Ende: eigener Platz oben',
 	})
+
+	// A word of 40 characters: the field keeps all of them and no 41st, and
+	// after the reveal the own answer and the compact cloud, where it is the
+	// largest word, break it inside the card. A question of its own in the types
+	// room, added only now, so the rest of the run is unchanged.
+	const types = probeData.types
+	if (types) {
+		const long = JSON.parse(probe('add-words', types.code, 'words-long-phone', '3'))
+		probe('state', types.code, String(long.id), 'open')
+		await shot(s, {
+			name: 'phone-words-long-typed', url: `/apps/pulse/s/${types.code}`, size: PHONE,
+			waitSel: '.word-field input', actions: [{ type: ['.word-field input', LONG_WORD + 'X'] }, { sleep: 400 }],
+			note: 'Handy Wortwolke: 41 Zeichen getippt, das Feld nimmt 40', measure: WORD_FIELD,
+		})
+		longWordMarks()
+		await shot(s, {
+			name: 'phone-words-long-sent', size: PHONE,
+			actions: [{ click: '.h-submit .submit-btn' }, { sleep: 1600 }],
+			note: 'Handy Wortwolke: das lange Wort gesendet',
+		})
+		probe('fixture', types.code, String(long.id), 'words')
+		probe('fixture', types.code, String(long.id), 'words-long', '7', LONG_WORD)
+		probe('state', types.code, String(long.id), 'locked')
+		await shot(s, {
+			name: 'phone-words-long-revealed', url: `/apps/pulse/s/${types.code}`, size: PHONE,
+			waitSel: '.mine-box', measure: PHONE_LONG,
+			note: 'Handy Wortwolke aufgelöst: eigenes Wort mit 40 Zeichen, in der Wolke das größte (8 Nennungen)',
+		})
+		longWordMarks()
+	}
 }
 
 /*

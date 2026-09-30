@@ -328,6 +328,7 @@ node dev/unit/format.test.mjs                  # shared formatting helpers (tall
 node dev/unit/question-types.test.mjs          # composer contract per question type, deck labels, loss texts
 node dev/unit/routes.test.mjs                  # Vue frontend URLs and their call sites, checked against appinfo/routes.php
 node dev/unit/composer-limits.test.mjs         # composer maxlength/min/max, checked against what DeckService keeps
+node dev/unit/wordcloud.test.mjs               # projector word-cloud layout (long words fit), phone word length vs. server
 dev/sim/run.sh        # HTTP simulation of complete runs against the running instance (dev/sim/README.md)
 ```
 

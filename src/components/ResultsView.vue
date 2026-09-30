@@ -978,7 +978,10 @@ export default {
 	display: flex; flex-wrap: wrap; align-items: center; justify-content: center;
 	gap: 0.4em 1.2em; line-height: 1.1; min-height: 5em;
 }
-.cloud-word { font-weight: 700; color: var(--pulse-primary); transition: font-size 0.5s cubic-bezier(.22, 1, .36, 1); }
+/* A word runs up to 40 characters; at 2.6em that is wider than a phone or the
+   moderator's panel. Break it inside the box, centred like the cloud, instead of
+   running past the edge. */
+.cloud-word { max-width: 100%; overflow-wrap: anywhere; text-align: center; font-weight: 700; color: var(--pulse-primary); transition: font-size 0.5s cubic-bezier(.22, 1, .36, 1); }
 .cloud-empty { color: var(--pulse-text-2); }
 .cloud-more { color: var(--pulse-text-2); font-size: 0.85em; font-weight: 600; }
 

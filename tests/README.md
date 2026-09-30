@@ -143,6 +143,9 @@ the shared helpers of `src/util/format.js` (`node dev/unit/format.test.mjs`),
 the composer's contract per question type in `src/util/question-types.js`
 (`node dev/unit/question-types.test.mjs`), the Vue frontend's URLs in
 `src/util/routes.js` and their call sites under `src/`, each checked
-against `appinfo/routes.php` (`node dev/unit/routes.test.mjs`), and the
+against `appinfo/routes.php` (`node dev/unit/routes.test.mjs`), the
 composer's input limits in `src/Moderator.vue`, checked against what
-`lib/Service/DeckService.php` keeps (`node dev/unit/composer-limits.test.mjs`).
+`lib/Service/DeckService.php` keeps (`node dev/unit/composer-limits.test.mjs`),
+and the projector's word-cloud layout in `src/util/wordcloud.js` together
+with the phone's word length against the server's
+(`node dev/unit/wordcloud.test.mjs`).

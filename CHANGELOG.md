@@ -499,6 +499,11 @@ described under "Security notes" and "Known limits" in the README.
   down: the two top labels were drawn at the bottom and the other way round,
   each next to answers it did not describe. They now sit in the corners the
   editor and the phone show them in.
+- Word clouds take words of up to 40 characters from the phone, as the server
+  always kept them. The phone stopped at 24, which cut long compounds such as
+  "Verantwortungsbewusstsein". On the projector a word too wide for the cloud
+  is now shrunk until it fits instead of being clipped on both sides, and on
+  phones and in the moderator view long words wrap inside their box.
 
 ### Removed
 - `office-addin/manifest.xml`. It is generated now, and a second editable copy

@@ -432,10 +432,10 @@
 					<div v-else class="words">
 						<p class="h-hint">{{ n('pulse', 'Up to %n word — one per field.', 'Up to %n words — one per field.', poll.maxWords) }}</p>
 						<label v-for="i in poll.maxWords" :key="i" class="word-field">
-							<input v-model="wordInputs[i - 1]" class="pulse-input" type="text" maxlength="24"
+							<input v-model="wordInputs[i - 1]" class="pulse-input" type="text" maxlength="40"
 								:disabled="locked" :aria-label="t('pulse', 'Word {number}', { number: i })"
 								:placeholder="i === 1 ? t('pulse', 'Your word …') : t('pulse', 'Another word (optional)')">
-							<span class="word-count">{{ (wordInputs[i - 1] || '').length }} / 24</span>
+							<span class="word-count">{{ (wordInputs[i - 1] || '').length }} / 40</span>
 						</label>
 					</div>
 
@@ -1700,7 +1700,7 @@ export default {
 .pulse-input.is-lg { font-size: var(--t-lead); text-align: center; }
 .pulse-input:focus { outline: none; border-color: var(--pulse-primary); }
 .pulse-input::placeholder { color: var(--pulse-text-2); font-weight: 400; }
-/* Word cloud input: one word per field + character counter (limit 24) */
+/* Word cloud input: one word per field + character counter (limit 40, what the server keeps) */
 /* ── Ordering ─────────────────────────────────────────────────────────── */
 .rank-field { display: flex; flex-direction: column; gap: 10px; }
 .rank-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
@@ -1858,7 +1858,9 @@ export default {
 
 .mine-box { border: 1.5px solid var(--pulse-border); border-radius: var(--pulse-r-card); padding: 14px; background: var(--pulse-fill); }
 .mine-k { display: block; font-size: var(--t-sm); font-weight: 600; color: var(--pulse-meta); }
-.mine-v { display: block; font-size: 26px; font-weight: 700; line-height: 1.2; padding-block: 0.14em; }
+/* A single word runs up to 40 characters, wider than the card at 26px: break it
+   rather than push the card past the screen edge. */
+.mine-v { display: block; font-size: 26px; font-weight: 700; line-height: 1.2; padding-block: 0.14em; overflow-wrap: anywhere; }
 .mine-s { display: block; font-size: var(--t-body); font-weight: 600; color: var(--pulse-meta); }
 
 .end-title { margin: 0; font-size: var(--t-h2); font-weight: 800; text-align: center; }
@@ -1955,6 +1957,9 @@ export default {
 }
 .review-mine { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0; font-size: 15px; }
 .review-mine-lbl { color: var(--pulse-text-2); }
+/* A flex item keeps its longest word whole unless told otherwise: a 40-character
+   word or a free-text answer without spaces would run past the screen edge. */
+.review-mine b { overflow-wrap: anywhere; }
 .review-mine.is-ok b { color: var(--pulse-success); }
 .review-mine.is-no b { color: var(--pulse-error); }
 .review-mine.is-none { font-style: italic; }
