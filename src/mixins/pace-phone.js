@@ -15,9 +15,10 @@
  */
 import axios from '@nextcloud/axios'
 import { t } from '../util/l10n.js'
-import { showError } from '../toast.js'
+import { showError, serverMessage } from '../toast.js'
 import { fmtDeadline } from '../util/format.js'
 import { CLOSING_SOON, canNext, paceCard, windowState } from '../util/pace.js'
+import { PHONE_TIMEOUT } from '../util/routes.js'
 
 // Remembered name per room: {nick, openedAt}. Survives a reload and a
 // discarded background tab — only this way can the phone tell "removed" from
@@ -322,7 +323,7 @@ export default {
 			this.nextBusy = true
 			this.submitSeq++ // discard /state responses still in flight
 			try {
-				const { data } = await axios.post(this.base('/next'), { after: this.progress.after }, { timeout: 10000 })
+				const { data } = await axios.post(this.base('/next'), { after: this.progress.after }, { timeout: PHONE_TIMEOUT })
 				this.online = true
 				this.applyState(data)
 				this.paceFocusNext = true
@@ -335,7 +336,7 @@ export default {
 					return
 				}
 				if (!e?.response) this.online = false // timeout/network: the button becomes free again
-				else showError(e.response.data?.message || t('pulse', 'Could not load the next question.'))
+				else showError(serverMessage(e, t('pulse', 'Could not load the next question.')))
 			} finally {
 				this.submitSeq++
 				this.nextBusy = false

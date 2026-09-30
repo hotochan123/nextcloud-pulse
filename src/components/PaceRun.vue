@@ -195,9 +195,9 @@
  * reset(counts) · end-practice · copy · reload
  */
 import axios from '@nextcloud/axios'
-import { generateUrl } from '@nextcloud/router'
+import { MOD_TIMEOUT, roomApi, screenPage, openProjector } from '../util/routes.js'
 import { t, n } from '../util/l10n.js'
-import { showError } from '../toast.js'
+import { showError, serverMessage } from '../toast.js'
 import { pulseConfirm } from '../util/confirm.js'
 import { fmtAgo, fmtDeadline, fmtNum, formatCode, paceStateChip } from '../util/format.js'
 import { downloadCsv } from '../util/csv.js'
@@ -210,10 +210,6 @@ import TextGrading from './TextGrading.vue'
 import PulseIcon from './ui/PulseIcon.vue'
 import PulseMenu from './ui/PulseMenu.vue'
 import PulseSegmented from './ui/PulseSegmented.vue'
-
-// Every self-paced request has a time limit — otherwise a hanging call
-// would keep `busy`, and with it the main action, stuck.
-const TIMEOUT = 15000
 
 const sumCount = (rows) => rows.reduce((acc, a) => acc + (Number(a.count) || 0), 0)
 
@@ -261,7 +257,7 @@ export default {
 			return formatCode(this.room.code)
 		},
 		screenPath() {
-			return generateUrl('/apps/pulse/screen/' + this.room.code)
+			return screenPage(this.room.code)
 		},
 		here() {
 			return (this.progress && Number(this.progress.present)) || 0
@@ -495,7 +491,7 @@ export default {
 
 		// ── /progress (progress-poll) ───────────────────────────────────────
 		progressUrl() {
-			return generateUrl('/apps/pulse/api/1.0/rooms/' + this.room.code + '/progress')
+			return roomApi(this.room.code, '/progress')
 		},
 		progressParams() {
 			return this.showScores ? { scores: 1 } : {}
@@ -521,7 +517,7 @@ export default {
 
 		// ── Actions (/pace) ─────────────────────────────────────────────────
 		async post(body) {
-			const { data } = await axios.post(generateUrl('/apps/pulse/api/1.0/rooms/' + this.room.code + '/pace'), body, { timeout: TIMEOUT })
+			const { data } = await axios.post(roomApi(this.room.code, '/pace'), body, { timeout: MOD_TIMEOUT })
 			this.$emit('room', data)
 			return data
 		},
@@ -550,7 +546,7 @@ export default {
 				this.onGone()
 				return
 			}
-			showError(e?.response?.data?.message || fallback)
+			showError(serverMessage(e, fallback))
 			if (st === 409) {
 				this.$emit('reload')
 				return
@@ -637,7 +633,7 @@ export default {
 			this.refresh()
 		},
 		openBeamer() {
-			window.open(window.location.origin + generateUrl('/apps/pulse/screen/' + this.room.code), 'pulse-beamer-' + this.room.code)
+			openProjector(this.room.code)
 		},
 
 		// ── Removing a person ───────────────────────────────────────────────
@@ -710,7 +706,7 @@ export default {
 			if (this.gradingBusy) return
 			this.gradingBusy = true
 			try {
-				await axios.post(generateUrl('/apps/pulse/api/1.0/rooms/' + this.room.code + '/polls/' + group.pollId + '/grade'), { answer: sample, correct: ok }, { timeout: TIMEOUT })
+				await axios.post(roomApi(this.room.code, '/polls/' + group.pollId + '/grade'), { answer: sample, correct: ok }, { timeout: MOD_TIMEOUT })
 				const i = this.checked.findIndex((c) => c.pollId === group.pollId && c.answer === sample)
 				if (i >= 0) {
 					this.$set(this.checked, i, { ...this.checked[i], ok })

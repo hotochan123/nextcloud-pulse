@@ -11,7 +11,7 @@
  * CHANGELOG 0.17 fixed for the image route). Request::passesCSRFCheck
  * also reads `requesttoken` from the query, though, so that is where it goes.
  */
-import { generateUrl } from '@nextcloud/router'
+import { roomApi } from './routes.js'
 import { getRequestToken } from '@nextcloud/auth'
 
 /**
@@ -24,7 +24,7 @@ import { getRequestToken } from '@nextcloud/auth'
 export function csvUrl(code, view = '') {
 	const q = (view ? 'view=' + encodeURIComponent(view) + '&' : '')
 		+ 'requesttoken=' + encodeURIComponent(getRequestToken() || '')
-	return generateUrl('/apps/pulse/api/1.0/rooms/' + code + '/export') + '?' + q
+	return roomApi(code, '/export') + '?' + q
 }
 
 /**

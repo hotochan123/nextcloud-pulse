@@ -42,14 +42,13 @@
  * room is no longer a quiz room.
  */
 import axios from '@nextcloud/axios'
-import { generateUrl } from '@nextcloud/router'
+import { MOD_TIMEOUT, roomApi } from '../util/routes.js'
 import { t } from '../util/l10n.js'
-import { showError } from '../toast.js'
+import { showError, serverMessage } from '../toast.js'
 import { pulseConfirm } from '../util/confirm.js'
 import PulseIcon from './ui/PulseIcon.vue'
 import PulseMenu from './ui/PulseMenu.vue'
 
-const TIMEOUT = 15000
 const REFRESH = 5000
 
 export default {
@@ -118,7 +117,7 @@ export default {
 			}
 			const seq = ++this.seq
 			try {
-				const { data } = await axios.get(generateUrl('/apps/pulse/api/1.0/rooms/' + this.code + '/leaderboard'), { timeout: TIMEOUT })
+				const { data } = await axios.get(roomApi(this.code, '/leaderboard'), { timeout: MOD_TIMEOUT })
 				if (seq !== this.seq) return
 				this.rows = Array.isArray(data) ? data : []
 				this.loaded = true
@@ -147,12 +146,12 @@ export default {
 			})) return
 			this.busy = true
 			try {
-				const { data } = await axios.post(generateUrl('/apps/pulse/api/1.0/rooms/' + this.code + '/pace'), { action: 'removePlayer', playerId: p.playerId }, { timeout: TIMEOUT })
+				const { data } = await axios.post(roomApi(this.code, '/pace'), { action: 'removePlayer', playerId: p.playerId }, { timeout: MOD_TIMEOUT })
 				this.rows = this.rows.filter((r) => r.playerId !== p.playerId)
 				this.$emit('room', data)
 				this.$emit('removed')
 			} catch (e) {
-				showError(e?.response?.data?.message || t('pulse', 'Could not remove the person.'))
+				showError(serverMessage(e, t('pulse', 'Could not remove the person.')))
 				if (e?.response?.status === 409) this.$emit('conflict')
 			} finally {
 				this.busy = false

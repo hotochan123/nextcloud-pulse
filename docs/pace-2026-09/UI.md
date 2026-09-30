@@ -58,6 +58,7 @@ room.pace === 'self'`; phone/projector: `data.room.pace === 'self'`).
 |---|---|
 | Pure rules without a browser: window state, deadlines, presets, phone cards, `canNext`, polling intervals, race rows, counts from `/progress` | `src/util/pace.js` (test: `dev/unit/pace.test.mjs`) |
 | CSV with the request token in the query (otherwise 412) | `src/util/csv.js` |
+| URLs and request time limits (15 s moderator, 10 s phone and projector) | `src/util/routes.js` (test: `dev/unit/routes.test.mjs`) |
 | Deadlines, durations, "x min ago", state chip | `src/util/format.js` (`fmtDeadline`, `fmtDuration`, `fmtAgo`, `paceStateChip`) |
 | Switch, locks, deck header, counts for confirmations, errors/409 | `src/Moderator.vue` (`deckMenu`, `paceLock`, `deckPrimary`, `fetchCounts`, `failWrite`, `refreshRoom`); the loss sentence `lossText` in `src/util/question-types.js` |
 | Open dialog and "Change the end … / Reopen …" | `src/components/PaceOpenDialog.vue` (`mode="open"` / `"extend"`) |

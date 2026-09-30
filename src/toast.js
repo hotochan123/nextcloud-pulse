@@ -70,6 +70,16 @@ export function showError(message, timeout = 5000) {
 	return showToast(message, { variant: 'error', role: 'alert', timeout })
 }
 
+/**
+ * The server's own message of a failed request (it says why), else `fallback`.
+ * @param {Error} e axios error (no response on a timeout or network error)
+ * @param {string} fallback text for when the server gave no message
+ * @return {string} the message to show
+ */
+export function serverMessage(e, fallback) {
+	return e?.response?.data?.message || fallback
+}
+
 /** Short success message (green, role=status). */
 export function showSuccess(message, timeout = 3000) {
 	return showToast(message, { variant: 'success', role: 'status', timeout })

@@ -47,15 +47,17 @@ jobs:
         run: npm run l10n:check
 
       # The rules of the self-paced quiz (src/util/pace.js), the shared
-      # helpers of src/util/format.js and the composer's contract per
-      # question type (src/util/question-types.js), in plain Node. The
-      # daylight-saving cases of pace.test need Europe/Berlin; without it
-      # that test aborts with exit 2.
+      # helpers of src/util/format.js, the composer's contract per
+      # question type (src/util/question-types.js) and the frontend's URLs
+      # (src/util/routes.js, checked against appinfo/routes.php), in plain
+      # Node. The daylight-saving cases of pace.test need Europe/Berlin;
+      # without it that test aborts with exit 2.
       - name: JS unit tests
         run: |
           TZ=Europe/Berlin node dev/unit/pace.test.mjs
           node dev/unit/format.test.mjs
           node dev/unit/question-types.test.mjs
+          node dev/unit/routes.test.mjs
 
       # The simulation and the screenshot harness only ever run against a
       # live instance, so CI at least parses them, the build scripts and the

@@ -136,8 +136,9 @@
  * Emits: done(roomJson) · conflict(message) · end-practice · cancel
  */
 import axios from '@nextcloud/axios'
-import { generateUrl } from '@nextcloud/router'
+import { MOD_TIMEOUT, roomApi } from '../util/routes.js'
 import { t, n } from '../util/l10n.js'
+import { serverMessage } from '../toast.js'
 import { fmtDeadline, fmtDuration } from '../util/format.js'
 import { DEADLINE_MIN, DEADLINE_MAX, toLocalInput, fromLocalInput, defaultDeadline, deadlinePresets, stopDeadline, windowState } from '../util/pace.js'
 import PulseIcon from './ui/PulseIcon.vue'
@@ -312,15 +313,15 @@ export default {
 				const body = this.extend
 					? { action: 'extend', closesAt: this.closesAt }
 					: { action: 'open', closesAt: this.closesAt, timed: this.timed, feedback: this.practice ? 'each' : this.feedback }
-				const { data } = await axios.post(generateUrl('/apps/pulse/api/1.0/rooms/' + this.room.code + '/pace'), body, { timeout: 15000 })
+				const { data } = await axios.post(roomApi(this.room.code, '/pace'), body, { timeout: MOD_TIMEOUT })
 				this.$emit('done', data)
 			} catch (e) {
-				const msg = e?.response?.data?.message
+				const msg = serverMessage(e, fallback)
 				if (e?.response?.status === 409) {
-					this.$emit('conflict', msg || fallback)
+					this.$emit('conflict', msg)
 					return
 				}
-				this.serverError = msg || fallback
+				this.serverError = msg
 			} finally {
 				this.busy = false
 			}

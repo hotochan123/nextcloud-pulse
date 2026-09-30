@@ -25,6 +25,7 @@
  */
 import axios from '@nextcloud/axios'
 import pollingMixin from './polling.js'
+import { MOD_TIMEOUT } from '../util/routes.js'
 
 // progressCounts lives in util/pace.js (plain node, dev/unit/pace.test.mjs);
 // PaceRun and PaceDeckStatus take it from here along with the mixin.
@@ -84,7 +85,7 @@ export default {
 			try {
 				const params = { ...this.progressParams() }
 				if (this.version) params.v = this.version
-				const res = await axios.get(this.progressUrl(), { params, timeout: 15000 })
+				const res = await axios.get(this.progressUrl(), { params, timeout: MOD_TIMEOUT })
 				if (seq !== this.reqSeq) return // stale: refresh() came afterwards
 				this.online = true
 				if (res.status === 204) {

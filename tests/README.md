@@ -139,6 +139,8 @@ End-to-end checks against the running instance live elsewhere:
 `dev/design-shots/README.md`). The browser-free frontend logic has its own
 tests in `dev/unit/` (plain Node, no Nextcloud): the rules of the self-paced
 quiz in `src/util/pace.js` (`TZ=Europe/Berlin node dev/unit/pace.test.mjs`),
-the shared helpers of `src/util/format.js` (`node dev/unit/format.test.mjs`)
-and the composer's contract per question type in `src/util/question-types.js`
-(`node dev/unit/question-types.test.mjs`).
+the shared helpers of `src/util/format.js` (`node dev/unit/format.test.mjs`),
+the composer's contract per question type in `src/util/question-types.js`
+(`node dev/unit/question-types.test.mjs`) and the Vue frontend's URLs in
+`src/util/routes.js` and their call sites under `src/`, each checked
+against `appinfo/routes.php` (`node dev/unit/routes.test.mjs`).

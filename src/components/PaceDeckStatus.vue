@@ -33,7 +33,7 @@
  *   gone     404/403 — room deleted or no longer mine
  *   not-paced 409 — the room no longer runs self-paced
  */
-import { generateUrl } from '@nextcloud/router'
+import { roomApi } from '../util/routes.js'
 import { t } from '../util/l10n.js'
 import { windowState } from '../util/pace.js'
 import progressPoll, { progressCounts } from '../mixins/progress-poll.js'
@@ -59,7 +59,7 @@ export default {
 	methods: {
 		t,
 		progressUrl() {
-			return generateUrl('/apps/pulse/api/1.0/rooms/' + this.code + '/progress')
+			return roomApi(this.code, '/progress')
 		},
 		pollDelay() {
 			if (document.hidden) return null // pause -> onPollVisibility wakes it up

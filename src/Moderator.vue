@@ -516,9 +516,9 @@
  * repository (see "References in code comments" in the README).
  */
 import axios from '@nextcloud/axios'
-import { generateUrl } from '@nextcloud/router'
+import { MOD_TIMEOUT, roomsApi, roomApi, pollImage, participantPage, joinPage, screenPage, roomPage, home, addinManifest, openProjector } from './util/routes.js'
 import { t, n } from './util/l10n.js'
-import { showError, showSuccess } from './toast.js'
+import { showError, showSuccess, serverMessage } from './toast.js'
 import draggable from 'vuedraggable'
 import ResultsView from './components/ResultsView.vue'
 import QrCode from './components/QrCode.vue'
@@ -646,7 +646,7 @@ export default {
 			return this.room ? formatCode(this.room.code) : ''
 		},
 		joinPath() {
-			return this.room ? generateUrl('/apps/pulse/s/' + this.room.code) : ''
+			return this.room ? participantPage(this.room.code) : ''
 		},
 		joinUrl() {
 			return this.room ? window.location.host + this.joinPath : ''
@@ -654,14 +654,11 @@ export default {
 		joinUrlFull() {
 			return this.room ? window.location.origin + this.joinPath : ''
 		},
-		screenUrl() {
-			return this.room ? window.location.origin + generateUrl('/apps/pulse/screen/' + this.room.code) : ''
-		},
 		joinBase() {
-			return window.location.host + generateUrl('/apps/pulse/join')
+			return window.location.host + joinPage()
 		},
 		joinPagePath() {
-			return generateUrl('/apps/pulse/join')
+			return joinPage()
 		},
 		// With the request token in the query: an <a download> sends no header,
 		// and without the token the route answered with 412 (util/csv.js).
@@ -735,7 +732,7 @@ export default {
 		// The canvas preview shows the real projector page (same-origin), not
 		// a rebuild: two truths would otherwise drift apart.
 		screenPath() {
-			return this.room ? generateUrl('/apps/pulse/screen/' + this.room.code) : ''
+			return this.room ? screenPage(this.room.code) : ''
 		},
 		canvasStyle() {
 			return { width: Math.round(1280 * this.frameScale) + 'px', height: Math.round(720 * this.frameScale) + 'px' }
@@ -1003,7 +1000,7 @@ export default {
 			if (this.draft.aspects.length > 3) this.draft.aspects.splice(i, 1)
 		},
 		api(code, suffix = '') {
-			return generateUrl('/apps/pulse/api/1.0/rooms/' + code + suffix)
+			return roomApi(code, suffix)
 		},
 
 		// ── My rooms ────────────────────────────────────────────────────────
@@ -1016,7 +1013,7 @@ export default {
 		},
 		async fetchMyRooms() {
 			try {
-				const { data } = await axios.get(generateUrl('/apps/pulse/api/1.0/rooms'))
+				const { data } = await axios.get(roomsApi())
 				this.myRooms = data
 			} catch (e) {
 				// no list -> the start screen stays plain
@@ -1032,7 +1029,7 @@ export default {
 				this.currentId = data.activePollId || 0
 				this.paceDialog = null
 				this.paceCounts = null
-				window.history.replaceState(null, '', generateUrl('/apps/pulse/room/' + code))
+				window.history.replaceState(null, '', roomPage(code))
 				// Self-paced: never the presentation (every cursor action is a 409
 				// there), not even with an empty deck — and no results polling: in
 				// draft PaceDeckStatus fetches the numbers, afterwards the run view does.
@@ -1094,7 +1091,7 @@ export default {
 				showSuccess(t('pulse', 'Copy created: {room}', { room: data.title || this.spaced(data.code) }))
 			} catch (e) {
 				// Caps and the rate limit say why (400/429 with a message).
-				showError(e?.response?.data?.message || t('pulse', 'Could not copy the room.'))
+				showError(serverMessage(e, t('pulse', 'Could not copy the room.')))
 			} finally {
 				this.busy = false
 			}
@@ -1134,7 +1131,7 @@ export default {
 		// replaced image does not come from the browser cache.
 		modImageUrl(poll) {
 			if (!this.room || !poll || !poll.image) return ''
-			return this.api(this.room.code, '/polls/' + poll.id + '/image') + '?v=' + encodeURIComponent(poll.image)
+			return pollImage(this.room.code, poll.id, poll.image)
 		},
 		pickImage(ev) {
 			const file = ev.target.files && ev.target.files[0]
@@ -1167,7 +1164,7 @@ export default {
 					return data
 				}
 			} catch (e) {
-				showError(e?.response?.data?.message || t('pulse', 'The image could not be saved.'))
+				showError(serverMessage(e, t('pulse', 'The image could not be saved.')))
 			}
 			return poll
 		},
@@ -1302,10 +1299,10 @@ export default {
 		async fetchCounts(code, paced) {
 			try {
 				if (paced) {
-					const { data } = await axios.get(this.api(code, '/progress'), { timeout: 15000 })
+					const { data } = await axios.get(this.api(code, '/progress'), { timeout: MOD_TIMEOUT })
 					return progressCounts(data)
 				}
-				const { data } = await axios.get(this.api(code, '/leaderboard'), { timeout: 15000 })
+				const { data } = await axios.get(this.api(code, '/leaderboard'), { timeout: MOD_TIMEOUT })
 				return { joined: Array.isArray(data) ? data.length : 0 }
 			} catch (e) {
 				return null
@@ -1318,7 +1315,7 @@ export default {
 		 * that vuedraggable had already changed locally.
 		 */
 		failWrite(e, fallback) {
-			showError(e?.response?.data?.message || fallback)
+			showError(serverMessage(e, fallback))
 			if (e?.response?.status === 409) this.refreshRoom(true)
 		},
 		/*
@@ -1330,7 +1327,7 @@ export default {
 		 */
 		staleLive(e) {
 			if (e?.response?.status !== 409 || !this.room) return false
-			showError(e.response.data?.message || t('pulse', 'Could not switch.'))
+			showError(serverMessage(e, t('pulse', 'Could not switch.')))
 			this.stopPolling()
 			this.loadRoom(this.room.code)
 			return true
@@ -1345,7 +1342,7 @@ export default {
 			if (!this.room) return
 			const code = this.room.code
 			try {
-				const { data } = await axios.get(this.api(code), { timeout: 15000 })
+				const { data } = await axios.get(this.api(code), { timeout: MOD_TIMEOUT })
 				if (!this.room || this.room.code !== code) return
 				this.room = data
 				this.deck = data.polls || []
@@ -1444,7 +1441,7 @@ export default {
 						danger: true,
 					})) return
 				}
-				const { data } = await axios.post(this.api(code, '/pace'), { action: 'set', pace: on ? 'self' : 'live' }, { timeout: 15000 })
+				const { data } = await axios.post(this.api(code, '/pace'), { action: 'set', pace: on ? 'self' : 'live' }, { timeout: MOD_TIMEOUT })
 				this.applyRoom(data)
 				this.phase = 'deck'
 			} catch (e) {
@@ -1458,7 +1455,7 @@ export default {
 			if (!this.room) return
 			const on = !this.room.joinsLocked
 			try {
-				const { data } = await axios.post(this.api(this.room.code, '/pace'), { action: on ? 'lockJoins' : 'unlockJoins' }, { timeout: 15000 })
+				const { data } = await axios.post(this.api(this.room.code, '/pace'), { action: on ? 'lockJoins' : 'unlockJoins' }, { timeout: MOD_TIMEOUT })
 				this.onPaceRoom(data)
 			} catch (e) {
 				this.failWrite(e, t('pulse', 'Could not change joining.'))
@@ -1478,7 +1475,7 @@ export default {
 		async reloadLeaderboard() {
 			if (!this.room) return
 			try {
-				const { data } = await axios.get(this.api(this.room.code, '/leaderboard'), { timeout: 15000 })
+				const { data } = await axios.get(this.api(this.room.code, '/leaderboard'), { timeout: MOD_TIMEOUT })
 				if (Array.isArray(data)) this.leaderboard = data
 			} catch (e) {
 				// stays as it is; the next opening fetches it again
@@ -1552,7 +1549,7 @@ export default {
 		async startRoom(mode) {
 			this.busy = true
 			try {
-				const { data } = await axios.post(generateUrl('/apps/pulse/api/1.0/rooms'), { mode })
+				const { data } = await axios.post(roomsApi(), { mode })
 				this.room = data
 				this.deck = []
 				this.currentId = 0
@@ -1561,10 +1558,10 @@ export default {
 				this.phase = 'deck'
 				this.showComposer = true
 				this.draft = emptyDraft()
-				window.history.replaceState(null, '', generateUrl('/apps/pulse/room/' + data.code))
+				window.history.replaceState(null, '', roomPage(data.code))
 			} catch (e) {
 				// Caps and the rate limit say why (400/429 with a message).
-				showError(e?.response?.data?.message || t('pulse', 'The room could not be created.'))
+				showError(serverMessage(e, t('pulse', 'The room could not be created.')))
 			} finally {
 				this.busy = false
 			}
@@ -1797,7 +1794,7 @@ export default {
 		// Back to the Pulse overview (start screen with "My rooms").
 		openBeamer() {
 			if (!this.room) return
-			window.open(this.screenUrl, 'pulse-beamer-' + this.room.code)
+			openProjector(this.room.code)
 		},
 		/*
 		 * Fetch the Office manifest of this instance. The server fills in the
@@ -1805,7 +1802,7 @@ export default {
 		 * any more, and that was exactly the source of errors before.
 		 */
 		downloadAddin() {
-			window.location.href = generateUrl('/apps/pulse/addin/manifest.xml')
+			window.location.href = addinManifest()
 			showSuccess(t('pulse', 'Manifest downloaded. Register it in PowerPoint once — see the add-in guide in the Pulse README.'))
 		},
 		goHome() {
@@ -1820,7 +1817,7 @@ export default {
 			this.paceDialog = null
 			this.paceCounts = null
 			this.phase = 'start'
-			window.history.replaceState(null, '', generateUrl('/apps/pulse/'))
+			window.history.replaceState(null, '', home())
 			this.fetchMyRooms()
 		},
 		// Load final standings/summary: stop polling, fetch the data, set the phase.
@@ -1936,7 +1933,7 @@ export default {
 				this.fetchResults()
 				showSuccess(t('pulse', '{seeded} demo votes created — {total} in total now.', { seeded: data.seeded, total: data.total }))
 			} catch (e) {
-				showError(e?.response?.data?.message || t('pulse', 'Could not create demo votes.'))
+				showError(serverMessage(e, t('pulse', 'Could not create demo votes.')))
 			} finally {
 				this.demoBusy = false
 			}
@@ -1964,7 +1961,7 @@ export default {
 				if (data.leaderboard) this.leaderboard = data.leaderboard
 				this.resVersion = ''
 			} catch (e) {
-				showError(e?.response?.data?.message || t('pulse', 'Could not grade.'))
+				showError(serverMessage(e, t('pulse', 'Could not grade.')))
 			}
 		},
 		// Grade free text from the summary (updates only this question).
@@ -1973,7 +1970,7 @@ export default {
 				const { data } = await axios.post(this.api(this.room.code, '/polls/' + item.poll.id + '/grade'), { answer, correct })
 				this.$set(item, 'results', data)
 			} catch (e) {
-				showError(e?.response?.data?.message || t('pulse', 'Could not grade.'))
+				showError(serverMessage(e, t('pulse', 'Could not grade.')))
 			}
 		},
 

@@ -196,7 +196,7 @@
  * repository (see "References in code comments" in the README).
  */
 import axios from '@nextcloud/axios'
-import { generateUrl } from '@nextcloud/router'
+import { PHONE_TIMEOUT, publicApi, pollImage, participantPage } from './util/routes.js'
 import { loadState } from '@nextcloud/initial-state'
 import { formatCode, remainingSecs, fmtDeadline } from './util/format.js'
 import { windowState } from './util/pace.js'
@@ -476,7 +476,7 @@ export default {
 			return formatCode(this.code)
 		},
 		joinPath() {
-			return generateUrl('/apps/pulse/s/' + this.code)
+			return participantPage(this.code)
 		},
 		joinUrl() {
 			return window.location.host + this.joinPath
@@ -599,12 +599,12 @@ export default {
 	},
 	methods: {
 		base(suffix = '') {
-			return generateUrl('/apps/pulse/s/' + this.code + suffix)
+			return publicApi(this.code, suffix)
 		},
 		// Image URL of the question (public route, file name as cache buster).
 		imageUrl(poll) {
 			if (!poll || !poll.image) return ''
-			return generateUrl('/apps/pulse/s/' + this.code + '/polls/' + poll.id + '/image') + '?v=' + encodeURIComponent(poll.image)
+			return pollImage(this.code, poll.id, poll.image, { public: true })
 		},
 		applyState(data) {
 			// Different server protocol: old bundle from the cache -> reload once.
@@ -727,7 +727,7 @@ export default {
 				// In self-paced mode with a timeout: a hanging request would otherwise stall
 				// the loop without "Connection lost" appearing (moderated
 				// unchanged).
-				const res = await axios.get(this.base('/state'), this.isPaced ? { params, timeout: 10000 } : { params })
+				const res = await axios.get(this.base('/state'), this.isPaced ? { params, timeout: PHONE_TIMEOUT } : { params })
 				this.online = true
 				if (res.status === 204) { // unchanged
 					this.idleStreak++

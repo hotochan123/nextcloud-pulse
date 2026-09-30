@@ -526,10 +526,10 @@
  * repository (see "References in code comments" in the README).
  */
 import axios from '@nextcloud/axios'
-import { generateUrl } from '@nextcloud/router'
+import { PHONE_TIMEOUT, publicApi, pollImage, participantPage, joinPage } from './util/routes.js'
 import { loadState } from '@nextcloud/initial-state'
 import { t, n } from './util/l10n.js'
-import { showError } from './toast.js'
+import { showError, serverMessage } from './toast.js'
 import { option, withPalette } from './util/palette.js'
 import { formatCode, remainingSecs, remainingPct } from './util/format.js'
 import { reloadOnProtocolMismatch } from './util/protocol.js'
@@ -620,7 +620,7 @@ export default {
 		},
 		// No dead end on "room not found" (§4.11): back to the code entry.
 		joinPagePath() {
-			return generateUrl('/apps/pulse/join')
+			return joinPage()
 		},
 		hasWords() {
 			return this.wordInputs.some((w) => (w || '').trim() !== '')
@@ -931,7 +931,7 @@ export default {
 			if (this.reviewBusy) return
 			this.reviewBusy = true
 			try {
-				const { data } = await axios.get(this.base('/summary'), this.isPaced ? { timeout: 10000 } : undefined)
+				const { data } = await axios.get(this.base('/summary'), this.isPaced ? { timeout: PHONE_TIMEOUT } : undefined)
 				if (!data.available) {
 					showError(t('pulse', 'The results have not been released yet.'))
 					return
@@ -984,10 +984,10 @@ export default {
 		// Image URL of the question (public, only while the question is running/revealed).
 		imageUrl(poll) {
 			if (!poll || !poll.image) return ''
-			return this.base('/polls/' + poll.id + '/image') + '?v=' + encodeURIComponent(poll.image)
+			return pollImage(this.code, poll.id, poll.image, { public: true })
 		},
 		base(suffix = '') {
-			return generateUrl('/apps/pulse/s/' + this.code + suffix)
+			return publicApi(this.code, suffix)
 		},
 		// ID plus the shape and version of the question. The order of the IDs does
 		// not matter: before the reveal, ordering/matching come shuffled, afterwards
@@ -1120,7 +1120,7 @@ export default {
 				const params = this.version ? { v: this.version } : {}
 				// Self-paced with a timeout: a hanging request would otherwise stop the
 				// loop (unchanged when moderated).
-				const res = await axios.get(this.base('/state'), this.isPaced ? { params, timeout: 10000 } : { params })
+				const res = await axios.get(this.base('/state'), this.isPaced ? { params, timeout: PHONE_TIMEOUT } : { params })
 				this.online = true
 				if (seq !== this.submitSeq) return
 				if (res.status === 204) { // unchanged
@@ -1155,7 +1155,7 @@ export default {
 				// rejects it instead of crediting the answer to the new question.
 				// Self-paced with a timeout: a hanging vote would otherwise hold
 				// `busy` — answers, "Next" and the time running out would be locked.
-				const { data } = await axios.post(this.base('/vote'), { value, keyboard, pollId: this.poll ? this.poll.id : null }, this.isPaced ? { timeout: 10000 } : undefined)
+				const { data } = await axios.post(this.base('/vote'), { value, keyboard, pollId: this.poll ? this.poll.id : null }, this.isPaced ? { timeout: PHONE_TIMEOUT } : undefined)
 				this.applyState(data)
 				this.voted = true
 				this.changing = false
@@ -1172,7 +1172,7 @@ export default {
 					this.hintShown = true
 				}
 			} catch (e) {
-				showError(e?.response?.data?.message || t('pulse', 'Your vote could not be saved.'))
+				showError(serverMessage(e, t('pulse', 'Your vote could not be saved.')))
 				// Self-paced: a rejected correction (window shut, time up) does not leave
 				// the correction mode open (§2.1 c) — the polling catches up.
 				const status = e?.response?.status || 0
@@ -1412,12 +1412,12 @@ export default {
 			this.submitSeq++
 			try {
 				// Self-paced with a timeout (otherwise `joining` would hang).
-				const { data } = await axios.post(this.base('/join'), { nickname: name }, this.isPaced ? { timeout: 10000 } : undefined)
+				const { data } = await axios.post(this.base('/join'), { nickname: name }, this.isPaced ? { timeout: PHONE_TIMEOUT } : undefined)
 				this.applyState(data)
 				// Self-paced: focus on the heading of the new card (§2.11).
 				if (this.isPaced) this.paceFocusNext = true
 			} catch (e) {
-				this.nickError = e?.response?.data?.message || t('pulse', 'Joining failed.')
+				this.nickError = serverMessage(e, t('pulse', 'Joining failed.'))
 				if (this.isPaced && !e?.response) this.online = false
 			} finally {
 				this.submitSeq++
@@ -1457,8 +1457,8 @@ export default {
 			this.entryError = ''
 			try {
 				// Check existence before navigating -> show the error right here.
-				await axios.get(generateUrl('/apps/pulse/s/' + this.entryCode + '/state'))
-				window.location.href = generateUrl('/apps/pulse/s/' + this.entryCode)
+				await axios.get(publicApi(this.entryCode, '/state'))
+				window.location.href = participantPage(this.entryCode)
 			} catch (e) {
 				this.entryError = t('pulse', 'That code does not exist.')
 				this.checking = false
