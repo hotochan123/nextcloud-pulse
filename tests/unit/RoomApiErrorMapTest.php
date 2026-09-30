@@ -38,12 +38,16 @@ use PHPUnit\Framework\TestCase;
 /**
  * Characterisation of the moderator API's error answers, as they are today.
  *
- * Sixteen actions catch a service's InvalidArgumentException themselves and
- * answer with its message — some with 400, some with 404. The split is not a
- * rule (the same failing requirePollInRoom is 400 on upload and 404 on
- * delete), but the frontend and old cached bundles branch on these statuses
- * (results 404, progress 204/404/409), so it is pinned here exactly, odd
- * cases included. Fixing it is a product decision, not a refactoring.
+ * Sixteen actions answer a service's InvalidArgumentException with its
+ * message — some with 400, some with 404 (withRoom's status argument, or a
+ * catch of their own). The split is not a rule (the same failing
+ * requirePollInRoom is 400 on upload and 404 on delete), but the frontend
+ * and old cached bundles branch on these statuses (results 404, progress
+ * 204/404/409), so it is pinned here exactly, odd cases included. Fixing it
+ * is a product decision, not a refactoring.
+ *
+ * In every other action it escapes (a 500), and so it does in results and
+ * gradeAnswer when the question disappears after the read they answer for.
  *
  * Plus the answers that are not InvalidArgumentException pass-throughs:
  * showImage's own "Not found.", the 204 of results and progress for an
@@ -55,10 +59,10 @@ class RoomApiErrorMapTest extends TestCase {
     /**
      * Actions that do not pass an InvalidArgumentException's message on: in
      * most, one from a service escapes; showImage answers its own "Not
-     * found.". Only the split is pinned, by name: a new action has to be put
-     * on one side.
+     * found.". The split is pinned by name: a new action has to be put on
+     * one side.
      */
-    private const WITHOUT_OWN_CATCH = [
+    private const WITHOUT_MESSAGE_ANSWER = [
         'index', 'summary', 'exportCsv', 'rename', 'leaderboard', 'show', 'destroy',
         'resetRoom', 'practice', 'reveal', 'endQuiz', 'progress', 'showImage', 'demoClear',
     ];
@@ -90,6 +94,13 @@ class RoomApiErrorMapTest extends TestCase {
         $this->stub($this->rooms, 'rooms', [
             'createRoom' => fn (): Room => $this->room,
             'duplicateRoom' => fn (): Room => $this->room,
+            'listRooms' => fn (): array => [],
+            'setTitle' => fn () => null,
+            'deleteRoom' => fn () => null,
+            'resetRoom' => fn () => null,
+            'setPractice' => fn () => null,
+            'setRevealAtEnd' => fn () => null,
+            'endQuiz' => fn () => null,
         ]);
 
         $this->deck = $this->createMock(DeckService::class);
@@ -111,13 +122,21 @@ class RoomApiErrorMapTest extends TestCase {
         $this->stub($this->state, 'state', [
             'resultsVersion' => fn (): string => 'v1',
             'results' => fn (): array => ['type' => 'choice', 'total' => 0],
+            'summary' => fn (): array => [],
+            'exportCsv' => fn (): string => '',
         ]);
 
         $this->votes = $this->createMock(VoteService::class);
-        $this->stub($this->votes, 'votes', ['gradeTextAnswer' => fn () => null]);
+        $this->stub($this->votes, 'votes', [
+            'gradeTextAnswer' => fn () => null,
+            'leaderboardFor' => fn (): array => [],
+        ]);
 
         $this->demo = $this->createMock(DemoService::class);
-        $this->stub($this->demo, 'demo', ['seedDemoVotes' => fn (): array => ['added' => 0]]);
+        $this->stub($this->demo, 'demo', [
+            'seedDemoVotes' => fn (): array => ['added' => 0],
+            'clearDemoVotes' => fn (): array => [],
+        ]);
 
         $this->images = $this->createMock(PollImageService::class);
         $this->stub($this->images, 'images', [
@@ -139,8 +158,9 @@ class RoomApiErrorMapTest extends TestCase {
     // ── InvalidArgumentException → 400 / 404 ─────────────────────────────
 
     /**
-     * Every action with its own InvalidArgumentException catch: the call,
-     * the service call that fails, and the status it answers with today.
+     * Every action that answers a service's InvalidArgumentException with its
+     * message: the call, the service call that fails, and the status it
+     * answers with today.
      */
     public static function invalidArgument(): array {
         return [
@@ -186,11 +206,11 @@ class RoomApiErrorMapTest extends TestCase {
             }
         }
         $catching = array_values(array_unique(array_column(self::invalidArgument(), 0)));
-        $this->assertCount(16, $catching, 'actions with their own InvalidArgumentException answer');
-        $known = array_merge($catching, self::WITHOUT_OWN_CATCH);
+        $this->assertCount(16, $catching, 'actions that answer with the InvalidArgumentException message');
+        $known = array_merge($catching, self::WITHOUT_MESSAGE_ANSWER);
         sort($declared);
         sort($known);
-        $this->assertSame($declared, $known, 'New moderator action? Add it to invalidArgument() or WITHOUT_OWN_CATCH.');
+        $this->assertSame($declared, $known, 'New moderator action? Add it to invalidArgument() or WITHOUT_MESSAGE_ANSWER.');
     }
 
     public function testShowImageAnswersNotFoundWithItsOwnMessage(): void {
@@ -201,6 +221,54 @@ class RoomApiErrorMapTest extends TestCase {
         $this->assertInstanceOf(JSONResponse::class, $response);
         $this->assertSame(Http::STATUS_NOT_FOUND, $response->getStatus());
         $this->assertSame(['message' => 'Not found.'], $response->getData());
+    }
+
+    // ── InvalidArgumentException that escapes (500) ──────────────────────
+
+    /**
+     * Everywhere else a service's InvalidArgumentException escapes: in every
+     * action of WITHOUT_MESSAGE_ANSWER except showImage, and in the two races
+     * where the question disappears between the read that answers 400/404
+     * and StateService::results.
+     *
+     * [method, args, the service call that fails, self-paced room]
+     */
+    public static function escaping(): array {
+        return [
+            'index' => ['index', [], 'rooms::listRooms', false],
+            'summary' => ['summary', ['ABCDEF'], 'state::summary', false],
+            'exportCsv' => ['exportCsv', ['ABCDEF'], 'state::exportCsv', false],
+            'rename' => ['rename', ['ABCDEF'], 'rooms::setTitle', false],
+            'leaderboard' => ['leaderboard', ['ABCDEF'], 'votes::leaderboardFor', false],
+            'show' => ['show', ['ABCDEF'], 'deck::roomView', false],
+            'destroy' => ['destroy', ['ABCDEF'], 'rooms::deleteRoom', false],
+            'resetRoom' => ['resetRoom', ['ABCDEF'], 'rooms::resetRoom', false],
+            'practice' => ['practice', ['ABCDEF'], 'rooms::setPractice', false],
+            'reveal' => ['reveal', ['ABCDEF'], 'rooms::setRevealAtEnd', false],
+            'endQuiz' => ['endQuiz', ['ABCDEF'], 'rooms::endQuiz', false],
+            'progress' => ['progress', ['ABCDEF'], 'paceState::progress', true],
+            'demoClear' => ['demoClear', ['ABCDEF'], 'demo::clearDemoVotes', false],
+            // the version read succeeded, the tally does not
+            'results: question gone before the tally' => ['results', ['ABCDEF', 7], 'state::results', false],
+            // the grading succeeded, the tally does not
+            'gradeAnswer: question gone after grading' => ['gradeAnswer', ['ABCDEF', 7], 'state::results', false],
+        ];
+    }
+
+    #[DataProvider('escaping')]
+    public function testUndeclaredInvalidArgumentEscapes(string $method, array $args, string $throwAt, bool $self): void {
+        $this->room = $self ? $this->selfRoom() : $this->liveRoom();
+        $this->throwAt = $throwAt;
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('x');
+        $this->controller()->$method(...$args);
+    }
+
+    public function testEveryActionWithoutAnswerHasAnEscapeCase(): void {
+        $covered = array_column(self::escaping(), 0);
+        $this->assertSame([], array_values(array_diff(self::WITHOUT_MESSAGE_ANSWER, ['showImage'], $covered)),
+            'actions in WITHOUT_MESSAGE_ANSWER without a case in escaping()');
     }
 
     // ── Adaptive polling: 204 for an unchanged ?v= ────────────────────────

@@ -20,11 +20,12 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 
 /**
- * The controller passes the question fields through one by one — a list of
- * getParam() calls. A new question type brings a new field, and if that
- * field is forgotten in the list, the value never reaches DeckService: the
- * composer then reports a missing field although the form was filled in (exactly
- * what happened with `pairs` for the matching question type).
+ * The controller passes the question fields through one by one — the list
+ * RoomApiController::POLL_FIELDS, read by pollParams(). A new question type
+ * brings a new field, and if that field is forgotten in the list, the value
+ * never reaches DeckService: the composer then reports a missing field
+ * although the form was filled in (exactly what happened with `pairs` for
+ * the matching question type).
  *
  * So the test reads from the DeckService source code which keys it
  * takes from $data and compares them with what the controller passes on.

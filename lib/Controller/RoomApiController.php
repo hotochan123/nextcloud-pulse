@@ -65,6 +65,17 @@ use OCP\Security\RateLimiting\IRateLimitExceededException;
  * from several tabs at once, and a 429 there would freeze the live view.
  */
 class RoomApiController extends Controller {
+    /**
+     * The question fields addPoll and updatePoll pass on to DeckService,
+     * one request parameter each (pollParams). A new question field goes
+     * here — PollParamsTest compares the list with what DeckService reads.
+     */
+    private const POLL_FIELDS = [
+        'type', 'question', 'options', 'maxWords', 'scaleMax', 'scaleMode', 'aspects',
+        'range', 'axisX', 'axisY', 'cornerLabels', 'heatmapThreshold', 'minLabel', 'maxLabel',
+        'correctIndex', 'correctIndexes', 'target', 'tolerance', 'answers', 'pairs', 'timeLimit',
+    ];
+
     public function __construct(
         IRequest $request,
         private IUserSession $userSession,
@@ -100,37 +111,34 @@ class RoomApiController extends Controller {
     }
 
     /**
-     * Results as a CSV download (no withRoom: returns a DataDownloadResponse).
+     * Results as a CSV download.
      * In self-paced mode additionally `?view=players` (one row per person) and
      * `?view=answers` (one row per vote, with times); moderated rooms have
      * no per-person times, so the parameter is ignored there.
      */
     #[NoAdminRequired]
     public function exportCsv(string $code): Response {
-        try {
-            $room = $this->ownedRoom($code);
-        } catch (DoesNotExistException) {
-            return $this->roomNotFound();
-        }
-        $view = Input::str($this->request->getParam('view'));
-        if (PaceService::isSelf($room) && ($view === 'players' || $view === 'answers')) {
-            // One literal t() per word — otherwise build/l10n-check.js reports the
-            // translation as orphaned.
-            $label = match ($view) {
-                'players' => $this->l10n->t('players'),
-                'answers' => $this->l10n->t('answers'),
-            };
+        return $this->withRoom($code, function ($room) {
+            $view = Input::str($this->request->getParam('view'));
+            if (PaceService::isSelf($room) && ($view === 'players' || $view === 'answers')) {
+                // One literal t() per word — otherwise build/l10n-check.js reports the
+                // translation as orphaned.
+                $label = match ($view) {
+                    'players' => $this->l10n->t('players'),
+                    'answers' => $this->l10n->t('answers'),
+                };
+                return new DataDownloadResponse(
+                    $this->paceState->exportCsv($room, $view),
+                    'pulse-' . $room->getCode() . '-' . $label . '.csv',
+                    'text/csv; charset=utf-8',
+                );
+            }
             return new DataDownloadResponse(
-                $this->paceState->exportCsv($room, $view),
-                'pulse-' . $room->getCode() . '-' . $label . '.csv',
+                $this->stateService->exportCsv($room),
+                'pulse-' . $room->getCode() . '-' . $this->l10n->t('results') . '.csv',
                 'text/csv; charset=utf-8',
             );
-        }
-        return new DataDownloadResponse(
-            $this->stateService->exportCsv($room),
-            'pulse-' . $room->getCode() . '-' . $this->l10n->t('results') . '.csv',
-            'text/csv; charset=utf-8',
-        );
+        });
     }
 
     #[NoAdminRequired]
@@ -155,13 +163,9 @@ class RoomApiController extends Controller {
             return $limited;
         }
         return $this->withRoom($code, function ($room) {
-            try {
-                $copy = $this->roomService->duplicateRoom($room, $this->uid());
-            } catch (\InvalidArgumentException $e) {
-                return new JSONResponse(['message' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
-            }
+            $copy = $this->roomService->duplicateRoom($room, $this->uid());
             return new JSONResponse($this->deckService->roomView($copy), Http::STATUS_CREATED);
-        });
+        }, Http::STATUS_BAD_REQUEST);
     }
 
     /** Rename a room; an empty title removes it again. */
@@ -268,60 +272,50 @@ class RoomApiController extends Controller {
     public function pace(string $code): JSONResponse {
         return $this->withRoom($code, function ($room) {
             $action = Input::str($this->request->getParam('action'));
-            try {
-                $room = match ($action) {
-                    'set' => $this->paceService->setPace($room, Input::str($this->request->getParam('pace'))),
-                    'open' => $this->paceService->openWindow(
-                        $room,
-                        $this->closesAt(),
-                        $this->optFlag('timed'),
-                        // missing = default; a list becomes '' -> "Unknown feedback setting."
-                        $this->request->getParam('feedback') === null ? null : Input::str($this->request->getParam('feedback')),
-                    ),
-                    'close' => $this->paceService->closeWindow($room, $this->optFlag('release')),
-                    'extend' => $this->paceService->extendWindow($room, $this->closesAt()),
-                    'release' => $this->paceService->releaseWindow($room),
-                    'lockJoins' => $this->paceService->setJoinsLocked($room, true),
-                    'unlockJoins' => $this->paceService->setJoinsLocked($room, false),
-                    'removePlayer' => $this->paceService->removePlayer($room, Input::int($this->request->getParam('playerId')) ?? 0),
-                    default => throw new \InvalidArgumentException($this->l10n->t('Unknown action.')),
-                };
-            } catch (\InvalidArgumentException $e) {
-                return new JSONResponse(['message' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
-            }
+            $room = match ($action) {
+                'set' => $this->paceService->setPace($room, Input::str($this->request->getParam('pace'))),
+                'open' => $this->paceService->openWindow(
+                    $room,
+                    $this->closesAt(),
+                    $this->optFlag('timed'),
+                    // missing = default; a list becomes '' -> "Unknown feedback setting."
+                    $this->request->getParam('feedback') === null ? null : Input::str($this->request->getParam('feedback')),
+                ),
+                'close' => $this->paceService->closeWindow($room, $this->optFlag('release')),
+                'extend' => $this->paceService->extendWindow($room, $this->closesAt()),
+                'release' => $this->paceService->releaseWindow($room),
+                'lockJoins' => $this->paceService->setJoinsLocked($room, true),
+                'unlockJoins' => $this->paceService->setJoinsLocked($room, false),
+                'removePlayer' => $this->paceService->removePlayer($room, Input::int($this->request->getParam('playerId')) ?? 0),
+                default => throw new \InvalidArgumentException($this->l10n->t('Unknown action.')),
+            };
             return new JSONResponse($this->deckService->roomView($room));
-        });
+        }, Http::STATUS_BAD_REQUEST);
     }
 
     /**
      * Self-paced progress: per person and per question (race as well as
      * homework), polled adaptively with `?v=` like results(). `?scores=1` shows
      * points even with feedback "At the end" — an explicit switch, because the
-     * laptop is often connected to the projector. No withRoom: can also return 204.
+     * laptop is often connected to the projector. Can also return 204 (notModified).
      */
     #[NoAdminRequired]
     public function progress(string $code): Response {
-        try {
-            $room = $this->ownedRoom($code);
-        } catch (DoesNotExistException) {
-            return $this->roomNotFound();
-        }
-        if (!PaceService::isSelf($room)) {
-            return new JSONResponse(['message' => $this->l10n->t('This room is not self-paced.')], Http::STATUS_CONFLICT);
-        }
-        $scores = Input::flag($this->request->getParam('scores')) ?? false;
-        $data = $this->paceState->progress($room, $scores);
-        // Version from the finished payload — without serverNow and "last
-        // seen" (otherwise every phone heartbeat would change it, see PaceStateService::version).
-        $version = $this->paceState->version($data);
-        $clientVersion = Input::str($this->request->getParam('v'));
-        if ($clientVersion !== '' && $clientVersion === $version) {
-            $unchanged = new Response();
-            $unchanged->setStatus(Http::STATUS_NO_CONTENT);
-            return $unchanged;
-        }
-        $data['version'] = $version;
-        return new JSONResponse($data);
+        return $this->withRoom($code, function ($room) {
+            if (!PaceService::isSelf($room)) {
+                return new JSONResponse(['message' => $this->l10n->t('This room is not self-paced.')], Http::STATUS_CONFLICT);
+            }
+            $scores = Input::flag($this->request->getParam('scores')) ?? false;
+            $data = $this->paceState->progress($room, $scores);
+            // Version from the finished payload — without serverNow and "last
+            // seen" (otherwise every phone heartbeat would change it, see PaceStateService::version).
+            $version = $this->paceState->version($data);
+            if ($unchanged = $this->notModified($version)) {
+                return $unchanged;
+            }
+            $data['version'] = $version;
+            return new JSONResponse($data);
+        });
     }
 
     #[NoAdminRequired]
@@ -330,69 +324,17 @@ class RoomApiController extends Controller {
             return $limited;
         }
         return $this->withRoom($code, function ($room) {
-            try {
-                $poll = $this->deckChange($room, fn (Room $r): Poll => $this->deckService->addPoll($r, [
-                    'type' => $this->request->getParam('type'),
-                    'question' => $this->request->getParam('question'),
-                    'options' => $this->request->getParam('options'),
-                    'maxWords' => $this->request->getParam('maxWords'),
-                    'scaleMax' => $this->request->getParam('scaleMax'),
-                    'scaleMode' => $this->request->getParam('scaleMode'),
-                    'aspects' => $this->request->getParam('aspects'),
-                    'range' => $this->request->getParam('range'),
-                    'axisX' => $this->request->getParam('axisX'),
-                    'axisY' => $this->request->getParam('axisY'),
-                    'cornerLabels' => $this->request->getParam('cornerLabels'),
-                    'heatmapThreshold' => $this->request->getParam('heatmapThreshold'),
-                    'minLabel' => $this->request->getParam('minLabel'),
-                    'maxLabel' => $this->request->getParam('maxLabel'),
-                    'correctIndex' => $this->request->getParam('correctIndex'),
-                    'correctIndexes' => $this->request->getParam('correctIndexes'),
-                    'target' => $this->request->getParam('target'),
-                    'tolerance' => $this->request->getParam('tolerance'),
-                    'answers' => $this->request->getParam('answers'),
-                    'pairs' => $this->request->getParam('pairs'),
-                    'timeLimit' => $this->request->getParam('timeLimit'),
-                ]));
-            } catch (\InvalidArgumentException $e) {
-                return new JSONResponse(['message' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
-            }
+            $poll = $this->deckChange($room, fn (Room $r): Poll => $this->deckService->addPoll($r, $this->pollParams()));
             return new JSONResponse($this->deckService->ownerPoll($poll), Http::STATUS_CREATED);
-        });
+        }, Http::STATUS_BAD_REQUEST);
     }
 
     #[NoAdminRequired]
     public function updatePoll(string $code, int $pollId): JSONResponse {
         return $this->withRoom($code, function ($room) use ($pollId) {
-            try {
-                $poll = $this->deckChange($room, fn (Room $r): Poll => $this->deckService->updatePoll($r, $pollId, [
-                    'type' => $this->request->getParam('type'),
-                    'question' => $this->request->getParam('question'),
-                    'options' => $this->request->getParam('options'),
-                    'maxWords' => $this->request->getParam('maxWords'),
-                    'scaleMax' => $this->request->getParam('scaleMax'),
-                    'scaleMode' => $this->request->getParam('scaleMode'),
-                    'aspects' => $this->request->getParam('aspects'),
-                    'range' => $this->request->getParam('range'),
-                    'axisX' => $this->request->getParam('axisX'),
-                    'axisY' => $this->request->getParam('axisY'),
-                    'cornerLabels' => $this->request->getParam('cornerLabels'),
-                    'heatmapThreshold' => $this->request->getParam('heatmapThreshold'),
-                    'minLabel' => $this->request->getParam('minLabel'),
-                    'maxLabel' => $this->request->getParam('maxLabel'),
-                    'correctIndex' => $this->request->getParam('correctIndex'),
-                    'correctIndexes' => $this->request->getParam('correctIndexes'),
-                    'target' => $this->request->getParam('target'),
-                    'tolerance' => $this->request->getParam('tolerance'),
-                    'answers' => $this->request->getParam('answers'),
-                    'pairs' => $this->request->getParam('pairs'),
-                    'timeLimit' => $this->request->getParam('timeLimit'),
-                ]));
-            } catch (\InvalidArgumentException $e) {
-                return new JSONResponse(['message' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
-            }
+            $poll = $this->deckChange($room, fn (Room $r): Poll => $this->deckService->updatePoll($r, $pollId, $this->pollParams()));
             return new JSONResponse($this->deckService->ownerPoll($poll));
-        });
+        }, Http::STATUS_BAD_REQUEST);
     }
 
     /** Reorder the deck. Body: { order: [pollId, pollId, …] }. */
@@ -403,13 +345,9 @@ class RoomApiController extends Controller {
             if (!is_array($order)) {
                 return new JSONResponse(['message' => $this->l10n->t('Invalid order.')], Http::STATUS_BAD_REQUEST);
             }
-            try {
-                $this->deckChange($room, fn (Room $r) => $this->deckService->reorder($r, $order));
-            } catch (\InvalidArgumentException $e) {
-                return new JSONResponse(['message' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
-            }
+            $this->deckChange($room, fn (Room $r) => $this->deckService->reorder($r, $order));
             return new JSONResponse([]);
-        });
+        }, Http::STATUS_BAD_REQUEST);
     }
 
     /** Set the cursor (deck navigation). pollId=0 or missing => presentation is idle. */
@@ -423,61 +361,45 @@ class RoomApiController extends Controller {
             if ($pollId === null) {
                 return new JSONResponse(['message' => $this->l10n->t('Invalid request.')], Http::STATUS_BAD_REQUEST);
             }
-            try {
-                $this->liveControl($room, fn (Room $r) => $this->deckService->setCurrent($r, $pollId));
-            } catch (\InvalidArgumentException $e) {
-                return new JSONResponse(['message' => $e->getMessage()], Http::STATUS_NOT_FOUND);
-            }
+            $this->liveControl($room, fn (Room $r) => $this->deckService->setCurrent($r, $pollId));
             return new JSONResponse(['activePollId' => $pollId]);
-        });
+        }, Http::STATUS_NOT_FOUND);
     }
 
     #[NoAdminRequired]
     public function deletePoll(string $code, int $pollId): JSONResponse {
         return $this->withRoom($code, function ($room) use ($pollId) {
-            try {
-                $this->deckChange($room, fn (Room $r) => $this->deckService->deletePoll($r, $pollId));
-            } catch (\InvalidArgumentException $e) {
-                return new JSONResponse(['message' => $e->getMessage()], Http::STATUS_NOT_FOUND);
-            }
+            $this->deckChange($room, fn (Room $r) => $this->deckService->deletePoll($r, $pollId));
             return new JSONResponse([]);
-        });
+        }, Http::STATUS_NOT_FOUND);
     }
 
     #[NoAdminRequired]
     public function results(string $code, int $pollId): Response {
-        try {
-            $room = $this->ownedRoom($code);
-        } catch (DoesNotExistException) {
-            return $this->roomNotFound();
-        }
-        try {
-            $version = $this->stateService->resultsVersion($room, $pollId);
-        } catch (\InvalidArgumentException $e) {
-            return new JSONResponse(['message' => $e->getMessage()], Http::STATUS_NOT_FOUND);
-        }
-        // Unchanged since the last poll? -> 204, without building tally/leaderboard.
-        $clientVersion = Input::str($this->request->getParam('v'));
-        if ($clientVersion !== '' && $clientVersion === $version) {
-            $unchanged = new Response();
-            $unchanged->setStatus(Http::STATUS_NO_CONTENT);
-            return $unchanged;
-        }
-        $data = $this->stateService->results($room, $pollId);
-        $data['version'] = $version;
-        return new JSONResponse($data);
+        return $this->withRoom($code, function ($room) use ($pollId) {
+            // Its own catch rather than withRoom's 404: only the version read
+            // answers 404; a question deleted before results() below stays a 500.
+            try {
+                $version = $this->stateService->resultsVersion($room, $pollId);
+            } catch (\InvalidArgumentException $e) {
+                return new JSONResponse(['message' => $e->getMessage()], Http::STATUS_NOT_FOUND);
+            }
+            // Unchanged since the last poll? -> 204, without building tally/leaderboard.
+            if ($unchanged = $this->notModified($version)) {
+                return $unchanged;
+            }
+            $data = $this->stateService->results($room, $pollId);
+            $data['version'] = $version;
+            return new JSONResponse($data);
+        });
     }
 
     #[NoAdminRequired]
     public function resetPoll(string $code, int $pollId): JSONResponse {
         return $this->withRoom($code, function ($room) use ($pollId) {
-            try {
-                $this->deckChange($room, fn (Room $r) => $this->deckService->resetPoll($r, $pollId));
-            } catch (\InvalidArgumentException $e) {
-                return new JSONResponse(['message' => $e->getMessage()], Http::STATUS_NOT_FOUND);
-            }
+            $this->deckChange($room, fn (Room $r) => $this->deckService->resetPoll($r, $pollId));
             return new JSONResponse([]);
-        });
+        }, Http::STATUS_NOT_FOUND);
     }
 
     /** Grade a free-text answer. Body: { answer: string, correct: bool }. */
@@ -487,6 +409,8 @@ class RoomApiController extends Controller {
             // With NUL, exactly as the vote is stored (Input::rawStr).
             $answer = Input::rawStr($this->request->getParam('answer'));
             $correct = Input::flag($this->request->getParam('correct')) ?? false;
+            // Its own catch rather than withRoom's 400: only the grading
+            // answers 400; a question deleted before results() below stays a 500.
             try {
                 $this->voteService->gradeTextAnswer($room, $pollId, $answer, $correct);
             } catch (\InvalidArgumentException $e) {
@@ -507,36 +431,28 @@ class RoomApiController extends Controller {
             return $limited;
         }
         return $this->withRoom($code, function ($room) use ($pollId) {
-            try {
-                // null = no image sent along (response below)
-                $poll = $this->deckChange($room, function (Room $r) use ($pollId): ?Poll {
-                    $poll = $this->deckService->requirePollInRoom($r, $pollId);
-                    $upload = $this->request->getUploadedFile('image');
-                    return is_array($upload) ? $this->imageService->store($poll, $upload) : null;
-                });
-            } catch (\InvalidArgumentException $e) {
-                return new JSONResponse(['message' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
-            }
+            // null = no image sent along (response below)
+            $poll = $this->deckChange($room, function (Room $r) use ($pollId): ?Poll {
+                $poll = $this->deckService->requirePollInRoom($r, $pollId);
+                $upload = $this->request->getUploadedFile('image');
+                return is_array($upload) ? $this->imageService->store($poll, $upload) : null;
+            });
             if ($poll === null) {
                 return new JSONResponse(['message' => $this->l10n->t('No image received.')], Http::STATUS_BAD_REQUEST);
             }
             return new JSONResponse($this->deckService->ownerPoll($poll));
-        });
+        }, Http::STATUS_BAD_REQUEST);
     }
 
     /** Remove the question's image. */
     #[NoAdminRequired]
     public function deleteImage(string $code, int $pollId): JSONResponse {
         return $this->withRoom($code, function ($room) use ($pollId) {
-            try {
-                $poll = $this->deckChange($room, fn (Room $r): Poll => $this->imageService->remove(
-                    $this->deckService->requirePollInRoom($r, $pollId),
-                ));
-            } catch (\InvalidArgumentException $e) {
-                return new JSONResponse(['message' => $e->getMessage()], Http::STATUS_NOT_FOUND);
-            }
+            $poll = $this->deckChange($room, fn (Room $r): Poll => $this->imageService->remove(
+                $this->deckService->requirePollInRoom($r, $pollId),
+            ));
             return new JSONResponse($this->deckService->ownerPoll($poll));
-        });
+        }, Http::STATUS_NOT_FOUND);
     }
 
     /**
@@ -573,25 +489,17 @@ class RoomApiController extends Controller {
     #[NoAdminRequired]
     public function lockPoll(string $code, int $pollId): JSONResponse {
         return $this->withRoom($code, function ($room) use ($pollId) {
-            try {
-                $this->liveControl($room, fn (Room $r) => $this->deckService->lockPoll($r, $pollId));
-            } catch (\InvalidArgumentException $e) {
-                return new JSONResponse(['message' => $e->getMessage()], Http::STATUS_NOT_FOUND);
-            }
+            $this->liveControl($room, fn (Room $r) => $this->deckService->lockPoll($r, $pollId));
             return new JSONResponse([]);
-        });
+        }, Http::STATUS_NOT_FOUND);
     }
 
     #[NoAdminRequired]
     public function unlockPoll(string $code, int $pollId): JSONResponse {
         return $this->withRoom($code, function ($room) use ($pollId) {
-            try {
-                $this->liveControl($room, fn (Room $r) => $this->deckService->unlockPoll($r, $pollId));
-            } catch (\InvalidArgumentException $e) {
-                return new JSONResponse(['message' => $e->getMessage()], Http::STATUS_NOT_FOUND);
-            }
+            $this->liveControl($room, fn (Room $r) => $this->deckService->unlockPoll($r, $pollId));
             return new JSONResponse([]);
-        });
+        }, Http::STATUS_NOT_FOUND);
     }
 
     /**
@@ -605,12 +513,8 @@ class RoomApiController extends Controller {
         }
         return $this->withRoom($code, function ($room) {
             $count = Input::int($this->request->getParam('count')) ?? 25;
-            try {
-                return new JSONResponse($this->liveControl($room, fn (Room $r): array => $this->demoService->seedDemoVotes($r, $count)));
-            } catch (\InvalidArgumentException $e) {
-                return new JSONResponse(['message' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
-            }
-        });
+            return new JSONResponse($this->liveControl($room, fn (Room $r): array => $this->demoService->seedDemoVotes($r, $count)));
+        }, Http::STATUS_BAD_REQUEST);
     }
 
     /** Remove all demo/test votes of the room again. */
@@ -659,13 +563,33 @@ class RoomApiController extends Controller {
     }
 
     /**
+     * The question fields for DeckService (addPoll, updatePoll), each passed
+     * on as sent: DeckService checks and normalises them.
+     *
+     * @return array<string, mixed>
+     */
+    private function pollParams(): array {
+        $data = [];
+        foreach (self::POLL_FIELDS as $field) {
+            $data[$field] = $this->request->getParam($field);
+        }
+        return $data;
+    }
+
+    /**
      * Load the room, check ownership, map errors uniformly to HTTP.
      * If an action does not fit the room's state (self-paced, see
      * PaceService), it becomes a 409. If the room disappears before the
      * room lock is taken (another tab, cleanup job), it becomes a 404 as when
      * loading.
+     *
+     * $invalid is the status with which an \InvalidArgumentException from
+     * $fn answers, carrying its message; null lets it escape (500). Each
+     * action states its own: the split between 400 and 404 is historical,
+     * not a rule (a missing question is 400 on updatePoll, 404 on
+     * deletePoll), and the frontend and cached bundles rely on it.
      */
-    private function withRoom(string $code, callable $fn): JSONResponse {
+    private function withRoom(string $code, callable $fn, ?int $invalid = null): Response {
         try {
             $room = $this->ownedRoom($code);
         } catch (DoesNotExistException) {
@@ -677,6 +601,11 @@ class RoomApiController extends Controller {
             return new JSONResponse(['message' => $e->getMessage()], Http::STATUS_CONFLICT);
         } catch (RoomGoneException) {
             return $this->roomNotFound();
+        } catch (\InvalidArgumentException $e) {
+            if ($invalid === null) {
+                throw $e;
+            }
+            return new JSONResponse(['message' => $e->getMessage()], $invalid);
         }
     }
 
@@ -686,6 +615,21 @@ class RoomApiController extends Controller {
      */
     private function roomNotFound(): JSONResponse {
         return new JSONResponse(['message' => $this->l10n->t('Room not found.')], Http::STATUS_NOT_FOUND);
+    }
+
+    /**
+     * Adaptive polling (results, progress): the client sends the version it
+     * has as `?v=`. The same one again -> 204 without a body, otherwise null
+     * and the caller answers with the data.
+     */
+    private function notModified(string $version): ?Response {
+        $clientVersion = Input::str($this->request->getParam('v'));
+        if ($clientVersion !== '' && $clientVersion === $version) {
+            $unchanged = new Response();
+            $unchanged->setStatus(Http::STATUS_NO_CONTENT);
+            return $unchanged;
+        }
+        return null;
     }
 
     /**
