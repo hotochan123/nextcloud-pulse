@@ -4,7 +4,7 @@
 // Load run for the self-paced quiz (specification stage 4, §6.3): measures the
 // UI's polling intervals under real load instead of static seeds.
 //
-// 100 phones, each with its own pulse_vt cookie, join a freshly opened
+// 60 phones, each with its own voter cookie, join a freshly opened
 // race room (10 choice questions, 20 s timer, feedback after each question), follow
 // the phone's rhythm (phoneDelay from src/util/pace.js — the same logic as
 // Participant.vue), answer after 2–15 s and only tap "Next question" once the
@@ -29,9 +29,10 @@
 //     node dev/sim/load.mjs
 // On the live instance only at a quiet time and only once.
 //
-// Knobs: LOAD_PHONES (default 100, at most 110 — /join allows 120
-// attempts per IP and room in 10 min), LOAD_SECS (load phase, default 90),
-// LOAD_TAIL_SECS (final standings, default 30).
+// Knobs: LOAD_PHONES (default 60, at most 120 — one address may add 120 new
+// players per room in 10 min by default, app config
+// max_new_players_per_address; more would only measure the 429), LOAD_SECS
+// (load phase, default 90), LOAD_TAIL_SECS (final standings, default 30).
 import http from 'node:http'
 import { performance } from 'node:perf_hooks'
 import { phoneDelay, progressDelay, windowState } from '../../src/util/pace.js'
@@ -42,7 +43,7 @@ const USER = process.env.PULSE_SIM_USER || 'pulse-shots'
 const PASS = process.env.PULSE_SIM_PASS || ''
 const BASE = URL_BASE + '/index.php/apps/pulse'
 const AUTH = 'Basic ' + Buffer.from(USER + ':' + PASS).toString('base64')
-const PHONES = Math.max(1, Math.min(110, Number(process.env.LOAD_PHONES || 100)))
+const PHONES = Math.max(1, Math.min(120, Number(process.env.LOAD_PHONES || 60)))
 const LOAD_SECS = Math.max(10, Number(process.env.LOAD_SECS || 90))
 const TAIL_SECS = Math.max(0, Number(process.env.LOAD_TAIL_SECS || 30))
 const QUESTIONS = 10
@@ -136,6 +137,7 @@ class Phone {
 		this.name = 'Last ' + String(i + 1).padStart(3, '0')
 		this.code = code
 		this.cookie = ''
+		this.cookieName = ''
 		this.state = null
 		this.version = ''
 		this.skew = 0
@@ -150,13 +152,19 @@ class Phone {
 	}
 
 	async req(key, method, path, body, query = '') {
-		const headers = { Accept: 'application/json' }
-		if (this.cookie) headers.Cookie = 'pulse_vt=' + this.cookie
+		// X-Requested-With like @nextcloud/axios: participant POSTs without it are 403.
+		const headers = { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+		if (this.cookie) headers.Cookie = this.cookieName + '=' + this.cookie
 		if (body !== undefined) headers['Content-Type'] = 'application/json'
 		const r = await timed(key, BASE + '/s/' + this.code + path + query, { method, headers, body: body !== undefined ? JSON.stringify(body) : undefined })
+		// `__Host-pulse_vt` behind https (overwriteprotocol), otherwise `pulse_vt`;
+		// expiring a legacy cookie (Max-Age=0) is not a cookie.
 		for (const c of r.cookies) {
-			const m = c.match(/^pulse_vt=([^;]+)/)
-			if (m) this.cookie = m[1]
+			const m = /;\s*max-age=0/i.test(c) ? null : c.match(/^((?:__Host-)?pulse_vt)=([^;]+)/)
+			if (m) {
+				this.cookieName = m[1]
+				this.cookie = m[2]
+			}
 		}
 		return r
 	}
@@ -389,7 +397,7 @@ try {
 			`ein Moderator (/progress, Takt progressDelay), ein Beamer (/state?spectate=1 alle 2 s). Last ${loadSecs.toFixed(0)} s, ` +
 			`dann close + release und ${TAIL_SECS} s Endstand. Beigetreten ${joined}/${PHONES}, fertig laut letztem /progress ${finished}, ` +
 			`Antworten ${phones.reduce((a, p) => a + p.votes, 0)}, /next ${phones.reduce((a, p) => a + p.nexts, 0)}. ` +
-			`Endstand am Beamer: ${lastBeamer && Array.isArray(lastBeamer.leaderboard) ? lastBeamer.leaderboard.length + ' Zeilen' : '—'} ` +
+			`Endstand am Beamer: ${lastBeamer && Array.isArray(lastBeamer.leaderboard) ? lastBeamer.leaderboard.length + ' Zeilen von ' + (lastBeamer.leaderboardTotal ?? lastBeamer.leaderboard.length) : '—'} ` +
 			`(Fenster ${lastBeamer && lastBeamer.window ? lastBeamer.window.state : '—'}).`,
 		'',
 		'| Endpunkt | Anfragen | p50 ms | p95 ms | max ms | Status | je s |',

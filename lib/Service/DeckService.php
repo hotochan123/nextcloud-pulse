@@ -31,6 +31,18 @@ class DeckService {
     public const TEXT_MAX = 100;
     private const MIN_OPTIONS = 2;
     private const MAX_OPTIONS = 8;
+    /**
+     * Characters of one answer option (choice, multi, rank). Longer labels
+     * are cut, like every other label here — a sentence of an answer fits
+     * easily, a megabyte of text in the options column does not get in.
+     */
+    public const OPTION_MAX = 200;
+    /**
+     * Free text: accepted answers stored with the question. The composer
+     * offers eight; grading can add more, and editing the question sends
+     * them back — the rest beyond this is dropped.
+     */
+    public const ACCEPTED_MAX = 50;
     /** Time limit of a quiz question in seconds (lower/upper bound). */
     private const QUIZ_MIN_LIMIT = 5;
     private const QUIZ_MAX_LIMIT = 300;
@@ -43,6 +55,7 @@ class DeckService {
         private PollImageService $imageService,
         private ITimeFactory $timeFactory,
         private IL10N $l10n,
+        private Limits $limits,
     ) {
     }
 
@@ -53,16 +66,32 @@ class DeckService {
      * navigates via setCurrent(). That way a deck can be built in advance.
      *
      * @param array{type?:string, question?:string, options?:array, maxWords?:int} $data
-     * @throws \InvalidArgumentException on invalid input
+     * @throws \InvalidArgumentException on invalid input, or when the room
+     *                                   already holds Limits::POLLS_PER_ROOM questions
      */
     public function addPoll(Room $room, array $data): Poll {
+        $max = $this->limits->get(Limits::POLLS_PER_ROOM);
+        if ($this->pollMapper->countByRoom($room->getId()) >= $max) {
+            throw $this->tooManyPolls($max);
+        }
         $poll = new Poll();
         $poll->setRoomId($room->getId());
         $poll->setStatus('active');
         $poll->setPosition($this->pollMapper->nextPosition($room->getId()));
         $poll->setCreatedAt($this->timeFactory->getTime());
         $this->applyPollData($poll, $data, $room->getMode() === 'quiz');
-        return $this->pollMapper->insert($poll);
+        $poll = $this->pollMapper->insert($poll);
+        // Counted again: parallel requests all passed the check above before
+        // any of them had written. Over the cap, this one takes its question back.
+        if ($this->pollMapper->countByRoom($room->getId()) > $max) {
+            $this->pollMapper->delete($poll);
+            throw $this->tooManyPolls($max);
+        }
+        return $poll;
+    }
+
+    private function tooManyPolls(int $max): \InvalidArgumentException {
+        return new \InvalidArgumentException($this->l10n->t('A room can hold at most %d questions.', [$max]));
     }
 
     /**
@@ -137,6 +166,12 @@ class DeckService {
         $question = trim(Input::str($data['question'] ?? null));
         if ($question === '') {
             throw new \InvalidArgumentException($this->l10n->t('The question must not be empty.'));
+        }
+        // Rejected rather than cut: the composer keeps the text open, and a
+        // question silently losing its end would change what it asks.
+        $maxLength = $this->limits->get(Limits::QUESTION_LENGTH);
+        if (mb_strlen($question) > $maxLength) {
+            throw new \InvalidArgumentException($this->l10n->t('The question can be at most %d characters long.', [$maxLength]));
         }
         $poll->setType($type);
         $poll->setQuestion($question);
@@ -294,6 +329,9 @@ class DeckService {
             }
             $seen[$norm] = true;
             $out[] = $val;
+            if (count($out) >= self::ACCEPTED_MAX) {
+                break;
+            }
         }
         if (count($out) === 0) {
             throw new \InvalidArgumentException($this->l10n->t('Please provide at least one correct answer.'));
@@ -589,7 +627,7 @@ class DeckService {
             // accepts both ["A","B"] and [{"label":"A"}, …]
             $label = trim(Input::str(is_array($entry) ? ($entry['label'] ?? null) : $entry));
             if ($label !== '') {
-                $labels[] = $label;
+                $labels[] = mb_substr($label, 0, self::OPTION_MAX);
             }
         }
         if (count($labels) < self::MIN_OPTIONS || count($labels) > self::MAX_OPTIONS) {

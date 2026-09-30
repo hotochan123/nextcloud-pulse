@@ -267,9 +267,10 @@ or has been revoked.
 ## For every release
 
 1. **Bump the version** in `appinfo/info.xml` **and** `package.json`
-   (same number). Note: on the local instance, where this working copy is the
-   installed app, the version bump requires an `occ upgrade`; until then the
-   app routes answer with 503.
+   (same number). Note: on a development instance where this working copy is
+   itself the installed app (fine for development, not for production — see
+   the README's installation section and the shipped `.htaccess`), the version
+   bump requires an `occ upgrade`; until then the app routes answer with 503.
 2. **`CHANGELOG.md`** — the store shows the section of this version as the
    release notes:
    - **Release:** rename the `[Unreleased]` section to
@@ -309,21 +310,27 @@ or has been revoked.
      `_*.php` and `node_modules`. Directories and executables get mode 755,
      everything else 644, owner 0:0 — whatever the umask of the machine.
    - **Signing:** on the host it first checks that certificate and key belong
-     together and that the certificate is issued for `CN=pulse`. Then it copies
-     the staged app into a private temporary directory in the Nextcloud
-     container (`CONTAINER`, default `nextcloud-nextcloud-1`), streams key and
-     certificate in (mode 600), runs `occ integrity:sign-app` on that copy —
-     never on the installed app — and takes only `appinfo/signature.json` back.
-     The directory, key and certificate included, is removed right after
-     signing and on every error or interrupt — the script traps HUP, INT,
-     QUIT (Ctrl-\), USR1, USR2, PIPE, ALRM and TERM, in bash as in dash. If
-     that removal fails, the script says so and names the path. Only SIGKILL
-     (`kill -9`), a crash of the shell or a rarely sent signal outside that
-     list gets past it silently, and then `/tmp/pulse-sign.*` has to be
-     removed from the container by hand.
-     While `occ` runs — a few seconds — the key is readable for the web server
-     user inside that container; `CONTAINER=` can point at any other container
-     with an installed Nextcloud, for example a throwaway one.
+     together and that the certificate is issued for `CN=pulse`. Then it
+     creates a disposable container without network from a Nextcloud image
+     (`SIGN_IMAGE`; by default the image of the container `SIGN_FROM`,
+     default `nextcloud-nextcloud-1`, if there is one — only its image name is
+     read —, otherwise `nextcloud:34-apache`), copies the staged app, key and
+     certificate into it, runs `occ integrity:sign-app` from the image's
+     Nextcloud source once and takes only `appinfo/signature.json` back.
+     `occ` does not need an installed instance for this command. The
+     container, with the key in it and its anonymous volume, is removed right
+     after signing and on every error or interrupt — the script traps HUP,
+     INT, QUIT (Ctrl-\), USR1, USR2, PIPE, ALRM and TERM, in bash as in dash.
+     If that removal fails, the script says so and names the container. Only
+     SIGKILL (`kill -9`), a crash of the shell or a rarely sent signal outside
+     that list gets past it silently; then `docker ps -a --filter
+     name=pulse-sign-` shows it, and `docker rm -f -v <name>` removes it. So no
+     server that serves traffic ever holds the key.
+     `CONTAINER=<name>` is the explicit opt-in to sign inside that running
+     container instead: a copy of the stage in a private directory under its
+     `/tmp`, never the installed app, removed the same way. While `occ` runs
+     — a few seconds — the key is readable there for the web server user, so
+     never point it at a production server.
    - **Packing:** `build/pulse-<version>.tar.gz`. At the end it prints the
      archive's SHA-256 and the Base64 signature over the archive — the store
      needs it in step 7.
@@ -401,13 +408,15 @@ or has been revoked.
   minimum, migrations and theme variables, which a pure symbol check does not
   see. `occ app:check-code` no longer helps; the command no longer exists in
   34.
-- **Security contact:** there is no `SECURITY.md` yet. The store expects
-  authors to respond to security concerns in time; once the repository is
-  public, GitHub's private vulnerability reporting can be switched on for it.
+- **Security contact:** `SECURITY.md` asks for reports through GitHub's
+  private vulnerability reporting, which still has to be switched on once the
+  repository is public (in the repository's security settings); until then it
+  asks for an issue without details. The store expects authors to respond to
+  security concerns in time.
 - **Translations:** English and German come from the repository. Further
   languages would go through Transifex; for that the app has to be added to
   Nextcloud's Transifex project (a request to Nextcloud), going it alone is not
   worth it.
-- **Signing in CI:** deliberately not. `occ integrity:sign-app` needs a running
-  Nextcloud instance, and the private key has no business in a CI secret as
-  long as signing locally is enough.
+- **Signing in CI:** deliberately not. `occ integrity:sign-app` only needs
+  Nextcloud's source code (the disposable container above), but the private
+  key has no business in a CI secret as long as signing locally is enough.

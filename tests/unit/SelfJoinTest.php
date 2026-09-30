@@ -9,9 +9,11 @@ namespace OCA\Pulse\Tests\Unit;
 
 use OCA\Pulse\Db\Player;
 use OCA\Pulse\Db\PlayerMapper;
+use OCA\Pulse\Db\PollMapper;
 use OCA\Pulse\Db\Progress;
 use OCA\Pulse\Db\ProgressMapper;
 use OCA\Pulse\Db\Room;
+use OCA\Pulse\Db\VoteMapper;
 use OCA\Pulse\Service\PaceService;
 use OCA\Pulse\Service\VoteService;
 use OCP\AppFramework\Utility\ITimeFactory;
@@ -32,7 +34,7 @@ use ReflectionProperty;
  * 300 only affect new tokens, and after starting the name is fixed — otherwise
  * a token could slip into a freed-up name after answering.
  * A new token starts empty: it does not inherit leftovers of a removed player
- * with the same cookie. The moderated join never touches PaceService.
+ * with the same cookie. The moderated join only shares the room lock.
  */
 #[CoversClass(VoteService::class)]
 class SelfJoinTest extends TestCase {
@@ -68,6 +70,9 @@ class SelfJoinTest extends TestCase {
         $progress->method('findByRoomAndToken')->willReturnCallback(
             fn (int $roomId, string $token): array => $this->progress[$token] ?? [],
         );
+        $progress->method('findByRoom')->willReturnCallback(
+            fn (): array => array_merge([], ...array_values($this->progress)),
+        );
 
         $time = $this->createMock(ITimeFactory::class);
         $time->method('getTime')->willReturn(self::NOW);
@@ -81,6 +86,7 @@ class SelfJoinTest extends TestCase {
             'timeFactory' => $time,
             'l10n' => $l10n,
             'paceService' => $this->pace,
+            'limits' => new \OCA\Pulse\Service\Limits($this->createMock(\OCP\IAppConfig::class)),
             'progressMapper' => $progress,
             'cacheFactory' => $this->createMock(ICacheFactory::class),
         ] as $name => $value) {
@@ -171,7 +177,11 @@ class SelfJoinTest extends TestCase {
     }
 
     public function testVollerRaumWeistNeueTokensAb(): void {
+        // The cap counts players who have started (SelfJoinCapTest has the rest).
         $this->roster = $this->manyPlayers(PaceService::MAX_PLAYERS);
+        foreach ($this->roster as $p) {
+            $this->progress[$p->getVoterToken()] = [$this->progressRow($p->getVoterToken())];
+        }
 
         $this->assertRejected('This quiz is full.', 'tok-neu', 'Cem');
     }
@@ -267,23 +277,31 @@ class SelfJoinTest extends TestCase {
         $this->assertRejected('Joining is closed for this quiz.', 'tok-neu', 'Cem');
     }
 
-    // ── Moderated mode unchanged ───────────────────────────────────────────
+    // ── Moderated mode ─────────────────────────────────────────────────────
 
-    public function testModeriertFasstPaceServiceNieAn(): void {
-        $pace = $this->createMock(PaceService::class);
-        $pace->expects($this->never())->method($this->anything());
-        $progress = $this->createMock(ProgressMapper::class);
-        $progress->expects($this->never())->method($this->anything());
-        (new ReflectionProperty(VoteService::class, 'paceService'))->setValue($this->service, $pace);
-        (new ReflectionProperty(VoteService::class, 'progressMapper'))->setValue($this->service, $progress);
-        // Moderated there is neither a cap nor a lock: even 300 players + the flag let new ones in.
-        $this->roster = $this->manyPlayers(PaceService::MAX_PLAYERS);
+    public function testModeriertNurDieRaumsperreKeineSelbstTempoPfade(): void {
+        // Moderated the join takes the room lock too (LiveQuizJoinTest), but
+        // never the self-paced paths: no progress, no forgetToken, no
+        // started-players cap — 599 joined players, far more than
+        // MAX_PLAYERS, still let a new one in (the moderated ceiling is
+        // MAX_JOINED, see LiveQuizJoinTest).
         $room = $this->room(0);
         $room->setPace('live');
-        $room->setJoinsLocked(true);
+        $this->locked = $room;
+        $this->pace->expects($this->never())->method('forgetToken');
+        $progress = $this->createMock(ProgressMapper::class);
+        $progress->expects($this->never())->method($this->anything());
+        (new ReflectionProperty(VoteService::class, 'progressMapper'))->setValue($this->service, $progress);
+        $polls = $this->createMock(PollMapper::class);
+        $polls->method('findByRoom')->willReturn([]);
+        (new ReflectionProperty(VoteService::class, 'pollMapper'))->setValue($this->service, $polls);
+        (new ReflectionProperty(VoteService::class, 'voteMapper'))->setValue($this->service, $this->createMock(VoteMapper::class));
+        $this->roster = $this->manyPlayers(PaceService::MAX_JOINED - 1);
         $this->expectRegister('tok-neu', 'Cem');
 
         $this->service->quizJoin($room, 'tok-neu', 'Cem');
+
+        $this->assertSame(1, $this->lockCalls);
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────

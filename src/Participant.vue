@@ -35,7 +35,7 @@
 						<p v-else class="muted review-hidden">{{ t('pulse', 'Not revealed yet.') }}</p>
 					</li>
 				</ol>
-				<Leaderboard v-if="review.leaderboard && review.leaderboard.length" :rows="review.leaderboard" :limit="10" />
+				<Leaderboard v-if="review.leaderboard && review.leaderboard.length" :rows="review.leaderboard" :limit="10" :me="review.leaderboardMe || null" />
 				<button class="pulse-btn is-secondary review-back" @click="closeReview">{{ t('pulse', 'Back') }}</button>
 			</div>
 
@@ -198,10 +198,10 @@
 					<p class="end-title">{{ t('pulse', 'Quiz finished') }}</p>
 					<div v-if="myRank" class="big-place">
 						<span class="big-place-n">{{ myRank.rank }}</span>
-						<span class="big-place-of">{{ t('pulse', 'of {total}', { total: leaderboard.length }) }} · {{ n('pulse', '%n point', '%n points', myRank.score) }}</span>
+						<span class="big-place-of">{{ t('pulse', 'of {total}', { total: leaderboardCount }) }} · {{ n('pulse', '%n point', '%n points', myRank.score) }}</span>
 					</div>
 					<!-- No podium replica: the podium is the big screen's job (§8.7). -->
-					<Leaderboard :rows="leaderboard" :limit="3" :top-only="rankContext.length > 0" />
+					<Leaderboard :rows="leaderboard" :limit="3" :top-only="rankContext.length > 0" :me="leaderboardMe" />
 					<template v-if="rankContext.length">
 						<p class="h-hint">{{ t('pulse', 'Around you') }}</p>
 						<Leaderboard :rows="rankContext" :limit="rankContext.length" />
@@ -587,6 +587,11 @@ export default {
 			joining: false,
 			myResult: null,
 			leaderboard: null,
+			// Public leaderboards are the top 10 only (lib/Service/PublicPayload.php):
+			// true length, one's own row and its neighbours come separately.
+			leaderboardTotal: 0,
+			leaderboardMe: null,
+			leaderboardAround: [],
 			// The selection before submitting (poll, single answer) and the
 			// submitted answer from the server state — we need both to keep
 			// your own card marked even after sending (§8.5).
@@ -716,8 +721,12 @@ export default {
 			return remainingPct(this.poll, this.remaining)
 		},
 		myRank() {
-			const rows = this.review ? (this.review.leaderboard || []) : (this.leaderboard || [])
-			return rows.find((r) => r.me) || null
+			const src = this.review || { leaderboard: this.leaderboard, leaderboardMe: this.leaderboardMe }
+			return (src.leaderboard || []).find((r) => r.me) || src.leaderboardMe || null
+		},
+		// "of {total}": the length of the whole leaderboard, not of the top 10 sent.
+		leaderboardCount() {
+			return Math.max(this.leaderboardTotal || 0, (this.leaderboard || []).length)
 		},
 		// Quiz ended: your own place first, not the last question (§8.7).
 		quizEnded() {
@@ -725,14 +734,16 @@ export default {
 				&& Array.isArray(this.leaderboard) && this.leaderboard.length > 0
 		},
 		// Leaderboard excerpt: your own place plus two above and two below.
+		// The server cuts it from the full list (leaderboardAround); the
+		// top 10 alone would lack it from place 11 on.
 		rankContext() {
 			const rows = this.leaderboard || []
 			const at = rows.findIndex((r) => r.me)
-			if (at < 0) return []
-			const from = Math.max(0, at - 2)
-			const slice = rows.slice(from, at + 3)
 			// If you are in the top 3 anyway, the excerpt would be a repetition.
-			return at < 3 ? [] : slice
+			if (at >= 0 && at < 3) return []
+			if (this.leaderboardAround.length) return this.leaderboardAround
+			if (at < 0) return []
+			return rows.slice(Math.max(0, at - 2), at + 3)
 		},
 		optCount() {
 			return (this.poll && Array.isArray(this.poll.options)) ? this.poll.options.length : 0
@@ -1075,6 +1086,9 @@ export default {
 			if ('nickname' in data) this.nickname = data.nickname
 			this.myResult = data.myResult || null
 			this.leaderboard = data.leaderboard || null
+			this.leaderboardTotal = data.leaderboardTotal || 0
+			this.leaderboardMe = data.leaderboardMe || null
+			this.leaderboardAround = Array.isArray(data.leaderboardAround) ? data.leaderboardAround : []
 			if (data.version !== undefined) this.version = data.version
 			// Moderated: room.pace is missing -> '' (isPaced off).
 			this.pace = (data.room && data.room.pace) || ''

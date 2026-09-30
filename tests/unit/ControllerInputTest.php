@@ -88,6 +88,8 @@ class ControllerInputTest extends TestCase {
         // `image[]=…`: PHP creates every field of the upload as a list.
         $this->request->method('getUploadedFile')->willReturn(['name' => ['a.png'], 'tmp_name' => ['/tmp/x'], 'error' => [0], 'size' => [1]]);
         $this->request->method('getRemoteAddress')->willReturn('192.0.2.1');
+        // Like the public bundle (@nextcloud/axios): participant POSTs need it (PublicCrossSiteTest).
+        $this->request->method('getHeader')->willReturnCallback(fn (string $name): string => $name === 'X-Requested-With' ? 'XMLHttpRequest' : '');
 
         $this->l10n = $this->createMock(IL10N::class);
         $this->l10n->method('t')->willReturnArgument(0);
@@ -464,10 +466,11 @@ class ControllerInputTest extends TestCase {
         $this->fallback = null;
         $this->cookie = $cookie;
 
-        // /state hands out a new cookie and thereby counts the person.
+        // /state hands out a new cookie; the person counts once it comes back
+        // (no presence row for a request without a cookie, PublicNewTokenTest).
         $response = $this->public()->state('ABCDEF');
         $this->assertSame(Http::STATUS_OK, $response->getStatus());
-        $this->assertSame([[self::FRESH]], $this->callsTo('heartbeat'));
+        $this->assertSame([], $this->callsTo('heartbeat'));
         $this->assertSame(self::FRESH, $response->getCookies()['pulse_vt']['value'] ?? null);
 
         // /summary reads without a cookie.
@@ -519,7 +522,7 @@ class ControllerInputTest extends TestCase {
             $this->assertDoesNotMatchRegularExpression('/\((?:string|int|float|bool)\)\s*\$this->request->/', $source, basename($file));
             $this->assertDoesNotMatchRegularExpression('/(?:intval|floatval|strval|settype|filter_var)\(\s*\$this->request->/', $source, basename($file));
         }
-        // Only PublicVoteController::voterToken() reads the voter cookie.
+        // Only PublicVoteController::cookieValue() reads the voter cookie.
         $controllers = dirname(__DIR__, 2) . '/lib/Controller/';
         $this->assertSame(1, substr_count((string)file_get_contents($controllers . 'PublicVoteController.php'), '->getCookie('));
         $this->assertSame(0, substr_count((string)file_get_contents($controllers . 'RoomApiController.php'), '->getCookie('));
@@ -563,6 +566,8 @@ class ControllerInputTest extends TestCase {
             $this->createMock(PaceStateService::class),
             $this->createMock(RoomMapper::class),
             $this->time,
+            $this->createMock(ILimiter::class),
+            new \OCA\Pulse\Service\Limits($this->createMock(\OCP\IAppConfig::class)),
         );
     }
 
@@ -582,6 +587,10 @@ class ControllerInputTest extends TestCase {
             $this->l10n,
             $this->pace,
             $this->createMock(ILimiter::class),
+            $this->createMock(\OCP\Security\Bruteforce\IThrottler::class),
+            $this->createMock(\OCP\IURLGenerator::class),
+            $this->createMock(\OCP\IAppConfig::class),
+            new \OCA\Pulse\Service\Limits($this->createMock(\OCP\IAppConfig::class)),
         );
     }
 

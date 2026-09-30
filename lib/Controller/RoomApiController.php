@@ -15,6 +15,7 @@ use OCA\Pulse\Service\ConflictException;
 use OCA\Pulse\Service\DeckService;
 use OCA\Pulse\Service\DemoService;
 use OCA\Pulse\Service\Input;
+use OCA\Pulse\Service\Limits;
 use OCA\Pulse\Service\NotOwnerException;
 use OCA\Pulse\Service\PaceService;
 use OCA\Pulse\Service\PaceStateService;
@@ -36,6 +37,8 @@ use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\IL10N;
 use OCP\IRequest;
 use OCP\IUserSession;
+use OCP\Security\RateLimiting\ILimiter;
+use OCP\Security\RateLimiting\IRateLimitExceededException;
 
 /**
  * Moderator API. Login required; CSRF protection stays on (the SPA sends the
@@ -51,6 +54,15 @@ use OCP\IUserSession;
  * Retention: every request that names one of the owner's rooms loads it
  * through ownedRoom() and thereby records owner activity (touch) — reading
  * and writing alike, in every room mode. See RoomService::lastActivity.
+ *
+ * Someone else's room answers exactly like an unknown code (404 "Room not
+ * found."), never 403: otherwise every logged-in account could test room
+ * codes here without the brute-force protection of the public routes.
+ *
+ * The actions that create something (room, copy, question, image, demo
+ * votes) are rate-limited per account (rateLimited, Limits); the reads are
+ * not — the presenter polls results and progress every one to two seconds,
+ * from several tabs at once, and a 429 there would freeze the live view.
  */
 class RoomApiController extends Controller {
     public function __construct(
@@ -68,6 +80,8 @@ class RoomApiController extends Controller {
         private PaceStateService $paceState,
         private RoomMapper $roomMapper,          // touch (owner activity, any room)
         private ITimeFactory $timeFactory,
+        private ILimiter $limiter,
+        private Limits $limits,
     ) {
         parent::__construct(Application::APP_ID, $request);
     }
@@ -96,9 +110,7 @@ class RoomApiController extends Controller {
         try {
             $room = $this->ownedRoom($code);
         } catch (DoesNotExistException) {
-            return new JSONResponse(['message' => $this->l10n->t('Room not found.')], Http::STATUS_NOT_FOUND);
-        } catch (NotOwnerException) {
-            return new JSONResponse(['message' => $this->l10n->t('No access to this room.')], Http::STATUS_FORBIDDEN);
+            return $this->roomNotFound();
         }
         $view = Input::str($this->request->getParam('view'));
         if (PaceService::isSelf($room) && ($view === 'players' || $view === 'answers')) {
@@ -123,17 +135,31 @@ class RoomApiController extends Controller {
 
     #[NoAdminRequired]
     public function create(): JSONResponse {
+        if ($limited = $this->rateLimited(Limits::RATE_CREATE)) {
+            return $limited;
+        }
         $mode = Input::str($this->request->getParam('mode'), 'poll');
         $title = Input::str($this->request->getParam('title'));
-        $room = $this->roomService->createRoom($this->uid(), $mode, $title);
+        try {
+            $room = $this->roomService->createRoom($this->uid(), $mode, $title);
+        } catch (\InvalidArgumentException $e) {
+            return new JSONResponse(['message' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
+        }
         return new JSONResponse($room, Http::STATUS_CREATED);
     }
 
     /** Copy a room as a template: questions yes, votes and participants no. */
     #[NoAdminRequired]
     public function duplicate(string $code): JSONResponse {
+        if ($limited = $this->rateLimited(Limits::RATE_DUPLICATE)) {
+            return $limited;
+        }
         return $this->withRoom($code, function ($room) {
-            $copy = $this->roomService->duplicateRoom($room, $this->uid());
+            try {
+                $copy = $this->roomService->duplicateRoom($room, $this->uid());
+            } catch (\InvalidArgumentException $e) {
+                return new JSONResponse(['message' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
+            }
             return new JSONResponse($this->deckService->roomView($copy), Http::STATUS_CREATED);
         });
     }
@@ -147,11 +173,15 @@ class RoomApiController extends Controller {
         });
     }
 
-    /** Quiz leaderboard (moderator; without the "me" marker). */
+    /**
+     * Quiz leaderboard (moderator; without the "me" marker). In a moderated
+     * quiz every row also carries `playerId` — the ID the `removePlayer`
+     * action of pace() takes; self-paced the IDs come with /progress.
+     */
     #[NoAdminRequired]
     public function leaderboard(string $code): JSONResponse {
         return $this->withRoom($code, function ($room) {
-            return new JSONResponse($this->voteService->leaderboardFor($room, null));
+            return new JSONResponse($this->voteService->leaderboardFor($room, null, [], true));
         });
     }
 
@@ -218,8 +248,11 @@ class RoomApiController extends Controller {
      * Control a self-paced quiz. Body: { action, … } with
      * `set` {pace} · `open` {closesAt, timed, feedback} · `close` {release} ·
      * `extend` {closesAt} · `release` · `lockJoins` · `unlockJoins` ·
-     * `removePlayer` {playerId}. Settings missing when opening take the
-     * default (a race without a deadline, homework with one). `close` without
+     * `removePlayer` {playerId}. The last three are player administration
+     * and work in a moderated (live) quiz as well: there `playerId` comes
+     * from leaderboard(), and a poll room gets 409. Settings missing when
+     * opening take the default (a race without a deadline, homework with
+     * one). `close` without
      * `release` releases, as before, exactly when there is no deadline (old
      * tabs, API clients); `release: false` closes without releasing ("Stop
      * without releasing", a single call), `release: true` always releases on closing.
@@ -271,9 +304,7 @@ class RoomApiController extends Controller {
         try {
             $room = $this->ownedRoom($code);
         } catch (DoesNotExistException) {
-            return new JSONResponse(['message' => $this->l10n->t('Room not found.')], Http::STATUS_NOT_FOUND);
-        } catch (NotOwnerException) {
-            return new JSONResponse(['message' => $this->l10n->t('No access to this room.')], Http::STATUS_FORBIDDEN);
+            return $this->roomNotFound();
         }
         if (!PaceService::isSelf($room)) {
             return new JSONResponse(['message' => $this->l10n->t('This room is not self-paced.')], Http::STATUS_CONFLICT);
@@ -295,6 +326,9 @@ class RoomApiController extends Controller {
 
     #[NoAdminRequired]
     public function addPoll(string $code): JSONResponse {
+        if ($limited = $this->rateLimited(Limits::RATE_ADD_POLL)) {
+            return $limited;
+        }
         return $this->withRoom($code, function ($room) {
             try {
                 $poll = $this->deckChange($room, fn (Room $r): Poll => $this->deckService->addPoll($r, [
@@ -415,9 +449,7 @@ class RoomApiController extends Controller {
         try {
             $room = $this->ownedRoom($code);
         } catch (DoesNotExistException) {
-            return new JSONResponse(['message' => $this->l10n->t('Room not found.')], Http::STATUS_NOT_FOUND);
-        } catch (NotOwnerException) {
-            return new JSONResponse(['message' => $this->l10n->t('No access to this room.')], Http::STATUS_FORBIDDEN);
+            return $this->roomNotFound();
         }
         try {
             $version = $this->stateService->resultsVersion($room, $pollId);
@@ -471,6 +503,9 @@ class RoomApiController extends Controller {
      */
     #[NoAdminRequired]
     public function uploadImage(string $code, int $pollId): JSONResponse {
+        if ($limited = $this->rateLimited(Limits::RATE_UPLOAD_IMAGE)) {
+            return $limited;
+        }
         return $this->withRoom($code, function ($room) use ($pollId) {
             try {
                 // null = no image sent along (response below)
@@ -520,11 +555,13 @@ class RoomApiController extends Controller {
     public function showImage(string $code, int $pollId): Response {
         try {
             $room = $this->ownedRoom($code);
+        } catch (DoesNotExistException) {
+            return $this->roomNotFound();
+        }
+        try {
             $poll = $this->deckService->requirePollInRoom($room, $pollId);
-        } catch (DoesNotExistException | \InvalidArgumentException) {
+        } catch (\InvalidArgumentException) {
             return new JSONResponse(['message' => $this->l10n->t('Not found.')], Http::STATUS_NOT_FOUND);
-        } catch (NotOwnerException) {
-            return new JSONResponse(['message' => $this->l10n->t('No access to this room.')], Http::STATUS_FORBIDDEN);
         }
         $img = $this->imageService->read($poll);
         if ($img === null) {
@@ -563,6 +600,9 @@ class RoomApiController extends Controller {
      */
     #[NoAdminRequired]
     public function demoSeed(string $code): JSONResponse {
+        if ($limited = $this->rateLimited(Limits::RATE_DEMO)) {
+            return $limited;
+        }
         return $this->withRoom($code, function ($room) {
             $count = Input::int($this->request->getParam('count')) ?? 25;
             try {
@@ -629,17 +669,43 @@ class RoomApiController extends Controller {
         try {
             $room = $this->ownedRoom($code);
         } catch (DoesNotExistException) {
-            return new JSONResponse(['message' => $this->l10n->t('Room not found.')], Http::STATUS_NOT_FOUND);
-        } catch (NotOwnerException) {
-            return new JSONResponse(['message' => $this->l10n->t('No access to this room.')], Http::STATUS_FORBIDDEN);
+            return $this->roomNotFound();
         }
         try {
             return $fn($room);
         } catch (ConflictException $e) {
             return new JSONResponse(['message' => $e->getMessage()], Http::STATUS_CONFLICT);
         } catch (RoomGoneException) {
-            return new JSONResponse(['message' => $this->l10n->t('Room not found.')], Http::STATUS_NOT_FOUND);
+            return $this->roomNotFound();
         }
+    }
+
+    /**
+     * The one answer for a room this account cannot use — unknown code and
+     * someone else's room alike (ownedRoom), so the two cannot be told apart.
+     */
+    private function roomNotFound(): JSONResponse {
+        return new JSONResponse(['message' => $this->l10n->t('Room not found.')], Http::STATUS_NOT_FOUND);
+    }
+
+    /**
+     * Rate limit of a creating action (Limits::rate, per account and
+     * Limits::RATE_PERIOD): null = go ahead, otherwise the 429 to return.
+     * Counted before the room is even loaded, like Nextcloud's own
+     * #[UserRateLimit] — which is not used here because its 429 carries no
+     * message for the toast.
+     */
+    private function rateLimited(string $action): ?JSONResponse {
+        $user = $this->userSession->getUser();
+        if ($user === null) {
+            return null; // not reachable without login; nothing to count against
+        }
+        try {
+            $this->limiter->registerUserRequest('pulse-' . $action, $this->limits->rate($action), Limits::RATE_PERIOD, $user);
+        } catch (IRateLimitExceededException) {
+            return new JSONResponse(['message' => $this->l10n->t('Too many attempts. Please wait a moment.')], Http::STATUS_TOO_MANY_REQUESTS);
+        }
+        return null;
     }
 
     /**
@@ -687,11 +753,17 @@ class RoomApiController extends Controller {
      * counts once — never per question it writes. The room list (index)
      * touches nothing: merely opening the app must not keep every room alive.
      *
-     * @throws DoesNotExistException room unknown
-     * @throws NotOwnerException     room belongs to someone else
+     * Someone else's room is reported exactly like an unknown code — the
+     * callers cannot even tell the two apart (see the class comment).
+     *
+     * @throws DoesNotExistException room unknown or someone else's
      */
     private function ownedRoom(string $code): Room {
-        $room = $this->roomService->getOwnedRoom($code, $this->uid());
+        try {
+            $room = $this->roomService->getOwnedRoom($code, $this->uid());
+        } catch (NotOwnerException) {
+            throw new DoesNotExistException('Room not found');
+        }
         $this->touch($room);
         return $room;
     }

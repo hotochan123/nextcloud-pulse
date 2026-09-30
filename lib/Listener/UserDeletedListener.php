@@ -19,15 +19,20 @@ use Psr\Log\LoggerInterface;
  * RoomService::deleteRoom, so questions, votes, players, presence, progress
  * and question images go as well, and the public room code stops working.
  * Otherwise the rooms would stay reachable under their codes with nobody
- * left to manage them — and participants alone could keep them alive past
- * the cleanup job indefinitely.
+ * left to manage them, and a new account that later got the same user ID
+ * would take them over.
  *
  * Runs after the account is gone (UserDeletedEvent). Nothing may escape from
  * here: an exception would abort Nextcloud's own clean-up of the account
  * halfway. A room that cannot be deleted is logged and skipped; the others
  * still go. deleteRoom removes the rows in one transaction (retried on a
- * deadlock), so a skipped room stays complete rather than half deleted, and
- * the cleanup job still removes it once nobody has used it for 30 days.
+ * deadlock), so a skipped room stays complete rather than half deleted.
+ *
+ * This listener only runs while Pulse is enabled. The daily cleanup job
+ * catches what it misses — a skipped room, or the rooms of an account
+ * deleted while Pulse was disabled: it deletes the rooms of every owner
+ * that no longer exists, however recently participants polled them
+ * (CleanupStaleRoomsJob::ownerGone, RoomService::cleanupOrphanedRooms).
  *
  * @template-implements IEventListener<UserDeletedEvent>
  */

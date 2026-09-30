@@ -91,6 +91,7 @@ class HostileInputTest extends TestCase {
             'codeGenerator' => $codes,
             'timeFactory' => $time,
             'l10n' => $l10n,
+            'limits' => new \OCA\Pulse\Service\Limits($this->createMock(\OCP\IAppConfig::class)),
         ] as $name => $value) {
             (new ReflectionProperty(DeckService::class, $name))->setValue($this->deck, $value);
         }

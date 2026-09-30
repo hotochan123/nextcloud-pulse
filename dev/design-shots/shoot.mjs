@@ -134,6 +134,27 @@ async function newSession(dark, extraPrefs = {}) {
 		cookie: (name) => call('GET', `/session/${id}/cookie/${name}`),
 		dropCookie: (name) => call('DELETE', `/session/${id}/cookie/${name}`),
 		addCookie: (cookie) => call('POST', `/session/${id}/cookie`, { cookie }),
+		// The voter cookie is __Host-pulse_vt on https with Nextcloud at the
+		// domain root and pulse_vt elsewhere (PublicVoteController::voterCookie).
+		voterCookie: async () => {
+			try {
+				return await s.cookie('__Host-pulse_vt')
+			} catch (e) {
+				return s.cookie('pulse_vt')
+			}
+		},
+		// Put a voter cookie back (on the page of its host). Without `domain`:
+		// Firefox would store it as a domain cookie, which a __Host- cookie must
+		// not be (NS_ERROR_ILLEGAL_VALUE); without it, it is host-only again.
+		addVoterCookie: (cookie) => {
+			const { domain, ...hostOnly } = cookie
+			return s.addCookie(hostOnly)
+		},
+		// Deleting a cookie that is not there is no error in WebDriver.
+		dropVoterCookie: async () => {
+			await s.dropCookie('__Host-pulse_vt')
+			await s.dropCookie('pulse_vt')
+		},
 		// Pointer into the corner: otherwise the hover of the last clicked button stays in the picture.
 		// Two steps: the input source remembers its position, so a second (1,1) would not be a move.
 		mouseAway: () => call('POST', `/session/${id}/actions`, { actions: [{ type: 'pointer', id: 'shots-mouse', parameters: { pointerType: 'mouse' },
@@ -2797,14 +2818,14 @@ async function pacePhonePass(s, dark) {
 	note('Geschlossen-Karte ' + secs(tLost) + ' nach „probe window closesAt=now-1" (Soll ≤ 4 s + Abruf)')
 
 	// Second phone without a name (cookie briefly removed): closed -> no joining.
-	const rika = await s.cookie('pulse_vt')
-	await s.dropCookie('pulse_vt')
+	const rika = await s.voterCookie()
+	await s.dropVoterCookie()
 	await phone({
 		name: 'pace-phone-shut', url: url(P.late.code), waitSel: card('shut'),
 		note: 'Geschlossen, ohne Namen: kein Namensbildschirm, nur „The quiz is closed."',
 	})
-	await s.dropCookie('pulse_vt')
-	await s.addCookie(rika)
+	await s.dropVoterCookie()
+	await s.addVoterCookie(rika)
 	probe('release', P.late.code)
 	await phone({
 		name: 'pace-phone-released', url: url(P.late.code), waitSel: '.big-place',
@@ -2828,7 +2849,7 @@ async function pacePhonePass(s, dark) {
 		await s.click(card('over') + ' .review-cta')
 		await waitFor(s, '.review')
 		await phone({ name: 'pace-phone-over-review', waitSel: '.review', note: '„See all results" nach der Freigabe' })
-		await s.dropCookie('pulse_vt')
+		await s.dropVoterCookie()
 		await phone({
 			name: 'pace-phone-over-anon', url: url(P.practice.code), waitSel: card('over'),
 			note: 'dasselbe ohne Namen: ohne Punkte, ohne Auswertung',

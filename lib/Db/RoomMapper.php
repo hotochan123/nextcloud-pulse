@@ -76,13 +76,27 @@ class RoomMapper extends QBMapper {
 
     /**
      * Lock the room row and read it fresh (SELECT … FOR UPDATE). Only useful inside
-     * a transaction (PaceService::locked). SQLite has no
-     * FOR UPDATE (DBAL throws "not supported") — there it stays a plain
-     * SELECT; the database's write lock serialises anyway.
+     * a transaction (PaceService::locked).
+     *
+     * SQLite has no FOR UPDATE (DBAL throws "not supported"). A transaction
+     * there that starts with a plain SELECT only holds a read snapshot (WAL
+     * mode): once a parallel transaction commits first, this one's first
+     * write fails at once with "database is locked" — the busy timeout does
+     * not wait in that case. Ten phones joining a quiz at the same moment got
+     * a 500 each that way. So on SQLite a no-op UPDATE of the row comes first:
+     * it takes the database's write lock at the start of the transaction, and
+     * parallel lockers wait for it (busy timeout) like behind FOR UPDATE.
      *
      * @throws DoesNotExistException
      */
     public function lockForUpdate(int $roomId): Room {
+        if ($this->db->getDatabaseProvider() === IDBConnection::PLATFORM_SQLITE) {
+            $write = $this->db->getQueryBuilder();
+            $write->update($this->getTableName())
+                ->set('id', 'id')
+                ->where($write->expr()->eq('id', $write->createNamedParameter($roomId, IQueryBuilder::PARAM_INT)));
+            $write->executeStatement();
+        }
         $qb = $this->db->getQueryBuilder();
         $qb->select('*')
             ->from($this->getTableName())

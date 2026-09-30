@@ -42,6 +42,14 @@ class AddinManifest {
 
         // The order of the elements is fixed by the Office schema; swap it and
         // PowerPoint rejects the manifest without a useful message.
+        // <Permissions>: the lowest level. js/pulse-embed.js only calls
+        // Office.context.document.settings get/set/saveAsync (the room code
+        // travels inside the .pptx), and Microsoft's permission table puts
+        // "the methods of the Settings object" under Restricted. Anything
+        // higher would let script that gets into /embed or /screen read or
+        // rewrite the whole presentation. Raise it only together with a new
+        // API that needs it — Settings.addHandlerAsync, PowerPoint.run and
+        // every other event or host-specific API need ReadWriteDocument.
         // The source language is English (as in the app), German sits next to it as an
         // override — Office picks by the language of the presenting computer,
         // not by the language in which someone downloads the manifest here.
@@ -82,8 +90,8 @@ class AddinManifest {
           <DefaultSettings>
             <SourceLocation DefaultValue="{$source}"/>
           </DefaultSettings>
-          <!-- ReadWriteDocument: Raumcode in den Dokument-Settings der .pptx ablegen. -->
-          <Permissions>ReadWriteDocument</Permissions>
+          <!-- Restricted: nur die Settings-API (Raumcode in der .pptx ablegen), kein Zugriff auf den Folieninhalt. -->
+          <Permissions>Restricted</Permissions>
         </OfficeApp>
 
         XML;

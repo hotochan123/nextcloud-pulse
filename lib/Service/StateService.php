@@ -245,9 +245,21 @@ class StateService {
     /**
      * Cheap fingerprint of the participant state: changes exactly when
      * something visible to participants changes (question switched, locked/
-     * revealed, timer restarted, new vote). Costs one row fetch + one
-     * COUNT — no tally. The client polls with `?v=<version>`; if it matches,
-     * the controller answers with 204 (tiny), otherwise with the full state.
+     * revealed, timer restarted, new vote). The client polls with
+     * `?v=<version>`; if it matches, the controller answers with 204 (tiny),
+     * otherwise with the full state.
+     *
+     * Cost during a question: the poll row plus the vote stamp
+     * (VoteMapper::changeStamp: two reads from the shared cache — no vote is
+     * read, no tally built), plus one presence COUNT for the audience view.
+     * In the lobby two COUNTs (presence, players). Only without a shared cache,
+     * or for two minutes after a vote was written inside a transaction, does
+     * the stamp read every vote payload of the question.
+     *
+     * Callers must build the version BEFORE the state they send along with
+     * it (see VoteMapper::changeStamp): a vote committed in between then
+     * changes the next version instead of hiding behind a 204.
+     *
      * Deliberately WITHOUT presence (only the moderator counts that; otherwise every
      * heartbeat would bump the version → everyone would poll in full all the time).
      *
@@ -255,7 +267,7 @@ class StateService {
      * a hash over the fully built state for this token (selfVersion).
      * $voterToken only matters there; when moderated, the version is the same for everyone.
      */
-    public function stateVersion(Room $room, bool $withPresence = false, ?string $voterToken = null): string {
+    public function stateVersion(Room $room, bool $withPresence = false, #[\SensitiveParameter] ?string $voterToken = null): string {
         if (PaceService::isSelf($room)) {
             return $this->selfVersion($this->paceState->publicState($room, $voterToken, $withPresence));
         }
@@ -275,7 +287,7 @@ class StateService {
         } catch (DoesNotExistException) {
             return $this->opaque('idle');
         }
-        // Content fingerprint instead of a plain count: a CHANGED poll
+        // Change stamp instead of a plain count: a CHANGED poll
         // answer (upsert) leaves the count unchanged, so it would be answered with 204
         // "unchanged" and the projector/live view would not update.
         // Grading free text, in turn, changes answerKey.
@@ -345,7 +357,7 @@ class StateService {
      * In self-paced mode only for people who have reached the question
      * ($voterToken from the cookie that the <img> sends along same-site).
      */
-    public function imageVisible(Room $room, Poll $poll, ?string $voterToken = null): bool {
+    public function imageVisible(Room $room, Poll $poll, #[\SensitiveParameter] ?string $voterToken = null): bool {
         if (PaceService::isSelf($room)) {
             return $this->paceState->imageVisible($room, $poll, $voterToken);
         }
@@ -401,9 +413,14 @@ class StateService {
      * received in relation to it ("12 of 24"). Only the audience view
      * asks for it; on the voting path the COUNT would be pure load.
      *
+     * Public tallies are capped (PublicPayload::tally), and in a quiz the
+     * leaderboard is the top 10 plus the viewer's own row in extra fields
+     * (PublicPayload::withLeaderboard) — every phone refetches this after
+     * each vote.
+     *
      * @return array{protocol:int, room:array{code:string}, poll:?array, results:?array, hasVoted:bool, myValue:mixed}
      */
-    public function publicState(Room $room, ?string $voterToken, bool $withPresence = false): array {
+    public function publicState(Room $room, #[\SensitiveParameter] ?string $voterToken, bool $withPresence = false): array {
         if (PaceService::isSelf($room)) {
             return $this->paceState->publicState($room, $voterToken, $withPresence);
         }
@@ -426,7 +443,8 @@ class StateService {
         if ($quiz) {
             $base['nickname'] = $this->voteService->playerNickname($room, $voterToken);
             $base['myResult'] = null;
-            $base['leaderboard'] = null;
+            // leaderboard plus leaderboardTotal/Me/Around (PublicPayload::withLeaderboard)
+            $base = PublicPayload::withLeaderboard($base, null);
             $base['practice'] = $room->getPractice();
         }
 
@@ -484,8 +502,9 @@ class StateService {
 
         if ($quiz) {
             // Live bars only on reveal — before that the distribution would be a spoiler.
+            // Public tallies are capped (PublicPayload::tally); the moderator's stay full.
             $base['results'] = $revealed
-                ? $this->tallyService->tally($poll, $this->voteMapper->findByPoll($poll->getId()))
+                ? PublicPayload::tally($this->tallyService->tally($poll, $this->voteMapper->findByPoll($poll->getId())))
                 : null;
             if ($hasVoted) {
                 $d = json_decode($myVote->getPayload(), true) ?: [];
@@ -498,15 +517,16 @@ class StateService {
             // stays, so the questions can be checked while testing).
             // Without questions that are still hidden (e.g. skipped ones) — except at the end:
             // the final standings count everything, just as for the moderator.
+            // Top 10 plus the viewer's own row (PublicPayload::withLeaderboard).
             if ($revealed && !$room->getPractice()) {
-                $base['leaderboard'] = $this->voteService->leaderboardFor(
+                $base = PublicPayload::withLeaderboard($base, $this->voteService->leaderboardFor(
                     $room,
                     $voterToken,
                     $poll->getStatus() === 'ended' ? [] : $this->hiddenPollIds($room),
-                );
+                ));
             }
         } else {
-            $base['results'] = $this->tallyService->tally($poll, $this->voteMapper->findByPoll($poll->getId()));
+            $base['results'] = PublicPayload::tally($this->tallyService->tally($poll, $this->voteMapper->findByPoll($poll->getId())));
         }
 
         return $base;
@@ -530,9 +550,11 @@ class StateService {
      * `available` tells the client whether there is anything to show at all;
      * questions that are not released come out without results and without a solution.
      *
-     * @return array{available:bool, mode:string, practice:bool, title:string, leaderboard:?list<array>, items:list<array{poll:array, revealed:bool, results:?array, mine:?array}>}
+     * The leaderboard is capped like in publicState (PublicPayload::withLeaderboard).
+     *
+     * @return array{available:bool, mode:string, practice:bool, title:string, leaderboard:?list<array>, leaderboardTotal:int, leaderboardMe:?array, leaderboardAround:list<array>, items:list<array{poll:array, revealed:bool, results:?array, mine:?array}>}
      */
-    public function publicSummary(Room $room, ?string $voterToken): array {
+    public function publicSummary(Room $room, #[\SensitiveParameter] ?string $voterToken): array {
         if (PaceService::isSelf($room)) {
             return $this->paceState->publicSummary($room, $voterToken);
         }
@@ -582,27 +604,30 @@ class StateService {
                 'poll' => $pollData,
                 'revealed' => $revealed,
                 'results' => $revealed
-                    ? $this->tallyService->tally($poll, $this->voteMapper->findByPoll($poll->getId()))
+                    ? PublicPayload::tally($this->tallyService->tally($poll, $this->voteMapper->findByPoll($poll->getId())))
                     : null,
                 'mine' => $this->myAnswer($poll, $voterToken, $quiz, $revealed),
             ];
         }
 
-        return [
+        // Leaderboard only when there is something to see and it is not a practice run —
+        // and without any question that is still hidden (the running one as well as a
+        // skipped one): otherwise the score would show whether the answer
+        // was right before the question is revealed. At the end everything counts,
+        // so that phone, projector and moderator show the same final standings.
+        $leaderboard = ($quiz && $anyRevealed && !$room->getPractice())
+            ? $this->voteService->leaderboardFor($room, $voterToken, $endReached ? [] : $hidden)
+            : null;
+
+        // Top 10 plus the viewer's own row, like publicState.
+        return PublicPayload::withLeaderboard([
             'available' => $anyRevealed,
             'mode' => $room->getMode(),
             'practice' => $room->getPractice(),
             'title' => $room->titleOrEmpty(),
-            // Leaderboard only when there is something to see and it is not a practice run —
-            // and without any question that is still hidden (the running one as well as a
-            // skipped one): otherwise the score would show whether the answer
-            // was right before the question is revealed. At the end everything counts,
-            // so that phone, projector and moderator show the same final standings.
-            'leaderboard' => ($quiz && $anyRevealed && !$room->getPractice())
-                ? $this->voteService->leaderboardFor($room, $voterToken, $endReached ? [] : $hidden)
-                : null,
+            'leaderboard' => null,
             'items' => $items,
-        ];
+        ], $leaderboard);
     }
 
     /**
@@ -634,7 +659,7 @@ class StateService {
      *
      * @return ?array{value:mixed, correct:?bool, points:?int}
      */
-    private function myAnswer(Poll $poll, ?string $voterToken, bool $quiz, bool $revealed): ?array {
+    private function myAnswer(Poll $poll, #[\SensitiveParameter] ?string $voterToken, bool $quiz, bool $revealed): ?array {
         if ($voterToken === null || $voterToken === '') {
             return null;
         }

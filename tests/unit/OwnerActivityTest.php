@@ -134,7 +134,8 @@ class OwnerActivityTest extends TestCase {
 
         $response = $this->controller()->show('ABCDEF');
 
-        $this->assertSame(Http::STATUS_FORBIDDEN, $response->getStatus());
+        // 404 like an unknown code (RoomApiNotFoundTest), and no touch.
+        $this->assertSame(Http::STATUS_NOT_FOUND, $response->getStatus());
         $this->assertSame([], $this->touches);
     }
 
@@ -247,6 +248,8 @@ class OwnerActivityTest extends TestCase {
             $this->createMock(PaceStateService::class),
             $mapper,
             $time,
+            $this->createMock(\OCP\Security\RateLimiting\ILimiter::class),
+            new \OCA\Pulse\Service\Limits($this->createMock(\OCP\IAppConfig::class)),
         );
     }
 

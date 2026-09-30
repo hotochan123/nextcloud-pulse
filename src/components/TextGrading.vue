@@ -28,7 +28,8 @@
 			</li>
 		</ul>
 		<p v-else class="tg-empty">{{ t('pulse', 'No answers yet.') }}</p>
-		<p class="tg-total">{{ n('pulse', '%n mention', '%n mentions', results.total) }}<span v-if="results.answers.length"> · {{ t('pulse', '{count} different', { count: results.answers.length }) }}</span></p>
+		<p v-if="moreCount" class="tg-more">{{ t('pulse', '+{count} more', { count: moreCount }) }}</p>
+		<p class="tg-total">{{ n('pulse', '%n mention', '%n mentions', results.total) }}<span v-if="results.answers.length"> · {{ t('pulse', '{count} different', { count: distinctCount }) }}</span></p>
 	</div>
 </template>
 
@@ -58,6 +59,15 @@ export default {
 	computed: {
 		acceptedList() {
 			return (this.results && this.results.accepted) || []
+		},
+		// Public tallies carry the 100 most frequent answer groups
+		// (lib/Service/PublicPayload.php), answersTotal counts all of them. The
+		// moderator's tally is complete and has no answersTotal.
+		distinctCount() {
+			return Math.max(this.results.answersTotal || 0, this.results.answers.length)
+		},
+		moreCount() {
+			return this.distinctCount - this.results.answers.length
 		},
 	},
 }
@@ -93,6 +103,7 @@ export default {
 .tg-status.is-accepted { color: var(--pulse-success); }
 .tg-status.is-rejected { color: var(--pulse-error); }
 .tg-status.is-open { color: var(--pulse-text-2); }
-.tg-empty, .tg-total { color: var(--pulse-text-2); font-size: 0.85em; }
+.tg-empty, .tg-total, .tg-more { color: var(--pulse-text-2); font-size: 0.85em; }
+.tg-more { margin: 0.5em 0 0; padding-inline-start: 0.25em; }
 .tg-total { margin-top: 0.8em; text-align: right; }
 </style>

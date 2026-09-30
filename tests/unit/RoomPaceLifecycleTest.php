@@ -93,6 +93,7 @@ class RoomPaceLifecycleTest extends TestCase {
             'timeFactory' => $time,
             'l10n' => $l10n,
             'db' => $db,
+            'limits' => new \OCA\Pulse\Service\Limits($this->createMock(\OCP\IAppConfig::class)),
         ] as $name => $value) {
             (new ReflectionProperty(RoomService::class, $name))->setValue($this->service, $value);
         }

@@ -1,6 +1,13 @@
 OC.L10N.register(
     "pulse",
     {
+        "A room can hold at most %d questions.": "Ein Raum kann höchstens %d Fragen enthalten.",
+        "Remove names that do not belong in the quiz. Once everyone is in, lock joining in the menu.": "Entferne Namen, die nicht ins Quiz gehören. Wenn alle drin sind, sperre den Beitritt im Menü.",
+        "The answers of {name} are deleted and the name becomes free. They can join again, but start from zero points — unless joining is locked.": "Die Antworten von {name} werden gelöscht, der Name wird frei. Die Person kann wieder beitreten, beginnt aber bei null Punkten — außer der Beitritt ist gesperrt.",
+        "The image was changed at the same time elsewhere. Please try again.": "Das Bild wurde gleichzeitig an anderer Stelle geändert. Bitte versuche es noch einmal.",
+        "The images of your rooms have reached the storage limit of %d MB. Remove images or rooms you no longer need.": "Die Bilder deiner Räume haben die Speichergrenze von %d MB erreicht. Entferne Bilder oder Räume, die du nicht mehr brauchst.",
+        "The question can be at most %d characters long.": "Die Frage darf höchstens %d Zeichen lang sein.",
+        "You can have at most %d rooms. Delete rooms you no longer need.": "Du kannst höchstens %d Räume haben. Lösche Räume, die du nicht mehr brauchst.",
         "_%n answer_::_%n answers_": [
             "%n Antwort",
             "%n Antworten"
@@ -455,7 +462,6 @@ OC.L10N.register(
         "Next question": "Nächste Frage",
         "Nextcloud sends \"X-Frame-Options: SAMEORIGIN\" for the Pulse embed page, so a PowerPoint slide shows an empty box instead of the poll. Checked: %s. This only affects the PowerPoint add-in — remove that header in the web server or proxy, and only for the paths /apps/pulse/embed and /apps/pulse/screen/. The projector view in a second window works either way.": "Nextcloud sendet für die Pulse-Einbettseite „X-Frame-Options: SAMEORIGIN\", deshalb zeigt eine PowerPoint-Folie einen leeren Kasten statt der Umfrage. Geprüft: %s. Betrifft nur das PowerPoint-Add-in: den Header im Webserver oder Proxy entfernen, und zwar nur für die Pfade /apps/pulse/embed und /apps/pulse/screen/. Die Beamer-Ansicht im zweiten Fenster funktioniert so oder so.",
         "no": "nein",
-        "No access to this room.": "Kein Zugriff auf diesen Raum.",
         "No active question — please show a question first.": "Keine aktive Frage — bitte zuerst eine Frage zeigen.",
         "No active question.": "Keine aktive Frage.",
         "No answer received": "Keine Antwort eingegangen",

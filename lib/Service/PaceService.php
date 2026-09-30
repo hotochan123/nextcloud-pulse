@@ -55,11 +55,41 @@ class PaceService {
     public const MIN_LEAD = 60;
     /** Deadline at most this far in the future. */
     public const MAX_LEAD = 30 * 86400;
-    /** Maximum number of players per self-paced room (spam cap on joining). */
+    /**
+     * Maximum number of players per self-paced room who have started (a
+     * progress row) — the spam cap on joining. Joins that never start do not
+     * count (VoteService::makeRoomForNewPlayer).
+     */
     public const MAX_PLAYERS = 300;
-    /** Joins per IP and self-paced room: 120 in 10 min. */
-    public const JOIN_LIMIT = 120;
+    /**
+     * Ceiling of joined players per quiz room: self-paced started or not,
+     * and in a moderated quiz as well (VoteService::liveJoin). The default of
+     * Limits::PLAYERS_PER_ROOM, which an instance can change.
+     */
+    public const MAX_JOINED = 2 * self::MAX_PLAYERS;
+    /** At the ceiling, a player who never started makes room after this many seconds. */
+    public const STALE_JOIN = 600;
+    /**
+     * /join requests per IP and quiz room in JOIN_PERIOD (PublicVoteController),
+     * in both modes: only a flood guard. Every join takes the room lock and
+     * compares the name with every player, so an unbounded stream from one
+     * address would hold up everyone else's joins. Far above what a class or
+     * a conference behind one NAT address sends — at most MAX_JOINED players,
+     * each joining a few times. What bounds new names is NEW_PLAYER_LIMIT
+     * (self-paced) and the caps, which count successful joins, not requests
+     * (security review L4). An instance that raises the ceiling
+     * (Limits::PLAYERS_PER_ROOM) raises this with it: joinLimit().
+     */
+    public const JOIN_LIMIT = 4 * self::MAX_JOINED;
     public const JOIN_PERIOD = 600;
+    /**
+     * NEW players per IP and self-paced room in JOIN_PERIOD
+     * (VoteService::countNewPlayer) — the default of
+     * Limits::NEW_PLAYERS_PER_ADDRESS. As many as the 120 join requests the
+     * old flood guard allowed, so no class behind one NAT address that could
+     * join before is turned away now; every retry is free on top.
+     */
+    public const NEW_PLAYER_LIMIT = 120;
 
     public function __construct(
         private RoomMapper $roomMapper,
@@ -76,6 +106,15 @@ class PaceService {
     }
 
     // ── Pure functions ──────────────────────────────────────────────────────
+
+    /**
+     * /join requests per IP and quiz room in JOIN_PERIOD for a ceiling of
+     * $maxJoined players (Limits::PLAYERS_PER_ROOM): four per possible
+     * player, never below JOIN_LIMIT.
+     */
+    public static function joinLimit(int $maxJoined): int {
+        return max(self::JOIN_LIMIT, 4 * $maxJoined);
+    }
 
     /** Does the room run self-paced? Only quiz rooms can. */
     public static function isSelf(Room $room): bool {
@@ -129,7 +168,7 @@ class PaceService {
      * closing, and a CSV taken right then would be missing points. No leak:
      * correcting is no longer possible from that point anyway.
      */
-    public static function isFinal(array $payload, int $createdAt, int $now, bool $correctable = true): bool {
+    public static function isFinal(#[\SensitiveParameter] array $payload, int $createdAt, int $now, bool $correctable = true): bool {
         return !empty($payload['fixed'])
             || !$correctable
             || ($now - $createdAt) > (int)($payload['fw'] ?? VoteService::FIX_WINDOW);
@@ -509,14 +548,15 @@ class PaceService {
     /**
      * "Lock joining": new tokens are rejected, known players
      * still get in. A countermeasure against throwaway players, allowed in
-     * every window state.
+     * every window state — and in a moderated (live) quiz as well, where
+     * VoteService::liveJoin honours it the same way.
      *
      * @return Room freshly loaded
-     * @throws ConflictException not a self room
+     * @throws ConflictException not a quiz room
      */
     public function setJoinsLocked(Room $room, bool $locked): Room {
         return $this->locked($room, function (Room $r) use ($locked): Room {
-            $this->assertSelf($r);
+            $this->assertQuiz($r);
             $r->setJoinsLocked($locked);
             $this->roomMapper->update($r);
             return $this->reload($r);
@@ -536,13 +576,21 @@ class PaceService {
      * it in assertStillJoined instead of leaving an orphaned vote or row
      * behind.
      *
+     * Also in a moderated (live) quiz: there it takes the player and their
+     * votes on every question of the room off the leaderboard, at any time,
+     * also after the final standings. A live /vote does not re-check after
+     * writing (no assertStillJoined there): a vote written in the same
+     * instant can remain without a player — it adds one answer to that
+     * question's distribution, never a leaderboard row, and a new name for
+     * the same cookie starts empty (VoteService::liveJoin).
+     *
      * @return Room freshly loaded
-     * @throws ConflictException         not a self room
+     * @throws ConflictException         not a quiz room
      * @throws \InvalidArgumentException the ID belongs to no player of this room
      */
     public function removePlayer(Room $room, int $playerId): Room {
         return $this->locked($room, function (Room $r) use ($playerId): Room {
-            $this->assertSelf($r);
+            $this->assertQuiz($r);
             $player = null;
             foreach ($this->playerMapper->findByRoom($r->getId()) as $p) {
                 if ((int)$p->getId() === $playerId) {
@@ -566,8 +614,9 @@ class PaceService {
      * presence stay. For removePlayer, the re-join of a removed
      * cookie (VoteService::selfJoin) and assertStillJoined.
      */
-    public function forgetToken(Room $room, string $voterToken): void {
+    public function forgetToken(Room $room, #[\SensitiveParameter] string $voterToken): void {
         // Opened: the frozen deck; in the draft there are no self votes.
+        // A moderated room is never opened: every question of the room.
         $pollIds = $room->getOpenedAt() > 0
             ? self::order($room)
             : array_map(static fn (Poll $p): int => $p->getId(), $this->pollMapper->findByRoom($room->getId()));
@@ -592,7 +641,7 @@ class PaceService {
      *         without a name / $after < 0
      * @throws RoomGoneException          the room was deleted in the meantime
      */
-    public function next(Room $room, string $voterToken, int $after): void {
+    public function next(Room $room, #[\SensitiveParameter] string $voterToken, int $after): void {
         if (!self::isSelf($room)) {
             throw new \InvalidArgumentException($this->l10n->t('This room is not self-paced.'));
         }
@@ -665,7 +714,7 @@ class PaceService {
      * @throws \InvalidArgumentException 'Please choose a name first.'
      * @throws RoomGoneException          the room was deleted in the meantime
      */
-    public function assertStillJoined(Room $room, string $voterToken): void {
+    public function assertStillJoined(Room $room, #[\SensitiveParameter] string $voterToken): void {
         if ($this->playerMapper->existsForUpdate($room->getId(), $voterToken)) {
             return;
         }
@@ -687,12 +736,23 @@ class PaceService {
 
     /**
      * Preview lock: with a timer an UNANSWERED question may only be left after
-     * the time has run out (same boundary as /vote: elapsed > limit). Otherwise
-     * a throwaway player pages through the whole deck with n requests while
-     * the clock of their main cookie has not even started. Without a timer there
-     * are no speed points to win — there it moves on immediately.
+     * the time has run out (same boundary as /vote: elapsed > limit), so that
+     * skipping a question is never faster than answering it. Without a timer
+     * there are no speed points to win — there it moves on immediately.
+     *
+     * What it does NOT stop: an ANSWERED question is left at once (a race
+     * must not hold back whoever answers fast). A second cookie that answers
+     * anything therefore reads the whole timed deck in 2n requests, one
+     * /vote and one /next per question, before the clock of the main cookie
+     * has started. And since leaving makes an answer final at once
+     * (isFinal: no longer correctable), with feedback 'each' every such
+     * answer's verdict shows immediately — k-1 throwaway cookies find the
+     * right option of a k-option question. Only the number of cookies is
+     * bounded (join limits, caps, "Lock joining"). Holding answered questions
+     * until the limit would break the race; the README's security notes
+     * recommend feedback 'end' and identifiable participants for graded use.
      */
-    private function previewLocked(Room $room, Poll $poll, Progress $open, string $voterToken, int $now): bool {
+    private function previewLocked(Room $room, Poll $poll, Progress $open, #[\SensitiveParameter] string $voterToken, int $now): bool {
         $limit = $poll->getTimeLimit();
         if (!$room->getTimed() || $limit <= 0 || $now - $open->getStartedAt() > $limit) {
             return false;
@@ -708,12 +768,12 @@ class PaceService {
     /**
      * @return Progress[] a person's rows, ascending by seq
      */
-    public function rows(Room $room, string $voterToken): array {
+    public function rows(Room $room, #[\SensitiveParameter] string $voterToken): array {
         return $this->progressMapper->findByRoomAndToken($room->getId(), $voterToken);
     }
 
     /** A person's currently open row (left_at = 0), null if there is none. */
-    public function openRow(Room $room, string $voterToken): ?Progress {
+    public function openRow(Room $room, #[\SensitiveParameter] string $voterToken): ?Progress {
         return self::openOf($this->rows($room, $voterToken));
     }
 
@@ -723,6 +783,18 @@ class PaceService {
     private function assertSelf(Room $room): void {
         if (!self::isSelf($room)) {
             throw new ConflictException($this->l10n->t('This room is not self-paced.'));
+        }
+    }
+
+    /**
+     * Player administration (lock joining, remove) exists in every quiz
+     * room, self-paced or moderated.
+     *
+     * @throws ConflictException
+     */
+    private function assertQuiz(Room $room): void {
+        if ($room->getMode() !== 'quiz') {
+            throw new ConflictException($this->l10n->t('This room is not a quiz.'));
         }
     }
 

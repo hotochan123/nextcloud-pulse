@@ -36,12 +36,16 @@ those passes.
 | Word keys | ❤️/❤ (variation selector) and `guter  Kaffee` (double whitespace) are one word each, displayed in the first spelling |
 | Running question edited | poll without votes: open phones fetch the new version, a vote with the new IDs goes through |
 | Practice run switch | switching clears test participants and test votes; phone and projector in the lobby learn about it |
+| Live quiz: players | a new name in the middle of a question changes no version (projector 204); renaming after the first answer is refused; "Lock joining" turns new names away, known players get back in; the moderator leaderboard carries `playerId`, the public one never; removing a player takes them and their answer off the leaderboard, the projector learns about it at once (new version), the phone has no name, a locked room keeps the cookie out, unlocked it joins again with the same name at zero points; a poll room answers 409 |
+| Live quiz: joining at once | 30 phones join at the same moment, all 200 and each name once on the leaderboard (on SQLite the room lock used to fail with "database is locked"); four phones joining as the same name at the same moment: exactly one gets it |
 | Self-paced: race | no deadline, with timer, verdict per question; cursor controls and (from opening on) the deck are locked (409), personal clock from `/next`, preview lock, correction only within the window of the first answer, time running out, free text "Being checked" and grading, name fixed after starting, "Lock joining", removing a person, closing = release, both CSV views, resetting and switching back to moderated |
 | Self-paced: homework | deadline (1 min–30 days, from the server clock), no timer, verdict only with the release; the deadline passes without a moderator, extending, closing without release, releasing; a flat 1000 points, CSV without times |
-| Self-paced: practice run | "verdict at the end" becomes "per question", never a leaderboard (phone, projector, `/summary`; moderator `[]`), join limit per IP and room |
+| Self-paced: practice run | "verdict at the end" becomes "per question", never a leaderboard (phone, projector, `/summary`; moderator `[]`), 130 refused joins of the same person are never 429 (failed and repeated joins cost nothing, only a far-off flood guard counts requests) |
+| Self-paced: new names per address | 120 new names from one address per room (the default of `max_new_players_per_address`), the 121st is 429 without a cookie; the spelling of your own name, a taken name and a known player do not count |
 | Self-paced: stop without releasing | `close {release:false}` in one call: closed, deadline 0, not released, vote immediately final, phone/projector without final standings; invalid `release` is 400 without effect; `close` on a closed window is a no-op (also with `release`); the old two-step path (deadline in 120 s, then `close`) works as before; `release: "false"` as a string; `release: true` releases with a deadline |
 | Self-paced: race conditions | truly parallel, with the phone's delay swept across the measured runtime difference moderator − phone: removing against `/vote` and `/next`, grading against an answer and against its correction |
-| Hostile input | lists/objects instead of text or a number in moderator and phone parameters (JSON and form), 1e100/1e999, NUL, broken UTF-8, foreign `pulse_vt` cookies (list, overlong, broken): never 500, but 400 with the usual message, the default or a new cookie; a free-text answer with NUL stays gradable |
+| Hostile input | lists/objects instead of text or a number in moderator and phone parameters (JSON and form), 1e100/1e999, NUL, broken UTF-8, foreign voter cookies (list, overlong, broken): never 500, but 400 with the usual message, the default or a new cookie; a free-text answer with NUL stays gradable |
+| Browser checks | a participant POST without `X-Requested-With` or with `Sec-Fetch-Site: cross-site`/`same-site` is 403 without a cookie, `same-origin` goes through; a cookie name sent twice counts as none (new cookie); on https with an empty webroot a legacy `pulse_vt` moves to `__Host-pulse_vt` (the old one expires) and a planted `pulse_vt` next to `__Host-pulse_vt` is ignored; a phone's first `/state` issues the cookie but only its second one counts it as present |
 
 ## What is checked
 
@@ -106,7 +110,11 @@ Additionally for self-paced:
   in `dev/design-shots`, password in `dev/design-shots/.shots-pass`),
   determines the container IP and starts `sim.mjs`.
 - The moderator talks to the API with Basic auth + `OCS-APIRequest: true` (no
-  CSRF token needed); every phone keeps its own `pulse_vt` cookie.
+  CSRF token needed); every phone keeps its own voter cookie — `__Host-pulse_vt`
+  when the instance counts as https with an empty webroot (`overwriteprotocol`
+  applies to the direct container requests too), otherwise `pulse_vt` — and,
+  like the public bundle (`@nextcloud/axios`), sends
+  `X-Requested-With: XMLHttpRequest`: participant POSTs without it are 403.
 - The requests go directly to the container, not through the proxy. The IP is
   not a `trusted_domain`, so `sim.mjs` sends `Host: localhost` — and uses
   `node:http` for that, because `fetch` overwrites the Host header.
@@ -160,7 +168,7 @@ the fresh key stores the old routes for an hour. No container restart needed.
 
 ## Load run
 
-`dev/sim/load.mjs` is a separate load run for the self-paced quiz: 100 phones
+`dev/sim/load.mjs` is a separate load run for the self-paced quiz: 60 phones
 join a freshly opened race room, answer and tap "Next question" at the pace the
 phone UI uses, while a moderator polls `/progress` and a projector polls
 `/state?spectate=1`. It prints p50/p95 per endpoint, status code shares and
@@ -172,10 +180,10 @@ PULSE_SIM_URL=http://<container-ip> PULSE_SIM_PASS="$(cat dev/design-shots/.shot
   node dev/sim/load.mjs
 ```
 
-Settings: `LOAD_PHONES` (default 100, at most 110 — `/join` allows 120
-attempts per IP and room in 10 min), `LOAD_SECS` (load phase, default 90),
-`LOAD_TAIL_SECS` (final standings polling, default 30). On a live instance run
-it only at a quiet time, and only once.
+Settings: `LOAD_PHONES` (default and at most 60 — one address may add 60 new
+players per room in 10 min, more would only measure the 429), `LOAD_SECS`
+(load phase, default 90), `LOAD_TAIL_SECS` (final standings polling, default
+30). On a live instance run it only at a quiet time, and only once.
 
 ## Limit
 

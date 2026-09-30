@@ -24,8 +24,11 @@ class PresenceMapper extends QBMapper {
     /**
      * Heartbeat: set this token's last_seen to now (upsert on
      * room_id+voter_token). Called on every participant poll.
+     *
+     * @param ?\Closure(): bool $mayInsert asked only when the token has no row
+     *        yet; false = add none (RoomService::heartbeat)
      */
-    public function touch(int $roomId, string $voterToken, int $now): void {
+    public function touch(int $roomId, #[\SensitiveParameter] string $voterToken, int $now, ?\Closure $mayInsert = null): void {
         try {
             $row = $this->findByRoomAndToken($roomId, $voterToken);
             $row->setLastSeen($now);
@@ -33,6 +36,9 @@ class PresenceMapper extends QBMapper {
             return;
         } catch (DoesNotExistException) {
             // no row yet -> create one below
+        }
+        if ($mayInsert !== null && !$mayInsert()) {
+            return;
         }
 
         $row = new Presence();
@@ -57,7 +63,7 @@ class PresenceMapper extends QBMapper {
     /**
      * @throws DoesNotExistException this token has never been active in this room
      */
-    public function findByRoomAndToken(int $roomId, string $voterToken): Presence {
+    public function findByRoomAndToken(int $roomId, #[\SensitiveParameter] string $voterToken): Presence {
         $qb = $this->db->getQueryBuilder();
         $qb->select('*')
             ->from($this->getTableName())
@@ -115,7 +121,7 @@ class PresenceMapper extends QBMapper {
     }
 
     /** Remove a person from the room (PaceService::removePlayer). */
-    public function deleteByRoomAndToken(int $roomId, string $voterToken): void {
+    public function deleteByRoomAndToken(int $roomId, #[\SensitiveParameter] string $voterToken): void {
         $qb = $this->db->getQueryBuilder();
         $qb->delete($this->getTableName())
             ->where($qb->expr()->eq('room_id', $qb->createNamedParameter($roomId, IQueryBuilder::PARAM_INT)))

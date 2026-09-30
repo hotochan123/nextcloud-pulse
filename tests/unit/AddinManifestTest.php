@@ -119,6 +119,31 @@ class AddinManifestTest extends TestCase {
     }
 
     /**
+     * The add-in asks for the lowest permission level (security review, L11).
+     * js/pulse-embed.js only uses the Settings API (the room code stored in
+     * the .pptx), which Restricted covers; ReadWriteDocument would let script
+     * that gets into /embed or /screen read and rewrite the whole deck. The
+     * ID stays, so Office still updates the add-in in place.
+     */
+    public function testManifestAsksForRestrictedOnly(): void {
+        $xml = $this->manifest->build('https://x.example', 'https://x.example/apps/pulse/embed', '0.18.0');
+        $doc = simplexml_load_string($xml);
+        $this->assertNotFalse($doc);
+        $doc->registerXPathNamespace('o', 'http://schemas.microsoft.com/office/appforoffice/1.1');
+
+        $this->assertSame(['Restricted'], array_map('strval', $doc->xpath('/o:OfficeApp/o:Permissions')));
+        $this->assertSame('c941db89-f0ae-45c6-b685-e94eecc47c91', AddinManifest::ADDIN_ID);
+
+        // What the embed shell calls must stay within Restricted: the
+        // Settings methods get/set/saveAsync — no handlers, no host APIs.
+        $embed = (string)file_get_contents(dirname(__DIR__, 2) . '/js/pulse-embed.js');
+        $this->assertStringContainsString('settingsApi.saveAsync', $embed);
+        foreach (['addHandlerAsync', 'PowerPoint.run', 'getFileAsync', 'getSelectedDataAsync', 'setSelectedDataAsync', 'customXmlParts', 'bindings'] as $api) {
+            $this->assertStringNotContainsString($api, $embed, $api . ' needs more than Restricted — raise <Permissions> with it');
+        }
+    }
+
+    /**
      * Addresses end up unescaped in the XML unless you escape them — an `&` in the
      * URL then makes the manifest unreadable.
      */

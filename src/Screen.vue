@@ -24,7 +24,7 @@
 				<!-- Released: the same final standings as at the end of a moderated quiz. -->
 				<div v-else-if="raceFinal" class="scr-final">
 					<p class="scr-final-title">{{ t('pulse', 'Final standings') }}</p>
-					<Leaderboard class="scr-final-lb" :rows="leaderboard" :podium="true" :limit="5" split />
+					<Leaderboard class="scr-final-lb" :rows="leaderboard" :total="leaderboardTotal" :podium="true" :limit="5" split />
 				</div>
 				<!-- Closed: only the counter — even if the server sends a leaderboard along
 				     with feedback after each question; when closing, the teacher confirmed
@@ -109,7 +109,7 @@
 				<!-- Final standings: a stage of its own, two columns (B1) -->
 				<div v-if="quizEnded" class="scr-final">
 					<p class="scr-final-title">{{ t('pulse', 'Final standings') }}</p>
-					<Leaderboard class="scr-final-lb" :rows="leaderboard" :podium="true" :limit="5" split />
+					<Leaderboard class="scr-final-lb" :rows="leaderboard" :total="leaderboardTotal" :podium="true" :limit="5" split />
 				</div>
 
 				<!-- Word cloud: its own live engine (spiral layout) across the full stage.
@@ -117,6 +117,7 @@
 				     growing IS the question type. -->
 				<div v-else-if="showResults && results.type === 'words'" class="scr-cloud">
 					<WordCloud :words="results.results" :total="results.total" :demo="demo"
+						:distinct="results.resultsTotal || 0" :mentions="results.mentions || 0"
 						:show-footer="false" :min-size="metaFs" @stats="cloudStats = $event" />
 				</div>
 
@@ -233,6 +234,9 @@ export default {
 			answered: 0,
 			present: 0,
 			leaderboard: null,
+			// The final standings arrive as the top 10 (lib/Service/PublicPayload.php);
+			// this is how many there are in all.
+			leaderboardTotal: 0,
 			online: true,
 			version: '',
 			serverSkew: 0,
@@ -415,7 +419,7 @@ export default {
 		// never the only carrier.
 		stateText() {
 			if (this.quizEnded) {
-				const count = Array.isArray(this.leaderboard) ? this.leaderboard.length : 0
+				const count = Math.max(this.leaderboardTotal, Array.isArray(this.leaderboard) ? this.leaderboard.length : 0)
 				return this.t('pulse', 'Result') + ' · ' + this.n('pulse', '%n participant', '%n participants', count)
 			}
 			if (this.revealed) {
@@ -540,7 +544,8 @@ export default {
 		textSummary() {
 			if (!this.results) return ''
 			const total = this.results.total || 0
-			const distinct = (this.results.answers || []).length
+			// The public tally carries the 100 most frequent groups; answersTotal counts all.
+			const distinct = this.results.answersTotal || (this.results.answers || []).length
 			return this.n('pulse', '%n mention', '%n mentions', total) + ' · ' + this.t('pulse', '{count} different', { count: distinct })
 		},
 		// Frequency tiles: sorted by count descending, size ∝ frequency (em).
@@ -614,6 +619,7 @@ export default {
 			this.present = data.present || 0
 			if ('practice' in data) this.practice = !!data.practice
 			this.leaderboard = data.leaderboard || null
+			this.leaderboardTotal = data.leaderboardTotal || 0
 			// Self-paced: when moderated all three fields are missing.
 			this.pace = (data.room && data.room.pace) || ''
 			this.paceWindow = data.window || null

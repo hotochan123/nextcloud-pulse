@@ -34,6 +34,13 @@ declare(strict_types=1);
  * code comments" in the README).
  */
 
+// Command line only: in a git checkout inside the web root, the web server
+// would otherwise run it for anyone who asks (.htaccess is the other guard).
+if (PHP_SAPI !== 'cli') {
+    http_response_code(404);
+    exit;
+}
+
 define('OC_CONSOLE', 1);
 require '/var/www/html/lib/versioncheck.php';
 require '/var/www/html/lib/base.php';

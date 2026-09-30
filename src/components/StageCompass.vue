@@ -62,6 +62,9 @@ export default {
 	props: {
 		// [{ x, y }] in data coordinates (-range … +range)
 		points: { type: Array, default: () => [] },
+		// How many points there are in all (pointsTotal): the public tally only
+		// carries a sample of them (lib/Service/PublicPayload.php). 0 = points.length.
+		pointCount: { type: Number, default: 0 },
 		centroid: { type: Object, default: null },
 		range: { type: Number, default: 5 },
 		threshold: { type: Number, default: 45 },
@@ -72,7 +75,7 @@ export default {
 	},
 	computed: {
 		heatmap() {
-			return this.points.length >= this.threshold
+			return Math.max(this.pointCount, this.points.length) >= this.threshold
 		},
 		corners() {
 			const c = this.cornerLabels || []

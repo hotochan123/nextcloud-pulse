@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Run-through simulation: a moderator (Basic auth) and several anonymous
-// participants (one pulse_vt cookie each) play through poll and quiz against the
+// participants (one voter cookie each) play through poll and quiz against the
 // running instance; a projector watches via ?spectate=1. It checks
 // whether phone, projector, moderator, overall summary and CSV tell the same story
 // and whether nothing leaks before the reveal. Plus the self-paced
@@ -66,6 +66,23 @@ function check(cond, label, extra) {
 }
 const note = (s) => console.log('  · ' + s)
 
+// The voter cookie is `__Host-pulse_vt` when the instance counts as https with
+// an empty webroot (overwriteprotocol=https — then also here, over plain http
+// to the container), otherwise `pulse_vt`. A phone sends back the name the
+// server set. Expiring a legacy cookie (Max-Age=0) is not a cookie.
+const VOTER_COOKIE = /^((?:__Host-)?pulse_vt)=([^;]*)/
+function voterCookies(r) {
+	return r.cookies
+		.filter((c) => !/;\s*max-age=0/i.test(c))
+		.map((c) => VOTER_COOKIE.exec(c))
+		.filter(Boolean)
+		.map((m) => [m[1], m[2]])
+}
+let voterCookieName = '' // the name the server uses, learned from the first phone
+const vtName = () => voterCookieName || 'pulse_vt'
+// Like @nextcloud/axios in the public bundle: a participant POST without it is 403.
+const XHR = { 'X-Requested-With': 'XMLHttpRequest' }
+
 function mod(method, path, body) {
 	return request(BASE + '/api/1.0/rooms' + path, {
 		method,
@@ -80,15 +97,16 @@ async function modOk(method, path, body) {
 }
 
 class Phone {
-	constructor(name, code) { this.name = name; this.code = code; this.cookie = '' }
+	constructor(name, code) { this.name = name; this.code = code; this.cookie = ''; this.cookieName = '' }
 	async req(method, path, body, query = '') {
-		const headers = { Accept: 'application/json' }
-		if (this.cookie) headers.Cookie = 'pulse_vt=' + this.cookie
+		const headers = { Accept: 'application/json', ...XHR }
+		if (this.cookie) headers.Cookie = this.cookieName + '=' + this.cookie
 		if (body !== undefined) headers['Content-Type'] = 'application/json'
 		const r = await request(BASE + '/s/' + this.code + path + query, { method, headers, body: body !== undefined ? JSON.stringify(body) : undefined })
-		for (const c of r.cookies) {
-			const m = c.match(/^pulse_vt=([^;]+)/)
-			if (m) this.cookie = m[1]
+		for (const [name, value] of voterCookies(r)) {
+			this.cookieName = name
+			this.cookie = value
+			voterCookieName = name
 		}
 		return r
 	}
@@ -101,6 +119,18 @@ class Phone {
 }
 class Beamer extends Phone {
 	state(v = '') { return this.req('GET', '/state', undefined, '?spectate=1' + (v ? '&v=' + encodeURIComponent(v) : '')) }
+}
+
+// Public tallies are capped (PublicPayload::tally: top 100 words and answer
+// groups, a 500-point compass sample) and carry the full counts in extra
+// fields (resultsTotal, mentions, answersTotal, pointsTotal); the moderator's
+// are complete. Below the caps the phone shows exactly the moderator's fields.
+function sameTally(pub, mod) {
+	if (!pub || !mod || typeof pub !== 'object') return JSON.stringify(pub) === JSON.stringify(mod)
+	const picked = Object.fromEntries(Object.keys(mod).map((k) => [k, pub[k]]))
+	const totals = [['resultsTotal', 'results'], ['answersTotal', 'answers'], ['pointsTotal', 'points']]
+		.every(([total, list]) => !(total in pub) || pub[total] === (mod[list] || []).length)
+	return totals && JSON.stringify(picked) === JSON.stringify(mod)
 }
 
 // Solution fields must not appear publicly anywhere before the reveal.
@@ -149,6 +179,12 @@ async function survey() {
 	const phones = ['A', 'B', 'C', 'D', 'E', 'F'].map((n) => new Phone(n, code))
 	const beamer = new Beamer('beamer', code)
 
+	// The first /state hands out the cookie but writes no presence row (a
+	// script without cookies would otherwise add a participant per request);
+	// the phone counts once the cookie comes back.
+	for (const p of phones) await p.state()
+	const unseen = await beamer.state()
+	check(unseen.data.present === 0 && phones.every((p) => p.cookie), 'Umfrage Lobby: erstes /state gibt das Cookie, zählt aber noch nicht', { present: unseen.data.present })
 	for (const p of phones) await p.state()
 	const lobby = await beamer.state()
 	check(lobby.data.poll === null && lobby.data.present === 6, 'Umfrage Lobby: keine Frage, 6 dabei', { poll: lobby.data.poll, present: lobby.data.present })
@@ -245,7 +281,7 @@ async function survey() {
 	const ms = await modOk('GET', '/' + code + '/summary')
 	check(ps.data.available === true && ps.data.items.length === polls.length, 'Umfrage: Gesamtauswertung mit allen gezeigten Fragen', ps.data.items?.length)
 	for (let i = 0; i < polls.length; i++) {
-		check(JSON.stringify(ps.data.items[i].results) === JSON.stringify(ms[i].results), `Umfrage: Handy = Moderator, Frage ${i + 1}`)
+		check(sameTally(ps.data.items[i].results, ms[i].results), `Umfrage: Handy = Moderator, Frage ${i + 1}`, [ps.data.items[i].results, ms[i].results])
 	}
 	check(ps.data.items[0].mine && ps.data.items[0].mine.value === polls[0].options[0].id, 'Umfrage: eigene Antwort in der Auswertung', ps.data.items[0].mine)
 	const csv = await request(BASE + '/api/1.0/rooms/' + code + '/export', { headers: { Authorization: AUTH, 'OCS-APIRequest': 'true' } })
@@ -494,7 +530,7 @@ async function quizRun({ revealAtEnd, practice, label }) {
 	const ps = await phones[0].summary()
 	if (ps.data.available) {
 		for (let i = 0; i < polls.length; i++) {
-			check(JSON.stringify(ms[i].results) === JSON.stringify(ps.data.items[i].results), `${label}: Moderator = Handy, Frage ${i + 1}`)
+			check(sameTally(ps.data.items[i].results, ms[i].results), `${label}: Moderator = Handy, Frage ${i + 1}`, [ps.data.items[i].results, ms[i].results])
 		}
 	}
 	if (practice && revealAtEnd) {
@@ -695,6 +731,79 @@ async function practiceToggle() {
 	const st = await ph.state()
 	check(st.data.nickname === null && st.data.poll === null, 'Probelauf aus: Test-Teilnehmende weg')
 	check((await modOk('GET', `/${code}/polls/${p.id}/results`)).total === 0, 'Probelauf aus: keine Test-Stimme übrig')
+}
+
+// Moderated (live) quiz, player administration (security review L1): the
+// same /pace actions as self-paced, player IDs from the moderator's
+// /leaderboard (never in a public one). A new name in the middle of a
+// question changes nothing anybody sees, so nobody refetches (204).
+async function livePlayers() {
+	console.log('\n=== Quiz live: Beitritt sperren, Person entfernen ===')
+	const { code } = await newRoom('quiz', 'SIM Live Players')
+	const p = await modOk('POST', '/' + code + '/polls', QUIZ_QS[0])
+	const A = new Phone('A', code)
+	const B = new Phone('B', code)
+	check((await A.join('Anna')).status === 200 && (await B.join('Ben')).status === 200, 'Live: Anna und Ben treten bei')
+	await modOk('POST', '/' + code + '/current', { pollId: p.id })
+	check((await A.vote(quizAnswer(p, true))).status === 200 && (await B.vote(quizAnswer(p, true))).status === 200, 'Live: beide antworten')
+	const beamer = new Beamer('beamer', code)
+	const b1 = await beamer.state()
+	const C = new Phone('C', code)
+	check((await C.join('Cem')).status === 200, 'Live: Cem kommt mitten in der Frage dazu')
+	const b2 = await beamer.state(b1.data.version)
+	check(b2.status === 204, 'Live: ein neuer Name ändert nichts Sichtbares -> Beamer 204 (kein voller Abruf)', b2.status)
+	const ren = await B.join('Boss')
+	check(ren.status === 400 && ren.data.message === 'You can\'t change your name after starting.', 'Live: Umbenennen nach der ersten Antwort abgelehnt', [ren.status, ren.data.message])
+
+	const lock = await pace(code, { action: 'lockJoins' })
+	check(lock.status === 200 && lock.data.joinsLocked === true && lock.data.window === null, 'Live: Beitritt sperren (200, joinsLocked, kein Fenster)', [lock.status, lock.data.joinsLocked, lock.data.window])
+	const dj = await new Phone('D', code).join('Dora')
+	check(dj.status === 400 && dj.data.message === 'Joining is closed for this quiz.', 'Live: gesperrt -> neuer Name abgewiesen', [dj.status, dj.data.message])
+	check((await A.join('Anna')).status === 200, 'Live: gesperrt -> Anna kommt wieder rein')
+
+	await modOk('POST', `/${code}/polls/${p.id}/lock`)
+	const lb = await modOk('GET', '/' + code + '/leaderboard')
+	check(lb.length === 3 && lb.every((r) => Number.isInteger(r.playerId) && r.playerId > 0), 'Live: Moderator-Rangliste mit playerId', lb)
+	const b3 = await beamer.state()
+	check((b3.data.leaderboard || []).length === 3 && !(b3.data.leaderboard || []).some((r) => 'playerId' in r), 'Live: öffentliche Rangliste ohne playerId', b3.data.leaderboard)
+	const ben = lb.find((r) => r.nickname === 'Ben')
+	const rm = await pace(code, { action: 'removePlayer', playerId: ben?.playerId })
+	check(rm.status === 200, 'Live: Ben entfernt', [rm.status, rm.data])
+	const lb2 = await modOk('GET', '/' + code + '/leaderboard')
+	check(lb2.map((r) => r.nickname).sort().join() === 'Anna,Cem', 'Live: Ben ist aus der Rangliste', lb2.map((r) => r.nickname))
+	check((await modOk('GET', `/${code}/polls/${p.id}/results`)).total === 1, 'Live: Bens Antwort ist gelöscht')
+	const b4 = await beamer.state(b3.data.version)
+	check(b4.status === 200 && !(b4.data.leaderboard || []).some((r) => r.nickname === 'Ben'), 'Live: Beamer erfährt es sofort (neue Version, ohne Ben)', [b4.status, b4.data.leaderboard])
+	check((await B.state()).data.nickname === null, 'Live: Bens Handy ohne Namen')
+	check((await B.join('Ben')).status === 400, 'Live: gesperrt -> auch Bens Cookie kommt nicht mehr rein')
+	check((await pace(code, { action: 'unlockJoins' })).data?.joinsLocked === false, 'Live: Beitritt wieder offen')
+	check((await B.join('Ben')).status === 200, 'Live: Ben tritt mit demselben Namen wieder bei')
+	const lb3 = await modOk('GET', '/' + code + '/leaderboard')
+	check(lb3.find((r) => r.nickname === 'Ben')?.score === 0, 'Live: Ben fängt bei null an', lb3)
+	check((await pace(code, { action: 'removePlayer', playerId: 0 })).status === 400, 'Live: removePlayer mit fremder ID abgelehnt')
+	const { code: pollCode } = await newRoom('poll', 'SIM Live Poll')
+	check((await pace(pollCode, { action: 'lockJoins' })).status === 409, 'Umfrage: Beitritt sperren -> 409')
+}
+
+// A class taps "Join" at the same moment. Every join takes the room lock; on
+// SQLite that lock began as a plain read, so a join whose transaction a
+// parallel one had overtaken failed with "database is locked" (500) — the
+// one-after-another joins above never showed it. Same name at the same
+// moment: exactly one phone gets it.
+async function liveJoinBurst() {
+	console.log('\n=== Quiz live: gleichzeitige Beitritte ===')
+	const { code } = await newRoom('quiz', 'SIM Live Burst')
+	await modOk('POST', '/' + code + '/polls', QUIZ_QS[0])
+	const N = 30
+	const joins = await Promise.all(Array.from({ length: N }, (_, i) => new Phone('J' + i, code).join('Welle' + i)))
+	const statuses = {}
+	for (const r of joins) statuses[r.status] = (statuses[r.status] || 0) + 1
+	check(statuses[200] === N, 'Welle: ' + N + ' gleichzeitige Beitritte, alle 200 (kein 500)', statuses)
+	const lb = await modOk('GET', '/' + code + '/leaderboard')
+	check(lb.length === N && new Set(lb.map((r) => r.nickname)).size === N, 'Welle: alle ' + N + ' Namen einmal in der Rangliste', lb.length)
+	const twins = await Promise.all([0, 1, 2, 3].map((i) => new Phone('Z' + i, code).join('Zwilling')))
+	check(twins.filter((r) => r.status === 200).length === 1 && twins.filter((r) => r.status === 400).length === 3,
+		'Welle: viermal gleichzeitig „Zwilling“ -> genau einer bekommt den Namen, kein 500', twins.map((r) => r.status))
 }
 
 // ═════════════════════════ Self-paced quiz ═════════════════════════
@@ -1001,7 +1110,9 @@ async function selfRace() {
 	check((await D.next(q1.id)).status === 400, 'Rennen: nach dem Schließen kein /next')
 	check((await new Phone('E', code).join('Emil')).status === 400, 'Rennen: nach dem Schließen kein Beitritt')
 	const bClosed = await beamer.state(bBefore.version)
-	check(bClosed.status === 200 && bClosed.data.window?.state === 'released' && (bClosed.data.leaderboard || []).length === (pr15.players || []).length, 'Rennen: Beamer erfährt die Freigabe sofort (voller Endstand)', [bClosed.status, bClosed.data.window?.state, (bClosed.data.leaderboard || []).length])
+	// Public leaderboards carry the top 10 rows plus leaderboardTotal (PublicPayload).
+	const nPlayers = (pr15.players || []).length
+	check(bClosed.status === 200 && bClosed.data.window?.state === 'released' && (bClosed.data.leaderboard || []).length === Math.min(10, nPlayers) && bClosed.data.leaderboardTotal === nPlayers, 'Rennen: Beamer erfährt die Freigabe sofort (voller Endstand)', [bClosed.status, bClosed.data.window?.state, (bClosed.data.leaderboard || []).length, bClosed.data.leaderboardTotal])
 	// Ben is open on the last question: after the close only under "finished", not also on question 4.
 	const rc = bClosed.data.race || {}
 	check(raceSplits(rc) && (rc.onQuestion || []).join() === '2,0,0,0' && rc.finished === 2 && rc.started === 4 && rc.joined === 5 && raceKey(rc) === raceKey(raceOfProgress(pr15)), 'Rennen: freigegeben — Cem und Dora auf Frage 1, Anna und Ben fertig, Zed nicht gestartet (= /progress)', { beamer: rc, progress: raceOfProgress(pr15) })
@@ -1021,7 +1132,7 @@ async function selfRace() {
 	check(meA.length === 1 && meA[0].nickname === 'Anna' && meA[0].score === sumPts && sum16.myScore === sumPts, 'Rennen: Annas Punkte der Auswertung = Endstand = myScore', { sumPts, lb: meA, myScore: sum16.myScore })
 	const F = new Phone('F', code)
 	const fSum = (await F.summary()).data
-	check((fSum.items || []).length === 0 && (fSum.leaderboard || []).length === (pr15.players || []).length && fSum.available === true, 'Rennen: fremdes Cookie: Endstand, aber keine Fragen', { items: (fSum.items || []).length, lb: (fSum.leaderboard || []).length })
+	check((fSum.items || []).length === 0 && (fSum.leaderboard || []).length === Math.min(10, nPlayers) && fSum.leaderboardTotal === nPlayers && fSum.available === true, 'Rennen: fremdes Cookie: Endstand, aber keine Fragen', { items: (fSum.items || []).length, lb: (fSum.leaderboard || []).length, total: fSum.leaderboardTotal })
 	const fs = (await F.state()).data
 	check((fs.leaderboard || []).length > 0 && fs.poll === null && fs.nickname === null, 'Rennen: fremdes Cookie: /state mit Endstand, ohne Frage', { lb: fs.leaderboard, poll: fs.poll })
 	const lb = await modOk('GET', '/' + code + '/leaderboard')
@@ -1200,16 +1311,37 @@ async function selfPractice() {
 	check(after.leaderboard === null && sm.leaderboard === null && Array.isArray(pr.leaderboard) && pr.leaderboard.length === 0, 'Probelauf: auch nach der Freigabe keine Rangliste (Handy, /summary; /progress [])', [after.leaderboard, sm.leaderboard, pr.leaderboard])
 	check(sm.available === true && (sm.items || []).length === 1 && sm.items[0].revealed === true, 'Probelauf: Auswertung mit Auflösung', sm.items)
 
-	// Join limit per IP and room (120 in 10 min): counts every attempt, rejected
-	// ones too. Pia's join above was the first.
-	let attempt = 1
-	let first429 = 0
-	while (!first429 && attempt < 130) {
-		attempt++
-		const r = await P.join('Pia')
-		if (r.status === 429) first429 = attempt
+	// Failed and repeated joins cost nothing (security review L4): only a flood
+	// guard counts every request (PaceService::JOIN_LIMIT, far above this).
+	let limited = 0
+	for (let attempt = 0; attempt < 130; attempt++) {
+		if ((await P.join('Pia')).status === 429) limited++
 	}
-	check(first429 === 121, 'Probelauf: Beitritts-Limit greift beim 121. Versuch (429)', first429)
+	check(limited === 0, 'Probelauf: 130 abgewiesene Beitritte derselben Person, kein 429', limited)
+}
+
+// New players per address and room (VoteService::countNewPlayer): 120 in 10
+// min by default (app config max_new_players_per_address); only successful
+// new names count, a known player never does.
+async function selfNewPlayers() {
+	console.log('\n=== Eigenes Tempo: neue Namen pro Adresse ===')
+	const { code } = await newRoom('quiz', 'SIM Self Names')
+	await modOk('POST', '/' + code + '/polls', QUIZ_QS[0])
+	await modOk('POST', '/' + code + '/pace', { action: 'set', pace: 'self' })
+	check((await pace(code, { action: 'open' })).status === 200, 'Neue Namen: Rennen offen')
+	const first = new Phone('N0', code)
+	let ok = (await first.join('N0')).status === 200 ? 1 : 0
+	check((await first.join('n0')).status === 200, 'Neue Namen: Schreibweise des eigenen Namens zählt nicht')
+	check((await new Phone('X', code).join('N0')).status === 400, 'Neue Namen: vergebener Name zählt nicht')
+	const LIMIT = 120
+	for (let i = 1; i < LIMIT; i++) {
+		if ((await new Phone('N' + i, code).join('N' + i)).status === 200) ok++
+	}
+	check(ok === LIMIT, 'Neue Namen: ' + LIMIT + ' neue Namen von einer Adresse', ok)
+	const over = new Phone('N' + LIMIT, code)
+	const r = await over.join('N' + LIMIT)
+	check(r.status === 429 && r.data.message === 'Too many attempts. Please wait a moment.' && voterCookies(r).length === 0, 'Neue Namen: der ' + (LIMIT + 1) + '. ist 429, ohne Cookie', [r.status, r.data.message])
+	check((await first.join('N0')).status === 200, 'Neue Namen: bekannte Person kommt weiter rein')
 }
 
 // Stopping without release in ONE call: close {release: false}. `release` only takes
@@ -1355,13 +1487,15 @@ async function hostileInput() {
 		body,
 	})
 	const modGet = (path) => request(BASE + '/api/1.0/rooms' + path, { headers: { Authorization: AUTH, 'OCS-APIRequest': 'true', Accept: 'application/json' } })
-	const pubRaw = (code, method, path, { body, cookie } = {}) => {
-		const headers = { Accept: 'application/json' }
+	// xhr: false = like a plain form (no X-Requested-With); extra headers on top.
+	const pubRaw = (code, method, path, { body, cookie, xhr = true, extra = {} } = {}) => {
+		const headers = { Accept: 'application/json', ...(xhr ? XHR : {}), ...extra }
 		if (cookie !== undefined) headers.Cookie = cookie
 		if (body !== undefined) Object.assign(headers, { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) })
 		return request(BASE + '/s/' + code + path, { method, headers, body })
 	}
-	const issued = (r) => r.cookies.map((c) => /^pulse_vt=([^;]*)/.exec(c)).filter(Boolean).map((m) => m[1])
+	const issued = (r) => voterCookies(r).map(([, value]) => value)
+	const vt = vtName()
 	const fresh = (r, sent = '') => { const t = issued(r); return t.length === 1 && /^[A-Za-z0-9]{32}$/.test(t[0]) && t[0] !== sent }
 	const msg = (r) => (r.data && r.data.message) || ''
 
@@ -1398,15 +1532,16 @@ async function hostileInput() {
 	const img = await modRaw('POST', '/' + P + '/polls/' + p1.id + '/image', '--' + bnd + '\r\nContent-Disposition: form-data; name="image[]"; filename="a.png"\r\nContent-Type: image/png\r\n\r\nx\r\n--' + bnd + '--\r\n', 'multipart/form-data; boundary=' + bnd)
 	check(img.status === 400 && msg(img) === 'No image received.', 'Feindlich: Bildfeld als Liste -> „No image received.“', [img.status, msg(img)])
 	// ── Phones, poll room ──
-	const v1 = await pubRaw(P, 'POST', '/vote', { body: JSON.stringify({ value: p1.options[0].id }), cookie: 'pulse_vt[x]=y' })
+	const v1 = await pubRaw(P, 'POST', '/vote', { body: JSON.stringify({ value: p1.options[0].id }), cookie: vt + '[x]=y' })
 	check(v1.status === 200 && fresh(v1), 'Feindlich: Stimme mit Cookie-Liste -> 200, neues Cookie', [v1.status, issued(v1)])
 	const v2 = await pubRaw(P, 'POST', '/vote', { body: '{"value":"' + p1.options[0].id + '","pollId":1e100}' })
 	check(v2.status === 200, 'Feindlich: Stimme mit pollId 1e100 -> wie ohne pollId (200)', [v2.status, msg(v2)])
 	const long = 'A'.repeat(40)
-	const s1 = await pubRaw(P, 'GET', '/state?v[]=x', { cookie: 'pulse_vt=' + long })
+	const s1 = await pubRaw(P, 'GET', '/state?v[]=x', { cookie: vt + '=' + long })
 	check(s1.status === 200 && fresh(s1, long), 'Feindlich: /state mit überlangem Cookie und v[]=x -> 200, neues Cookie', [s1.status, issued(s1)])
-	const s2 = await pubRaw(P, 'GET', '/state', { cookie: 'pulse_vt=%FF%FE' })
+	const s2 = await pubRaw(P, 'GET', '/state', { cookie: vt + '=%FF%FE' })
 	check(s2.status === 200 && fresh(s2), 'Feindlich: /state mit kaputtem Cookie -> 200, neues Cookie', [s2.status, issued(s2)])
+	await browserChecks(P, p1, pubRaw, issued, fresh, msg)
 
 	// ── Moderator, self-paced ──
 	const { code: S } = await newRoom('quiz', 'SIM Hostile Self')
@@ -1442,12 +1577,12 @@ async function hostileInput() {
 	const h1 = (await H.next(0)).data
 	const hv = await H.req('POST', '/vote', { value: quizAnswer(q, true), pollId: ['x'] })
 	check(h1.poll?.id === q.id && hv.status === 400 && msg(hv) === 'Please reload the page.', 'Feindlich: Antwort mit pollId-Liste -> 400 wie ohne pollId', [hv.status, msg(hv)])
-	const arr = 'pulse_vt[x]=y'
+	const arr = vt + '[x]=y'
 	const cs = await pubRaw(S, 'GET', '/state', { cookie: arr })
 	const cn = await pubRaw(S, 'POST', '/next', { body: '{"after":0}', cookie: arr })
 	const cm = await pubRaw(S, 'GET', '/summary', { cookie: arr })
 	check(cs.status === 200 && fresh(cs) && cn.status === 400 && msg(cn) === 'Please choose a name first.' && cm.status === 200, 'Feindlich: Cookie-Liste -> /state neues Cookie, /next 400, /summary 200', [cs.status, cn.status, msg(cn), cm.status])
-	const cj = await pubRaw(S, 'POST', '/join', { body: JSON.stringify({ nickname: 'Ida' }), cookie: 'pulse_vt=' + 'B'.repeat(33) })
+	const cj = await pubRaw(S, 'POST', '/join', { body: JSON.stringify({ nickname: 'Ida' }), cookie: vt + '=' + 'B'.repeat(33) })
 	check(cj.status === 200 && fresh(cj) && cj.data.nickname === 'Ida', 'Feindlich: Beitritt mit überlangem Cookie -> 200 mit neuem Cookie', [cj.status, issued(cj)])
 
 	// ── Free text with NUL (moderated quiz) ──
@@ -1465,6 +1600,39 @@ async function hostileInput() {
 	const ng = await mod('POST', '/' + T + '/polls/' + tq.id + '/grade', { answer: nb?.sample, correct: true })
 	const na = nulGroup(await modOk('GET', '/' + T + '/polls/' + tq.id + '/results'))
 	check(nv.status === 200 && nb?.status === 'pending' && ng.status === 200 && na?.status === 'accepted', 'Feindlich: Freitext mit NUL bleibt bewertbar (pending -> accepted)', [nv.status, nb?.status, ng.status, na?.status])
+}
+
+// ═════════════════════════ Browser checks ═════════════════════════
+// The participant POSTs have no CSRF token: another site must not vote in a
+// visitor's name (403 without X-Requested-With or Sec-Fetch-Site same-origin,
+// and no cookie), a cookie name sent twice (cookie tossing) counts as none,
+// and a legacy pulse_vt moves to __Host-pulse_vt. Only on a room of this sim.
+async function browserChecks(P, p1, pubRaw, issued, fresh, msg) {
+	const body = JSON.stringify({ value: p1.options[0].id })
+	const form = await pubRaw(P, 'POST', '/vote', { body, xhr: false })
+	check(form.status === 403 && msg(form) === 'Invalid request.' && issued(form).length === 0, 'Browser: Stimme ohne X-Requested-With -> 403, kein Cookie', [form.status, msg(form), issued(form)])
+	const cross = await pubRaw(P, 'POST', '/join', { body: JSON.stringify({ nickname: 'Eve' }), xhr: false, extra: { 'Sec-Fetch-Site': 'cross-site' } })
+	const sibling = await pubRaw(P, 'POST', '/vote', { body, xhr: false, extra: { 'Sec-Fetch-Site': 'same-site' } })
+	check(cross.status === 403 && sibling.status === 403, 'Browser: Sec-Fetch-Site cross-site/same-site -> 403', [cross.status, sibling.status])
+	const same = await pubRaw(P, 'POST', '/vote', { body, xhr: false, extra: { 'Sec-Fetch-Site': 'same-origin' } })
+	check(same.status === 200 && fresh(same), 'Browser: Sec-Fetch-Site same-origin ohne Header -> 200', [same.status, msg(same)])
+
+	const A = new Phone('Alma', P)
+	await A.state()
+	const B = new Phone('Bert', P)
+	await B.state()
+	const vt = vtName()
+	const twice = await pubRaw(P, 'GET', '/state', { cookie: vt + '=' + A.cookie + '; ' + vt + '=' + B.cookie })
+	check(twice.status === 200 && fresh(twice, A.cookie) && !issued(twice).includes(B.cookie), 'Browser: Cookie-Name doppelt -> keins von beiden, neues Cookie', issued(twice))
+	if (vt === '__Host-pulse_vt') {
+		const legacy = await pubRaw(P, 'GET', '/state', { cookie: 'pulse_vt=' + A.cookie })
+		const expired = legacy.cookies.some((c) => /^pulse_vt=/.test(c) && /;\s*max-age=0/i.test(c))
+		check(legacy.status === 200 && issued(legacy).join() === A.cookie && expired, 'Browser: altes pulse_vt wird zu __Host-pulse_vt, das alte läuft ab', { status: legacy.status, cookies: legacy.cookies.map((c) => c.split(';')[0].replace(/=[A-Za-z0-9]{32}$/, '=<token>')) })
+		const tossed = await pubRaw(P, 'GET', '/state', { cookie: 'pulse_vt=' + B.cookie + '; __Host-pulse_vt=' + A.cookie })
+		check(tossed.status === 200 && !issued(tossed).includes(B.cookie) && issued(tossed).join() === A.cookie, 'Browser: untergeschobenes pulse_vt neben __Host-pulse_vt zählt nicht', issued(tossed))
+	} else {
+		note('Browser: Instanz ohne https/leeren Webroot — Cookie heißt pulse_vt, Übernahme-Prüfung entfällt')
+	}
 }
 
 // Clean up the rooms on Ctrl-C/SIGTERM too — otherwise they would stay in the account.
@@ -1497,12 +1665,15 @@ try {
 	await wordKeys()
 	await editRunning()
 	await practiceToggle()
+	await livePlayers()
+	await liveJoinBurst()
 	// Self-paced: open the homework first — its 90 s until the deadline
 	// run while the race and the practice run play.
 	if (await selfRoutesLoaded()) {
 		const hw = await selfHomeworkOpen()
 		await selfRace()
 		await selfPractice()
+		await selfNewPlayers()
 		await selfHomeworkFinish(hw)
 		await selfStop()
 		await selfRaces()

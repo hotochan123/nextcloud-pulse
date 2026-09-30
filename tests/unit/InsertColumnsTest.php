@@ -157,6 +157,7 @@ class InsertColumnsTest extends TestCase {
             'codeGenerator' => $this->codes(),
             'timeFactory' => $this->clock(),
             'l10n' => $this->l10n(),
+            'limits' => new \OCA\Pulse\Service\Limits($this->createMock(\OCP\IAppConfig::class)),
         ]);
 
         $service->addPoll($this->room($mode), $data + ['question' => 'Q']);
@@ -200,6 +201,7 @@ class InsertColumnsTest extends TestCase {
             'imageService' => $this->createMock(PollImageService::class),
             'timeFactory' => $this->clock(),
             'l10n' => $this->l10n(),
+            'limits' => new \OCA\Pulse\Service\Limits($this->createMock(\OCP\IAppConfig::class)),
         ]);
 
         $service->duplicateRoom($this->room('quiz'), 'alice');

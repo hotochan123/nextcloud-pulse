@@ -36,7 +36,8 @@ use PHPUnit\Framework\TestCase;
  * Room deleted while the request was in flight: it was still loaded, but by
  * the time of locking (PaceService::locked) it no longer exists. That is the
  * same situation as a few milliseconds later — so 404 "Room not found.",
- * publicly like an unknown code (throttled), not 500.
+ * not 500. Publicly without a brute-force attempt: the code was right when the
+ * request came in (only a miss at the lookup counts, PublicCodeThrottleTest).
  */
 #[CoversClass(RoomApiController::class)]
 #[CoversClass(PublicVoteController::class)]
@@ -62,6 +63,8 @@ class RoomGoneTest extends TestCase {
         // Cookie in the form CodeGenerator::voterToken hands out — otherwise it counts as none
         $this->request->method('getCookie')->willReturn(str_repeat('Anna', 8));
         $this->request->method('getRemoteAddress')->willReturn('192.0.2.1');
+        // Like the public bundle (@nextcloud/axios): participant POSTs need it (PublicCrossSiteTest).
+        $this->request->method('getHeader')->willReturnCallback(fn (string $name): string => $name === 'X-Requested-With' ? 'XMLHttpRequest' : '');
         $this->l10n = $this->createMock(IL10N::class);
         $this->l10n->method('t')->willReturnArgument(0);
         $this->pace = $this->createMock(PaceService::class);
@@ -94,19 +97,19 @@ class RoomGoneTest extends TestCase {
     public function testBeitrittAufGeloeschtemRaum(): void {
         $this->votes->method('quizJoin')->willThrowException(new RoomGoneException());
 
-        $this->assertThrottledNotFound($this->public()->join('ABCDEF'));
+        $this->assertUnthrottledNotFound($this->public()->join('ABCDEF'));
     }
 
     public function testStimmeAufGeloeschtemRaum(): void {
         $this->votes->method('recordVote')->willThrowException(new RoomGoneException());
 
-        $this->assertThrottledNotFound($this->public()->vote('ABCDEF'));
+        $this->assertUnthrottledNotFound($this->public()->vote('ABCDEF'));
     }
 
     public function testWeiterAufGeloeschtemRaum(): void {
         $this->pace->method('next')->willThrowException(new RoomGoneException());
 
-        $this->assertThrottledNotFound($this->public()->next('ABCDEF'));
+        $this->assertUnthrottledNotFound($this->public()->next('ABCDEF'));
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────
@@ -116,10 +119,9 @@ class RoomGoneTest extends TestCase {
         $this->assertSame(['message' => 'Room not found.'], $response->getData());
     }
 
-    private function assertThrottledNotFound(JSONResponse $response): void {
+    private function assertUnthrottledNotFound(JSONResponse $response): void {
         $this->assertNotFound($response);
-        $this->assertTrue($response->isThrottled());
-        $this->assertSame(['action' => 'pulseRoomCode'], $response->getThrottleMetadata());
+        $this->assertFalse($response->isThrottled());
     }
 
     private function moderator(): RoomApiController {
@@ -139,6 +141,8 @@ class RoomGoneTest extends TestCase {
             $this->createMock(PaceStateService::class),
             $this->createMock(RoomMapper::class),
             $this->createMock(ITimeFactory::class),
+            $this->createMock(ILimiter::class),
+            new \OCA\Pulse\Service\Limits($this->createMock(\OCP\IAppConfig::class)),
         );
     }
 
@@ -158,7 +162,19 @@ class RoomGoneTest extends TestCase {
             $this->l10n,
             $this->pace,
             $this->createMock(ILimiter::class),
+            $this->neverThrottled(),
+            $this->createMock(\OCP\IURLGenerator::class),
+            $this->createMock(\OCP\IAppConfig::class),
+            new \OCA\Pulse\Service\Limits($this->createMock(\OCP\IAppConfig::class)),
         );
+    }
+
+    /** The room was found: no brute-force attempt, whatever happens afterwards. */
+    private function neverThrottled(): \OCP\Security\Bruteforce\IThrottler {
+        $throttler = $this->createMock(\OCP\Security\Bruteforce\IThrottler::class);
+        $throttler->expects($this->never())->method('registerAttempt');
+        $throttler->expects($this->never())->method('sleepDelayOrThrowOnMax');
+        return $throttler;
     }
 
     private function room(): Room {

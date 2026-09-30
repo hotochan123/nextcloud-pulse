@@ -16,6 +16,16 @@ document settings of the `.pptx`) and then frames `/apps/pulse/screen/{code}`
 from the same origin. When the moderator moves on to the next question in the
 deck, the slide updates by itself (Pulse's own state polling).
 
+The manifest asks PowerPoint for the lowest permission level, **Restricted**:
+the add-in only keeps the room code in the document settings and can neither
+read nor change the slides. Manifests downloaded from earlier versions asked
+for `ReadWriteDocument` — see step 0.
+
+`office.js` comes from Microsoft's CDN and runs in your Nextcloud's origin.
+Inside PowerPoint there is no Nextcloud session, but in a browser where you are
+logged in to Nextcloud the script has the reach of your session. So when you
+open the shell in a browser to test it, use a **private window**.
+
 ## Requirements
 
 - **PowerPoint for Windows** 2016+ or Microsoft 365 (desktop). LibreOffice Impress
@@ -41,6 +51,14 @@ address that the **presentation laptop** can reach.
 Do not edit it by hand. If the instance's address changes, download it again;
 the add-in ID (`<Id>`) stays the same, so PowerPoint recognises it as the same
 add-in.
+
+**Installed the add-in before the switch to Restricted permissions?** Download
+the manifest again and replace the file in the catalog folder (or upload it
+again in the Microsoft 365 admin center). PowerPoint may keep its cached copy
+while the manifest's version number stays the same — it changes with the next
+Pulse release — so also tick **"Next time Office starts, clear all
+previously-started web add-ins cache"** under Trusted Add-in Catalogs (step 1a)
+and restart PowerPoint.
 
 ### 1a. For a single person: shared folder
 
@@ -85,9 +103,9 @@ To change the code later: hover over the add-in → top bar →
 | Symptom | Cause / fix |
 |---|---|
 | Add-in does not show up under "My Add-ins" | The catalog URL has to be a **UNC path** (`\\…`), not `C:\…`; is "Show in Menu" ticked? PowerPoint restarted? |
-| Box stays white/empty | `X-Frame-Options` is still there (look at the check under **Administration → Overview**). Otherwise: is the laptop on the **LAN/VPN**? Is there **internet** for `office.js`? Cross-check: open the `<SourceLocation>` address from the manifest with `?code=YOURCODE` in the laptop's browser. |
+| Box stays white/empty | `X-Frame-Options` is still there (look at the check under **Administration → Overview**). Otherwise: is the laptop on the **LAN/VPN**? Is there **internet** for `office.js`? Cross-check: open the `<SourceLocation>` address from the manifest with `?code=YOURCODE` in a **private window** of the laptop's browser (so `office.js` does not run with your Nextcloud session). |
 | Add-in shows a foreign/old address | The manifest comes from another instance or from before an address change — download it again (step 0). |
-| "Add-in error" / does not load | The laptop has to trust the instance's certificate (Let's Encrypt is enough). Check whether the shell loads in the laptop's browser. |
+| "Add-in error" / does not load | The laptop has to trust the instance's certificate (Let's Encrypt is enough). Check whether the shell loads in a private window of the laptop's browser. |
 | Wrong/old code is stuck | Use **"Change code"** in the hover bar. The code is stored in the `.pptx`. |
 
 ## Web server requirement: `X-Frame-Options` has to go

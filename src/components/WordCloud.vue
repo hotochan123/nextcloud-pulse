@@ -73,6 +73,11 @@ export default {
 		words: { type: Array, default: () => [] },
 		// Number of people (votes) — for the "here" counter.
 		total: { type: Number, default: 0 },
+		// The public tally only carries the 100 most frequent words
+		// (lib/Service/PublicPayload.php). These are the true numbers of distinct
+		// words and of mentions (0 = unknown: count what `words` holds).
+		distinct: { type: Number, default: 0 },
+		mentions: { type: Number, default: 0 },
 		// Demo/test mode: ignores `words`, generates a living cloud locally.
 		demo: { type: Boolean, default: false },
 		// Show the component's own counter row. Off on the projector: the numbers move via
@@ -350,9 +355,11 @@ export default {
 
 			// Declarative state -> Vue renders empty/overflow/counters/SR region.
 			this.isEmpty = this._words.size === 0
-			this.overflowN = fit.hidden + Math.max(0, fit.attempted - fit.placed)
-			this.cWords = this._words.size
-			this.cVotes = [...this._words.values()].reduce((a, b) => a + b, 0)
+			// Words the server left out count as "+N more" as well.
+			const cut = this._demo ? 0 : Math.max(0, this.distinct - this._words.size)
+			this.overflowN = fit.hidden + Math.max(0, fit.attempted - fit.placed) + cut
+			this.cWords = this._words.size + cut
+			this.cVotes = Math.max(this._demo ? 0 : this.mentions, [...this._words.values()].reduce((a, b) => a + b, 0))
 			this.cPeople = this._demo ? this._demoPeople : (this.total || 0)
 			// Pass the counters up (projector header) — only on a real change,
 			// so that the frequent render passes (settle/resize) don't spam.

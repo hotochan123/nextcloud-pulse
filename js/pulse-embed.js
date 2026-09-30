@@ -231,9 +231,19 @@
         boxes[0].focus();
     }
 
+    /**
+     * Only a real room code goes into the frame. The saved value comes from
+     * the document settings (they travel with the .pptx), ?code= or
+     * localStorage, and nothing has checked it yet. screenUrl() does not
+     * make it safe: encodeURIComponent keeps '..', and /apps/pulse/screen/..
+     * resolves to /apps/pulse/, the moderator page (or the login page) inside
+     * the slide. Anything else opens the form with the value filled in, where
+     * go() checks it like a typed code.
+     */
     function start() {
-        var code = loadSaved();
-        if (code) { renderIframe(code); } else { renderForm(''); }
+        var saved = loadSaved();
+        var code = String(saved || '').toUpperCase();
+        if (/^[A-Z0-9]{6}$/.test(code)) { renderIframe(code); } else { renderForm(typeof saved === 'string' ? saved : ''); }
     }
 
     // Call start() exactly once — whether office.js answers first or

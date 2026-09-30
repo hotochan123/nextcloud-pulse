@@ -57,7 +57,7 @@ class CodeGenerator {
      * Does a value have the shape that voterToken() hands out (32 characters A–Z, a–z,
      * 0–9)? `\z` instead of `$`: `$` would let a trailing newline through.
      */
-    public static function isVoterToken(string $s): bool {
+    public static function isVoterToken(#[\SensitiveParameter] string $s): bool {
         return preg_match('/^[A-Za-z0-9]{' . self::VOTER_TOKEN_LENGTH . '}\z/', $s) === 1;
     }
 }

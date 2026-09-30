@@ -28,7 +28,7 @@ class ProgressMapper extends QBMapper {
     /**
      * @return Progress[] one person's rows, ascending by seq
      */
-    public function findByRoomAndToken(int $roomId, string $voterToken): array {
+    public function findByRoomAndToken(int $roomId, #[\SensitiveParameter] string $voterToken): array {
         $qb = $this->db->getQueryBuilder();
         $qb->select('*')
             ->from($this->getTableName())
@@ -59,7 +59,7 @@ class ProgressMapper extends QBMapper {
      * Other DB errors are rethrown. Do not call inside a transaction
      * (see the class comment).
      */
-    public function start(int $roomId, int $pollId, string $voterToken, int $seq, int $now): bool {
+    public function start(int $roomId, int $pollId, #[\SensitiveParameter] string $voterToken, int $seq, int $now): bool {
         $row = new Progress();
         $row->setRoomId($roomId);
         $row->setPollId($pollId);
@@ -92,7 +92,7 @@ class ProgressMapper extends QBMapper {
     }
 
     /** Has this person ever reached the question? (image release) */
-    public function hasRow(int $pollId, string $voterToken): bool {
+    public function hasRow(int $pollId, #[\SensitiveParameter] string $voterToken): bool {
         $qb = $this->db->getQueryBuilder();
         $qb->select('id')
             ->from($this->getTableName())
@@ -113,7 +113,7 @@ class ProgressMapper extends QBMapper {
     }
 
     /** Remove a person from the room (PaceService::removePlayer). */
-    public function deleteByRoomAndToken(int $roomId, string $voterToken): void {
+    public function deleteByRoomAndToken(int $roomId, #[\SensitiveParameter] string $voterToken): void {
         $qb = $this->db->getQueryBuilder();
         $qb->delete($this->getTableName())
             ->where($qb->expr()->eq('room_id', $qb->createNamedParameter($roomId, IQueryBuilder::PARAM_INT)))

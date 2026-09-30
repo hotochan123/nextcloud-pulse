@@ -25,7 +25,7 @@ class PlayerMapper extends QBMapper {
      * Join/rename: set this token's nickname (upsert on
      * room_id+voter_token). Race-safe like PresenceMapper::touch().
      */
-    public function register(int $roomId, string $voterToken, string $nickname, int $now): Player {
+    public function register(int $roomId, #[\SensitiveParameter] string $voterToken, #[\SensitiveParameter] string $nickname, int $now): Player {
         try {
             $row = $this->findByRoomAndToken($roomId, $voterToken);
             $row->setNickname($nickname);
@@ -55,7 +55,7 @@ class PlayerMapper extends QBMapper {
     /**
      * @throws DoesNotExistException this token has not joined the room yet
      */
-    public function findByRoomAndToken(int $roomId, string $voterToken): Player {
+    public function findByRoomAndToken(int $roomId, #[\SensitiveParameter] string $voterToken): Player {
         $qb = $this->db->getQueryBuilder();
         $qb->select('*')
             ->from($this->getTableName())
@@ -71,7 +71,7 @@ class PlayerMapper extends QBMapper {
      * Without a transaction the lock only applies to this one query. SQLite has
      * no FOR UPDATE — a plain SELECT there (like RoomMapper::lockForUpdate).
      */
-    public function existsForUpdate(int $roomId, string $voterToken): bool {
+    public function existsForUpdate(int $roomId, #[\SensitiveParameter] string $voterToken): bool {
         $qb = $this->db->getQueryBuilder();
         $qb->select('id')
             ->from($this->getTableName())

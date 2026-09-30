@@ -165,6 +165,8 @@
 				:style="{ fontSize: cloudEm(row.count) + 'em', opacity: cloudOpacity(row.count) }">
 				{{ row.word }}
 			</span>
+			<!-- The public tally carries the 100 most frequent words (PublicPayload). -->
+			<span v-if="cloudMore" class="cloud-more">{{ t('pulse', '+{count} more', { count: cloudMore }) }}</span>
 			<p v-if="!results.results.length" class="cloud-empty">{{ t('pulse', 'No words yet.') }}</p>
 		</div>
 
@@ -227,7 +229,7 @@
 			     the threshold, a heat map above it. No "You" — on the big screen there
 			     is no me (§7.4). -->
 			<StageCompass v-else-if="wide"
-				:points="results.points || []" :centroid="results.centroid"
+				:points="results.points || []" :point-count="results.pointsTotal || 0" :centroid="results.centroid"
 				:range="results.range || 5" :threshold="results.heatmapThreshold || 45"
 				:axis-x="results.axisX || {}" :axis-y="results.axisY || {}"
 				:corner-labels="results.cornerLabels || []" :aria-label="compassAria" />
@@ -526,6 +528,12 @@ export default {
 		// Compass result: quadrant + scatter/heat map + centre of gravity + own dot.
 		compassMode() {
 			return !!this.results && this.results.mode === 'compass'
+		},
+		// Words the server left out of the public tally (resultsTotal counts all).
+		cloudMore() {
+			const r = this.results
+			if (!r || r.type !== 'words' || !Array.isArray(r.results)) return 0
+			return Math.max(0, (r.resultsTotal || 0) - r.results.length)
 		},
 		compassAria() {
 			if (!this.results) return ''
@@ -988,6 +996,7 @@ export default {
 }
 .cloud-word { font-weight: 700; color: var(--pulse-primary); transition: font-size 0.5s cubic-bezier(.22, 1, .36, 1); }
 .cloud-empty { color: var(--pulse-text-2); }
+.cloud-more { color: var(--pulse-text-2); font-size: 0.85em; font-weight: 600; }
 
 .total {
 	margin-top: 0.8em;

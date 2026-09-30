@@ -46,7 +46,7 @@ class QuizService {
      * @param array<string,int>   $timeByToken    summed answer time (elapsed) per token
      * @return list<array{token:string, rank:int, nickname:string, score:int, correct:int, time:int}>
      */
-    public function leaderboard(array $players, array $pointsByToken, array $correctByToken, array $timeByToken = []): array {
+    public function leaderboard(array $players, #[\SensitiveParameter] array $pointsByToken, #[\SensitiveParameter] array $correctByToken, #[\SensitiveParameter] array $timeByToken = []): array {
         $rows = [];
         foreach ($players as $p) {
             $token = $p->getVoterToken();

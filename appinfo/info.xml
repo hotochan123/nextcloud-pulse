@@ -22,7 +22,8 @@ On top of that: a deck of several questions, a projector/audience view at
 the end, a summary with CSV export and an add-in for embedding into PowerPoint.
 
 Participants need no account (a public share page, just like share links). An
-anonymous voter token in a cookie prevents double voting without identifying anyone.
+anonymous voter token in a cookie discourages double voting without identifying
+anyone; whoever clears their cookies can vote again.
 
 How it was built: Pulse is vibe-coded. Its code, tests, documentation and German
 translation were written by AI coding agents (Anthropic's Claude Code); the
@@ -49,8 +50,8 @@ QR-Code und Beitritts-Link, Probelauf-Modus, Auflösung je Frage oder am Ende,
 Zusammenfassung mit CSV-Export und ein Add-in zum Einbetten in PowerPoint.
 
 Teilnehmende brauchen keinen Account (öffentliche Freigabe-Seite, wie bei
-Freigabe-Links). Ein anonymes Voter-Token im Cookie verhindert Mehrfachabstimmung,
-ohne eine Person zu identifizieren.
+Freigabe-Links). Ein anonymes Voter-Token im Cookie erschwert mehrfaches Abstimmen,
+ohne eine Person zu identifizieren; wer die Cookies löscht, kann erneut abstimmen.
 
 Zur Entstehung: Pulse ist „vibe-coded“. Code, Tests, Dokumentation und deutsche
 Übersetzung haben KI-Coding-Agenten geschrieben (Claude Code von Anthropic);

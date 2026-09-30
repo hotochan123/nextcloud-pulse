@@ -9,7 +9,8 @@ namespace OCA\Pulse\Service;
 
 /**
  * A room was accessed by someone who does not own it.
- * The controller maps this to HTTP 403.
+ * RoomApiController reports it exactly like an unknown code: 404 "Room not
+ * found." (security review L5).
  */
 class NotOwnerException extends \RuntimeException {
 }

@@ -395,6 +395,7 @@
 				<span class="pulse-chip is-live mod-here" :title="t('pulse', '{count} participants active in the last few seconds', { count: presentCount })"><span class="pulse-chip-dot" />{{ t('pulse', '{count} here', { count: presentCount }) }}</span>
 				<span v-if="isPractice" class="pulse-chip is-warning"><PulseIcon name="warning" size="1em" /> {{ t('pulse', 'Practice run') }}</span>
 				<span v-if="isRevealAtEnd" class="pulse-chip is-accent"><PulseIcon name="check_ring" size="1em" /> {{ t('pulse', 'Reveal at the end') }}</span>
+				<span v-if="isQuiz && room && room.joinsLocked" class="pulse-chip is-locked"><PulseIcon name="lock" size="1em" /> {{ t('pulse', 'Joining locked') }}</span>
 				<span class="mod-spacer" />
 				<span v-if="room" class="mod-code" :title="t('pulse', 'Room code')">{{ spacedCode }}</span>
 				<button class="pulse-btn is-secondary is-sm" :aria-expanded="joinOpen ? 'true' : 'false'" @click="toggleJoin">{{ t('pulse', 'Join') }}</button>
@@ -412,6 +413,15 @@
 					<h2 class="mod-standings-head"><PulseIcon name="ranking" size="1em" /> {{ quizOver ? t('pulse', 'Final standings') : t('pulse', 'Leaderboard') }}</h2>
 					<Leaderboard v-if="leaderboard.length" :rows="leaderboard" :podium="true" :limit="30" />
 					<p v-else class="deck-empty">{{ t('pulse', 'No points yet — nobody has played along.') }}</p>
+					<!-- Removing a name that should not stand here — also after the end.
+					     Not in fullscreen: that is the mode that gets projected. -->
+					<LivePlayers v-if="isQuiz && room && !isFullscreen"
+						class="mod-standings-players"
+						:code="room.code"
+						:joins-locked="!!room.joinsLocked"
+						@room="onPaceRoom"
+						@removed="onPlayerRemoved"
+						@conflict="refreshRoom(true)" />
 				</div>
 				<template v-else>
 					<!-- Canvas preview instead of a replica: the same page as
@@ -438,6 +448,13 @@
 						</div>
 						<p v-else class="mod-private-empty">{{ t('pulse', 'No question yet — the room shows the code and waits.') }}</p>
 						<Leaderboard v-if="isQuiz && leaderboard.length" class="mod-private-lb" :rows="leaderboard" :limit="5" />
+						<!-- Anyone with the code can put a name on the podium: remove it here (L1). -->
+						<LivePlayers v-if="isQuiz && room"
+							:code="room.code"
+							:joins-locked="!!room.joinsLocked"
+							@room="onPaceRoom"
+							@removed="onPlayerRemoved"
+							@conflict="refreshRoom(true)" />
 
 						<!-- Demo/test tool: fill the active question with many votes (preview) -->
 						<div v-if="demoMode" class="demo-bar" role="group" :aria-label="t('pulse', 'Test tool: demo votes')">
@@ -507,6 +524,7 @@ import draggable from 'vuedraggable'
 import ResultsView from './components/ResultsView.vue'
 import QrCode from './components/QrCode.vue'
 import Leaderboard from './components/Leaderboard.vue'
+import LivePlayers from './components/LivePlayers.vue'
 import TextGrading from './components/TextGrading.vue'
 import PulseIcon from './components/ui/PulseIcon.vue'
 import PulseSegmented from './components/ui/PulseSegmented.vue'
@@ -696,7 +714,7 @@ const QUESTION_TYPES = {
 export default {
 	name: 'Moderator',
 	mixins: [pollingMixin],
-	components: { ResultsView, QrCode, Leaderboard, TextGrading, PulseIcon, PulseSegmented, PulseMenu, CountdownRing, IntakeBoard, draggable, PaceOpenDialog, PaceDeckStatus, PaceRun },
+	components: { ResultsView, QrCode, Leaderboard, LivePlayers, TextGrading, PulseIcon, PulseSegmented, PulseMenu, CountdownRing, IntakeBoard, draggable, PaceOpenDialog, PaceDeckStatus, PaceRun },
 	data() {
 		return {
 			phase: 'start', // 'start' | 'deck' | 'present' | 'summary' | 'leaderboard' | 'pace' (run view, self-paced)
@@ -996,7 +1014,8 @@ export default {
 					items.push({ key: 'pace', label: t('pulse', 'Self-paced'), checked: paced, act: this.togglePace, ...this.paceLock(true) })
 				}
 			}
-			if (paced && this.paceState !== 'released') {
+			// Self-paced until the release; a moderated quiz at any time (L1).
+			if (this.isQuiz && (!paced || this.paceState !== 'released')) {
 				items.push({ key: 'lock', label: t('pulse', 'Lock joining'), checked: !!this.room.joinsLocked, act: this.toggleJoinsLocked })
 			}
 			if (this.deck.length) {
@@ -1042,6 +1061,10 @@ export default {
 			}
 			if (this.phase === 'present' && this.currentPoll) {
 				items.push({ key: 'reset', label: t('pulse', 'Reset this question'), icon: 'reset', act: this.resetCurrent })
+			}
+			// Once everyone is in, new names stay out; whoever is playing gets back in.
+			if (this.isQuiz && this.room) {
+				items.push({ key: 'lock', label: t('pulse', 'Lock joining'), checked: !!this.room.joinsLocked, act: this.toggleJoinsLocked })
 			}
 			items.push({ key: 'fs', label: this.isFullscreen ? t('pulse', 'Exit full screen') : t('pulse', 'Full screen'), icon: 'fullscreen', act: this.toggleFullscreen })
 			items.push({ key: 'beamer', label: t('pulse', 'Projector'), icon: 'beamer', act: this.openBeamer })
@@ -1308,7 +1331,8 @@ export default {
 				await this.fetchMyRooms()
 				showSuccess(t('pulse', 'Copy created: {room}', { room: data.title || this.spaced(data.code) }))
 			} catch (e) {
-				showError(t('pulse', 'Could not copy the room.'))
+				// Caps and the rate limit say why (400/429 with a message).
+				showError(e?.response?.data?.message || t('pulse', 'Could not copy the room.'))
 			} finally {
 				this.busy = false
 			}
@@ -1696,6 +1720,26 @@ export default {
 				this.failWrite(e, t('pulse', 'Could not change joining.'))
 			}
 		},
+		// A player was removed (LivePlayers): show the leaderboard without them
+		// right away instead of on the next change.
+		onPlayerRemoved() {
+			if (this.phase === 'leaderboard') {
+				this.reloadLeaderboard()
+				return
+			}
+			this.resVersion = ''
+			this.fetchResults()
+		},
+		// Like openLeaderboard, but without touching the phase or the polling.
+		async reloadLeaderboard() {
+			if (!this.room) return
+			try {
+				const { data } = await axios.get(this.api(this.room.code, '/leaderboard'), { timeout: 15000 })
+				if (Array.isArray(data)) this.leaderboard = data
+			} catch (e) {
+				// stays as it is; the next opening fetches it again
+			}
+		},
 
 		// ── Presentation view (§9) ──────────────────────────────────────────
 		runPrimary() {
@@ -1775,7 +1819,8 @@ export default {
 				this.draft = this.emptyDraft()
 				window.history.replaceState(null, '', generateUrl('/apps/pulse/room/' + data.code))
 			} catch (e) {
-				showError(t('pulse', 'The room could not be created.'))
+				// Caps and the rate limit say why (400/429 with a message).
+				showError(e?.response?.data?.message || t('pulse', 'The room could not be created.'))
 			} finally {
 				this.busy = false
 			}
@@ -2465,6 +2510,7 @@ export default {
 .mod-private-lb { margin-top: 8px; }
 .mod-standings { min-width: 0; overflow-y: auto; grid-column: 1 / -1; font-size: clamp(16px, 1.6vw, 21px); }
 .mod-standings-head { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; font-size: 24px; }
+.mod-standings-players { max-width: 480px; margin-block-start: 20px; }
 
 /* Control bar: one primary action, paging on the left, the intake on the right */
 .mod-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; min-height: 96px; padding: 12px 20px; border-block-start: 1px solid var(--pulse-border); }

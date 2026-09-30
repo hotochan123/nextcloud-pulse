@@ -43,6 +43,9 @@ use OCP\IL10N;
  *   nothing except serverNow may change every second (no remaining time).
  * - The expensive room aggregates (projector, public leaderboard) stay 2 s in
  *   the local cache; the phone only reads its own rows and votes.
+ * - Leaderboards and tallies are capped (PublicPayload): the top 10 plus the
+ *   viewer's own row, the most frequent words and answers, a compass sample.
+ *   The moderator views and the CSV exports keep everything.
  */
 class PaceStateService {
     /** Projector state: the finished payload stays this many seconds per bucket in the local cache. */
@@ -84,7 +87,7 @@ class PaceStateService {
      * after the cache; the version (without serverNow) stays the same within
      * the bucket, so 204 keeps working. Without APCu it is built every time.
      */
-    public function publicState(Room $room, ?string $voterToken, bool $spectate): array {
+    public function publicState(Room $room, #[\SensitiveParameter] ?string $voterToken, bool $spectate): array {
         $now = $this->timeFactory->getTime();
         if (!$spectate) {
             return $this->phoneState($room, $voterToken, $now);
@@ -127,7 +130,7 @@ class PaceStateService {
      * verdict. After the release every cookie gets the final standings (even
      * without a player — non-participants get nothing more than that).
      */
-    private function phoneState(Room $room, ?string $voterToken, int $now): array {
+    private function phoneState(Room $room, #[\SensitiveParameter] ?string $voterToken, int $now): array {
         $state = PaceService::deriveState($room, $now);
         $released = $state === PaceService::STATE_RELEASED;
         $out = $this->head($room, $now);
@@ -141,7 +144,8 @@ class PaceStateService {
         $out['myResult'] = null;
         $out['myScore'] = null;
         if ($released && !$room->getPractice()) {
-            $out['leaderboard'] = $this->voteService->selfLeaderboard($room, $voterToken, 0, true);
+            // Top 10 plus the own row (PublicPayload::withLeaderboard).
+            $out = PublicPayload::withLeaderboard($out, $this->voteService->selfLeaderboard($room, $voterToken, 0, true));
         }
         if ($voterToken === null || $out['nickname'] === null || $room->getOpenedAt() === 0) {
             return $out;
@@ -251,22 +255,23 @@ class PaceStateService {
             'onQuestion' => $onQuestion,
         ];
 
-        // Practice run: never a leaderboard. After the release the full final standings;
-        // during the race (only with feedback after each question) the top.
+        // Practice run: never a leaderboard. After the release the final standings
+        // (top 10 and the total — the projector shows the podium, five rows and
+        // "+N more"); during the race (only with feedback after each question) the top.
         if ($room->getPractice()) {
-            $out['leaderboard'] = null;
+            $out = PublicPayload::withLeaderboard($out, null);
         } elseif ($state === PaceService::STATE_RELEASED) {
-            $out['leaderboard'] = $this->voteService->selfLeaderboard($room, null, 0, true);
+            $out = PublicPayload::withLeaderboard($out, $this->voteService->selfLeaderboard($room, null, 0, true));
         } elseif (($state === PaceService::STATE_OPEN || $state === PaceService::STATE_CLOSED)
             && PaceService::effectiveFeedback($room) === PaceService::FEEDBACK_EACH) {
-            $out['leaderboard'] = $this->voteService->selfLeaderboard($room, null, self::BEAMER_TOP, true);
+            $out = PublicPayload::withLeaderboard($out, $this->voteService->selfLeaderboard($room, null, 0, true), self::BEAMER_TOP);
         }
         return $out;
     }
 
-    /** Common head of phone and projector state. */
+    /** Common head of phone and projector state (leaderboard fields: PublicPayload::withLeaderboard). */
     private function head(Room $room, int $now): array {
-        return [
+        return PublicPayload::withLeaderboard([
             'room' => [
                 'code' => $room->getCode(),
                 'title' => $room->titleOrEmpty(),
@@ -285,7 +290,7 @@ class PaceStateService {
             'myValue' => null,
             'answered' => 0,
             'leaderboard' => null,
-        ];
+        ], null);
     }
 
     // ── Overall summary for the phone (/summary) ────────────────────────────
@@ -298,9 +303,9 @@ class PaceStateService {
      * After the release exactly the reached questions with solution and tally —
      * only those: otherwise one tap on "Start quiz" would be enough for the whole key.
      *
-     * @return array{available:bool, mode:string, pace:string, practice:bool, title:string, window:array, myScore:?int, leaderboard:?list<array>, items:list<array{poll:array, revealed:bool, results:?array, mine:?array}>}
+     * @return array{available:bool, mode:string, pace:string, practice:bool, title:string, window:array, myScore:?int, leaderboard:?list<array>, leaderboardTotal:int, leaderboardMe:?array, leaderboardAround:list<array>, items:list<array{poll:array, revealed:bool, results:?array, mine:?array}>}
      */
-    public function publicSummary(Room $room, ?string $voterToken): array {
+    public function publicSummary(Room $room, #[\SensitiveParameter] ?string $voterToken): array {
         $now = $this->timeFactory->getTime();
         $state = PaceService::deriveState($room, $now);
         $released = $state === PaceService::STATE_RELEASED;
@@ -312,13 +317,14 @@ class PaceStateService {
             'title' => $room->titleOrEmpty(),
             'window' => $this->window($room, $now),
             'myScore' => null,
-            'leaderboard' => null,
             'items' => [],
         ];
+        // Top 10 plus the own row, as everywhere public (PublicPayload::withLeaderboard).
+        $out = PublicPayload::withLeaderboard($out, null);
         $rows = ($voterToken !== null && $voterToken !== '') ? $this->paceService->rows($room, $voterToken) : [];
         if ($rows === []) {
             if ($released && !$room->getPractice()) {
-                $out['leaderboard'] = $this->voteService->selfLeaderboard($room, null, 0, true);
+                $out = PublicPayload::withLeaderboard($out, $this->voteService->selfLeaderboard($room, null, 0, true));
             }
             $out['available'] = $out['leaderboard'] !== null;
             return $out;
@@ -353,13 +359,13 @@ class PaceStateService {
             $out['items'][] = [
                 'poll' => $this->selfPoll($room, $poll, $row, $released),
                 'revealed' => $released,
-                'results' => $released ? $this->tallyService->tally($poll, $all[$poll->getId()] ?? []) : null,
+                'results' => $released ? PublicPayload::tally($this->tallyService->tally($poll, $all[$poll->getId()] ?? [])) : null,
                 'mine' => $vote === null ? null
                     : ['value' => $vote->getValue()] + $this->verdict($room, $vote, $row, $now, $released),
             ];
         }
         if ($released && !$room->getPractice()) {
-            $out['leaderboard'] = $this->voteService->selfLeaderboard($room, $voterToken, 0, true);
+            $out = PublicPayload::withLeaderboard($out, $this->voteService->selfLeaderboard($room, $voterToken, 0, true));
         }
         $out['available'] = $out['items'] !== [] || $out['leaderboard'] !== null;
         return $out;
@@ -369,7 +375,7 @@ class PaceStateService {
      * Image of a question only for people who have reached it — in every
      * window state, so even after the release only for reached questions.
      */
-    public function imageVisible(Room $room, Poll $poll, ?string $voterToken): bool {
+    public function imageVisible(Room $room, Poll $poll, #[\SensitiveParameter] ?string $voterToken): bool {
         return $voterToken !== null && $voterToken !== ''
             && $this->progressMapper->hasRow($poll->getId(), $voterToken);
     }
@@ -704,7 +710,7 @@ class PaceStateService {
     }
 
     /** Answer in readable form: option texts instead of IDs, number in the export's language. */
-    private function answerText(Poll $poll, mixed $value): string {
+    private function answerText(Poll $poll, #[\SensitiveParameter] mixed $value): string {
         $labels = [];
         foreach ($poll->getOptionsArray() as $option) {
             if (is_array($option)) {
@@ -834,7 +840,7 @@ class PaceStateService {
      * @param Progress[] $rows
      * @return array<int, Vote> per pollId
      */
-    private function votesByPoll(array $rows, string $voterToken): array {
+    private function votesByPoll(array $rows, #[\SensitiveParameter] string $voterToken): array {
         $ids = array_map(static fn (Progress $r): int => $r->getPollId(), $rows);
         $out = [];
         foreach ($this->voteMapper->findByPolls($ids, $voterToken) as $vote) {

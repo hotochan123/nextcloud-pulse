@@ -89,6 +89,11 @@ export default {
 		// Only show the top, do NOT append one's own row — at the end of the quiz
 		// it appears below in the "Around you" excerpt (§8.7).
 		topOnly: { type: Boolean, default: false },
+		// Public payloads carry only the top 10 (lib/Service/PublicPayload.php):
+		// the true length (leaderboardTotal) for "+N more" …
+		total: { type: Number, default: 0 },
+		// … and one's own row (leaderboardMe), appended when it is not among the rows.
+		me: { type: Object, default: null },
 	},
 	data() {
 		return {
@@ -100,6 +105,8 @@ export default {
 	},
 	computed: {
 		// Shared ranks (ex aequo): rank -> count. > 1 -> "shared" marker.
+		// A server-sent `shared` wins (isShared): it was counted on the full list,
+		// and a tie can straddle the cut after the top 10.
 		sharedRanks() {
 			const count = {}
 			for (const r of this.rows) count[r.rank] = (count[r.rank] || 0) + 1
@@ -119,7 +126,7 @@ export default {
 			return cols.map((r, i) => ({
 				...r,
 				order: orderFor[i] || (i + 1),
-				shared: (this.sharedRanks[r.rank] || 0) > 1,
+				shared: this.isShared(r),
 			}))
 		},
 		listRows() {
@@ -130,15 +137,20 @@ export default {
 			const capped = rest.slice(0, this.limit)
 			// On the projector there is no "me": the appended own row would be the
 			// row of whoever happens to operate the browser (§7.4).
-			const me = (this.split || this.topOnly) ? null : rest.find((r) => r.me)
+			// Beyond the top 10 the own row is no longer in `rows` — then the `me` prop.
+			let me = null
+			if (!this.split && !this.topOnly) {
+				me = rest.find((r) => r.me) || null
+				if (!me && this.me && !this.rows.some((r) => r.me)) me = this.me
+			}
 			if (me && !capped.includes(me)) capped.push(me)
-			return capped.map((r) => ({ ...r, shared: (this.sharedRanks[r.rank] || 0) > 1 }))
+			return capped.map((r) => ({ ...r, shared: this.isShared(r) }))
 		},
 		// How many people are still behind the rows shown —
 		// "+N more" in the final standings (§4.3).
 		restCount() {
 			const shown = (this.podium ? this.podiumCols.length : 0) + this.listRows.length
-			return Math.max(0, this.rows.length - shown)
+			return Math.max(0, Math.max(this.total, this.rows.length) - shown)
 		},
 	},
 	mounted() {
@@ -146,6 +158,9 @@ export default {
 		this.$nextTick(() => requestAnimationFrame(() => { this.animate = true }))
 	},
 	methods: {
+		isShared(r) {
+			return typeof r.shared === 'boolean' ? r.shared : (this.sharedRanks[r.rank] || 0) > 1
+		},
 		// Metal class: gold/silver/bronze for medal and podium.
 		metalCls(rank) {
 			return rank === 1 ? 'is-gold' : rank === 2 ? 'is-silver' : 'is-bronze'

@@ -10,22 +10,38 @@ on:
 permissions:
   contents: read
 
+# Third-party actions are pinned to a commit, not to a tag that can be moved;
+# the comment names the release the commit belongs to.
+
 jobs:
   frontend:
     name: Bundle, translations, release archive
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: actions/setup-node@v4
+      # The Node version the committed bundles are built with: npm ci plus
+      # npm run build reproduces them byte for byte with it (checked in a
+      # node:22.18.0 container, in a different directory as well).
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 20
+          node-version: 22.18.0
           cache: npm
 
       - run: npm ci
 
       - name: Build the bundle
         run: npm run build
+
+      # A git clone runs the committed js/ bundles, not src/: they must be
+      # exactly what the sources build to, or a change hidden in minified
+      # code would go unreviewed (security review I4). After a change to
+      # src/ or the dependencies, rebuild with this Node version and commit
+      # js/ along with it. --stat keeps a mismatch readable.
+      - name: Committed bundles match the sources
+        run: |
+          git diff --exit-code --stat -- js/
+          test -z "$(git status --porcelain --untracked-files=all -- js/)"
 
       - name: Translations complete
         run: npm run l10n:check
@@ -43,7 +59,7 @@ jobs:
       - name: Pack a test release archive
         run: SKIP_BUILD=1 ALLOW_UNRELEASED=1 sh build/package.sh
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: pulse-tarball
           path: build/pulse-*.tar.gz
@@ -61,7 +77,7 @@ jobs:
       # classes — hence the server checkout, in which the app lives under
       # apps/ just like in real life.
       - name: Check out the Nextcloud server
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           repository: nextcloud/server
           ref: stable34
@@ -69,11 +85,11 @@ jobs:
           path: server
 
       - name: Check out the app
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           path: server/apps/pulse
 
-      - uses: shivammathur/setup-php@v2
+      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
         with:
           php-version: ${{ matrix.php }}
           extensions: tokenizer, xmlwriter, gd, zip

@@ -11,23 +11,31 @@ use OCA\Pulse\AppInfo\Application;
 use OCA\Pulse\Db\RoomMapper;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Db\DoesNotExistException;
-use OCP\AppFramework\Http\Attribute\BruteForceProtection;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\ContentSecurityPolicy;
+use OCP\AppFramework\Http\Response;
 use OCP\AppFramework\Http\TemplateResponse;
+use OCP\AppFramework\Http\TooManyRequestsResponse;
 use OCP\AppFramework\Services\IInitialState;
 use OCP\IRequest;
+use OCP\Security\Bruteforce\IThrottler;
 
 /**
  * Public participant page: no Nextcloud account needed. The room code in the
  * URL (/apps/pulse/s/{code}) acts like the token of a share link.
+ *
+ * Unknown codes count as failed attempts of the brute-force action
+ * 'pulseRoomCode' (codeBlocked()), shared with PublicVoteController — by
+ * hand, not with #[BruteForceProtection], so that only misses ever consult
+ * the throttle and an existing room always opens.
  */
 class PublicController extends Controller {
     public function __construct(
         IRequest $request,
         private RoomMapper $roomMapper,
         private IInitialState $initialState,
+        private IThrottler $throttler,
     ) {
         parent::__construct(Application::APP_ID, $request);
     }
@@ -54,13 +62,11 @@ class PublicController extends Controller {
 
     #[PublicPage]
     #[NoCSRFRequired]
-    #[BruteForceProtection(action: 'pulseRoomCode')]
-    public function show(string $code): TemplateResponse {
-        $exists = true;
-        try {
-            $this->roomMapper->findByCode($code);
-        } catch (DoesNotExistException) {
-            $exists = false;
+    public function show(string $code): Response {
+        $exists = $this->roomExists($code);
+        // An unknown code is a failed brute-force attempt; too many -> 429.
+        if (!$exists && $this->codeBlocked()) {
+            return new TooManyRequestsResponse();
         }
 
         // The SPA fetches the state itself; pass code + existence up front
@@ -75,10 +81,6 @@ class PublicController extends Controller {
             TemplateResponse::RENDER_AS_PUBLIC,
         );
         $response->setContentSecurityPolicy(new ContentSecurityPolicy());
-        // Count a call with an unknown code as a failed brute-force attempt.
-        if (!$exists) {
-            $response->throttle(['action' => 'pulseRoomCode']);
-        }
         return $response;
     }
 
@@ -90,13 +92,10 @@ class PublicController extends Controller {
      */
     #[PublicPage]
     #[NoCSRFRequired]
-    #[BruteForceProtection(action: 'pulseRoomCode')]
-    public function screen(string $code): TemplateResponse {
-        $exists = true;
-        try {
-            $this->roomMapper->findByCode($code);
-        } catch (DoesNotExistException) {
-            $exists = false;
+    public function screen(string $code): Response {
+        $exists = $this->roomExists($code);
+        if (!$exists && $this->codeBlocked()) {
+            return new TooManyRequestsResponse();
         }
 
         $this->initialState->provideInitialState('code', $code);
@@ -121,9 +120,6 @@ class PublicController extends Controller {
         $csp = new ContentSecurityPolicy();
         $csp->addAllowedFrameAncestorDomain('*');
         $response->setContentSecurityPolicy($csp);
-        if (!$exists) {
-            $response->throttle(['action' => 'pulseRoomCode']);
-        }
         return $response;
     }
 
@@ -131,8 +127,11 @@ class PublicController extends Controller {
      * Embed shell for the Office/PowerPoint add-in (content add-in). Loads office.js,
      * asks once for the room code (persisted in the document settings of the .pptx)
      * and then frames /screen/{code} same-origin. Must be frameable by Office
-     * (frame-ancestors open) and allowed to load office.js from Microsoft's CDN — a
-     * read-only shell, no sensitive NC content. The second framing blocker,
+     * (frame-ancestors open) and allowed to load office.js from Microsoft's CDN.
+     * The shell itself shows no NC content, but office.js runs in this origin:
+     * for a visitor who is logged in to Nextcloud (the page opened in a normal
+     * browser tab rather than in Office) that third-party script has the reach of
+     * their session. The second framing blocker,
      * X-Frame-Options, is additionally removed for this path in Traefik
      * (dynamic_conf/http.routers.pulse-embed.yml).
      */
@@ -161,5 +160,24 @@ class PublicController extends Controller {
         $csp->addAllowedImageDomain('https://*.microsoft.com');
         $response->setContentSecurityPolicy($csp);
         return $response;
+    }
+
+    private function roomExists(string $code): bool {
+        try {
+            $this->roomMapper->findByCode($code);
+            return true;
+        } catch (DoesNotExistException) {
+            return false;
+        }
+    }
+
+    /**
+     * Record an unknown code as a failed attempt of 'pulseRoomCode' for this
+     * address; true once the address has more than ten of them within 30
+     * minutes (-> 429, and then no further attempt is recorded). Only called
+     * for misses: see PublicVoteController::codeMissBlocked().
+     */
+    private function codeBlocked(): bool {
+        return PublicVoteController::codeMissBlocked($this->throttler, $this->request->getRemoteAddress());
     }
 }

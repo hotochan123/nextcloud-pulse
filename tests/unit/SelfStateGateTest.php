@@ -363,7 +363,11 @@ class SelfStateGateTest extends PaceStateTestCase {
 
         $this->cacheStore = [];
         $this->release();
-        $this->assertCount(12, $this->beamer()['leaderboard'], 'freigegeben: der volle Endstand');
+        // Released: the top 10 of the final standings plus their true length
+        // (public payloads are capped, see PublicPayloadTest).
+        $final = $this->beamer();
+        $this->assertCount(10, $final['leaderboard'], 'freigegeben: die ersten zehn des Endstands');
+        $this->assertSame(12, $final['leaderboardTotal'], 'freigegeben: wie viele es insgesamt sind');
 
         $this->cacheStore = [];
         $this->room->setPractice(true);

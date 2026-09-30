@@ -9,6 +9,183 @@ this file, so every published version needs an entry here.
 
 ## [Unreleased]
 
+### Security
+Found in a security review of the code by AI agents in September 2026 (see
+the README's AI disclosure), most important first. What is still open is
+described under "Security notes" and "Known limits" in the README.
+
+- Wrong room codes no longer lock a school or a venue out of Pulse. After ten
+  wrong codes from one address within 30 minutes, Nextcloud's brute-force
+  protection answered every participant and projector request from that
+  address with "Too many requests" for 30 minutes — valid codes included, on
+  every phone and the projector behind the same school or conference network;
+  only an admin could lift it earlier. Typos in the join form were enough, so
+  was a room deleted while a dozen phones still polled it, and so was any web
+  page with an image pointing at a made-up code; the join form then said
+  "That code does not exist." Now only unknown codes count, and only unknown
+  codes are refused: an existing room always opens. Requests from an address
+  that is already blocked are not counted, so phones still polling a deleted
+  room no longer keep the block alive for as long as they are open.
+- Scripted ballot stuffing can no longer slow down the whole Nextcloud. A
+  script that votes or joins without a cookie could add thousands of votes,
+  players or presence entries per minute, and every one of them made each
+  phone and the projector download the complete results again — at 60,000
+  votes 2.4 MB and half a second of server time per poll, on the web server
+  all of Nextcloud shares. Now:
+  - phones and the projector get capped results: the top 100 words or
+    free-text groups, at most 500 compass points (a fair sample; the total and
+    the centre stay exact) and the first ten rows of the leaderboard plus your
+    own place and the people around you, each with the full count — the
+    projector says how many more there are. A word cloud with 60,000 words
+    now costs under 4 KB instead of 2.2 MB. The moderator's results, the
+    summary and the CSV export stay complete;
+  - "nothing has changed" is answered without reading any votes (a change
+    marker in Nextcloud's memory cache);
+  - new identities without a cookie are limited to 300 per address and room
+    in ten minutes, and a phone counts as present from its second poll, when
+    its cookie comes back; made-up cookies add at most 600 presence entries
+    per address and room in ten minutes;
+  - a moderated quiz takes at most 600 players (`max_players_per_room` in the
+    app config changes that).
+
+  Voting again under new identities stays possible; the README's security
+  notes explain what remains.
+- A word-cloud vote carrying a huge list of words no longer ties up the
+  server. A 16 MB request kept a PHP worker busy for more than eleven seconds,
+  because every entry was cleaned up before the list was cut to the allowed
+  number. A list longer than twice the allowed number of words (at least 20)
+  is now refused with "Invalid words.", each word is cut to 200 characters
+  first, and free-text answers and nicknames are shortened before they are
+  checked.
+- One account can no longer fill the server's disk. Question images are
+  stored in Nextcloud's app data, outside every user quota, and Pulse
+  re-encodes them — a 1.4 MB image could become an 8.6 MB PNG — so three
+  copies of a room with images wrote 821 MB in a second and a half. Rooms,
+  questions and question texts had no limits either. Now each account has an
+  image budget of 200 MB, at most 200 rooms, 100 questions per room and 1000
+  characters per question; creating and copying rooms, adding questions,
+  uploading images and demo votes are limited per minute; answer options are
+  cut to 200 characters, and a free-text question keeps at most 50 accepted
+  answers. A copy is checked against the caps before anything is written and
+  removed again if it still fails halfway (such a failure used to be an
+  internal server error). Requests sent at the same moment count again after
+  writing and take their own write back when the account ended up over a cap,
+  so a burst of copies can no longer store more than the budget. All values
+  can be changed per instance in the app config — keys and defaults in the
+  README under "Limits". Creating or
+  copying a room shows the server's reason when it fails.
+- Rooms of deleted accounts no longer pass to a new account with the same
+  user ID. An account deleted while Pulse was disabled — as it is after an
+  update to Nextcloud 35 — left its rooms behind, and whoever later got the
+  same user ID, for example through a login provider, owned them with all
+  answers, nicknames and exports. The daily job now deletes the rooms of every
+  owner that no user backend knows any more and that left no login record
+  behind; the second condition keeps the rooms of real people while their
+  LDAP or OIDC backend is merely switched off. And participants' polling keeps
+  a room alive only until 180 days after its owner last used it, so a phone
+  left open no longer defeats the 30-day retention.
+- The voter cookie can no longer be planted from a sibling subdomain. Another
+  service under the same domain could set a `pulse_vt` cookie with a token it
+  knew; browsers sent it along to Pulse, and with it that service could read a
+  participant's own answers, free text included, and vote or rename in their
+  name — in every room, for a year. On https with Nextcloud at the root of its
+  domain the cookie is now called `__Host-pulse_vt`, which browsers accept
+  only from Nextcloud's own origin, and a request that sends a cookie name
+  twice counts as having none — except a name such as `_.Host-pulse_vt`,
+  which PHP itself drops and which therefore cannot cost anyone their cookie. An existing `pulse_vt` is taken over during the
+  first 60 days after the update, so a homework that is running keeps its
+  players; after that it is ignored. Under http or a sub-path the name stays
+  `pulse_vt`.
+- Votes are accepted only from Pulse's own page. Joining, voting and "Next
+  question" need no request token — participants have no Nextcloud session —
+  so any web site a participant opened could post to them: a hidden form
+  could replace the participant's cookie, leaving their quiz points under an
+  orphaned name and restarting a self-paced quiz, and a sibling subdomain
+  could vote or rename in their name. These requests now need the header the
+  page's own script sends (`X-Requested-With: XMLHttpRequest`, or
+  `Sec-Fetch-Site: same-origin`); anything else gets 403 and no cookie.
+- The development tree is no longer public when Pulse runs from a git
+  checkout inside the web root. A shipped `.htaccess` makes Apache answer 404
+  for `node_modules/` — whose demo pages include one that can be made to run
+  script on Nextcloud's origin —, the screenshot harness, sources, tests,
+  build files, `.git/` and local `_*.php` scripts. The README no longer tells
+  people to clone into `apps/`: it installs the release archive, or the
+  runtime folders, built outside the web root.
+- Hosts of a moderated quiz can remove players and lock joining. Anyone with
+  the code could put a name on the podium, and a player could rename
+  themselves after answering — even after the final standings — into
+  something abusive or into somebody else's name; the only remedy was
+  resetting the whole room. Now the "Only for you" panel and the standings
+  have a "Participants" list with "Remove from the quiz" (the player's answers
+  go too; they can join again from zero points), the menus have "Lock
+  joining" (the header then shows "Joining locked"), a name is frozen once its
+  player has answered or a question has ended, and two phones that join at the
+  same moment under the same name no longer both get it.
+- Lookalike names are refused. A fullwidth "Ａｎｎａ", a Greek "Αnna" or a
+  Cyrillic "Аnna" was accepted next to "Anna", so somebody could pass as
+  another player on the projector, in the progress view and in the CSV a
+  teacher grades by. Names are now compared with lookalike letters folded,
+  and with PHP's `intl` extension also against pairs such as "PauI" and
+  "Paul"; characters that browsers draw as nothing are ignored, including
+  the ones Unicode has reserved but not assigned yet, and another spelling of
+  one's own name is checked like a new name. Now and then a genuine name close
+  to a taken one is refused; adding a letter helps.
+- The moderator API no longer tells other accounts which room codes exist.
+  Someone else's room answered "403 No access to this room." and an unknown
+  code "404", without any rate limit, so any account could search for live
+  rooms at hundreds of guesses per second. Both now answer "404 Room not
+  found.".
+- A self-paced quiz can no longer be filled up by a script. Joining without
+  ever starting took one of the 300 places, and the limit of 120 join
+  requests per address and room let one person behind a school's NAT use up
+  the whole class's budget. Now only players who have started count towards
+  the 300; up to 600 can join, and at that ceiling people who joined more than
+  ten minutes ago and never started make room while the quiz is open. What is
+  limited per address is new names — 120 per room in ten minutes, as many as
+  the old request limit let in — and not requests: a taken name, a retry or a
+  player coming back costs nothing. The request limit stays as a mere flood
+  guard of 2,400 per address and room in ten minutes, now in moderated quizzes
+  too. An instance that runs larger events raises the ceiling and the count per
+  address in the app config (`max_players_per_room`,
+  `max_new_players_per_address`).
+- Images uploaded to the same question at the same moment no longer leave
+  files behind that nothing deletes — not deleting the room, not the daily
+  job, not deleting the account. The upload that loses now gets "The image
+  was changed at the same time elsewhere. Please try again." and its file is
+  removed, removing an image no longer undoes an upload that arrives at the
+  same moment, and the daily job sweeps image files no question refers to
+  (once they are an hour old). A room that cannot be deleted no longer stops
+  the clean-up of all the others.
+- The PowerPoint add-in asks only for the lowest permission level,
+  "Restricted", instead of "ReadWriteDocument": it just keeps the room code in
+  the document settings. Script that got into the embedded page could
+  otherwise have read or rewritten the whole presentation. Download the
+  manifest again (`office-addin/README.md`).
+- The add-in shell frames a saved room code only if it is six letters and
+  digits. A code of `..` from a shared `.pptx` or a link framed Pulse's
+  moderator page or the Nextcloud login inside the slide; anything that is not
+  a room code now opens the code form.
+- Voter tokens, nicknames and answers no longer appear in exception traces in
+  `nextcloud.log`: the parameters that carry them are marked
+  `#[\SensitiveParameter]`.
+- Release signing (`build/package.sh`, for developers) no longer puts the
+  private key into the production container. It signs in a disposable
+  container without network, created from a Nextcloud image and removed with
+  the key right afterwards; `CONTAINER=<name>` is the explicit opt-in to sign
+  inside a running container.
+- CI checks that the committed bundles in `js/` are exactly what the sources
+  build to (Node.js 22.18.0, `npm ci`), so a change hidden in minified code
+  cannot pass review unnoticed, and the GitHub Actions it uses are pinned to
+  commits.
+- The README and the App Store description no longer claim that the voter
+  cookie "prevents" double voting: it discourages it, and whoever clears their
+  cookies can vote again. The README's security notes now say what is
+  protected and what is not — ballot stuffing, names on the podium, scouting a
+  self-paced quiz (for anything graded: feedback "At the end"), the framing
+  exemption of the projector view and the add-in shell, and `office.js` in the
+  Nextcloud origin (test the add-in address in a private window). A new
+  `SECURITY.md` says how to report a vulnerability.
+
 ### Added
 - Every instance hands out its own PowerPoint add-in manifest, at
   `/apps/pulse/addin/manifest.xml` and from the deck's overflow menu. An Office
@@ -63,8 +240,9 @@ this file, so every published version needs an entry here.
     window is over or it can no longer be changed, and phone, projector,
     progress page, leaderboard and CSV all count the same answers. Before the
     release, phones show no solution, distribution or leaderboard. Joining
-    ends when the quiz closes; join requests are limited to 120 per address
-    and room in ten minutes, and a room takes at most 300 players.
+    ends when the quiz closes; a room takes at most 300 players who have
+    started and 600 who have joined, and at most 120 new names per address in
+    ten minutes (see Security).
   - All of it works through the API as well:
     `POST /api/1.0/rooms/{code}/pace` switches the pace and opens, closes
     (with `release: false` without releasing the results, whatever the
@@ -122,15 +300,24 @@ this file, so every published version needs an entry here.
 - Nicknames are unique within a room. A name already taken — also in different
   case, or with invisible characters or extra spaces — is refused with "This
   name is already taken. Please choose another one.", so the leaderboard no
-  longer shows two identical rows. Players can still keep or change their own
-  name. Invisible characters are stripped from names, and a name made only of
-  them is refused.
+  longer shows two identical rows. Players can keep their own name and change
+  it until they start answering (lookalike letters and the rename freeze: see
+  Security). Invisible characters are stripped from names, and a name made
+  only of them is refused.
 - `info.xml` gives the licence as `AGPL-3.0-or-later` instead of `agpl`. The
   store schema still accepts the short form but lists it as deprecated, and
   for apps targeting Nextcloud 31 and later the store's guide asks for an SPDX
   identifier. `package.json` names the licence now as well.
 
 ### Fixed
+- On SQLite, a class joining a quiz at the same moment no longer gets
+  "Joining failed." on up to half of the phones. The room lock began there as a
+  plain read, and a transaction that a parallel one had overtaken could not
+  write any more ("database is locked") — the database's busy timeout does not
+  wait in that case. The lock now takes the write lock first, so the joins
+  queue up. The same lock guards correcting a free-text answer in a
+  self-paced quiz and the host's actions on it (opening, closing, locking
+  joining, removing a player, grading).
 - The join panel no longer reopens by itself while presenting. It used to open
   whenever nobody was connected yet, and that decision was taken again on every
   results poll — every 1.2 s in a quiz — so closing it with ×, a click beside it
@@ -291,9 +478,10 @@ this file, so every published version needs an entry here.
   MySQL installations work as soon as they run this version.
 - Release packaging (`build/package.sh`, for developers): signing works. It
   failed every time and then left the private key in the Nextcloud
-  container's `/tmp`; it now signs a copy in a private temporary folder that
-  is removed on every exit. Archive entries are 755/644 and owned by 0:0
-  instead of world-writable, `info.xml` is checked against the store's
+  container's `/tmp`; it now signs in a disposable container that is removed,
+  key included, on every exit (see Security). Archive entries are 755/644
+  and owned by 0:0 instead of world-writable, `info.xml` is checked against
+  the store's
   current schema, and packing stops when `info.xml`, `package.json` and
   `CHANGELOG.md` disagree about the version (`ALLOW_UNRELEASED=1` packs a
   test archive, as CI does). A pre-release such as `0.19.0-beta.1` needs its

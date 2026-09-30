@@ -23,23 +23,39 @@
 # warnings; CI uses it to pack whatever state it builds. Never upload such an
 # archive.
 #
-# Signing runs `occ integrity:sign-app` in a Nextcloud container
-# (CONTAINER, default nextcloud-nextcloud-1; OCC, default /var/www/html/occ).
-# It signs a copy of the staged app in a private temporary directory under the
-# container's /tmp, never the installed app, so it does not matter where this
-# repository lives. Key and certificate exist in the container only while occ
-# runs; they are removed right after signing and, on any error or interrupt,
-# by the exit trap.
+# Signing runs `occ integrity:sign-app` from Nextcloud's source code in a
+# disposable container: `docker create --network none` from SIGN_IMAGE
+# (default: the image of the container SIGN_FROM, default
+# nextcloud-nextcloud-1, if it exists — only its image name is read —,
+# otherwise nextcloud:34-apache). The command works without an installed
+# instance (it is registered before the "installed" check). Staged app, key
+# and certificate are copied into the stopped container, occ runs once, only
+# appinfo/signature.json comes back, and the container is removed with the key
+# in it — right after signing and, on any error or interrupt, by the exit trap.
+# No server that serves traffic ever holds the key, and nothing on the host
+# has to be shared with Docker.
+#
+# CONTAINER=<name> is the explicit opt-in to sign inside that running
+# container instead (OCC, default /var/www/html/occ there): a copy of the
+# staged app in a private temporary directory under the container's /tmp,
+# never the installed app. While occ runs, the key is readable for the web
+# server user of that container — do not point it at a production server.
 set -eu
 umask 022
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-CONTAINER="${CONTAINER:-nextcloud-nextcloud-1}"
-OCC="${OCC:-/var/www/html/occ}"
+# Empty = sign in a disposable container (see above); a name = in that one.
+CONTAINER="${CONTAINER:-}"
+if [ -n "$CONTAINER" ]; then
+	OCC="${OCC:-/var/www/html/occ}"
+else
+	OCC="${OCC:-/usr/src/nextcloud/occ}"
+fi
 SCHEMA_URL=https://apps.nextcloud.com/schema/apps/info.xsd
 
 TMP=""
 CT_TMP=""
+SIGN_CT=""
 
 die() {
 	echo "Error: $*" >&2
@@ -62,7 +78,20 @@ cleanup_container() {
 	fi
 }
 
+# Removes the disposable signing container — and the key inside it — with its
+# anonymous volume (the image declares one). Safe to call more than once.
+cleanup_signer() {
+	if [ -n "$SIGN_CT" ]; then
+		if docker rm -f -v "$SIGN_CT" >/dev/null 2>&1; then
+			SIGN_CT=""
+		else
+			echo "Error: could not remove the signing container $SIGN_CT — it holds the private key, run: docker rm -f -v $SIGN_CT" >&2
+		fi
+	fi
+}
+
 cleanup() {
+	cleanup_signer
 	cleanup_container
 	if [ -n "$TMP" ]; then
 		rm -rf "$TMP"
@@ -72,7 +101,7 @@ trap cleanup EXIT
 # On a signal, exit with the usual 128+n status (Linux numbers); exit runs the
 # EXIT trap. Every signal that ends the script by default needs its own line:
 # dash (/bin/sh on Debian and Ubuntu) skips the EXIT trap for a signal without
-# a trap and would leave the key in the container. QUIT is Ctrl-\ in a
+# a trap and would leave the key in a container. QUIT is Ctrl-\ in a
 # terminal; PIPE is `build/package.sh | head`.
 trap 'exit 129' HUP
 trap 'exit 130' INT
@@ -186,8 +215,7 @@ find "$STAGE" -type f \( -perm -100 -o -perm -010 -o -perm -001 \) -exec chmod 7
 find "$STAGE" -type f ! \( -perm -100 -o -perm -010 -o -perm -001 \) -exec chmod 644 {} +
 
 if [ -n "$SIGN" ]; then
-	echo "==> Signing (occ integrity:sign-app in container $CONTAINER)"
-	command -v docker >/dev/null 2>&1 || die "docker not found — signing needs a Nextcloud container"
+	command -v docker >/dev/null 2>&1 || die "docker not found — signing needs a Nextcloud image"
 	# occ signs with any certificate; a wrong one only shows up when an
 	# instance refuses to install the release. So check it here.
 	CRT_PUB="$(openssl x509 -in "$PULSE_CRT" -noout -pubkey)" \
@@ -198,7 +226,40 @@ if [ -n "$SIGN" ]; then
 	openssl x509 -in "$PULSE_CRT" -noout -subject -nameopt RFC2253 \
 		| sed -n 's/^subject= *//p' | tr ',' '\n' | grep -qx 'CN=pulse' \
 		|| die "the certificate is not issued for CN=pulse"
+fi
 
+if [ -n "$SIGN" ] && [ -z "$CONTAINER" ]; then
+	if [ -z "${SIGN_IMAGE:-}" ]; then
+		SIGN_IMAGE="$(docker inspect --format '{{.Config.Image}}' "${SIGN_FROM:-nextcloud-nextcloud-1}" 2>/dev/null || true)"
+		SIGN_IMAGE="${SIGN_IMAGE:-nextcloud:34-apache}"
+	fi
+	echo "==> Signing (occ integrity:sign-app in a disposable container from $SIGN_IMAGE, no network)"
+	# Nothing of the image's entrypoint runs (it would install Nextcloud): only
+	# php with occ, as root — the only user that may write the source's config
+	# directory, which occ insists on even for this command.
+	SIGN_CT="pulse-sign-$$-$(od -An -N4 -tx4 /dev/urandom | tr -d ' ')"
+	docker create --name "$SIGN_CT" --network none --entrypoint php "$SIGN_IMAGE" \
+		"$OCC" integrity:sign-app \
+		--path=/sign/pulse \
+		--privateKey=/sign/sign.key \
+		--certificate=/sign/sign.crt >/dev/null \
+		|| die "cannot create a signing container from $SIGN_IMAGE"
+	mkdir "$TMP/sign"
+	docker cp "$TMP/sign" "$SIGN_CT:/sign" >/dev/null
+	docker cp "$STAGE" "$SIGN_CT:/sign/pulse" >/dev/null
+	docker cp -L "$PULSE_KEY" "$SIGN_CT:/sign/sign.key" >/dev/null
+	docker cp -L "$PULSE_CRT" "$SIGN_CT:/sign/sign.crt" >/dev/null
+	docker start -a "$SIGN_CT" || die "occ integrity:sign-app failed"
+	# occ reports some failures (such as an unwritable config directory) and still
+	# exits 0 — only the file tells.
+	docker cp "$SIGN_CT:/sign/pulse/appinfo/signature.json" "$STAGE/appinfo/signature.json" >/dev/null 2>&1 \
+		|| die "occ did not write appinfo/signature.json"
+	cleanup_signer
+	[ -z "$SIGN_CT" ] || die "the signing container could not be removed"
+	[ -s "$STAGE/appinfo/signature.json" ] || die "occ did not write appinfo/signature.json"
+	chmod 644 "$STAGE/appinfo/signature.json"
+elif [ -n "$SIGN" ]; then
+	echo "==> Signing (occ integrity:sign-app in the running container $CONTAINER — CONTAINER is set)"
 	CT_TMP="$(docker exec "$CONTAINER" mktemp -d /tmp/pulse-sign.XXXXXX)" \
 		|| die "cannot create a temporary directory in container $CONTAINER"
 	docker cp "$STAGE" "$CONTAINER:$CT_TMP/pulse"

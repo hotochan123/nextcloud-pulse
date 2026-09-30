@@ -331,9 +331,12 @@ and after every run, afterwards no room of `pulse-shots` left.
   `/next` and `/vote` p95 ≈ 42 ms, `/progress` p95 304 ms (rebuilds everything
   on every poll; one moderator every 2–3 s). Within bounds; an aggregate cache
   for `/progress` only once measurements show it is getting tight.
-- At most 300 people per room, 120 joins per address and room in ten minutes —
-  a school class behind a NAT stays below that, a lecture hall behind one
-  address not necessarily.
+- At most 300 people per room who have started and 600 who have joined, 120
+  new names per address and room in ten minutes (since the security review of
+  September 2026; before, 300 joined and 120 join requests) — a school class
+  behind a NAT stays below that, a lecture hall behind one address not
+  necessarily; for that, the instance raises `max_players_per_room` and
+  `max_new_players_per_address` in the app config.
 
 **Next stages**
 

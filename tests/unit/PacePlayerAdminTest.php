@@ -106,7 +106,9 @@ class PacePlayerAdminTest extends TestCase {
 
     // ── Lock joins ─────────────────────────────────────────────────────────
 
-    public function testBeitrittSperrenNurImEigenenTempo(): void {
+    public function testBeitrittSperrenNurImQuiz(): void {
+        // Moderated quizzes can lock joining too (LivePlayerAdminTest), a poll has no players.
+        $this->locked->setMode('poll');
         $this->locked->setPace('live');
         $this->rooms->expects($this->never())->method('update');
 
@@ -114,7 +116,7 @@ class PacePlayerAdminTest extends TestCase {
             $this->service->setJoinsLocked($this->room(), true);
             $this->fail('ConflictException erwartet');
         } catch (ConflictException $e) {
-            $this->assertSame('This room is not self-paced.', $e->getMessage());
+            $this->assertSame('This room is not a quiz.', $e->getMessage());
         }
         $this->assertSame(['beginTransaction', 'rollBack'], $this->tx);
     }
@@ -187,12 +189,13 @@ class PacePlayerAdminTest extends TestCase {
         $this->assertSame('votes:21,22:tok-anna', $this->calls[1]);
     }
 
-    public function testEntfernenNurImEigenenTempo(): void {
+    public function testEntfernenNurImQuiz(): void {
+        $this->locked->setMode('poll');
         $this->locked->setPace('live');
         $this->players->expects($this->never())->method('delete');
 
         $this->expectException(ConflictException::class);
-        $this->expectExceptionMessage('This room is not self-paced.');
+        $this->expectExceptionMessage('This room is not a quiz.');
         $this->service->removePlayer($this->room(), 31);
     }
 

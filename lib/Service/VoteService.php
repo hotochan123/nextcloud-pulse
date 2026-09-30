@@ -21,6 +21,8 @@ use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\DB\Exception;
 use OCP\ICacheFactory;
 use OCP\IL10N;
+use OCP\Security\RateLimiting\ILimiter;
+use OCP\Security\RateLimiting\IRateLimitExceededException;
 
 /**
  * Votes: check incoming values against the question type, store them (poll:
@@ -30,8 +32,10 @@ use OCP\IL10N;
  *
  * Self-paced quiz (PaceService::isSelf): vote, join and leaderboard each
  * branch off into their own path in the first line. The dependencies this
- * needs (paceService, progressMapper, cacheFactory) are touched only by
- * those branches — the moderated path runs line for line as before.
+ * needs (progressMapper, cacheFactory, limiter) are touched only by those
+ * branches. Joining takes the room lock (paceService->locked) in both
+ * modes; apart from that the moderated path does not use PaceService. The
+ * player caps of joining come from Limits (instance-wide app config).
  *
  * Section references (§…) point to the design notes of the redesign, which are
  * not in the public repository (see "References in code comments" in the
@@ -50,6 +54,13 @@ class VoteService {
     /** Public self-paced leaderboard: raw rows stay this long in the local cache (see selfLeaderboard). */
     private const LEADERBOARD_BUCKET = 2;
 
+    /** Longest nickname in characters (the join form's maxlength as well). */
+    private const NICKNAME_MAX = 24;
+    /** Word cloud: a single raw word is cut to this many characters before it is cleaned. */
+    private const WORD_RAW_MAX = 200;
+    /** Word cloud: more list entries than this (or 2 × maxWords) are not a vote. */
+    private const WORD_ITEMS_MIN = 20;
+
     public function __construct(
         private PollMapper $pollMapper,
         private VoteMapper $voteMapper,
@@ -58,10 +69,13 @@ class VoteService {
         private DeckService $deckService,
         private ITimeFactory $timeFactory,
         private IL10N $l10n,
-        // only touched in self-paced mode:
+        // joining (room lock); everything else only in self-paced mode:
         private PaceService $paceService,
         private ProgressMapper $progressMapper,
         private ICacheFactory $cacheFactory,
+        private ILimiter $limiter,
+        // joining: the player caps
+        private Limits $limits,
     ) {
     }
 
@@ -80,7 +94,7 @@ class VoteService {
      * @throws \InvalidArgumentException no active question / invalid value
      * @throws RoomGoneException         self-paced: room deleted in the meantime
      */
-    public function recordVote(Room $room, string $voterToken, mixed $value, bool $keyboard = false, ?int $pollId = null): void {
+    public function recordVote(Room $room, #[\SensitiveParameter] string $voterToken, #[\SensitiveParameter] mixed $value, bool $keyboard = false, ?int $pollId = null): void {
         if (PaceService::isSelf($room)) {
             $this->recordSelfVote($room, $voterToken, $value, $keyboard, $pollId);
             return;
@@ -146,86 +160,259 @@ class VoteService {
     /**
      * Quiz join: set (or change) the nickname for this token in this room.
      *
-     * @throws \InvalidArgumentException empty/too long name or not a quiz room
-     * @throws RoomGoneException         self-paced: room deleted in the meantime
+     * Both modes run under the room lock (PaceService::locked) and branch on
+     * the freshly locked row: checking the name and registering it are
+     * serialised, so two simultaneous "Anna"s no longer both get the name.
+     * Inside the lock no unique violation is possible (the same token is
+     * serialised as well; on PostgreSQL one would abort the transaction).
+     *
+     * @param ?string $remoteAddress the participant's address: self-paced,
+     *        new players are counted per address and room
+     *        (Limits::NEW_PLAYERS_PER_ADDRESS); null = not counted
+     * @throws \InvalidArgumentException empty name, not a quiz room, name taken or frozen, joining closed, quiz full
+     * @throws JoinLimitException        self-paced: too many new players from this address
+     * @throws RoomGoneException         room deleted in the meantime
      */
-    public function quizJoin(Room $room, string $voterToken, string $nickname): Player {
+    public function quizJoin(Room $room, #[\SensitiveParameter] string $voterToken, #[\SensitiveParameter] string $nickname, ?string $remoteAddress = null): Player {
         if ($room->getMode() !== 'quiz') {
             throw new \InvalidArgumentException($this->l10n->t('This room is not a quiz.'));
         }
-        if (PaceService::isSelf($room)) {
-            return $this->paceService->locked($room, fn (Room $r): Player => $this->selfJoin($r, $voterToken, $nickname));
-        }
+        return $this->paceService->locked($room, fn (Room $r): Player => PaceService::isSelf($r)
+            ? $this->selfJoin($r, $voterToken, $nickname, $remoteAddress)
+            : $this->liveJoin($r, $voterToken, $nickname));
+    }
+
+    /**
+     * Moderated (live) join, under the room lock (quizJoin), $room is the
+     * freshly locked row.
+     *
+     * - Names are unique within the room, compared on TallyService::namesClash
+     *   (case, invisible characters, lookalikes) — otherwise two identical
+     *   looking rows show up in the leaderboard and nobody knows which one is
+     *   theirs, or a name is impersonated on the podium.
+     * - "Lock joining" (PaceService::setJoinsLocked) turns new tokens away;
+     *   anyone already playing still gets back in.
+     * - The name is fixed once the token has answered a question of this room
+     *   or the quiz is over (a question at 'ended'): otherwise a name vetted
+     *   in the lobby could be swapped for another one on the podium after the
+     *   final standings. The spelling of one's own name (same nameKey) stays
+     *   changeable, and re-sending it always works.
+     * - A new token starts empty: a vote that a removed player's request wrote
+     *   while PaceService::removePlayer ran does not come back under a new name.
+     *   Only such left-overs are deleted — a delete that finds nothing would
+     *   still count as a vote write and change the stamp of the running
+     *   question (VoteMapper::changeStamp), so every join would send every
+     *   phone and the projector into a full refetch.
+     * - At most Limits::PLAYERS_PER_ROOM players (default
+     *   PaceService::MAX_JOINED): new tokens beyond that get "This quiz is
+     *   full." Voter tokens cost nothing to make up, so the cap is what bounds
+     *   a script's players (and the leaderboards every view reads); anyone
+     *   already playing still gets back in.
+     *
+     * No count per address: a conference behind one NAT address can have
+     * many players. Against a script, the host locks joining once the room
+     * is in, and removes what got through.
+     *
+     * @throws \InvalidArgumentException
+     */
+    private function liveJoin(Room $room, #[\SensitiveParameter] string $voterToken, #[\SensitiveParameter] string $nickname): Player {
         $nickname = $this->sanitizeNickname($nickname);
-        // Names are unique within the room (case-insensitive) — otherwise two
-        // identical rows show up in the leaderboard and nobody knows which one
-        // is theirs. The token itself may keep or rewrite its own name.
-        $wanted = TallyService::nameKey($nickname);
-        foreach ($this->playerMapper->findByRoom($room->getId()) as $other) {
-            if ($other->getVoterToken() !== $voterToken && TallyService::nameKey($other->getNickname()) === $wanted) {
-                throw new \InvalidArgumentException($this->l10n->t('This name is already taken. Please choose another one.'));
+        $players = $this->playerMapper->findByRoom($room->getId());
+        $mine = self::ownPlayer($players, $voterToken);
+        if ($mine === null && $room->getJoinsLocked()) {
+            throw new \InvalidArgumentException($this->l10n->t('Joining is closed for this quiz.'));
+        }
+        if ($mine === null && count($players) >= $this->limits->get(Limits::PLAYERS_PER_ROOM)) {
+            throw new \InvalidArgumentException($this->l10n->t('This quiz is full.'));
+        }
+        $renames = $mine !== null && TallyService::nameKey($mine->getNickname()) !== TallyService::nameKey($nickname);
+        $pollIds = [];
+        $ended = false;
+        if ($mine === null || $renames) {
+            foreach ($this->pollMapper->findByRoom($room->getId()) as $poll) {
+                $pollIds[] = $poll->getId();
+                $ended = $ended || $poll->getStatus() === 'ended';
             }
+        }
+        if ($renames && ($ended || $this->voteMapper->findByPolls($pollIds, $voterToken) !== [])) {
+            throw new \InvalidArgumentException($this->l10n->t('You can\'t change your name after starting.'));
+        }
+        $this->assertNameFree($players, $voterToken, $nickname, $mine);
+        if ($mine === null && $this->voteMapper->findByPolls($pollIds, $voterToken) !== []) {
+            $this->voteMapper->deleteByPollsAndToken($pollIds, $voterToken);
         }
         return $this->playerMapper->register($room->getId(), $voterToken, $nickname, $this->timeFactory->getTime());
     }
 
     /**
-     * Self-paced join. Runs under the room lock (quizJoin ->
-     * PaceService::locked), $room is the freshly locked row: checking and
-     * registering are therefore serialised — two simultaneous "Anna"s no
-     * longer both get the name, and the cap cannot be overrun.
-     * Inside the lock no unique violation is possible (the same token is
-     * serialised as well).
+     * Self-paced join, under the room lock (quizJoin), $room is the freshly
+     * locked row: the cap cannot be overrun either.
      *
      * Allowed in draft and in the open window; after closing, the next group
      * can no longer get at the final standings and solutions. "Lock joining"
-     * and the cap only affect new tokens — anyone already playing still gets
-     * back in. After starting, the name is fixed: otherwise a token could slip
-     * into a freed-up or someone else's name after answering, and the teacher
-     * grades by name. The case of one's own name stays changeable
-     * (same nameKey).
+     * and the caps only affect new tokens — anyone already playing still gets
+     * back in (makeRoomForNewPlayer). After starting, the name is fixed:
+     * otherwise a token could slip into a freed-up or someone else's name
+     * after answering, and the teacher grades by name. The case of one's own
+     * name stays changeable (same nameKey). A new player counts against its
+     * address only once everything else has passed (countNewPlayer), so
+     * retries and taken names cost nothing.
      *
      * @throws \InvalidArgumentException
+     * @throws JoinLimitException
      */
-    private function selfJoin(Room $room, string $voterToken, string $nickname): Player {
+    private function selfJoin(Room $room, #[\SensitiveParameter] string $voterToken, #[\SensitiveParameter] string $nickname, ?string $remoteAddress): Player {
         $now = $this->timeFactory->getTime();
         $state = PaceService::deriveState($room, $now);
         if ($state === PaceService::STATE_CLOSED || $state === PaceService::STATE_RELEASED) {
             throw new \InvalidArgumentException($this->l10n->t('The quiz is closed.'));
         }
         $nickname = $this->sanitizeNickname($nickname);
-        $wanted = TallyService::nameKey($nickname);
         $players = $this->playerMapper->findByRoom($room->getId());
-        $mine = null;
-        $taken = false;
-        foreach ($players as $other) {
-            if ($other->getVoterToken() === $voterToken) {
-                $mine = $other;
-            } elseif (TallyService::nameKey($other->getNickname()) === $wanted) {
-                $taken = true;
-            }
-        }
+        $mine = self::ownPlayer($players, $voterToken);
         if ($mine === null && $room->getJoinsLocked()) {
             throw new \InvalidArgumentException($this->l10n->t('Joining is closed for this quiz.'));
         }
-        if ($mine === null && count($players) >= PaceService::MAX_PLAYERS) {
-            throw new \InvalidArgumentException($this->l10n->t('This quiz is full.'));
+        if ($mine === null) {
+            $players = $this->makeRoomForNewPlayer($room, $players, $state, $now);
         }
-        if ($mine !== null && TallyService::nameKey($mine->getNickname()) !== $wanted
+        if ($mine !== null && TallyService::nameKey($mine->getNickname()) !== TallyService::nameKey($nickname)
             && $this->progressMapper->findByRoomAndToken($room->getId(), $voterToken) !== []) {
             throw new \InvalidArgumentException($this->l10n->t('You can\'t change your name after starting.'));
         }
-        if ($taken) {
-            throw new \InvalidArgumentException($this->l10n->t('This name is already taken. Please choose another one.'));
-        }
-        if ($mine === null && $room->getOpenedAt() > 0) {
-            // A new identity starts empty, even if something from this cookie's
-            // removed player is still lying around (a request that aborted between
-            // writing and PaceService::assertStillJoined): question 1, a new
-            // clock, no old answer.
-            $this->paceService->forgetToken($room, $voterToken);
+        $this->assertNameFree($players, $voterToken, $nickname, $mine);
+        if ($mine === null) {
+            $this->countNewPlayer($room, $remoteAddress);
+            if ($room->getOpenedAt() > 0) {
+                // A new identity starts empty, even if something from this cookie's
+                // removed player is still lying around (a request that aborted between
+                // writing and PaceService::assertStillJoined): question 1, a new
+                // clock, no old answer.
+                $this->paceService->forgetToken($room, $voterToken);
+            }
         }
         return $this->playerMapper->register($room->getId(), $voterToken, $nickname, $now);
+    }
+
+    /**
+     * Room for one more self-paced player? PaceService::MAX_PLAYERS counts
+     * only players who have started (a progress row): joins that never start
+     * can no longer fill the quiz for the class. So that those rows stay
+     * bounded all the same, at most Limits::PLAYERS_PER_ROOM players (the
+     * ceiling, default PaceService::MAX_JOINED) may be joined at once. At that
+     * ceiling, in the open window, players who joined more than STALE_JOIN
+     * seconds ago and never started make room: they have no answer and no
+     * progress, only the name goes (their phone shows the name form again).
+     * In the draft nobody can have started, so there the ceiling alone
+     * applies — the host can lock joining.
+     *
+     * Below both MAX_PLAYERS and the ceiling (the usual case) nothing more is read.
+     *
+     * @param Player[] $players all players of the room
+     * @return Player[] the players that remain
+     * @throws \InvalidArgumentException 'This quiz is full.'
+     */
+    private function makeRoomForNewPlayer(Room $room, array $players, string $state, int $now): array {
+        $ceiling = $this->limits->get(Limits::PLAYERS_PER_ROOM);
+        if (count($players) < min(PaceService::MAX_PLAYERS, $ceiling)) {
+            return $players;
+        }
+        $started = [];
+        foreach ($this->progressMapper->findByRoom($room->getId()) as $row) {
+            $started[$row->getVoterToken()] = true;
+        }
+        $running = 0;
+        foreach ($players as $p) {
+            if (isset($started[$p->getVoterToken()])) {
+                $running++;
+            }
+        }
+        if ($running < PaceService::MAX_PLAYERS && count($players) >= $ceiling
+            && $state === PaceService::STATE_OPEN) {
+            $keep = [];
+            foreach ($players as $p) {
+                if (!isset($started[$p->getVoterToken()]) && $p->getCreatedAt() <= $now - PaceService::STALE_JOIN) {
+                    $this->playerMapper->delete($p);
+                } else {
+                    $keep[] = $p;
+                }
+            }
+            $players = $keep;
+        }
+        if ($running >= PaceService::MAX_PLAYERS || count($players) >= $ceiling) {
+            throw new \InvalidArgumentException($this->l10n->t('This quiz is full.'));
+        }
+        return $players;
+    }
+
+    /**
+     * Count a new self-paced player against its address and room: at most
+     * Limits::NEW_PLAYERS_PER_ADDRESS (default PaceService::NEW_PLAYER_LIMIT)
+     * per JOIN_PERIOD. Only successful new
+     * players count (this is the last check before registering) — a class
+     * behind one NAT address is not locked out by someone else's failed or
+     * repeated requests, only by that many new names, which the host sees and
+     * can remove. The limiter keys on the address's subnet (/32 IPv4, /56 IPv6).
+     *
+     * @throws JoinLimitException
+     */
+    private function countNewPlayer(Room $room, ?string $remoteAddress): void {
+        if ($remoteAddress === null || $remoteAddress === '') {
+            return;
+        }
+        try {
+            $this->limiter->registerAnonRequest(
+                'pulse-player-' . $room->getId(),
+                $this->limits->get(Limits::NEW_PLAYERS_PER_ADDRESS),
+                PaceService::JOIN_PERIOD,
+                $remoteAddress,
+            );
+        } catch (IRateLimitExceededException) {
+            throw new JoinLimitException($this->l10n->t('Too many attempts. Please wait a moment.'));
+        }
+    }
+
+    /**
+     * Is $nickname free for this token? It must not clash with another
+     * player's name (TallyService::namesClash: case, invisible characters,
+     * lookalikes). Re-sending one's own name exactly never clashes.
+     *
+     * Any other spelling is checked — also one with the same nameKey, which
+     * the rename freeze lets through: nameKey folds far less than namesClash
+     * ("paui" and "PauI" share a key, but only "PauI" passes for "Paul"), so a
+     * player could otherwise join as "paui" and turn into "PauI" after the
+     * final standings. Names that the stored one already clashes with are
+     * left out: an older rule let those lookalikes in, and both keep their
+     * spelling.
+     *
+     * @param Player[] $players
+     * @throws \InvalidArgumentException 'This name is already taken. …'
+     */
+    private function assertNameFree(array $players, #[\SensitiveParameter] string $voterToken, #[\SensitiveParameter] string $nickname, ?Player $mine): void {
+        $stored = $mine?->getNickname();
+        if ($stored === $nickname) {
+            return;
+        }
+        $others = [];
+        foreach ($players as $p) {
+            if ($p->getVoterToken() !== $voterToken
+                && ($stored === null || !TallyService::namesClash($stored, $p->getNickname()))) {
+                $others[] = $p->getNickname();
+            }
+        }
+        if (TallyService::clashIn($nickname, $others) !== null) {
+            throw new \InvalidArgumentException($this->l10n->t('This name is already taken. Please choose another one.'));
+        }
+    }
+
+    /** @param Player[] $players */
+    private static function ownPlayer(array $players, #[\SensitiveParameter] string $voterToken): ?Player {
+        foreach ($players as $p) {
+            if ($p->getVoterToken() === $voterToken) {
+                return $p;
+            }
+        }
+        return null;
     }
 
     /**
@@ -240,7 +427,7 @@ class VoteService {
      *
      * @throws \InvalidArgumentException
      */
-    private function recordQuizVote(Room $room, Poll $poll, string $voterToken, mixed $value, bool $keyboard = false): void {
+    private function recordQuizVote(Room $room, Poll $poll, #[\SensitiveParameter] string $voterToken, #[\SensitiveParameter] mixed $value, bool $keyboard = false): void {
         try {
             $this->playerMapper->findByRoomAndToken($room->getId(), $voterToken);
         } catch (DoesNotExistException) {
@@ -284,7 +471,7 @@ class VoteService {
      *
      * @throws \InvalidArgumentException
      */
-    private function correctQuizVote(Poll $poll, string $voterToken, string $payload, int $now, bool $keyboard): void {
+    private function correctQuizVote(Poll $poll, #[\SensitiveParameter] string $voterToken, #[\SensitiveParameter] string $payload, int $now, bool $keyboard): void {
         try {
             $existing = $this->voteMapper->findByPollAndToken($poll->getId(), $voterToken);
         } catch (DoesNotExistException) {
@@ -327,7 +514,7 @@ class VoteService {
      * @throws \InvalidArgumentException
      * @throws RoomGoneException
      */
-    private function recordSelfVote(Room $room, string $voterToken, mixed $value, bool $keyboard, ?int $pollId): void {
+    private function recordSelfVote(Room $room, #[\SensitiveParameter] string $voterToken, #[\SensitiveParameter] mixed $value, bool $keyboard, ?int $pollId): void {
         $now = $this->timeFactory->getTime();
         $state = PaceService::deriveState($room, $now);
         if ($state === PaceService::STATE_DRAFT) {
@@ -403,7 +590,7 @@ class VoteService {
      *
      * @param int $fw correction window of the first answer
      */
-    private function selfPayload(Poll $poll, mixed $normalized, int $elapsed, int $limit, int $fw): array {
+    private function selfPayload(Poll $poll, #[\SensitiveParameter] mixed $normalized, int $elapsed, int $limit, int $fw): array {
         $data = $this->quizPayload($poll, $normalized, $elapsed, $limit);
         if ($poll->getType() === 'text') {
             $data['pending'] = !$data['correct'] && !$this->textRejected($poll, (string)$data['norm']);
@@ -420,7 +607,7 @@ class VoteService {
      *
      * @throws \InvalidArgumentException
      */
-    private function correctSelfVote(Poll $poll, string $voterToken, mixed $normalized, int $elapsed, int $limit, int $now): void {
+    private function correctSelfVote(Poll $poll, #[\SensitiveParameter] string $voterToken, #[\SensitiveParameter] mixed $normalized, int $elapsed, int $limit, int $now): void {
         try {
             $existing = $this->voteMapper->findByPollAndToken($poll->getId(), $voterToken);
         } catch (DoesNotExistException) {
@@ -452,7 +639,7 @@ class VoteService {
      *
      * @param array $data the payload just saved
      */
-    private function settleText(Room $room, int $pollId, string $voterToken, array $data): void {
+    private function settleText(Room $room, int $pollId, #[\SensitiveParameter] string $voterToken, #[\SensitiveParameter] array $data): void {
         try {
             $poll = $this->pollMapper->findForUpdate($pollId);
         } catch (DoesNotExistException) {
@@ -493,7 +680,7 @@ class VoteService {
      *        (moderated). Self-paced 0 without a timer -> flat points.
      * @return array{value:mixed, points:int, correct:bool, elapsed:int, norm?:string}
      */
-    public function quizPayload(Poll $poll, mixed $normalized, int $elapsed, ?int $limit = null): array {
+    public function quizPayload(Poll $poll, #[\SensitiveParameter] mixed $normalized, int $elapsed, ?int $limit = null): array {
         $limit ??= $poll->getTimeLimit();
         $type = $poll->getType();
         $correct = false;
@@ -589,7 +776,7 @@ class VoteService {
      * @throws \InvalidArgumentException question does not belong to the room / not free text
      * @throws RoomGoneException         self-paced: room deleted in the meantime
      */
-    public function gradeTextAnswer(Room $room, int $pollId, string $answer, bool $correct): void {
+    public function gradeTextAnswer(Room $room, int $pollId, #[\SensitiveParameter] string $answer, bool $correct): void {
         if (PaceService::isSelf($room)) {
             $this->paceService->locked($room, fn (Room $r) => $this->gradeText($r, $pollId, $answer, $correct));
             return;
@@ -598,7 +785,7 @@ class VoteService {
     }
 
     /** Body of gradeTextAnswer (self-paced under the room lock). */
-    private function gradeText(Room $room, int $pollId, string $answer, bool $correct): void {
+    private function gradeText(Room $room, int $pollId, #[\SensitiveParameter] string $answer, bool $correct): void {
         $poll = $this->deckService->requirePollInRoom($room, $pollId);
         if ($poll->getType() !== 'text') {
             throw new \InvalidArgumentException($this->l10n->t('Grading only exists for free-text questions.'));
@@ -648,7 +835,7 @@ class VoteService {
     }
 
     /** Nickname of this token in the room, or null (not joined yet). */
-    public function playerNickname(Room $room, ?string $voterToken): ?string {
+    public function playerNickname(Room $room, #[\SensitiveParameter] ?string $voterToken): ?string {
         if ($voterToken === null || $voterToken === '') {
             return null;
         }
@@ -668,16 +855,31 @@ class VoteService {
      * Self-paced there is no running question for everyone: there
      * selfLeaderboard applies (final votes only), $skipPollIds plays no role.
      *
-     * @return list<array{rank:int, nickname:string, score:int, correct:int, me:bool}>
+     * $withPlayerIds (moderator views only): every row additionally carries
+     * `playerId`, the ID PaceService::removePlayer takes — so the host can
+     * remove a player from the live leaderboard. Never for public views.
+     * Self-paced the progress view carries the IDs, so it is ignored there.
+     *
+     * @return list<array{rank:int, nickname:string, score:int, correct:int, me:bool, playerId?:int}>
      */
-    public function leaderboardFor(Room $room, ?string $meToken, array $skipPollIds = []): array {
+    public function leaderboardFor(Room $room, #[\SensitiveParameter] ?string $meToken, array $skipPollIds = [], bool $withPlayerIds = false): array {
         if (PaceService::isSelf($room)) {
             return $this->selfLeaderboard($room, $meToken);
         }
         [$points, $correct, $time] = $this->quizPointsByToken($room, $skipPollIds);
         $players = $this->playerMapper->findByRoom($room->getId());
         $rows = $this->quizService->leaderboard($players, $points, $correct, $time);
-        return self::forViewer($rows, $meToken);
+        $out = self::forViewer($rows, $meToken);
+        if ($withPlayerIds) {
+            $ids = [];
+            foreach ($players as $p) {
+                $ids[$p->getVoterToken()] = (int)$p->getId();
+            }
+            foreach ($rows as $i => $r) {
+                $out[$i]['playerId'] = $ids[$r['token']] ?? 0;
+            }
+        }
+        return $out;
     }
 
     /**
@@ -701,7 +903,7 @@ class VoteService {
      * @param int $limit 0 = all, otherwise only the first $limit rows (projector: 8)
      * @return list<array{rank:int, nickname:string, score:int, correct:int, me:bool}>
      */
-    public function selfLeaderboard(Room $room, ?string $meToken, int $limit = 0, bool $cached = false): array {
+    public function selfLeaderboard(Room $room, #[\SensitiveParameter] ?string $meToken, int $limit = 0, bool $cached = false): array {
         $now = $this->timeFactory->getTime();
         if ($cached) {
             $cache = $this->cacheFactory->createLocal('pulse');
@@ -765,7 +967,7 @@ class VoteService {
      * @param list<array{token:string, rank:int, nickname:string, score:int, correct:int, time:int}> $rows
      * @return list<array{rank:int, nickname:string, score:int, correct:int, me:bool}>
      */
-    private static function forViewer(array $rows, ?string $meToken): array {
+    private static function forViewer(#[\SensitiveParameter] array $rows, #[\SensitiveParameter] ?string $meToken): array {
         return array_map(static function (array $r) use ($meToken): array {
             return [
                 'rank' => $r['rank'],
@@ -813,15 +1015,18 @@ class VoteService {
         return $this->playerMapper->countByRoom($room->getId());
     }
 
-    private function sanitizeNickname(string $nickname): string {
+    private function sanitizeNickname(#[\SensitiveParameter] string $nickname): string {
+        // Raw input cut to four times the length first (clip): the regexes
+        // below must not run over a body of megabytes.
         // Control characters out, invisible ones gone (cleanText), THEN whitespace
         // (including NBSP & co.) collapsed to one space — the other way round,
         // "Anna ␣ZWSP␣ Bob" would leave a double space that HTML shows as one.
         // Then cut to 24 characters and clean once more: if the cut ends on a
         // space, "Anna " and "Anna" would otherwise be two names.
+        $nickname = self::clip($nickname, 4 * self::NICKNAME_MAX);
         $nickname = preg_replace('/[\x00-\x1F\x7F]+/u', ' ', $nickname) ?? '';
         $nickname = preg_replace('/[\s\p{Z}]+/u', ' ', TallyService::cleanText($nickname)) ?? '';
-        $nickname = TallyService::cleanText(mb_substr($nickname, 0, 24));
+        $nickname = TallyService::cleanText(mb_substr($nickname, 0, self::NICKNAME_MAX));
         // A name made only of variation selectors or the like is invisible too.
         if ($nickname === '' || TallyService::nameKey($nickname) === '') {
             throw new \InvalidArgumentException($this->l10n->t('Please enter a name.'));
@@ -835,7 +1040,7 @@ class VoteService {
      * @return string|list<string> optionId (choice) or words (words)
      * @throws \InvalidArgumentException
      */
-    public function normalizeValue(Poll $poll, mixed $value): mixed {
+    public function normalizeValue(Poll $poll, #[\SensitiveParameter] mixed $value): mixed {
         $type = $poll->getType();
 
         // choice + true/false: one valid option ID.
@@ -924,11 +1129,12 @@ class VoteService {
         }
 
         // Free text: trimmed, whitespace normalised, truncated (stored raw).
+        // The raw input is cut to four times the length before the regex (clip).
         if ($type === 'text') {
             if (!is_string($value)) {
                 throw new \InvalidArgumentException($this->l10n->t('Invalid answer.'));
             }
-            $t = trim(preg_replace('/\s+/u', ' ', $value) ?? '');
+            $t = trim(preg_replace('/\s+/u', ' ', self::clip($value, 4 * DeckService::TEXT_MAX)) ?? '');
             if ($t === '') {
                 throw new \InvalidArgumentException($this->l10n->t('Please enter an answer.'));
             }
@@ -988,12 +1194,23 @@ class VoteService {
         if (!is_array($value)) {
             throw new \InvalidArgumentException($this->l10n->t('Invalid words.'));
         }
+        // The phone sends one field per word (maxWords, at most 5). A list far
+        // longer than that is not a vote — rejected before any per-word work:
+        // cleaning costs a dozen Unicode passes per entry, and an anonymous
+        // body of millions of one-letter words would otherwise pin a PHP worker
+        // for seconds. Each entry is cut before it is cleaned (clip), and the
+        // loop stops at maxWords distinct words — the same words as cutting
+        // afterwards, since the first spelling in order wins either way.
+        $max = max(1, $poll->getMaxWords());
+        if (count($value) > max(self::WORD_ITEMS_MIN, 2 * $max)) {
+            throw new \InvalidArgumentException($this->l10n->t('Invalid words.'));
+        }
         $words = [];
         foreach ($value as $raw) {
             if (!is_scalar($raw)) {
                 continue; // nested arrays and the like are not a word
             }
-            $word = TallyService::cleanText((string)$raw);
+            $word = TallyService::cleanText(self::clip((string)$raw, self::WORD_RAW_MAX));
             if ($word !== '') {
                 // Display truncation (clean again afterwards, otherwise the word
                 // ends on a space); lowercasing only happens when counting.
@@ -1005,6 +1222,9 @@ class VoteService {
                 // slot (the same test as for the name).
                 if (TallyService::nameKey($word) !== '') {
                     $words[TallyService::wordKey($word)] ??= $word;
+                    if (count($words) >= $max) {
+                        break;
+                    }
                 }
             }
         }
@@ -1012,9 +1232,21 @@ class VoteService {
         if (count($words) === 0) {
             throw new \InvalidArgumentException($this->l10n->t('Please enter at least one word.'));
         }
-        if (count($words) > $poll->getMaxWords()) {
-            $words = array_slice($words, 0, $poll->getMaxWords());
-        }
         return $words;
+    }
+
+    /**
+     * Raw client text cut to $max characters BEFORE the Unicode regexes and
+     * normalisers run over it: their cost grows with the input, and the body
+     * of a public request is bounded nowhere else. What fits in $max bytes
+     * fits in $max characters and stays untouched. Longer broken UTF-8
+     * becomes '' — as before, when the /u regexes dropped it (mb_substr
+     * would turn it into '?' instead).
+     */
+    private static function clip(string $s, int $max): string {
+        if (strlen($s) <= $max) {
+            return $s;
+        }
+        return mb_check_encoding($s, 'UTF-8') ? mb_substr($s, 0, $max, 'UTF-8') : '';
     }
 }

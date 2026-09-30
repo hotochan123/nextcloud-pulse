@@ -59,6 +59,11 @@ class TallyService {
      * Braille pattern (U+2800, the usual "invisible name"), the deprecated
      * format characters U+206A–206F, the annotation characters U+FFF9–FFFB and the
      * language tag U+E0001 are invisible as well and are on the list.
+     * So is every code point that Unicode reserves as default-ignorable
+     * without assigning it yet — U+2065, U+FFF0–FFF8 and the unassigned rest
+     * of the tag and selector plane (U+E0000, E0002–E001F, E0080–E00FF,
+     * E01F0–E0FFF) — and the shorthand format controls U+1BCA0–1BCA3:
+     * browsers render them as nothing, and the Spoofchecker ignores them.
      * Otherwise "coffee" and "coffee\u{200B}" are two words and "Anna" appears twice
      * in the leaderboard.
      */
@@ -66,7 +71,7 @@ class TallyService {
         if (class_exists(\Normalizer::class)) {
             $s = \Normalizer::normalize($s, \Normalizer::FORM_C) ?: $s;
         }
-        $s = preg_replace('/[\x{00AD}\x{061C}\x{115F}\x{1160}\x{180E}\x{200B}\x{200E}\x{200F}\x{202A}-\x{202E}\x{2060}-\x{2064}\x{2066}-\x{206F}\x{2800}\x{3164}\x{FEFF}\x{FFA0}\x{FFF9}-\x{FFFB}\x{E0001}]/u', '', $s) ?? '';
+        $s = preg_replace('/[\x{00AD}\x{061C}\x{115F}\x{1160}\x{180E}\x{200B}\x{200E}\x{200F}\x{202A}-\x{202E}\x{2060}-\x{206F}\x{2800}\x{3164}\x{FEFF}\x{FFA0}\x{FFF0}-\x{FFFB}\x{1BCA0}-\x{1BCA3}\x{E0000}-\x{E001F}\x{E0080}-\x{E00FF}\x{E01F0}-\x{E0FFF}]/u', '', $s) ?? '';
         $s = preg_replace_callback(
             '/(\x{1F3F4}[\x{E0020}-\x{E007E}]+\x{E007F})|[\x{E0020}-\x{E007F}]/u',
             static fn (array $m): string => $m[1] ?? '',
@@ -92,19 +97,142 @@ class TallyService {
      */
     public static function wordKey(string $s): string {
         return self::squash(self::nfc(preg_replace(
-            '/[\x{034F}\x{17B4}\x{17B5}\x{180B}-\x{180F}\x{FE00}-\x{FE0F}\x{1D173}-\x{1D17A}\x{E0100}-\x{E01EF}]/u',
+            '/[' . self::SELECTORS . ']/u',
             '',
             self::normalizeWord($s),
         ) ?? ''));
     }
 
     /**
-     * Comparison form for names: like wordKey, additionally without ZWNJ/ZWJ.
-     * They stay in the stored name (Persian, emoji), but must not turn
-     * "Anna" into a second, identical-looking name.
+     * Comparison form for names: cleaned like wordKey (invisible characters,
+     * presentation selectors, whitespace), additionally without ZWNJ/ZWJ —
+     * they stay in the stored name (Persian, emoji), but must not turn
+     * "Anna" into a second, identical-looking name. On top of that it folds
+     * what only LOOKS like another name:
+     *
+     * - NFKC: fullwidth "Ａｎｎａ", ligatures, circled and mathematical letters
+     *   become the plain letters;
+     * - a small table of Greek, Cyrillic and Latin lookalikes
+     *   (CONFUSABLE_FOLD: Greek "Αnna", Cyrillic "Аnna", dotless "ı") becomes
+     *   the Latin letter. It runs on the decomposed form before AND after
+     *   lower-casing: Cyrillic "Н" looks like "H", its lower case "н" like
+     *   nothing Latin — so the capital has to be folded first.
+     *
+     * Deterministic and without intl's Spoofchecker; namesClash() adds the
+     * full Unicode confusables check where it exists. Only used to compare
+     * names and to recognise "nothing visible left" — the stored name keeps
+     * its spelling.
      */
-    public static function nameKey(string $s): string {
-        return self::squash(self::nfc(preg_replace('/[\x{200C}\x{200D}]/u', '', self::wordKey($s)) ?? ''));
+    public static function nameKey(#[\SensitiveParameter] string $s): string {
+        $s = preg_replace('/[\x{200C}\x{200D}' . self::SELECTORS . ']/u', '', self::cleanText($s)) ?? '';
+        $s = strtr(self::normalize($s, 'kd'), self::CONFUSABLE_FOLD);
+        $s = strtr(mb_strtolower($s), self::CONFUSABLE_FOLD);
+        return self::squash(self::normalize($s, 'kc'));
+    }
+
+    /**
+     * Do two names clash — would a new player with name $a be mistaken for
+     * the existing $b? Equal nameKey (case, invisible characters, NFKC and
+     * the lookalike table), or — where PHP's intl extension provides the
+     * Spoofchecker — confusable according to Unicode's confusables data
+     * (UTS #39: "PauI" with a capital I for "Paul", "rn" for "m", scripts the
+     * table does not cover). The Spoofchecker compares the names as shown
+     * (case kept): lower-casing first would turn the capital I into an
+     * innocent "i".
+     *
+     * Only for new names (join, rename): names that already exist keep
+     * their spelling, even if an older rule let a lookalike through.
+     */
+    public static function namesClash(#[\SensitiveParameter] string $a, #[\SensitiveParameter] string $b): bool {
+        return self::clashIn($a, [$b]) !== null;
+    }
+
+    /**
+     * The first of $others that clashes with $name (namesClash), or null.
+     * Computes $name's forms once — a room can have hundreds of players.
+     *
+     * @param array<array-key, string> $others
+     * @return int|string|null key of the first clashing name in $others
+     */
+    public static function clashIn(#[\SensitiveParameter] string $name, #[\SensitiveParameter] array $others): int|string|null {
+        $key = self::nameKey($name);
+        $checker = self::spoofchecker();
+        $shape = $checker !== null ? self::nameShape($name) : '';
+        foreach ($others as $i => $other) {
+            if (self::nameKey($other) === $key
+                || ($checker !== null && $checker->areConfusable($shape, self::nameShape($other)))) {
+                return $i;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Characters that only select a presentation (see wordKey): variation
+     * selectors, the combining grapheme joiner and relatives. As a character
+     * class body for preg (/u).
+     */
+    private const SELECTORS = '\x{034F}\x{17B4}\x{17B5}\x{180B}-\x{180F}\x{FE00}-\x{FE0F}\x{1D173}-\x{1D17A}\x{E0100}-\x{E01EF}';
+
+    /**
+     * Lookalikes -> Latin letter, applied to the decomposed form (so "Ё" is
+     * "Е" plus diaeresis and folds to "Ë"). Deliberately small and
+     * unambiguous: letters that look like a Latin letter in common fonts.
+     * Not "I"/"l" or "0"/"O" — those are distinct characters people really
+     * type; the Spoofchecker (namesClash) covers them where available.
+     */
+    private const CONFUSABLE_FOLD = [
+        // Greek capitals
+        "\u{0391}" => 'A', "\u{0392}" => 'B', "\u{0395}" => 'E', "\u{0396}" => 'Z',
+        "\u{0397}" => 'H', "\u{0399}" => 'I', "\u{039A}" => 'K', "\u{039C}" => 'M',
+        "\u{039D}" => 'N', "\u{039F}" => 'O', "\u{03A1}" => 'P', "\u{03A4}" => 'T',
+        "\u{03A5}" => 'Y', "\u{03A7}" => 'X', "\u{03F9}" => 'C', "\u{037F}" => 'J',
+        "\u{03DC}" => 'F',
+        // Greek small letters
+        "\u{03B1}" => 'a', "\u{03B3}" => 'y', "\u{03B9}" => 'i', "\u{03BA}" => 'k',
+        "\u{03BD}" => 'v', "\u{03BF}" => 'o', "\u{03C1}" => 'p', "\u{03C5}" => 'u',
+        "\u{03C7}" => 'x', "\u{03F2}" => 'c', "\u{03F3}" => 'j',
+        // Cyrillic capitals
+        "\u{0405}" => 'S', "\u{0406}" => 'I', "\u{0408}" => 'J', "\u{0410}" => 'A',
+        "\u{0412}" => 'B', "\u{0415}" => 'E', "\u{041A}" => 'K', "\u{041C}" => 'M',
+        "\u{041D}" => 'H', "\u{041E}" => 'O', "\u{0420}" => 'P', "\u{0421}" => 'C',
+        "\u{0422}" => 'T', "\u{0423}" => 'Y', "\u{0425}" => 'X', "\u{04AE}" => 'Y',
+        "\u{04BA}" => 'H', "\u{04C0}" => 'I', "\u{051A}" => 'Q', "\u{051C}" => 'W',
+        // Cyrillic small letters
+        "\u{0430}" => 'a', "\u{0435}" => 'e', "\u{043E}" => 'o', "\u{0440}" => 'p',
+        "\u{0441}" => 'c', "\u{0443}" => 'y', "\u{0445}" => 'x', "\u{0455}" => 's',
+        "\u{0456}" => 'i', "\u{0458}" => 'j', "\u{04AF}" => 'y', "\u{04BB}" => 'h',
+        "\u{04CF}" => 'l', "\u{0501}" => 'd', "\u{051B}" => 'q', "\u{051D}" => 'w',
+        // Latin lookalikes of plain letters
+        "\u{0131}" => 'i', "\u{0237}" => 'j', "\u{0251}" => 'a', "\u{0261}" => 'g',
+        "\u{01C0}" => 'l',
+    ];
+
+    /** @var \Spoofchecker|false|null false = intl without Spoofchecker (checked once) */
+    private static \Spoofchecker|false|null $spoofchecker = null;
+
+    private static function spoofchecker(): ?\Spoofchecker {
+        if (self::$spoofchecker === null) {
+            self::$spoofchecker = class_exists(\Spoofchecker::class) ? new \Spoofchecker() : false;
+        }
+        return self::$spoofchecker ?: null;
+    }
+
+    /**
+     * A name as it is shown, for the Spoofchecker: cleaned, without joiners
+     * and presentation selectors, NFKC, whitespace collapsed — case kept.
+     */
+    private static function nameShape(string $s): string {
+        $s = preg_replace('/[\x{200C}\x{200D}' . self::SELECTORS . ']/u', '', self::cleanText($s)) ?? '';
+        return self::squash(self::normalize($s, 'kc'));
+    }
+
+    /** Unicode normalisation ('kd' or 'kc'); unchanged without intl. */
+    private static function normalize(string $s, string $form): string {
+        if (!class_exists(\Normalizer::class)) {
+            return $s;
+        }
+        return \Normalizer::normalize($s, $form === 'kd' ? \Normalizer::FORM_KD : \Normalizer::FORM_KC) ?: $s;
     }
 
     /**

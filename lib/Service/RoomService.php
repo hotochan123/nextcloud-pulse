@@ -20,6 +20,7 @@ use OCP\AppFramework\Db\TTransactional;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\IDBConnection;
 use OCP\IL10N;
+use Psr\Log\LoggerInterface;
 
 /**
  * Rooms: create, rename, copy, empty, delete — plus presence
@@ -35,6 +36,13 @@ class RoomService {
      * Public so that "online" in the progress view (PaceStateService) uses the same window.
      */
     public const PRESENCE_WINDOW = 15;
+    /**
+     * Retention: participant heartbeats keep a room alive only while its
+     * owner has shown up there within this many days (lastActivity).
+     * Otherwise anyone who knows the code could keep a room — and the
+     * answers and nicknames in it — alive for ever just by polling it.
+     */
+    public const PRESENCE_NEEDS_OWNER_DAYS = 180;
 
     public function __construct(
         private RoomMapper $roomMapper,
@@ -48,12 +56,22 @@ class RoomService {
         private ITimeFactory $timeFactory,
         private IL10N $l10n,
         private IDBConnection $db,
+        private Limits $limits,
+        private LoggerInterface $logger,
     ) {
     }
 
     // ── Rooms ───────────────────────────────────────────────────────────────
 
+    /**
+     * @throws \InvalidArgumentException the account already has as many rooms
+     *                                   as Limits::ROOMS_PER_OWNER allows
+     */
     public function createRoom(string $uid, string $mode = 'poll', string $title = ''): Room {
+        $max = $this->limits->get(Limits::ROOMS_PER_OWNER);
+        if (count($this->roomMapper->findByOwner($uid)) >= $max) {
+            throw $this->tooManyRooms($max);
+        }
         if (!in_array($mode, self::MODES, true)) {
             $mode = 'poll';
         }
@@ -64,7 +82,18 @@ class RoomService {
         $room->setActivePollId(0);
         $room->setMode($mode);
         $room->setCreatedAt($this->timeFactory->getTime());
-        return $this->roomMapper->insert($room);
+        $room = $this->roomMapper->insert($room);
+        // Counted again: parallel requests all passed the check above before
+        // any of them had written. Over the cap, this one takes its room back.
+        if (count($this->roomMapper->findByOwner($uid)) > $max) {
+            $this->roomMapper->delete($room);
+            throw $this->tooManyRooms($max);
+        }
+        return $room;
+    }
+
+    private function tooManyRooms(int $max): \InvalidArgumentException {
+        return new \InvalidArgumentException($this->l10n->t('You can have at most %d rooms. Delete rooms you no longer need.', [$max]));
     }
 
     /**
@@ -111,9 +140,55 @@ class RoomService {
      * Likewise the self-paced format (`pace`, `timed`, `feedback`) — it
      * describes the next run. Window, frozen order, join lock and owner
      * visit do not: the copy is a fresh draft.
+     *
+     * The caps (Limits) are checked before the first write: questions per
+     * room, the image budget of the account (the copy's images are new
+     * files) and, in createRoom, the number of rooms. Should a copy still
+     * fail halfway (a parallel upload used up the budget meanwhile), the
+     * half-finished copy is deleted again. With images, the budget is counted
+     * once more after the copy: parallel copies each passed the first check,
+     * and a copy that finds the account over the budget deletes itself.
+     *
+     * @throws \InvalidArgumentException a cap would be exceeded
      */
     public function duplicateRoom(Room $src, string $uid): Room {
+        $polls = $this->pollMapper->findByRoom($src->getId());
+        $maxPolls = $this->limits->get(Limits::POLLS_PER_ROOM);
+        if (count($polls) > $maxPolls) {
+            throw new \InvalidArgumentException($this->l10n->t('A room can hold at most %d questions.', [$maxPolls]));
+        }
+        $needed = 0;
+        foreach ($polls as $poll) {
+            $needed += $this->imageService->sizeOf($poll);
+        }
+        $remaining = $needed > 0 ? $this->imageService->remainingBudget($uid) : PHP_INT_MAX;
+        if ($needed > $remaining) {
+            throw $this->imageService->budgetExceeded();
+        }
+
         $copy = $this->createRoom($uid, $src->getMode(), $this->copyTitle($src->titleOrEmpty()));
+        try {
+            $this->fillCopy($src, $copy, $polls, $remaining);
+            if ($needed > 0 && $this->imageService->remainingBudget($uid) < 0) {
+                throw $this->imageService->budgetExceeded();
+            }
+        } catch (\Throwable $e) {
+            try {
+                $this->deleteRoom($copy);
+            } catch (\Throwable) {
+                // the original error is the one worth reporting
+            }
+            throw $e;
+        }
+        return $copy;
+    }
+
+    /**
+     * The writing half of duplicateRoom: flow settings and questions.
+     *
+     * @param Poll[] $polls the source room's deck
+     */
+    private function fillCopy(Room $src, Room $copy, array $polls, int $remaining): void {
         // Only write if something differs from the default — this way a moderated
         // room with the standard flow gets no extra UPDATE.
         $changed = false;
@@ -133,7 +208,7 @@ class RoomService {
             $this->roomMapper->update($copy);
         }
         $now = $this->timeFactory->getTime();
-        foreach ($this->pollMapper->findByRoom($src->getId()) as $i => $poll) {
+        foreach (array_values($polls) as $i => $poll) {
             $new = new Poll();
             $new->setRoomId($copy->getId());
             $new->setType($poll->getType());
@@ -151,9 +226,8 @@ class RoomService {
             $new = $this->pollMapper->insert($new);
             // The image gets its own file — otherwise deleting one room
             // would take the image away from the copy.
-            $this->imageService->copy($poll, $new);
+            $remaining -= $this->imageService->copy($poll, $new, $remaining);
         }
-        return $copy;
     }
 
     /**
@@ -303,6 +377,10 @@ class RoomService {
      * created weeks ago). Keeps the brute-force attack surface small and
      * tidies up the DB. Called by the daily background job.
      *
+     * A room that cannot be deleted is logged and skipped; the others still
+     * go (deleteRoom is one transaction, so the skipped room stays complete
+     * and is tried again on the next run).
+     *
      * @return int number of deleted rooms
      */
     public function cleanupStaleRooms(int $maxAgeSeconds): int {
@@ -312,10 +390,65 @@ class RoomService {
             if ($this->lastActivity($room) >= $cutoff) {
                 continue; // recently used -> keep
             }
-            $this->deleteRoom($room);
-            $deleted++;
+            if ($this->tryDelete($room, 'stale')) {
+                $deleted++;
+            }
         }
         return $deleted;
+    }
+
+    /**
+     * Delete the rooms of accounts that no longer exist — whatever their
+     * presence says. UserDeletedListener does this when an account is
+     * deleted, but only while Pulse is enabled: an account deleted while the
+     * app was disabled (say, during a Nextcloud upgrade) left its rooms
+     * behind, and a new account that later got the same user ID took them
+     * over, answers, nicknames and CSV export included.
+     *
+     * Which account counts as gone is up to the caller ($ownerGone, see
+     * CleanupStaleRoomsJob::ownerGone) — this method only walks the owners
+     * and deletes. Called by the daily background job.
+     *
+     * @param callable(string): bool $ownerGone
+     * @return int number of deleted rooms
+     */
+    public function cleanupOrphanedRooms(callable $ownerGone): int {
+        $qb = $this->db->getQueryBuilder();
+        $qb->selectDistinct('owner_uid')->from('pulse_rooms');
+        $result = $qb->executeQuery();
+        $owners = [];
+        while (($uid = $result->fetchOne()) !== false) {
+            $owners[] = (string)$uid;
+        }
+        $result->closeCursor();
+
+        $deleted = 0;
+        foreach ($owners as $uid) {
+            if (!$ownerGone($uid)) {
+                continue;
+            }
+            foreach ($this->roomMapper->findByOwner($uid) as $room) {
+                if ($this->tryDelete($room, 'orphaned')) {
+                    $deleted++;
+                }
+            }
+        }
+        return $deleted;
+    }
+
+    /** deleteRoom for the cleanup: log and go on instead of aborting the run. */
+    private function tryDelete(Room $room, string $reason): bool {
+        try {
+            $this->deleteRoom($room);
+            return true;
+        } catch (\Throwable $e) {
+            $this->logger->warning('Pulse: could not delete {reason} room {code}.', [
+                'reason' => $reason,
+                'code' => $room->getCode(),
+                'exception' => $e,
+            ]);
+            return false;
+        }
     }
 
     /**
@@ -335,15 +468,24 @@ class RoomService {
      * Owner activity from before this was recorded in every room mode is
      * unknown (`touched_at` = 0); Version000000Date20260929120000 covers the
      * installs where that matters.
+     *
+     * Participant heartbeats count only while the owner has touched (or
+     * created) the room within PRESENCE_NEEDS_OWNER_DAYS: anonymous
+     * polling alone must not keep a room and its personal data for ever.
+     * A room its owner has abandoned thus goes on the first daily run after
+     * that period, however many phones still poll it (unless a self-paced
+     * deadline still lies ahead).
      */
     private function lastActivity(Room $room): int {
+        $owner = max($room->getCreatedAt(), $room->getTouchedAt());
+        $presenceCounts = $owner >= $this->timeFactory->getTime() - self::PRESENCE_NEEDS_OWNER_DAYS * 86_400;
         return max(
             $room->getOpenedAt(),
             $room->getClosedAt(),
             $room->getClosesAt(),
             $room->getReleasedAt(),
             $room->getTouchedAt(),
-            $this->presenceMapper->lastSeen($room->getId()),
+            $presenceCounts ? $this->presenceMapper->lastSeen($room->getId()) : 0,
         );
     }
 
@@ -352,9 +494,13 @@ class RoomService {
     /**
      * Heartbeat of an anonymous participant. Called on every participant poll
      * (even without a vote), so that "currently here" also counts spectators.
+     *
+     * @param ?\Closure(): bool $mayAdd asked before a token gets its first
+     *        presence row in this room; false = no row this time (the caller's
+     *        limit per address). null = always.
      */
-    public function heartbeat(Room $room, string $voterToken): void {
-        $this->presenceMapper->touch($room->getId(), $voterToken, $this->timeFactory->getTime());
+    public function heartbeat(Room $room, #[\SensitiveParameter] string $voterToken, ?\Closure $mayAdd = null): void {
+        $this->presenceMapper->touch($room->getId(), $voterToken, $this->timeFactory->getTime(), $mayAdd);
     }
 
     /** Number of currently active participants (heartbeat within the window). */

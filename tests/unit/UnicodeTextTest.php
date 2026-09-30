@@ -10,7 +10,10 @@ namespace OCA\Pulse\Tests\Unit;
 use OCA\Pulse\Db\Player;
 use OCA\Pulse\Db\PlayerMapper;
 use OCA\Pulse\Db\Poll;
+use OCA\Pulse\Db\PollMapper;
 use OCA\Pulse\Db\Room;
+use OCA\Pulse\Db\VoteMapper;
+use OCA\Pulse\Service\PaceService;
 use OCA\Pulse\Service\TallyService;
 use OCA\Pulse\Service\VoteService;
 use OCP\AppFramework\Utility\ITimeFactory;
@@ -60,9 +63,20 @@ class UnicodeTextTest extends TestCase {
         $l10n = $this->createMock(IL10N::class);
         $l10n->method('t')->willReturnArgument(0);
 
+        // Joining runs under the room lock (here: straight through) and looks
+        // at the room's questions for the name freeze (none here).
+        $pace = $this->createMock(PaceService::class);
+        $pace->method('locked')->willReturnCallback(static fn (Room $room, callable $fn): mixed => $fn($room));
+        $polls = $this->createMock(PollMapper::class);
+        $polls->method('findByRoom')->willReturn([]);
+
         $this->service = (new \ReflectionClass(VoteService::class))->newInstanceWithoutConstructor();
         foreach ([
             'playerMapper' => $this->players,
+            'pollMapper' => $polls,
+            'voteMapper' => $this->createMock(VoteMapper::class),
+            'paceService' => $pace,
+            'limits' => new \OCA\Pulse\Service\Limits($this->createMock(\OCP\IAppConfig::class)),
             'timeFactory' => $time,
             'l10n' => $l10n,
         ] as $name => $value) {
