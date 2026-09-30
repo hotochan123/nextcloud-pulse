@@ -487,6 +487,9 @@ described under "Security notes" and "Known limits" in the README.
   `CHANGELOG.md` disagree about the version (`ALLOW_UNRELEASED=1` packs a
   test archive, as CI does). A pre-release such as `0.19.0-beta.1` needs its
   notes under `[Unreleased]`, where the store looks for them.
+- Moving a question with the keyboard ("Move up" / "Move down" in its row menu)
+  keeps the focus on that question. The focus landed on the neighbour it had
+  just swapped places with, so pressing again moved the neighbour back instead.
 
 ### Removed
 - `office-addin/manifest.xml`. It is generated now, and a second editable copy

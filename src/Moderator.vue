@@ -128,7 +128,7 @@
 						</div>
 						<span v-if="p.id === currentId" class="pulse-chip is-accent deck-current-chip">{{ t('pulse', 'Current') }}</span>
 						<button v-if="!isPaced" class="pulse-btn is-sm is-secondary" @click="present(p.id)"><PulseIcon name="play" size="1em" /> {{ t('pulse', 'Show') }}</button>
-						<PulseMenu v-if="!deckLocked" ref="rowMenus" :items="rowMenu(p, i)" :label="t('pulse', 'More actions for this question')" small />
+						<PulseMenu v-if="!deckLocked" ref="rowMenus" :data-poll-id="p.id" :items="rowMenu(p, i)" :label="t('pulse', 'More actions for this question')" small />
 					</li>
 				</draggable>
 				<div v-else class="empty-state">
@@ -1657,8 +1657,6 @@ export default {
 				this.failWrite(e, t('pulse', 'Could not save the order.'))
 			}
 		},
-		// ↑/↓ sorting (accessible, in addition to dragging): swap the question with its
-		// neighbor and persist the new order just like after a drag.
 		// Deck row: one visible action ("Show"), the rest hangs off the ⋯ (R5).
 		rowMenu(p, i) {
 			return [
@@ -1675,6 +1673,8 @@ export default {
 				{ key: 'del', label: t('pulse', 'Delete room'), icon: 'trash', act: () => this.deleteRoom(r), danger: true },
 			]
 		},
+		// ↑/↓ sorting (accessible, in addition to dragging): swap the question with its
+		// neighbor and persist the new order just like after a drag.
 		moveQuestion(i, dir) {
 			const j = i + dir
 			if (j < 0 || j >= this.deck.length) return
@@ -1686,9 +1686,14 @@ export default {
 			this.onReorder()
 			// Without a mouse the thread would otherwise break: the question now sits one row
 			// further on, its menu closed on the click, and the focus would fall back
-			// to the top of the page. So move along with it.
+			// to the top of the page. So move along with it — found by the question's
+			// id, not by position: refs inside a v-for keep the order their rows were
+			// created in, and Vue does not re-sort them when keyed rows move. rowMenus[j]
+			// would be the neighbor that just swapped places (after a drag, any row),
+			// and the next ↑/↓ press would move that one instead.
+			const id = String(tmp.id)
 			this.$nextTick(() => {
-				const menu = (this.$refs.rowMenus || [])[j]
+				const menu = (this.$refs.rowMenus || []).find((m) => m.$el.dataset.pollId === id)
 				if (menu) menu.focusTrigger()
 			})
 		},
