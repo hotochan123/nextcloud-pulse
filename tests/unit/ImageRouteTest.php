@@ -22,8 +22,8 @@ use PHPUnit\Framework\TestCase;
 class ImageRouteTest extends TestCase {
 	public static function imageRoutes(): array {
 		return [
-			'Moderator-Vorschau' => [RoomApiController::class, 'showImage'],
-			'öffentliche Auslieferung' => [PublicVoteController::class, 'image'],
+			'moderator preview' => [RoomApiController::class, 'showImage'],
+			'public delivery' => [PublicVoteController::class, 'image'],
 		];
 	}
 
@@ -32,8 +32,8 @@ class ImageRouteTest extends TestCase {
 		$attributes = (new \ReflectionMethod($class, $method))->getAttributes(NoCSRFRequired::class);
 		$this->assertNotEmpty(
 			$attributes,
-			"$class::$method liefert ein Bild aus und braucht #[NoCSRFRequired], "
-			. 'sonst scheitert das <img src> mit 412.',
+			"$class::$method serves an image and needs #[NoCSRFRequired], "
+			. 'otherwise the <img src> fails with 412.',
 		);
 	}
 }

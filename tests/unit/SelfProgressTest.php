@@ -36,7 +36,7 @@ class SelfProgressTest extends PaceStateTestCase {
         foreach ($data['questions'] as $q) {
             $this->assertNull($q['correct']);
         }
-        $this->assertSame(2, $data['players'][0]['answered'], 'Beantwortet bleibt sichtbar');
+        $this->assertSame(2, $data['players'][0]['answered'], 'answered stays visible');
     }
 
     public function testSwitchShowsPoints(): void {
@@ -73,7 +73,7 @@ class SelfProgressTest extends PaceStateTestCase {
 
         $this->assertSame(0, array_column($data['players'], 'score', 'nickname')['Cem']);
         $this->assertSame(1, array_column($data['players'], 'answered', 'nickname')['Cem']);
-        $this->assertSame(2, $data['questions'][0]['correct'], 'Cems Treffer noch nicht');
+        $this->assertSame(2, $data['questions'][0]['correct'], 'Cem: hit not counted yet');
         $this->assertSame(3, $data['questions'][0]['answered']);
     }
 
@@ -87,9 +87,9 @@ class SelfProgressTest extends PaceStateTestCase {
 
         $players = array_column($this->service->progress($this->room)['players'], null, 'nickname');
 
-        $this->assertSame(2, $players['Dora']['skipped'], 'die offene zählt nicht');
+        $this->assertSame(2, $players['Dora']['skipped'], 'the open one does not count');
         $this->assertSame(0, $players['Anna']['skipped']);
-        $this->assertSame(1, $players['Ben']['skipped'], 'Q2 ohne Antwort verlassen');
+        $this->assertSame(1, $players['Ben']['skipped'], 'left Q2 without an answer');
     }
 
     public function testOnlineFromThePresenceWindow(): void {
@@ -101,7 +101,7 @@ class SelfProgressTest extends PaceStateTestCase {
         $this->assertTrue($players['Anna']['online']);
         $this->assertSame(self::NOW - 15, $players['Anna']['lastSeen']);
         $this->assertFalse($players['Ben']['online']);
-        $this->assertFalse($players['Cem']['online'], 'nie gesehen');
+        $this->assertFalse($players['Cem']['online'], 'never seen');
         $this->assertSame(0, $players['Cem']['lastSeen']);
     }
 
@@ -111,7 +111,7 @@ class SelfProgressTest extends PaceStateTestCase {
         $data = $this->service->progress($this->room);
         $anna = $data['players'][0];
 
-        $this->assertSame(['Anna', 'Ben', 'Cem'], array_column($data['players'], 'nickname'), 'nach Name');
+        $this->assertSame(['Anna', 'Ben', 'Cem'], array_column($data['players'], 'nickname'), 'by name');
         $this->assertSame(31, $anna['id']);
         $this->assertSame(2, $anna['k']);
         $this->assertTrue($anna['started']);
@@ -119,9 +119,9 @@ class SelfProgressTest extends PaceStateTestCase {
         $this->assertSame(12, $anna['currentPollId']);
         $this->assertSame(self::NOW - 40, $anna['currentStartedAt']);
         $this->assertSame(self::NOW - 60, $anna['startedAt']);
-        $this->assertSame(self::NOW - 20, $anna['lastActivity'], 'die Antwort auf Q2 ist das Jüngste');
+        $this->assertSame(self::NOW - 20, $anna['lastActivity'], 'the answer to Q2 is the most recent');
         $this->assertArrayNotHasKey('token', $anna);
-        $this->assertStringNotContainsString('tok-', json_encode($data), 'kein Token verlässt den Server');
+        $this->assertStringNotContainsString('tok-', json_encode($data), 'no token leaves the server');
     }
 
     public function testQuestionRowsAndOpenFreeTexts(): void {
@@ -141,7 +141,7 @@ class SelfProgressTest extends PaceStateTestCase {
             ['pollId' => 13, 'k' => 3, 'type' => 'text', 'question' => 'Größter Planet?', 'reached' => 2, 'answered' => 2, 'correct' => 0, 'pending' => 2],
             $data['questions'][2],
         );
-        $this->assertSame([['pollId' => 13, 'k' => 3, 'answer' => 'Saturn', 'count' => 2]], $data['pendingAnswers'], 'erste Schreibweise, keine Lösung');
+        $this->assertSame([['pollId' => 13, 'k' => 3, 'answer' => 'Saturn', 'count' => 2]], $data['pendingAnswers'], 'first spelling, no solution');
     }
 
     public function testPracticeRunLeaderboardEmpty(): void {

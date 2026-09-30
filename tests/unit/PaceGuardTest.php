@@ -91,12 +91,12 @@ class PaceGuardTest extends TestCase {
     /** Window states: [openedAt, closesAt, closedAt, releasedAt] */
     public static function windowStates(): array {
         return [
-            'Entwurf' => ['draft', [0, 0, 0, 0]],
-            'offen' => ['open', [self::NOW - 100, 0, 0, 0]],
-            'offen mit Frist' => ['open', [self::NOW - 100, self::NOW + 60, 0, 0]],
-            'geschlossen' => ['closed', [self::NOW - 100, 0, self::NOW - 1, 0]],
-            'Frist abgelaufen' => ['closed', [self::NOW - 100, self::NOW, 0, 0]],
-            'freigegeben' => ['released', [self::NOW - 100, 0, self::NOW - 1, self::NOW - 1]],
+            'draft' => ['draft', [0, 0, 0, 0]],
+            'open' => ['open', [self::NOW - 100, 0, 0, 0]],
+            'open with deadline' => ['open', [self::NOW - 100, self::NOW + 60, 0, 0]],
+            'closed' => ['closed', [self::NOW - 100, 0, self::NOW - 1, 0]],
+            'deadline passed' => ['closed', [self::NOW - 100, self::NOW, 0, 0]],
+            'released' => ['released', [self::NOW - 100, 0, self::NOW - 1, self::NOW - 1]],
         ];
     }
 
@@ -204,7 +204,7 @@ class PaceGuardTest extends TestCase {
 
         try {
             $this->service->setPace($this->room(), 'self');
-            $this->fail('InvalidArgumentException erwartet');
+            $this->fail('InvalidArgumentException expected');
         } catch (\InvalidArgumentException $e) {
             $this->assertSame('Only quiz rooms can run at their own pace.', $e->getMessage());
         }
@@ -220,8 +220,8 @@ class PaceGuardTest extends TestCase {
 
     public static function targetPaces(): array {
         return [
-            'auf live' => ['live'],
-            'gleiches Tempo' => ['self'],
+            'to live' => ['live'],
+            'same pace' => ['self'],
         ];
     }
 
@@ -235,7 +235,7 @@ class PaceGuardTest extends TestCase {
 
         try {
             $this->service->setPace($this->room(), $pace);
-            $this->fail('ConflictException erwartet');
+            $this->fail('ConflictException expected');
         } catch (ConflictException $e) {
             $this->assertSame('Close the quiz first.', $e->getMessage());
         }

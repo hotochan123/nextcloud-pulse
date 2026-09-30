@@ -23,10 +23,10 @@ class ProtocolConstantTest extends TestCase {
 
     public function testBundleStatesTheServerNumber(): void {
         $source = file_get_contents(dirname(__DIR__, 2) . '/src/util/protocol.js');
-        $this->assertNotFalse($source, 'src/util/protocol.js nicht lesbar');
+        $this->assertNotFalse($source, 'src/util/protocol.js not readable');
 
         $this->assertSame(1, preg_match_all('/^export const PROTOCOL = (\d+)\s*$/m', $source, $m),
-            'genau eine Zeile „export const PROTOCOL = <Zahl>"');
+            'exactly one line "export const PROTOCOL = <number>"');
         $this->assertSame(Application::PROTOCOL, (int)$m[1][0]);
     }
 

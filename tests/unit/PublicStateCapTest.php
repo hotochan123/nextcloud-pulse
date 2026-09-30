@@ -50,7 +50,7 @@ class PublicStateCapTest extends TestCase {
         $votes = $this->createMock(VoteMapper::class);
         $votes->method('findByPoll')->willReturnCallback(fn (): array => $this->votes);
         $votes->method('countByPoll')->willReturnCallback(fn (): int => count($this->votes));
-        $votes->method('findByPollAndToken')->willThrowException(new DoesNotExistException('keine'));
+        $votes->method('findByPollAndToken')->willThrowException(new DoesNotExistException('none'));
 
         $this->voteService = $this->createMock(VoteService::class);
         $this->voteService->method('playerNickname')->willReturn(null);
@@ -105,10 +105,10 @@ class PublicStateCapTest extends TestCase {
         $this->assertSame(300, $public['mentions']);
         $this->assertSame(150, $public['total']);
 
-        $this->assertCount(151, $this->service->results($room, 1)['results'], 'Moderator: alle Wörter');
-        $this->assertCount(151, $this->service->summary($room)[0]['results']['results'], 'Moderator-Übersicht: alle Wörter');
+        $this->assertCount(151, $this->service->results($room, 1)['results'], 'moderator: all words');
+        $this->assertCount(151, $this->service->summary($room)[0]['results']['results'], 'moderator summary: all words');
         $csvRows = substr_count($this->service->exportCsv($room), "\n");
-        $this->assertSame(1 + 151, $csvRows, 'CSV: Kopfzeile + jedes Wort');
+        $this->assertSame(1 + 151, $csvRows, 'CSV: header row + every word');
     }
 
     public function testFreeTextAndCompassPubliclyCapped(): void {
@@ -151,7 +151,7 @@ class PublicStateCapTest extends TestCase {
         $this->assertSame(30, $summary['leaderboardTotal']);
         $this->assertSame(21, $summary['leaderboardMe']['rank']);
 
-        $this->assertCount(30, $this->service->results($room, 1)['leaderboard'], 'Moderator: die volle Rangliste');
+        $this->assertCount(30, $this->service->results($room, 1)['leaderboard'], 'moderator: the full leaderboard');
     }
 
     public function testQuizBeforeTheRevealEmptyExtraFields(): void {

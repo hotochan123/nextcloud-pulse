@@ -86,13 +86,13 @@ class CodeGeneratorTest extends TestCase {
         $this->assertTrue(CodeGenerator::isVoterToken(str_pad('AZaz09', 32, 'x')));
 
         foreach ([
-            'zu kurz' => str_repeat('a', 31),
-            'zu lang' => str_repeat('a', 33),
-            'fremde Form' => 'tok-anna',
-            'Zeilenumbruch am Ende' => str_repeat('a', 32) . "\n",
-            'kaputtes UTF-8' => str_repeat("\xFF", 32),
-            'Umlaute' => str_repeat('ä', 32),
-            'leer' => '',
+            'too short' => str_repeat('a', 31),
+            'too long' => str_repeat('a', 33),
+            'foreign format' => 'tok-anna',
+            'trailing newline' => str_repeat('a', 32) . "\n",
+            'broken UTF-8' => str_repeat("\xFF", 32),
+            'umlauts' => str_repeat('ä', 32),
+            'empty' => '',
         ] as $case => $value) {
             $this->assertFalse(CodeGenerator::isVoterToken($value), $case);
         }

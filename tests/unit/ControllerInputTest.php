@@ -206,7 +206,7 @@ class ControllerInputTest extends TestCase {
         $covered = array_keys(self::moderatorActions());
         sort($declared);
         sort($covered);
-        $this->assertSame($declared, $covered, 'Neue Moderator-Aktion? Eine Zeile in moderatorActions() ergänzen.');
+        $this->assertSame($declared, $covered, 'New moderator action? Add a row to moderatorActions().');
     }
 
     // ── /pace ──────────────────────────────────────────────────────────────
@@ -313,9 +313,9 @@ class ControllerInputTest extends TestCase {
     /** sent -> what closeWindow receives (null = rule based on the deadline) */
     public static function validRelease(): array {
         return [
-            'fehlt' => [[], null],
+            'missing' => [[], null],
             'JSON null' => [['release' => null], null],
-            'leer (Formular)' => [['release' => ''], false],
+            'empty (form)' => [['release' => ''], false],
             'JSON false' => [['release' => false], false],
             'JSON true' => [['release' => true], true],
             'JSON 0' => [['release' => 0], false],
@@ -338,11 +338,11 @@ class ControllerInputTest extends TestCase {
 
     public static function invalidRelease(): array {
         return [
-            'Liste' => [['x']],
-            'Objekt' => [['a' => 1]],
-            'Wort' => ['maybe'],
-            'Zahl 2' => [2],
-            'Kommazahl' => [0.5],
+            'list' => [['x']],
+            'object' => [['a' => 1]],
+            'word' => ['maybe'],
+            'number 2' => [2],
+            'float' => [0.5],
         ];
     }
 
@@ -424,7 +424,7 @@ class ControllerInputTest extends TestCase {
 
     public static function publicActions(): array {
         $rows = [];
-        foreach (['moderiert' => false, 'eigenes Tempo' => true] as $roomKind => $self) {
+        foreach (['moderated' => false, 'self-paced' => true] as $roomKind => $self) {
             foreach ([
                 'state' => ['ABCDEF'],
                 'summary' => ['ABCDEF'],
@@ -451,13 +451,13 @@ class ControllerInputTest extends TestCase {
 
     public static function brokenCookies(): array {
         return [
-            'Objekt (pulse_vt[x][]=y)' => [self::HOSTILE],
-            'Liste (pulse_vt[]=a)' => [['a']],
-            'zu lang' => [str_repeat('A', 33)],
-            'fremde Form' => ['abc'],
-            'Zeilenumbruch am Ende' => [str_repeat('A', 32) . "\n"],
-            'kaputtes UTF-8' => [str_repeat("\xFF", 32)],
-            'leer' => [''],
+            'object (pulse_vt[x][]=y)' => [self::HOSTILE],
+            'list (pulse_vt[]=a)' => [['a']],
+            'too long' => [str_repeat('A', 33)],
+            'foreign format' => ['abc'],
+            'trailing newline' => [str_repeat('A', 32) . "\n"],
+            'broken UTF-8' => [str_repeat("\xFF", 32)],
+            'empty' => [''],
         ];
     }
 
@@ -490,7 +490,7 @@ class ControllerInputTest extends TestCase {
         $this->public()->join('ABCDEF');
 
         $this->assertSame([[str_repeat('Anna', 8), 'Anna']], $this->callsTo('quizJoin'));
-        $this->assertSame(0, $this->issued, 'kein neues Token vergeben');
+        $this->assertSame(0, $this->issued, 'no new token issued');
     }
 
     public function testNameAsListArrivesEmpty(): void {

@@ -131,7 +131,7 @@ class SelfGradeTest extends TestCase {
 
         $this->service->gradeTextAnswer($this->room(), 13, 'Saturn', true);
 
-        $this->assertSame([1], array_keys($this->saved), 'Venus wartet weiter auf ihre Bewertung');
+        $this->assertSame([1], array_keys($this->saved), 'Venus is still waiting for its grading');
     }
 
     public function testModeratedPayloadStaysByteIdentical(): void {
@@ -179,7 +179,7 @@ class SelfGradeTest extends TestCase {
         $deck = $this->createMock(DeckService::class);
         $deck->expects($this->once())->method('requirePollInRoom')->with($this->identicalTo($fresh), 13)
             ->willReturnCallback(function () use (&$inLock): Poll {
-                $this->assertTrue($inLock, 'Frage erst unter der Sperre gelesen');
+                $this->assertTrue($inLock, 'question read only under the lock');
                 return $this->poll;
             });
         (new ReflectionProperty(VoteService::class, 'deckService'))->setValue($this->service, $deck);

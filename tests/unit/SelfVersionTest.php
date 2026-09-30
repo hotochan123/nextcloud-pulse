@@ -42,11 +42,11 @@ class SelfVersionTest extends PaceStateTestCase {
 
         $this->now = self::NOW + 1;
 
-        $this->assertNotSame($before, $this->phoneVersion(), 'Handy');
+        $this->assertNotSame($before, $this->phoneVersion(), 'phone');
         $this->now = self::NOW;
         $beamerBefore = $this->beamerVersion();
         $this->now = self::NOW + 1;
-        $this->assertNotSame($beamerBefore, $this->beamerVersion(), 'Beamer: die Frist steht im Cache-Schlüssel');
+        $this->assertNotSame($beamerBefore, $this->beamerVersion(), 'projector: the deadline is part of the cache key');
     }
 
     public function testVoteBecomesFinal(): void {
@@ -68,7 +68,7 @@ class SelfVersionTest extends PaceStateTestCase {
         $this->now = self::NOW + 1;
 
         $this->assertSame($first, $this->phoneVersion());
-        $this->assertNotSame(self::NOW, $this->phone()['serverNow'], 'nur serverNow läuft');
+        $this->assertNotSame(self::NOW, $this->phone()['serverNow'], 'only serverNow moves');
     }
 
     public function testTimeUpFlipsExactlyOnce(): void {
@@ -91,15 +91,15 @@ class SelfVersionTest extends PaceStateTestCase {
         $this->present = 5;
         $this->cacheStore = [];
 
-        $this->assertSame($phone, $this->phoneVersion(), 'Handy im Rennen: Heartbeats treiben die Version nicht');
-        $this->assertNotSame($beamer, $this->beamerVersion(), 'Beamer sieht, wer dazukommt');
+        $this->assertSame($phone, $this->phoneVersion(), 'phone in the race: heartbeats do not drive the version');
+        $this->assertNotSame($beamer, $this->beamerVersion(), 'the projector sees who joins');
 
         $this->room->setOpenedAt(0);
         $this->room->setDeckOrder(null);
         $this->rows = [];
         $lobby = $this->phoneVersion();
         $this->present = 6;
-        $this->assertNotSame($lobby, $this->phoneVersion(), 'Wartezustand: „N dabei"');
+        $this->assertNotSame($lobby, $this->phoneVersion(), 'waiting state: "N here"');
     }
 
     public function testProgressLastSeenIsNotInTheHash(): void {
@@ -108,7 +108,7 @@ class SelfVersionTest extends PaceStateTestCase {
         $first = $this->service->version($this->service->progress($this->room));
 
         $this->seen = ['tok-anna' => self::NOW];
-        $this->assertSame($first, $this->service->version($this->service->progress($this->room)), 'Heartbeat, weiter online');
+        $this->assertSame($first, $this->service->version($this->service->progress($this->room)), 'heartbeat, still online');
 
         $this->seen = ['tok-anna' => self::NOW - 16];
         $this->assertNotSame($first, $this->service->version($this->service->progress($this->room)), 'offline');
@@ -123,14 +123,14 @@ class SelfVersionTest extends PaceStateTestCase {
         $this->row(12, 'tok-ben', self::NOW); // a change in the same bucket only shows up in the next one
         $second = $this->beamer();
 
-        $this->assertSame($built, $this->calls['progress.findByRoom'], 'kein zweiter Bau');
+        $this->assertSame($built, $this->calls['progress.findByRoom'], 'no second build');
         $this->assertSame($this->service->version($first), $this->service->version($second));
         $this->assertSame(self::NOW, $first['serverNow']);
-        $this->assertSame(self::NOW + 1, $second['serverNow'], 'die Uhr ist je Antwort frisch');
+        $this->assertSame(self::NOW + 1, $second['serverNow'], 'the clock is fresh on every response');
 
         $this->now = self::NOW + 2;
         $third = $this->beamer();
-        $this->assertGreaterThan($built, $this->calls['progress.findByRoom'], 'nächster Eimer');
+        $this->assertGreaterThan($built, $this->calls['progress.findByRoom'], 'next bucket');
         $this->assertNotSame($this->service->version($first), $this->service->version($third));
     }
 
@@ -151,7 +151,7 @@ class SelfVersionTest extends PaceStateTestCase {
 
         $this->assertSame($this->phoneVersion(), $state->stateVersion($this->room, false, 'tok-anna'));
         $this->assertSame($this->phoneVersion(), $state->selfVersion($this->phone()));
-        $this->assertNotSame($this->phoneVersion(), $state->stateVersion($this->room, false, 'tok-ben'), 'je Token');
+        $this->assertNotSame($this->phoneVersion(), $state->stateVersion($this->room, false, 'tok-ben'), 'per token');
         $this->assertSame($this->phone(), $state->publicState($this->room, 'tok-anna'));
     }
 

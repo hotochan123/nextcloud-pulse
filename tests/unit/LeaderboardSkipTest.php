@@ -86,8 +86,8 @@ class LeaderboardSkipTest extends TestCase {
         $this->assertSame([
             ['rank' => 1, 'nickname' => 'Anna', 'score' => 800, 'correct' => 1, 'me' => false],
             ['rank' => 2, 'nickname' => 'Ben', 'score' => 0, 'correct' => 0, 'me' => true],
-        ], $rows, 'Bens richtige Antwort auf die verdeckte Frage verrät sich nicht');
-        $this->assertSame([1], $this->read, 'Stimmen der ausgelassenen Frage werden gar nicht gelesen');
+        ], $rows, 'Ben\'s correct answer to the hidden question does not give itself away');
+        $this->assertSame([1], $this->read, 'votes of the skipped question are not read at all');
     }
 
     public function testNullSkipsNothing(): void {

@@ -53,13 +53,13 @@ class WordCloudDedupeTest extends TestCase {
     public function testCaseVariantsBecomeOneWordAndTheFirstSpellingStays(): void {
         $words = $this->service->normalizeValue($this->poll(3), ['Kaffee', 'KAFFEE', ' kaffee ']);
 
-        $this->assertSame(['Kaffee'], $words, 'ein Eintrag, gespeichert wie zuerst geschrieben');
+        $this->assertSame(['Kaffee'], $words, 'one entry, stored as first written');
     }
 
     public function testFirstSpellingStaysEvenWhenItIsUppercase(): void {
         $words = $this->service->normalizeValue($this->poll(3), ['TEE', 'Tee', 'Kaffee']);
 
-        $this->assertSame(['TEE', 'Kaffee'], $words, 'Reihenfolge der Erstnennung bleibt');
+        $this->assertSame(['TEE', 'Kaffee'], $words, 'order of first mention stays');
     }
 
     public function testCapAppliesOnlyAfterDeduplication(): void {
@@ -126,7 +126,7 @@ class WordCloudDedupeTest extends TestCase {
     public function testVariationSelectorMakesNoNewWord(): void {
         $words = $this->service->normalizeValue($this->poll(3), ["\u{2764}\u{FE0F}", "\u{2764}", "\u{2764}\u{FE0E}"]);
 
-        $this->assertSame(["\u{2764}\u{FE0F}"], $words, 'ein Eintrag, bunte Schreibweise bleibt gespeichert');
+        $this->assertSame(["\u{2764}\u{FE0F}"], $words, 'one entry, the colourful spelling stays stored');
     }
 
     public function testDoubleWhitespaceMakesNoNewWord(): void {

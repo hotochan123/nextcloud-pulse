@@ -111,10 +111,10 @@ class SelfLeaderboardTest extends TestCase {
         $this->rows = [$this->row(11, 'tok-anna')];
         $this->deckVotes = [$this->vote(11, 'tok-anna', 900, true, 5, createdAt: self::NOW - 3)];
 
-        $this->assertSame(0, $this->score('Anna'), 'in der Sekunde created+fw ist noch korrigierbar');
+        $this->assertSame(0, $this->score('Anna'), 'still correctable in the second created+fw');
 
         $this->now = self::NOW + 1;
-        $this->assertSame(900, $this->score('Anna'), 'danach endgültig');
+        $this->assertSame(900, $this->score('Anna'), 'final afterwards');
     }
 
     public function testLongerWindowOfTheFirstAnswerApplies(): void {
@@ -135,7 +135,7 @@ class SelfLeaderboardTest extends TestCase {
         $this->rows = [$this->row(11, 'tok-anna', leftAt: self::NOW)];
         $this->deckVotes = [$this->vote(11, 'tok-anna', 900, true, 5, createdAt: self::NOW)];
 
-        $this->assertSame(900, $this->score('Anna'), 'nach /next ist nichts mehr zu korrigieren');
+        $this->assertSame(900, $this->score('Anna'), 'nothing left to correct after /next');
     }
 
     public function testClosedWindowCountsImmediately(): void {
@@ -170,7 +170,7 @@ class SelfLeaderboardTest extends TestCase {
             ['rank' => 1, 'nickname' => 'Anna', 'score' => 900, 'correct' => 1, 'me' => false],
             ['rank' => 2, 'nickname' => 'Ben', 'score' => 0, 'correct' => 0, 'me' => true],
             ['rank' => 2, 'nickname' => 'Cem', 'score' => 0, 'correct' => 0, 'me' => false],
-        ], $this->service->selfLeaderboard($this->room(), 'tok-ben'), 'keine Tokens, eigene Zeile markiert');
+        ], $this->service->selfLeaderboard($this->room(), 'tok-ben'), 'no tokens, own row marked');
     }
 
     // ── Ties ───────────────────────────────────────────────────────────────
@@ -238,7 +238,7 @@ class SelfLeaderboardTest extends TestCase {
         $closed->setClosedAt(self::NOW);
         $this->service->selfLeaderboard($closed, null, 0, true);
 
-        $this->assertCount(2, $this->queries, 'anderes closed_at, anderer Schlüssel');
+        $this->assertCount(2, $this->queries, 'different closed_at, different key');
     }
 
     public function testExpiringDeadlineTakesEffectImmediately(): void {

@@ -84,7 +84,7 @@ abstract class PaceStateTestCase extends TestCase {
 
         $pollMapper = $this->createMock(PollMapper::class);
         $pollMapper->method('find')->willReturnCallback(
-            fn (int $id): Poll => $this->polls[$id] ?? throw new DoesNotExistException('keine Frage'),
+            fn (int $id): Poll => $this->polls[$id] ?? throw new DoesNotExistException('no question'),
         );
         $pollMapper->method('findByRoom')->willReturnCallback(fn (): array => array_values($this->polls));
         $pollMapper->method('countByRoom')->willReturnCallback(fn (): int => count($this->polls));
@@ -112,7 +112,7 @@ abstract class PaceStateTestCase extends TestCase {
                     return $p;
                 }
             }
-            throw new DoesNotExistException('kein Spieler');
+            throw new DoesNotExistException('no player');
         });
 
         $progressMapper = $this->createMock(ProgressMapper::class);

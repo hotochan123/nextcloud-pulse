@@ -114,7 +114,7 @@ class PacePlayerAdminTest extends TestCase {
 
         try {
             $this->service->setJoinsLocked($this->room(), true);
-            $this->fail('ConflictException erwartet');
+            $this->fail('ConflictException expected');
         } catch (ConflictException $e) {
             $this->assertSame('This room is not a quiz.', $e->getMessage());
         }
@@ -148,7 +148,7 @@ class PacePlayerAdminTest extends TestCase {
 
         try {
             $this->service->removePlayer($this->room(), 99);
-            $this->fail('InvalidArgumentException erwartet');
+            $this->fail('InvalidArgumentException expected');
         } catch (\InvalidArgumentException $e) {
             $this->assertSame('Player not found.', $e->getMessage());
         }

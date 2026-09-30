@@ -82,7 +82,7 @@ class WordVoteBoundsTest extends TestCase {
         $start = hrtime(true);
         try {
             $this->service->normalizeValue($this->wordsPoll(3), $flood);
-            $this->fail('InvalidArgumentException erwartet');
+            $this->fail('InvalidArgumentException expected');
         } catch (\InvalidArgumentException $e) {
             $this->assertSame('Invalid words.', $e->getMessage());
         }

@@ -142,7 +142,7 @@ class LiveQuizJoinTest extends TestCase {
         $this->join('tok-1', 'Cem');
         try {
             $this->join('tok-2', 'cem');
-            $this->fail('InvalidArgumentException erwartet');
+            $this->fail('InvalidArgumentException expected');
         } catch (\InvalidArgumentException $e) {
             $this->assertSame('This name is already taken. Please choose another one.', $e->getMessage());
         }
@@ -333,7 +333,7 @@ class LiveQuizJoinTest extends TestCase {
         $this->players->expects($this->never())->method('register');
         try {
             $this->join($token, $nickname);
-            $this->fail('InvalidArgumentException erwartet: ' . $message);
+            $this->fail('InvalidArgumentException expected: ' . $message);
         } catch (\InvalidArgumentException $e) {
             $this->assertSame($message, $e->getMessage());
         }

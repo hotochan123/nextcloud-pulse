@@ -83,8 +83,8 @@ class StateVersionTest extends TestCase {
 
     public function testVersionIs24HexCharacters(): void {
         $this->assertMatchesRegularExpression('/^[0-9a-f]{24}$/', $this->version());
-        $this->assertMatchesRegularExpression('/^[0-9a-f]{24}$/', $this->version(active: 0), 'auch in der Lobby');
-        $this->assertMatchesRegularExpression('/^[0-9a-f]{24}$/', $this->version(presence: true), 'auch mit Präsenz');
+        $this->assertMatchesRegularExpression('/^[0-9a-f]{24}$/', $this->version(active: 0), 'also in the lobby');
+        $this->assertMatchesRegularExpression('/^[0-9a-f]{24}$/', $this->version(presence: true), 'also with presence');
     }
 
     public function testSameStateGivesSameVersion(): void {
@@ -105,14 +105,14 @@ class StateVersionTest extends TestCase {
 
         $this->poll->setStatus('locked');
         $locked = $this->version();
-        $this->assertNotSame($base, $locked, 'Auflösen');
+        $this->assertNotSame($base, $locked, 'reveal');
 
         $this->poll->setStartedAt(950);
         $restarted = $this->version();
-        $this->assertNotSame($locked, $restarted, 'Timer neu gestartet');
+        $this->assertNotSame($locked, $restarted, 'timer restarted');
 
         $this->poll->setAnswerKey('{"accepted":["ja"],"rejected":[]}');
-        $this->assertNotSame($restarted, $this->version(), 'Freitext bewertet (answerKey)');
+        $this->assertNotSame($restarted, $this->version(), 'free text graded (answerKey)');
     }
 
     public function testPresenceOnlyWithTheSwitch(): void {
@@ -120,8 +120,8 @@ class StateVersionTest extends TestCase {
         $with = $this->version(presence: true);
         $this->present = 4;
 
-        $this->assertSame($without, $this->version(), 'Abstimmende pollen nicht wegen Heartbeats neu');
-        $this->assertNotSame($with, $this->version(presence: true), 'Zuschauer-Ansicht sieht neue Beitritte');
+        $this->assertSame($without, $this->version(), 'voters do not poll again because of heartbeats');
+        $this->assertNotSame($with, $this->version(presence: true), 'spectator view sees new joins');
     }
 
     public function testLobbyCountsThosePresent(): void {
@@ -135,12 +135,12 @@ class StateVersionTest extends TestCase {
         $version = $this->version();
         $raw = '7:active:900:' . $this->stamp . ':' . crc32(self::ANSWER_KEY);
 
-        $this->assertStringNotContainsString((string)crc32(self::ANSWER_KEY), $version, 'kein CRC über den answerKey');
-        $this->assertStringNotContainsString($this->stamp, $version, 'kein Stimmen-Stempel');
+        $this->assertStringNotContainsString((string)crc32(self::ANSWER_KEY), $version, 'no CRC over the answerKey');
+        $this->assertStringNotContainsString($this->stamp, $version, 'no vote stamp');
         $this->assertStringNotContainsString(':', $version);
-        $this->assertNotSame(substr(hash('sha256', $raw), 0, 24), $version, 'kein ungeschlüsselter Hash');
+        $this->assertNotSame(substr(hash('sha256', $raw), 0, 24), $version, 'no unkeyed hash');
         $this->assertNotSame(substr(hash_hmac('sha256', $raw, 'pulse-state:'), 0, 24), $version,
-            'ohne das Instanz-Geheimnis nicht nachrechenbar');
+            'not recomputable without the instance secret');
     }
 
     public function testVersionDependsOnTheInstanceSecret(): void {
@@ -159,9 +159,9 @@ class StateVersionTest extends TestCase {
         $shown = $this->version();
         $hidden = $this->version(revealAtEnd: true);
 
-        $this->assertNotSame($shown, $hidden, 'ein');
-        $this->assertSame($shown, $this->version(), 'aus: wieder wie vorher');
-        $this->assertNotSame($this->version(presence: true), $this->version(presence: true, revealAtEnd: true), 'auch für den Beamer');
+        $this->assertNotSame($shown, $hidden, 'on');
+        $this->assertSame($shown, $this->version(), 'off: back to what it was');
+        $this->assertNotSame($this->version(presence: true), $this->version(presence: true, revealAtEnd: true), 'also for the projector');
     }
 
     public function testRevealAtEndOnRunningQuestionChangesNothing(): void {
@@ -182,14 +182,14 @@ class StateVersionTest extends TestCase {
 
         $this->players = 0;
         $reset = $this->version(active: 0);
-        $this->assertNotSame($base, $reset, 'Spielende gelöscht');
+        $this->assertNotSame($base, $reset, 'players deleted');
 
         $this->practice = true;
         $practice = $this->version(active: 0);
-        $this->assertNotSame($reset, $practice, 'Probelauf-Banner');
+        $this->assertNotSame($reset, $practice, 'practice-run banner');
 
         $this->title = 'Neuer Titel';
-        $this->assertNotSame($practice, $this->version(active: 0), 'Titel');
+        $this->assertNotSame($practice, $this->version(active: 0), 'title');
     }
 
     public function testEditedQuestionWithoutVotesChangesTheVersion(): void {

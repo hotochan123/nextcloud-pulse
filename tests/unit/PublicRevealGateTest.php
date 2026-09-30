@@ -59,7 +59,7 @@ class PublicRevealGateTest extends TestCase {
         $votes = $this->createMock(VoteMapper::class);
         $votes->method('findByPoll')->willReturn([]);
         $votes->method('findByPollAndToken')->willReturnCallback(
-            fn (int $pollId, string $token): Vote => $this->myVotes[$token] ?? throw new DoesNotExistException('keine Stimme'),
+            fn (int $pollId, string $token): Vote => $this->myVotes[$token] ?? throw new DoesNotExistException('no vote'),
         );
         $votes->method('countByPoll')->willReturnCallback(fn (int $id): int => $this->voteCounts[$id] ?? 0);
 
@@ -216,8 +216,8 @@ class PublicRevealGateTest extends TestCase {
         $this->assertFalse($summary['available']);
         $this->assertNull($summary['leaderboard']);
         foreach ($summary['items'] as $item) {
-            $this->assertFalse($item['revealed'], 'Frage ' . $item['poll']['id']);
-            $this->assertFalse($item['poll']['revealed'], 'auch im Poll selbst, Frage ' . $item['poll']['id']);
+            $this->assertFalse($item['revealed'], 'question ' . $item['poll']['id']);
+            $this->assertFalse($item['poll']['revealed'], 'also in the poll itself, question ' . $item['poll']['id']);
             $this->assertNull($item['results']);
             $this->assertArrayNotHasKey('answerKey', $item['poll']);
             $this->assertArrayNotHasKey('correctOption', $item['poll']);
@@ -324,16 +324,16 @@ class PublicRevealGateTest extends TestCase {
         $different = $this->stateFor($room, $this->poll(7, 'match', 'active', 900, ['items' => $items, 'targets' => [$meows, $moos, $barks]]));
 
         $this->assertSame($correct['poll']['match']['targets'], $different['poll']['match']['targets']);
-        $this->assertSame(['IT01', 'IT02', 'IT03'], array_column($correct['poll']['match']['items'], 'id'), 'Items bleiben');
-        $this->assertSame(['IT01', 'IT02', 'IT03'], array_column($different['poll']['match']['items'], 'id'), 'Items bleiben');
+        $this->assertSame(['IT01', 'IT02', 'IT03'], array_column($correct['poll']['match']['items'], 'id'), 'items stay');
+        $this->assertSame(['IT01', 'IT02', 'IT03'], array_column($different['poll']['match']['items'], 'id'), 'items stay');
     }
 
     /** @return array<string, array{bool, string}> [revealAtEnd, Status] */
     public static function revealedStates(): array {
         return [
-            'je Frage, gesperrt' => [false, 'locked'],
-            'je Frage, beendet' => [false, 'ended'],
-            'am Ende, beendet' => [true, 'ended'],
+            'per question, locked' => [false, 'locked'],
+            'per question, ended' => [false, 'ended'],
+            'at the end, ended' => [true, 'ended'],
         ];
     }
 

@@ -57,7 +57,7 @@ class CleanupRetentionTest extends TestCase {
     protected function setUp(): void {
         $roomMapper = $this->createMock(RoomMapper::class);
         $roomMapper->method('findOlderThan')->willReturnCallback(function (int $ts): array {
-            $this->assertSame(self::CUTOFF, $ts, 'Kandidaten wie bisher: vor dem Stichtag angelegt');
+            $this->assertSame(self::CUTOFF, $ts, 'candidates as before: created before the cutoff');
             return $this->rooms;
         });
         $roomMapper->method('delete')->willReturnCallback(function (Room $room): Room {
@@ -114,7 +114,7 @@ class CleanupRetentionTest extends TestCase {
 
         $this->assertSame(1, $this->cleanup());
         $this->assertSame([2], $this->deletedRooms);
-        $this->assertSame([2], $this->deletedProgress, 'der Fortschritt geht mit dem Raum');
+        $this->assertSame([2], $this->deletedProgress, 'the progress goes with the room');
     }
 
     public function testLateReleaseKeepsTheRoom(): void {
@@ -196,11 +196,11 @@ class CleanupRetentionTest extends TestCase {
 
     public static function presenceAges(): array {
         return [
-            'gestern' => [self::NOW - self::DAY],
-            'genau am Stichtag' => [self::CUTOFF],
-            'eine Sekunde vor dem Stichtag' => [self::CUTOFF - 1],
-            'vor 31 Tagen' => [self::NOW - 31 * self::DAY],
-            'nie' => [0],
+            'yesterday' => [self::NOW - self::DAY],
+            'exactly on the cutoff' => [self::CUTOFF],
+            'one second before the cutoff' => [self::CUTOFF - 1],
+            '31 days ago' => [self::NOW - 31 * self::DAY],
+            'never' => [0],
         ];
     }
 

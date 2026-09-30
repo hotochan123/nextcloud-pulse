@@ -81,9 +81,9 @@ class QuizFixWindowTest extends TestCase {
         $this->service->recordVote($this->room(), 'tok', 'BB');
 
         $payload = json_decode($saved->getPayload(), true);
-        $this->assertSame('BB', $payload['value'], 'die korrigierte Antwort zählt');
-        $this->assertTrue($payload['fixed'], 'die Korrektur ist als solche vermerkt');
-        $this->assertSame($this->now, $saved->getCreatedAt(), 'der Zeitstempel wird neu gesetzt');
+        $this->assertSame('BB', $payload['value'], 'the corrected answer counts');
+        $this->assertTrue($payload['fixed'], 'the correction is marked as such');
+        $this->assertSame($this->now, $saved->getCreatedAt(), 'the timestamp is set anew');
         // A new timestamp means: the two-second head start is gone.
         $this->assertSame(10, $payload['elapsed']);
     }

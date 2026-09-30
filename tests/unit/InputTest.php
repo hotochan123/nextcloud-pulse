@@ -24,16 +24,16 @@ class InputTest extends TestCase {
 
     public static function texts(): array {
         return [
-            'Text bleibt' => ['Grüß Gott', 'Grüß Gott'],
-            'Ganzzahl' => [12, '12'],
-            'Kommazahl' => [1.5, '1.5'],
+            'text stays' => ['Grüß Gott', 'Grüß Gott'],
+            'integer' => [12, '12'],
+            'float' => [1.5, '1.5'],
             'true' => [true, '1'],
             'false' => [false, ''],
-            'NUL fällt weg' => ["a\0b", 'ab'],
-            'Liste' => [['x'], 'DEF'],
-            'verschachteltes Objekt' => [['a' => ['b']], 'DEF'],
+            'NUL is dropped' => ["a\0b", 'ab'],
+            'list' => [['x'], 'DEF'],
+            'nested object' => [['a' => ['b']], 'DEF'],
             'null' => [null, 'DEF'],
-            'kaputtes UTF-8' => ["\xFF\xFE", 'DEF'],
+            'broken UTF-8' => ["\xFF\xFE", 'DEF'],
             'INF' => [INF, 'DEF'],
             'NAN' => [NAN, 'DEF'],
         ];
@@ -62,21 +62,21 @@ class InputTest extends TestCase {
 
     public static function numbers(): array {
         return [
-            'Ganzzahl' => [5, 5],
+            'integer' => [5, 5],
             'Text' => ['5', 5],
-            'Leerraum vorn' => [' 5', 5],
-            'Kommazahl als Text' => ['1.5', 1.5],
+            'leading whitespace' => [' 5', 5],
+            'float as text' => ['1.5', 1.5],
             'Exponent' => ['1e3', 1000.0],
-            'negative Kommazahl' => [-2.5, -2.5],
-            '1e999 als Text' => ['1e999', null],
+            'negative float' => [-2.5, -2.5],
+            '1e999 as text' => ['1e999', null],
             'INF' => [INF, null],
             '-INF' => [-INF, null],
             'NAN' => [NAN, null],
             'true' => [true, null],
             'null' => [null, null],
-            'Liste' => [['5'], null],
-            'kein Zahlentext' => ['abc', null],
-            'leer' => ['', null],
+            'list' => [['5'], null],
+            'non-numeric text' => ['abc', null],
+            'empty' => ['', null],
             'Hex' => ['0x1A', null],
         ];
     }
@@ -90,20 +90,20 @@ class InputTest extends TestCase {
 
     public static function integers(): array {
         return [
-            'Kommazahl als Text wird abgeschnitten' => ['5.9', 5],
-            'negative Kommazahl' => [-2.7, -2],
-            '1e17 passt' => [1e17, 100000000000000000],
-            'minus null' => ['-0', 0],
-            'Ganzzahl' => [7, 7],
+            'float as text is truncated' => ['5.9', 5],
+            'negative float' => [-2.7, -2],
+            '1e17 fits' => [1e17, 100000000000000000],
+            'minus zero' => ['-0', 0],
+            'integer' => [7, 7],
             '1e100' => [1e100, null],
             '-1e100' => [-1e100, null],
-            'zwanzig Ziffern' => ['99999999999999999999', null],
-            '1e999 als Text' => ['1e999', null],
+            'twenty digits' => ['99999999999999999999', null],
+            '1e999 as text' => ['1e999', null],
             'INF' => [INF, null],
             'NAN' => [NAN, null],
-            'Liste' => [['1'], null],
+            'list' => [['1'], null],
             'true' => [true, null],
-            'kein Zahlentext' => ['abc', null],
+            'non-numeric text' => ['abc', null],
         ];
     }
 
@@ -128,12 +128,12 @@ class InputTest extends TestCase {
             "'no'" => ['no', false],
             "'yes'" => ['yes', true],
             "'off'" => ['off', false],
-            'leer' => ['', false],
+            'empty' => ['', false],
             "'abc'" => ['abc', null],
             '2' => [2, null],
-            'Liste' => [['1'], null],
+            'list' => [['1'], null],
             'null' => [null, null],
-            'Kommazahl' => [1.0, null],
+            'float' => [1.0, null],
         ];
     }
 

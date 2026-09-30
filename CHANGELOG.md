@@ -264,11 +264,12 @@ described under "Security notes" and "Known limits" in the README.
   configuration files used to be mostly German, and so were the messages of
   the release scripts, the CI step names and the `package.json` description.
   The German translation of the interface (`l10n/`) and the German store
-  description stay German on purpose. Still German, for a later round: German
-  inside the code itself — test data and test method names, messages of the
-  test, translation and development scripts, the seed words of the demo mode,
-  the comments inside the add-in manifest template and inside the browser
-  scripts of the screenshot harness.
+  description stay German on purpose, and so does the test data that checks
+  Unicode, case folding and the CSV export. Still German, for a later round:
+  German inside the code itself — other test data, the JavaScript unit test,
+  the messages of the test runner and of the translation and development
+  scripts, the seed words of the demo mode, the comments inside the add-in
+  manifest template and inside the browser scripts of the screenshot harness.
 - The README was brought up to date for a public audience: installation from
   the repository, a section on security notes, the adaptive polling intervals
   instead of a fixed 2.5 s, the databases Pulse was tested on, and the App

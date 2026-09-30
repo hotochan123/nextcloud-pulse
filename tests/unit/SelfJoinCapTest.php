@@ -274,7 +274,7 @@ class SelfJoinCapTest extends TestCase {
 
         try {
             $this->join('tok-neu', 'Cem', self::IP);
-            $this->fail('JoinLimitException erwartet');
+            $this->fail('JoinLimitException expected');
         } catch (JoinLimitException $e) {
             $this->assertInstanceOf(\InvalidArgumentException::class, $e, 'old callers still answer 400');
             $this->assertSame('Too many attempts. Please wait a moment.', $e->getMessage());
@@ -329,7 +329,7 @@ class SelfJoinCapTest extends TestCase {
         $this->players->expects($this->never())->method('register');
         try {
             $this->join($token, $nickname, $ip);
-            $this->fail('InvalidArgumentException erwartet: ' . $message);
+            $this->fail('InvalidArgumentException expected: ' . $message);
         } catch (\InvalidArgumentException $e) {
             $this->assertSame($message, $e->getMessage());
         }

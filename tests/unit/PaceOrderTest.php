@@ -23,13 +23,13 @@ class PaceOrderTest extends TestCase {
 
     public static function garbage(): array {
         return [
-            'null (Entwurf)' => [null, []],
-            'leer' => ['', []],
-            'kein JSON' => ['[1,2', []],
-            'Skalar' => ['7', []],
+            'null (draft)' => [null, []],
+            'empty' => ['', []],
+            'not JSON' => ['[1,2', []],
+            'scalar' => ['7', []],
             'String' => ['"12,13"', []],
             'JSON null' => ['null', []],
-            'gemischt' => ['[3,"5","x",3,-1,0,2.5,null,[7],true,"5","08"]', [3, 5, 8]],
+            'mixed' => ['[3,"5","x",3,-1,0,2.5,null,[7],true,"5","08"]', [3, 5, 8]],
         ];
     }
 

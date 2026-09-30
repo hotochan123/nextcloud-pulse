@@ -59,7 +59,7 @@ class PublicSpoilerTest extends TestCase {
 
         $votes = $this->createMock(VoteMapper::class);
         $votes->method('findByPoll')->willReturn([]);
-        $votes->method('findByPollAndToken')->willThrowException(new DoesNotExistException('keine Stimme'));
+        $votes->method('findByPollAndToken')->willThrowException(new DoesNotExistException('no vote'));
         $votes->method('countByPoll')->willReturn(0);
 
         $voteService = $this->createMock(VoteService::class);
@@ -143,10 +143,10 @@ class PublicSpoilerTest extends TestCase {
 
         $match = $this->stateFor($this->room('quiz', active: 7), $poll)['poll']['match'];
 
-        $this->assertSame($items, $match['items'], 'Items behalten ihre Folge');
+        $this->assertSame($items, $match['items'], 'items keep their order');
         $this->assertIsPermutation($targets, $match['targets']);
         $this->assertSame(self::hashOrder(7, $targets, $this->secret), $match['targets']);
-        $this->assertSame(['TA01', 'TB02', 'TC03'], array_column($match['targets'], 'id'), 'hier nicht die Lösungsfolge');
+        $this->assertSame(['TA01', 'TB02', 'TC03'], array_column($match['targets'], 'id'), 'not the solution order here');
     }
 
     public function testQuizMatchingUnchangedAfterReveal(): void {
@@ -188,10 +188,10 @@ class PublicSpoilerTest extends TestCase {
         $room8 = $this->room('quiz', active: 8);
 
         $this->assertSame(['AB12', 'M3K0', 'ZZ9A'], $this->servedIds($room7, $this->rankPoll('active')));
-        $this->assertSame(['M3K0', 'ZZ9A', 'AB12'], $this->servedIds($room8, $this->poll(8, 'rank', 'active', 900, self::RANK)), 'andere Frage');
+        $this->assertSame(['M3K0', 'ZZ9A', 'AB12'], $this->servedIds($room8, $this->poll(8, 'rank', 'active', 900, self::RANK)), 'another question');
 
         $this->secret = 'anderes-geheimnis';
-        $this->assertSame(['M3K0', 'ZZ9A', 'AB12'], $this->servedIds($room7, $this->rankPoll('active')), 'anderes Geheimnis');
+        $this->assertSame(['M3K0', 'ZZ9A', 'AB12'], $this->servedIds($room7, $this->rankPoll('active')), 'another secret');
     }
 
     // ── Overall summary: only questions that were shown ────────────────────
@@ -207,7 +207,7 @@ class PublicSpoilerTest extends TestCase {
         $summary = $this->service->publicSummary($room, null);
 
         $this->assertSame([1, 2], array_map(static fn (array $i): int => $i['poll']['id'], $summary['items']));
-        $this->assertStringNotContainsString('Frage 3', json_encode($summary), 'kein Text der nächsten Frage');
+        $this->assertStringNotContainsString('Frage 3', json_encode($summary), 'no text of the next question');
     }
 
     public function testSummaryKeepsActiveQuestionWithoutStartTime(): void {
@@ -249,9 +249,9 @@ class PublicSpoilerTest extends TestCase {
         $this->assertFalse($summary['items'][1]['revealed']);
         $this->assertFalse($summary['items'][1]['poll']['revealed']);
         $this->assertSame(self::hashOrder(2, self::RANK, $this->secret), $summary['items'][1]['poll']['options'],
-            'auch in der Gesamtauswertung verrät die Folge nichts');
+            'the order gives nothing away in the overall summary either');
         $this->assertNotSame(array_column(self::RANK, 'id'), array_column($summary['items'][1]['poll']['options'], 'id'),
-            'hier nicht die Lösungsfolge');
+            'not the solution order here');
     }
 
     public function testQuizSummaryAtTheEndWithoutNeverShownQuestions(): void {
@@ -269,7 +269,7 @@ class PublicSpoilerTest extends TestCase {
         $this->assertSame([1, 2], array_map(static fn (array $i): int => $i['poll']['id'], $summary['items']));
         $this->assertTrue($summary['items'][0]['revealed']);
         $this->assertSame(['ZZ9A', 'AB12', 'M3K0'], array_column($summary['items'][0]['poll']['options'], 'id'),
-            'aufgelöst → gespeicherte Folge (= Lösung)');
+            'revealed → stored order (= solution)');
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────
@@ -297,9 +297,9 @@ class PublicSpoilerTest extends TestCase {
     private function assertIsPermutation(array $stored, array $served): void {
         $this->assertCount(count($stored), $served);
         $byId = array_column($served, null, 'id');
-        $this->assertCount(count($stored), $byId, 'keine ID doppelt');
+        $this->assertCount(count($stored), $byId, 'no ID twice');
         foreach ($stored as $entry) {
-            $this->assertSame($entry, $byId[$entry['id']] ?? null, 'Beschriftung wandert mit ihrer ID: ' . $entry['id']);
+            $this->assertSame($entry, $byId[$entry['id']] ?? null, 'label moves with its ID: ' . $entry['id']);
         }
     }
 

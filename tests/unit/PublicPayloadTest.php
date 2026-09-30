@@ -32,7 +32,7 @@ class PublicPayloadTest extends TestCase {
     public function testEmptyLeaderboardStaysEmpty(): void {
         $out = PublicPayload::withLeaderboard([], []);
 
-        $this->assertSame([], $out['leaderboard'], '[] bleibt [] — "noch keine Punkte" ist etwas anderes als "keine Rangliste"');
+        $this->assertSame([], $out['leaderboard'], '[] stays [] — "no points yet" is not the same as "no leaderboard"');
         $this->assertSame(0, $out['leaderboardTotal']);
         $this->assertNull($out['leaderboardMe']);
         $this->assertSame([], $out['leaderboardAround']);
@@ -58,8 +58,8 @@ class PublicPayloadTest extends TestCase {
         $this->assertSame(range(1, 10), array_column($out['leaderboard'], 'rank'));
         $this->assertSame(20000, $out['leaderboardTotal']);
         $this->assertSame(['rank' => 12346, 'nickname' => 'P12346', 'score' => 20000 - 12345, 'correct' => 0, 'me' => true, 'shared' => false], $out['leaderboardMe']);
-        $this->assertSame(['P12344', 'P12345', 'P12346', 'P12347', 'P12348'], array_column($out['leaderboardAround'], 'nickname'), 'zwei davor, zwei danach');
-        $this->assertLessThan(3000, strlen((string)json_encode($out)), 'ein paar hundert Bytes statt Megabytes');
+        $this->assertSame(['P12344', 'P12345', 'P12346', 'P12347', 'P12348'], array_column($out['leaderboardAround'], 'nickname'), 'two before, two after');
+        $this->assertLessThan(3000, strlen((string)json_encode($out)), 'a few hundred bytes instead of megabytes');
     }
 
     public function testSurroundingRowsCutOffAtTheEdge(): void {
@@ -103,10 +103,10 @@ class PublicPayloadTest extends TestCase {
         $out = PublicPayload::tally($tally);
 
         $this->assertCount(PublicPayload::LIST_TOP, $out['results']);
-        $this->assertSame(array_slice($results, 0, 100), $out['results'], 'die Spitze, in der Reihenfolge der Auszählung');
+        $this->assertSame(array_slice($results, 0, 100), $out['results'], 'the top, in the order of the tally');
         $this->assertSame(5000, $out['resultsTotal']);
         $this->assertSame(array_sum(array_column($results, 'count')), $out['mentions']);
-        $this->assertSame(777, $out['total'], 'Personen bleiben ungekürzt');
+        $this->assertSame(777, $out['total'], 'the number of people is not cut');
     }
 
     public function testSmallWordCloudUnchangedPlusTotals(): void {
@@ -148,10 +148,10 @@ class PublicPayloadTest extends TestCase {
         $this->assertCount(PublicPayload::COMPASS_SAMPLE, $out['points']);
         $this->assertSame(20000, $out['pointsTotal']);
         $this->assertSame(20003, $out['total']);
-        $this->assertSame(['x' => 0.1, 'y' => 1.4], $out['centroid'], 'Schwerpunkt aus allen Stimmen');
+        $this->assertSame(['x' => 0.1, 'y' => 1.4], $out['centroid'], 'centroid from all votes');
         $per = array_count_values(array_map(static fn (array $p): string => $p['x'] . ':' . $p['y'], $out['points']));
         $this->assertSame(['1:1' => 250, '-2:3' => 150, '0:0' => 100], $per);
-        $this->assertSame($out['points'], PublicPayload::tally($tally)['points'], 'deterministisch — der Beamer flackert nicht');
+        $this->assertSame($out['points'], PublicPayload::tally($tally)['points'], 'deterministic — the projector does not flicker');
     }
 
     public function testCompassSampleLargestRemainderAndRarePosition(): void {

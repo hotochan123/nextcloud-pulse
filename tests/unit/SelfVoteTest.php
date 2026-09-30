@@ -93,7 +93,7 @@ class SelfVoteTest extends TestCase {
             return $vote;
         });
         $this->votes->method('findByPollAndToken')->willReturnCallback(
-            fn (): Vote => $this->existing ?? $this->inserted ?? throw new DoesNotExistException('keine Stimme'),
+            fn (): Vote => $this->existing ?? $this->inserted ?? throw new DoesNotExistException('no vote'),
         );
         $this->votes->method('update')->willReturnCallback(function (Vote $vote): Vote {
             $this->updated = $vote;
@@ -102,12 +102,12 @@ class SelfVoteTest extends TestCase {
 
         $players = $this->createMock(PlayerMapper::class);
         $players->method('findByRoomAndToken')->willReturnCallback(
-            fn (): Player => $this->hasPlayer ? new Player() : throw new DoesNotExistException('kein Spieler'),
+            fn (): Player => $this->hasPlayer ? new Player() : throw new DoesNotExistException('no player'),
         );
 
         $pollMapper = $this->createMock(PollMapper::class);
         $pollMapper->method('find')->willReturnCallback(function (int $id): Poll {
-            $poll = $this->polls[$id] ?? throw new DoesNotExistException('keine Frage');
+            $poll = $this->polls[$id] ?? throw new DoesNotExistException('no question');
             $read = clone $poll;
             if ($this->keyAfterRead !== null) {
                 $poll->setAnswerKey($this->keyAfterRead);
@@ -116,7 +116,7 @@ class SelfVoteTest extends TestCase {
             return $read;
         });
         $pollMapper->method('findForUpdate')->willReturnCallback(
-            fn (int $id): Poll => clone ($this->polls[$id] ?? throw new DoesNotExistException('keine Frage')),
+            fn (int $id): Poll => clone ($this->polls[$id] ?? throw new DoesNotExistException('no question')),
         );
 
         $time = $this->createMock(ITimeFactory::class);
@@ -262,7 +262,7 @@ class SelfVoteTest extends TestCase {
             'limit' => 20,
             'fw' => 3,
             'fixed' => true,
-        ], $this->payload($this->updated), 'neue Zeit, Fenster der ersten Antwort, als Korrektur vermerkt');
+        ], $this->payload($this->updated), 'new time, window of the first answer, marked as a correction');
         $this->assertSame(self::NOW + 3, $this->updated->getCreatedAt());
     }
 
@@ -273,7 +273,7 @@ class SelfVoteTest extends TestCase {
 
         $this->vote('BB');
 
-        $this->assertSame(6, $this->payload($this->updated)['fw'], 'das Flag der Korrektur (Tipp) verkürzt es nicht');
+        $this->assertSame(6, $this->payload($this->updated)['fw'], 'the flag of the correction (tap) does not shorten it');
     }
 
     public function testSecondCorrectionIsRejected(): void {
@@ -311,9 +311,9 @@ class SelfVoteTest extends TestCase {
     public static function freeTexts(): array {
         return [
             // answer, correct, pending, points > 0
-            'unbekannt: wird geprüft' => ['Saturn', false, true, false],
-            'abgelehnt: falsch, nicht offen' => [' MARS ', false, false, false],
-            'angenommen: richtig' => [' jupiter ', true, false, true],
+            'unknown: being checked' => ['Saturn', false, true, false],
+            'rejected: wrong, not pending' => [' MARS ', false, false, false],
+            'accepted: correct' => [' jupiter ', true, false, true],
         ];
     }
 
@@ -350,7 +350,7 @@ class SelfVoteTest extends TestCase {
 
         $this->vote('Saturn', pollId: 13);
 
-        $this->assertSame(1, $this->locks, 'nachgerechnet unter der Raumsperre');
+        $this->assertSame(1, $this->locks, 'rescored under the room lock');
         $this->assertSame($this->inserted, $this->updated);
         $payload = $this->payload($this->updated);
         $this->assertTrue($payload['correct']);
@@ -366,7 +366,7 @@ class SelfVoteTest extends TestCase {
 
         $payload = $this->payload($this->updated);
         $this->assertFalse($payload['correct']);
-        $this->assertFalse($payload['pending'], 'bewertet ist nicht mehr offen');
+        $this->assertFalse($payload['pending'], 'graded is no longer pending');
         $this->assertSame(0, $payload['points']);
     }
 
@@ -403,10 +403,10 @@ class SelfVoteTest extends TestCase {
     public static function closedWindows(): array {
         return [
             // openedAt, closesAt, closedAt, releasedAt, message
-            'Entwurf' => [0, 0, 0, 0, 'The quiz has not started yet.'],
-            'manuell geschlossen' => [self::NOW - 100, 0, self::NOW - 1, 0, 'The quiz is closed.'],
-            'Frist abgelaufen (Grenzsekunde)' => [self::NOW - 100, self::NOW, 0, 0, 'The quiz is closed.'],
-            'freigegeben' => [self::NOW - 100, 0, self::NOW - 1, self::NOW - 1, 'The quiz is closed.'],
+            'draft' => [0, 0, 0, 0, 'The quiz has not started yet.'],
+            'closed manually' => [self::NOW - 100, 0, self::NOW - 1, 0, 'The quiz is closed.'],
+            'deadline passed (boundary second)' => [self::NOW - 100, self::NOW, 0, 0, 'The quiz is closed.'],
+            'released' => [self::NOW - 100, 0, self::NOW - 1, self::NOW - 1, 'The quiz is closed.'],
         ];
     }
 
@@ -496,15 +496,15 @@ class SelfVoteTest extends TestCase {
     private function assertRejected(string $message, callable $fn): void {
         try {
             $fn();
-            $this->fail('InvalidArgumentException erwartet: ' . $message);
+            $this->fail('InvalidArgumentException expected: ' . $message);
         } catch (\InvalidArgumentException $e) {
             $this->assertSame($message, $e->getMessage());
         }
-        $this->assertNull($this->inserted, 'nichts gespeichert');
+        $this->assertNull($this->inserted, 'nothing saved');
     }
 
     private function payload(?Vote $vote): array {
-        $this->assertNotNull($vote, 'Stimme gespeichert');
+        $this->assertNotNull($vote, 'vote saved');
         return json_decode($vote->getPayload(), true);
     }
 

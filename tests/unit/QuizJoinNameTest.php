@@ -75,10 +75,10 @@ class QuizJoinNameTest extends TestCase {
 
     public static function takenNames(): array {
         return [
-            'gleich geschrieben' => ['Anna'],
-            'mit Leerraum und klein' => [' anna '],
-            'ganz groß' => ['ANNA'],
-            'Umlaut groß' => ['ÖZIL'],
+            'same spelling' => ['Anna'],
+            'with whitespace and lowercase' => [' anna '],
+            'all uppercase' => ['ANNA'],
+            'umlaut uppercase' => ['ÖZIL'],
         ];
     }
 

@@ -35,10 +35,10 @@ class SelfImageVisibleTest extends PaceStateTestCase {
         $this->row(11, 'tok-anna', self::NOW - 20, self::NOW - 10);
         $this->row(12, 'tok-anna', self::NOW - 10);
 
-        $this->assertTrue($this->visible(11, 'tok-anna'), 'verlassen');
-        $this->assertTrue($this->visible(12, 'tok-anna'), 'offen');
-        $this->assertFalse($this->visible(13, 'tok-anna'), 'noch nicht erreicht');
-        $this->assertFalse($this->visible(12, 'tok-ben'), 'fremde Zeile zählt nicht');
+        $this->assertTrue($this->visible(11, 'tok-anna'), 'left');
+        $this->assertTrue($this->visible(12, 'tok-anna'), 'open');
+        $this->assertFalse($this->visible(13, 'tok-anna'), 'not reached yet');
+        $this->assertFalse($this->visible(12, 'tok-ben'), 'a row of another person does not count');
     }
 
     public function testAfterTheReleaseOnlyReachedOnes(): void {

@@ -116,7 +116,7 @@ class DeckUpdatePollTest extends TestCase {
         $this->service->updatePoll($this->room('quiz', active: 7), 7, $this->quizData());
 
         $this->assertSame('active', $this->poll->getStatus());
-        $this->assertSame(5000, $this->poll->getStartedAt(), 'Timer neu gestartet');
+        $this->assertSame(5000, $this->poll->getStartedAt(), 'timer restarted');
     }
 
     public function testRunningLockedQuizQuestionStaysLocked(): void {
@@ -127,7 +127,7 @@ class DeckUpdatePollTest extends TestCase {
         $this->service->updatePoll($this->room('quiz', active: 7), 7, $this->quizData());
 
         $this->assertSame('locked', $this->poll->getStatus());
-        $this->assertSame(1234, $this->poll->getStartedAt(), 'Startzeit unverändert');
+        $this->assertSame(1234, $this->poll->getStartedAt(), 'start time unchanged');
     }
 
     public function testRunningEndedQuizQuestionStaysEnded(): void {
@@ -137,7 +137,7 @@ class DeckUpdatePollTest extends TestCase {
         $this->service->updatePoll($this->room('quiz', active: 7), 7, $this->quizData());
 
         $this->assertSame('ended', $this->poll->getStatus());
-        $this->assertSame(1234, $this->poll->getStartedAt(), 'Startzeit unverändert');
+        $this->assertSame(1234, $this->poll->getStartedAt(), 'start time unchanged');
     }
 
     public function testRunningPollQuestionKeepsItsStatus(): void {
@@ -182,7 +182,7 @@ class DeckUpdatePollTest extends TestCase {
 
         try {
             $this->service->updatePoll($this->room('quiz', active: 3), 7, ['type' => 'choice', 'question' => '']);
-            $this->fail('leere Frage muss abgelehnt werden');
+            $this->fail('an empty question must be rejected');
         } catch (\InvalidArgumentException) {
         }
 

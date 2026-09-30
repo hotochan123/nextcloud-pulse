@@ -111,20 +111,20 @@ class NameConfusableTest extends TestCase {
 
     public static function sameNames(): array {
         return [
-            'Vollbreite' => ['Anna', "\u{FF21}\u{FF4E}\u{FF4E}\u{FF41}"],
-            'griechisches Alpha' => ['Anna', "\u{0391}nna"],
-            'kyrillisches A' => ['Anna', "\u{0410}nna"],
-            'kyrillisches a klein' => ['Anna', "Ann\u{0430}"],
-            'kyrillisches O und E' => ['Oleg', "\u{041E}l\u{0435}g"],
-            'kyrillisches H' => ['Hans', "\u{041D}ans"],
-            'griechisches o klein' => ['Tom', "T\u{03BF}m"],
-            'punktloses i' => ['Mia', "M\u{0131}a"],
-            'eingekreist' => ['Anna', "\u{24B6}nna"],
-            'mathematisch fett' => ['Anna', "\u{1D400}nna"],
-            'Ligatur' => ['Finn', "\u{FB01}nn"],
-            'kyrillisch mit Trema' => ["\u{00CB}va", "\u{0401}va"],
-            'Gross und klein bleibt' => ['anna', 'ANNA'],
-            'Akzent zerlegt' => ["Ren\u{00E9}", "Rene\u{0301}"],
+            'fullwidth' => ['Anna', "\u{FF21}\u{FF4E}\u{FF4E}\u{FF41}"],
+            'Greek alpha' => ['Anna', "\u{0391}nna"],
+            'Cyrillic A' => ['Anna', "\u{0410}nna"],
+            'Cyrillic small a' => ['Anna', "Ann\u{0430}"],
+            'Cyrillic O and E' => ['Oleg', "\u{041E}l\u{0435}g"],
+            'Cyrillic H' => ['Hans', "\u{041D}ans"],
+            'Greek small o' => ['Tom', "T\u{03BF}m"],
+            'dotless i' => ['Mia', "M\u{0131}a"],
+            'circled' => ['Anna', "\u{24B6}nna"],
+            'mathematical bold' => ['Anna', "\u{1D400}nna"],
+            'ligature' => ['Finn', "\u{FB01}nn"],
+            'Cyrillic with diaeresis' => ["\u{00CB}va", "\u{0401}va"],
+            'case folding stays' => ['anna', 'ANNA'],
+            'decomposed accent' => ["Ren\u{00E9}", "Rene\u{0301}"],
         ];
     }
 
@@ -137,10 +137,10 @@ class NameConfusableTest extends TestCase {
         return [
             'Anna / Anne' => ['Anna', 'Anne'],
             'Lea / Lena' => ['Lea', 'Lena'],
-            'Umlaut' => ["M\u{00FC}ller", 'Muller'],
-            'griechischer Name' => ["\u{039D}\u{03AF}\u{03BA}\u{03BF}\u{03C2}", 'Nikos'],
-            'kyrillischer Name' => ["\u{0410}\u{043D}\u{043D}\u{0430}", 'Anna'],
-            'Ziffer statt O' => ['Tom', 'T0m'],
+            'umlaut' => ["M\u{00FC}ller", 'Muller'],
+            'Greek name' => ["\u{039D}\u{03AF}\u{03BA}\u{03BF}\u{03C2}", 'Nikos'],
+            'Cyrillic name' => ["\u{0410}\u{043D}\u{043D}\u{0430}", 'Anna'],
+            'digit instead of O' => ['Tom', 'T0m'],
         ];
     }
 
@@ -241,10 +241,10 @@ class NameConfusableTest extends TestCase {
 
     public static function lookalikeNames(): array {
         return [
-            'Vollbreite' => ["\u{FF21}\u{FF4E}\u{FF4E}\u{FF41}"],
-            'griechisch' => ["\u{0391}nna"],
-            'kyrillisch' => ["\u{0410}nna"],
-            'kyrillisch gross' => ["\u{0410}NN\u{0410}"],
+            'fullwidth' => ["\u{FF21}\u{FF4E}\u{FF4E}\u{FF41}"],
+            'Greek' => ["\u{0391}nna"],
+            'Cyrillic' => ["\u{0410}nna"],
+            'Cyrillic capitals' => ["\u{0410}NN\u{0410}"],
         ];
     }
 
@@ -296,19 +296,19 @@ class NameConfusableTest extends TestCase {
     /** @return array<string, array{string, \Closure(self): void}> */
     public static function frozen(): array {
         return [
-            'live, nach der Antwort' => ['live', static function (self $t): void {
+            'live, after the answer' => ['live', static function (self $t): void {
                 $t->voted = ['tok-x'];
             }],
-            'live, nach dem Quizende' => ['live', static function (self $t): void {
+            'live, after the end of the quiz' => ['live', static function (self $t): void {
                 $poll = new Poll();
                 $poll->setId(3);
                 $poll->setStatus('ended');
                 $t->polls = [$poll];
             }],
-            'eigenes Tempo, nach dem Start' => ['self', static function (self $t): void {
+            'self-paced, after the start' => ['self', static function (self $t): void {
                 $t->started = ['tok-x'];
             }],
-            'ohne Einfrieren (Lobby)' => ['live', static function (self $t): void {
+            'no freeze (lobby)' => ['live', static function (self $t): void {
             }],
         ];
     }

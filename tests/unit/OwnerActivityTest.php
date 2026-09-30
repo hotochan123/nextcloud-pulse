@@ -141,10 +141,10 @@ class OwnerActivityTest extends TestCase {
 
     public static function freshVisits(): array {
         return [
-            'vor zehn Minuten' => [self::NOW - 600, false],
-            'vor genau einer Stunde' => [self::NOW - RoomMapper::TOUCH_INTERVAL, false],
-            'vor einer Stunde und einer Sekunde' => [self::NOW - RoomMapper::TOUCH_INTERVAL - 1, true],
-            'nie' => [0, true],
+            'ten minutes ago' => [self::NOW - 600, false],
+            'exactly one hour ago' => [self::NOW - RoomMapper::TOUCH_INTERVAL, false],
+            'one hour and one second ago' => [self::NOW - RoomMapper::TOUCH_INTERVAL - 1, true],
+            'never' => [0, true],
         ];
     }
 

@@ -85,7 +85,7 @@ class TallyServiceTest extends TestCase {
         ]);
 
         $this->assertSame('words', $tally['type']);
-        $this->assertSame(2, $tally['total'], 'total zählt Personen, nicht Wörter');
+        $this->assertSame(2, $tally['total'], 'total counts people, not words');
         // The second person wrote "kaffee" and "KAFFEE" — that is ONE word,
         // so they count once for it, not twice.
         $this->assertSame([['word' => 'kaffee', 'count' => 2], ['word' => 'tee', 'count' => 1]], $tally['results']);
@@ -166,7 +166,7 @@ class TallyServiceTest extends TestCase {
 
         $this->assertSame(1, $tally['results'][0]['n']);
         $this->assertSame(3.0, $tally['results'][0]['average']);
-        $this->assertSame(3, $tally['total'], 'total bleibt die Zahl der Personen');
+        $this->assertSame(3, $tally['total'], 'total stays the number of people');
     }
 
     // ── scale: compass ─────────────────────────────────────────────────────
@@ -211,7 +211,7 @@ class TallyServiceTest extends TestCase {
         ]);
 
         $this->assertSame([1, 2, 0], array_column($tally['results'], 'count'));
-        $this->assertSame(2, $tally['total'], 'total zählt Personen, nicht Kreuze');
+        $this->assertSame(2, $tally['total'], 'total counts people, not ticks');
     }
 
     // ── rank ───────────────────────────────────────────────────────────────
@@ -247,8 +247,8 @@ class TallyServiceTest extends TestCase {
         ]);
 
         $rows = array_column($tally['results'], 'places', 'label');
-        $this->assertSame([2, 0, 2], $rows['A'], 'zweimal Platz 1, zweimal Platz 3');
-        $this->assertSame([0, 4, 0], $rows['B'], 'immer in der Mitte');
+        $this->assertSame([2, 0, 2], $rows['A'], 'twice place 1, twice place 3');
+        $this->assertSame([0, 4, 0], $rows['B'], 'always in the middle');
         $this->assertSame([2, 0, 2], $rows['C']);
         // The sum per row is the number of votes for this item.
         foreach ($tally['results'] as $row) {
@@ -280,7 +280,7 @@ class TallyServiceTest extends TestCase {
         ]);
 
         $this->assertSame([2.0, 2.0, 2.0], array_column($tally['results'], 'average'));
-        $this->assertSame(['A', 'C', 'B'], array_column($tally['results'], 'label'), 'mehr Erstplätze zuerst');
+        $this->assertSame(['A', 'C', 'B'], array_column($tally['results'], 'label'), 'more first places first');
         $this->assertSame([2, 2, 0], array_column($tally['results'], 'first'));
     }
 
@@ -323,7 +323,7 @@ class TallyServiceTest extends TestCase {
             $this->vote(120), $this->vote(98), $this->vote(105), $this->vote(98),
         ]);
 
-        $this->assertSame(3, $tally['correct'], '98, 98 und 105 liegen im Band');
+        $this->assertSame(3, $tally['correct'], '98, 98 and 105 are within the band');
         $this->assertSame([98, 105, 120], array_column($tally['results'], 'value'));
         $this->assertSame([2, 1, 1], array_column($tally['results'], 'count'));
     }
@@ -352,8 +352,8 @@ class TallyServiceTest extends TestCase {
         $this->assertSame(2, $byNorm['paris']['count']);
         $this->assertSame('accepted', $byNorm['paris']['status']);
         $this->assertSame('rejected', $byNorm['berlin']['status']);
-        $this->assertSame('pending', $byNorm['lyon']['status'], 'unbewertet bis der Moderator entscheidet');
-        $this->assertSame('Paris', $byNorm['paris']['sample'], 'Rohtext der ersten Nennung als Beispiel');
+        $this->assertSame('pending', $byNorm['lyon']['status'], 'ungraded until the moderator decides');
+        $this->assertSame('Paris', $byNorm['paris']['sample'], 'raw text of the first mention as the sample');
     }
 
     public function testFreeTextSortsByFrequency(): void {
@@ -370,7 +370,7 @@ class TallyServiceTest extends TestCase {
         $tally = $this->service->tally($poll, [$this->vote(''), $this->vote('Paris')]);
 
         $this->assertCount(1, $tally['answers']);
-        $this->assertSame(2, $tally['total'], 'total bleibt die Zahl der Stimmen');
+        $this->assertSame(2, $tally['total'], 'total stays the number of votes');
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────

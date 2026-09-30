@@ -72,12 +72,12 @@ class PaceNextTest extends TestCase {
 
         $this->votes = $this->createMock(VoteMapper::class);
         $this->votes->method('findByPollAndToken')->willReturnCallback(
-            fn (int $pollId, string $token): Vote => isset($this->answered[$pollId]) ? new Vote() : throw new DoesNotExistException('keine Stimme'),
+            fn (int $pollId, string $token): Vote => isset($this->answered[$pollId]) ? new Vote() : throw new DoesNotExistException('no vote'),
         );
 
         $this->players = $this->createMock(PlayerMapper::class);
         $this->players->method('findByRoomAndToken')->willReturnCallback(
-            fn (): Player => $this->hasPlayer ? new Player() : throw new DoesNotExistException('kein Spieler'),
+            fn (): Player => $this->hasPlayer ? new Player() : throw new DoesNotExistException('no player'),
         );
         $this->players->method('existsForUpdate')->willReturnCallback(fn (): bool => $this->stillJoined);
         $this->rooms = $this->createMock(RoomMapper::class);
@@ -220,10 +220,10 @@ class PaceNextTest extends TestCase {
 
     public static function closedWindows(): array {
         return [
-            'Entwurf' => [0, 0, 0, 0, 'The quiz has not started yet.'],
-            'manuell geschlossen' => [self::NOW - 100, 0, self::NOW - 1, 0, 'The quiz is closed.'],
-            'Frist abgelaufen' => [self::NOW - 100, self::NOW, 0, 0, 'The quiz is closed.'],
-            'freigegeben' => [self::NOW - 100, 0, self::NOW - 1, self::NOW - 1, 'The quiz is closed.'],
+            'draft' => [0, 0, 0, 0, 'The quiz has not started yet.'],
+            'closed manually' => [self::NOW - 100, 0, self::NOW - 1, 0, 'The quiz is closed.'],
+            'deadline passed' => [self::NOW - 100, self::NOW, 0, 0, 'The quiz is closed.'],
+            'released' => [self::NOW - 100, 0, self::NOW - 1, self::NOW - 1, 'The quiz is closed.'],
         ];
     }
 

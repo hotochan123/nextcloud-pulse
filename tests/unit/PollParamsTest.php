@@ -43,7 +43,7 @@ class PollParamsTest extends TestCase {
     /** @return list<string> fields that DeckService reads from $data. */
     private function fieldsReadByDeckService(): array {
         $source = file_get_contents(dirname(__DIR__, 2) . '/lib/Service/DeckService.php');
-        $this->assertNotFalse($source, 'DeckService.php nicht lesbar');
+        $this->assertNotFalse($source, 'DeckService.php not readable');
         preg_match_all("/data\['([a-zA-Z]+)'\]/", $source, $m);
         $fields = array_values(array_diff(array_unique($m[1]), self::INTERNAL));
         sort($fields);
@@ -104,14 +104,14 @@ class PollParamsTest extends TestCase {
         $sent = array_keys($this->capture('addPoll'));
         sort($sent);
         $this->assertSame([], array_diff($this->fieldsReadByDeckService(), $sent),
-            'DeckService liest Felder, die addPoll() nicht weiterreicht');
+            'DeckService reads fields that addPoll() does not pass on');
     }
 
     public function testUpdatePollPassesEveryFieldThrough(): void {
         $sent = array_keys($this->capture('updatePoll'));
         sort($sent);
         $this->assertSame([], array_diff($this->fieldsReadByDeckService(), $sent),
-            'DeckService liest Felder, die updatePoll() nicht weiterreicht');
+            'DeckService reads fields that updatePoll() does not pass on');
     }
 
     public function testPairsArriveAsTheirOwnField(): void {

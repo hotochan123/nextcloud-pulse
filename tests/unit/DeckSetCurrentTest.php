@@ -81,8 +81,8 @@ class DeckSetCurrentTest extends TestCase {
 
         $this->service->setCurrent($this->room('poll'), 7);
 
-        $this->assertSame(1234, $this->poll->getStartedAt(), 'erster Zeigezeitpunkt bleibt');
-        $this->assertSame('locked', $this->poll->getStatus(), 'Umfrage öffnet eine gesperrte Frage nicht');
+        $this->assertSame(1234, $this->poll->getStartedAt(), 'the first time shown stays');
+        $this->assertSame('locked', $this->poll->getStatus(), 'a poll does not open a locked question');
     }
 
     public function testQuizRestartsTimerEveryTimeAndOpens(): void {
@@ -128,7 +128,7 @@ class DeckSetCurrentTest extends TestCase {
 
         $this->service->setCurrent($this->room('quiz'), 7);
 
-        $this->assertSame('active', $this->poll->getStatus(), 'die Zielfrage selbst läuft wieder');
+        $this->assertSame('active', $this->poll->getStatus(), 'the target question itself runs again');
     }
 
     public function testQuizRevertsEndOnlyAfterOpening(): void {

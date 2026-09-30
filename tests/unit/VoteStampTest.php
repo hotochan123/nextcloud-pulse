@@ -57,9 +57,9 @@ class VoteStampTest extends TestCase {
         $a = $this->mapper->changeStamp(7);
         $b = $this->mapper->changeStamp(7);
 
-        $this->assertSame($a, $b, 'unverändert -> 204 bleibt möglich');
+        $this->assertSame($a, $b, 'unchanged -> 204 stays possible');
         $this->assertStringStartsWith('g', $a);
-        $this->assertSame(0, $this->reads, 'keine Stimme gelesen');
+        $this->assertSame(0, $this->reads, 'no vote read');
     }
 
     public function testEveryWritePathChangesTheStamp(): void {
@@ -76,9 +76,9 @@ class VoteStampTest extends TestCase {
         foreach ($writes as $name => $write) {
             $write();
             $stamp = $this->mapper->changeStamp(7);
-            $this->assertNotContains($stamp, $seen, $name . ': neuer, nie gesehener Stempel');
+            $this->assertNotContains($stamp, $seen, $name . ': new, never seen stamp');
             $seen[] = $stamp;
-            $this->assertSame($stamp, $this->mapper->changeStamp(7), $name . ': danach wieder stabil');
+            $this->assertSame($stamp, $this->mapper->changeStamp(7), $name . ': stable again afterwards');
         }
         $this->assertSame(0, $this->reads);
     }
@@ -114,7 +114,7 @@ class VoteStampTest extends TestCase {
 
         $other->insert($this->vote(null));
 
-        $this->assertNotSame($a, $this->mapper->changeStamp(7), 'der Schreiber im anderen Worker entwertet ihn');
+        $this->assertNotSame($a, $this->mapper->changeStamp(7), 'the writer in the other worker invalidates it');
     }
 
     public function testParallelFirstPollAgreesOnOneValue(): void {
@@ -134,8 +134,8 @@ class VoteStampTest extends TestCase {
         $this->mapper->deleteByPollsAndToken([7], 'tok');
         $this->inTransaction = false;
 
-        $this->assertNotNull($this->statements[0]['tx'], 'Marke steht VOR dem Statement');
-        $this->assertNull($this->cache->get('gen:7'), 'Generation danach weg');
+        $this->assertNotNull($this->statements[0]['tx'], 'marker is set BEFORE the statement');
+        $this->assertNull($this->cache->get('gen:7'), 'generation gone afterwards');
 
         // Uncommitted: the exact stamp reads what is visible. After the
         // "commit" (table changes), it changes.
@@ -144,7 +144,7 @@ class VoteStampTest extends TestCase {
         $this->assertNotSame($before, $during);
         $this->table[7] = [];
         $committed = $this->mapper->changeStamp(7);
-        $this->assertNotSame($during, $committed, 'der Commit wird sichtbar');
+        $this->assertNotSame($during, $committed, 'the commit becomes visible');
 
         // Marker expired (TTL): a generation again — one no client has seen.
         $this->cache->remove('tx:7');
@@ -177,15 +177,15 @@ class VoteStampTest extends TestCase {
 
     public function testBrokenCacheExactStampAndWritingStillWorks(): void {
         $cache = $this->createMock(IMemcache::class);
-        $cache->method('get')->willThrowException(new \RuntimeException('Redis weg'));
-        $cache->method('remove')->willThrowException(new \RuntimeException('Redis weg'));
-        $cache->method('set')->willThrowException(new \RuntimeException('Redis weg'));
+        $cache->method('get')->willThrowException(new \RuntimeException('Redis gone'));
+        $cache->method('remove')->willThrowException(new \RuntimeException('Redis gone'));
+        $cache->method('set')->willThrowException(new \RuntimeException('Redis gone'));
         $mapper = $this->mapper(fn () => $cache);
 
         $this->assertStringStartsWith('c', $mapper->changeStamp(7));
         $this->inTransaction = true;
         $mapper->insert($this->vote(null));
-        $this->assertCount(1, $this->statements, 'die Stimme ist trotzdem gespeichert');
+        $this->assertCount(1, $this->statements, 'the vote is stored anyway');
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────

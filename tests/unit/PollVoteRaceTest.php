@@ -72,7 +72,7 @@ class PollVoteRaceTest extends TestCase {
         $other->setCreatedAt(999);
         // No vote at first; after the failed insert, the one from the other request.
         $this->votes->method('findByPollAndToken')->willReturnOnConsecutiveCalls(
-            $this->throwException(new DoesNotExistException('keine Stimme')),
+            $this->throwException(new DoesNotExistException('no vote')),
             $other,
         );
         $this->votes->expects($this->once())->method('insert')->willThrowException($this->dbError(Exception::REASON_UNIQUE_CONSTRAINT_VIOLATION));
@@ -90,7 +90,7 @@ class PollVoteRaceTest extends TestCase {
     }
 
     public function testOtherDatabaseErrorStaysAnError(): void {
-        $this->votes->method('findByPollAndToken')->willThrowException(new DoesNotExistException('keine Stimme'));
+        $this->votes->method('findByPollAndToken')->willThrowException(new DoesNotExistException('no vote'));
         $this->votes->method('insert')->willThrowException($this->dbError(Exception::REASON_CONNECTION_LOST));
         $this->votes->expects($this->never())->method('update');
 

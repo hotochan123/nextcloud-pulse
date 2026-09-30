@@ -140,11 +140,11 @@ class PaceStillJoinedTest extends TestCase {
         // only cleans up what it wrote afterwards itself (order taken from the
         // passed-in room, which no longer exists).
         $this->joined = [false];
-        $this->rooms->method('lockForUpdate')->willThrowException(new DoesNotExistException('weg'));
+        $this->rooms->method('lockForUpdate')->willThrowException(new DoesNotExistException('gone'));
 
         try {
             $this->service->assertStillJoined($this->room(), self::TOK);
-            $this->fail('RoomGoneException erwartet');
+            $this->fail('RoomGoneException expected');
         } catch (RoomGoneException) {
         }
 
@@ -168,14 +168,14 @@ class PaceStillJoinedTest extends TestCase {
     public function testDeletedRoomIsNotFoundInsteadOfAnError(): void {
         // Another tab or the cleanup job deleted the room after the request
         // had loaded it: 404 in the controllers, not a 500.
-        $this->rooms->method('lockForUpdate')->willThrowException(new DoesNotExistException('weg'));
+        $this->rooms->method('lockForUpdate')->willThrowException(new DoesNotExistException('gone'));
         $called = false;
 
         try {
             $this->service->locked($this->room(), function () use (&$called): void {
                 $called = true;
             });
-            $this->fail('RoomGoneException erwartet');
+            $this->fail('RoomGoneException expected');
         } catch (RoomGoneException) {
         }
 
@@ -198,7 +198,7 @@ class PaceStillJoinedTest extends TestCase {
     private function assertRejected(): void {
         try {
             $this->service->assertStillJoined($this->room(), self::TOK);
-            $this->fail('InvalidArgumentException erwartet');
+            $this->fail('InvalidArgumentException expected');
         } catch (\InvalidArgumentException $e) {
             $this->assertSame('Please choose a name first.', $e->getMessage());
         }

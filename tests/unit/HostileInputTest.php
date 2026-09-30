@@ -108,13 +108,13 @@ class HostileInputTest extends TestCase {
         $pairs = [['left' => 'a', 'right' => '1'], ['left' => 'b', 'right' => '2']];
         $axis = ['title' => 'Achse', 'poleLow' => 'links', 'poleHigh' => 'rechts'];
         return [
-            'Umfrage choice' => ['poll', ['type' => 'choice', 'question' => 'Q?', 'options' => $options]],
-            'Umfrage words' => ['poll', ['type' => 'words', 'question' => 'Q?', 'maxWords' => 3]],
-            'Umfrage Skala einzeln' => ['poll', ['type' => 'scale', 'question' => 'Q?', 'scaleMode' => 'single', 'scaleMax' => 5, 'minLabel' => 'wenig', 'maxLabel' => 'viel']],
-            'Umfrage Skala Spektrum' => ['poll', ['type' => 'scale', 'question' => 'Q?', 'scaleMode' => 'spectrum', 'scaleMax' => 10, 'aspects' => [['label' => 'a'], ['label' => 'b'], ['label' => 'c']]]],
-            'Umfrage Skala Kompass' => ['poll', ['type' => 'scale', 'question' => 'Q?', 'scaleMode' => 'compass', 'range' => 5, 'axisX' => $axis, 'axisY' => $axis, 'cornerLabels' => ['a', 'b'], 'heatmapThreshold' => 45]],
-            'Umfrage rank' => ['poll', ['type' => 'rank', 'question' => 'Q?', 'options' => $options]],
-            'Umfrage match' => ['poll', ['type' => 'match', 'question' => 'Q?', 'pairs' => $pairs]],
+            'Poll choice' => ['poll', ['type' => 'choice', 'question' => 'Q?', 'options' => $options]],
+            'Poll words' => ['poll', ['type' => 'words', 'question' => 'Q?', 'maxWords' => 3]],
+            'Poll scale single' => ['poll', ['type' => 'scale', 'question' => 'Q?', 'scaleMode' => 'single', 'scaleMax' => 5, 'minLabel' => 'wenig', 'maxLabel' => 'viel']],
+            'Poll scale spectrum' => ['poll', ['type' => 'scale', 'question' => 'Q?', 'scaleMode' => 'spectrum', 'scaleMax' => 10, 'aspects' => [['label' => 'a'], ['label' => 'b'], ['label' => 'c']]]],
+            'Poll scale compass' => ['poll', ['type' => 'scale', 'question' => 'Q?', 'scaleMode' => 'compass', 'range' => 5, 'axisX' => $axis, 'axisY' => $axis, 'cornerLabels' => ['a', 'b'], 'heatmapThreshold' => 45]],
+            'Poll rank' => ['poll', ['type' => 'rank', 'question' => 'Q?', 'options' => $options]],
+            'Poll match' => ['poll', ['type' => 'match', 'question' => 'Q?', 'pairs' => $pairs]],
             'Quiz choice' => ['quiz', ['type' => 'choice', 'question' => 'Q?', 'options' => $options, 'correctIndex' => 1, 'timeLimit' => 30]],
             'Quiz truefalse' => ['quiz', ['type' => 'truefalse', 'question' => 'Q?', 'correctIndex' => 0, 'timeLimit' => 30]],
             'Quiz multi' => ['quiz', ['type' => 'multi', 'question' => 'Q?', 'options' => $options, 'correctIndexes' => [0], 'timeLimit' => 30]],
@@ -181,7 +181,7 @@ class HostileInputTest extends TestCase {
         foreach (['1e999', INF] as $target) {
             try {
                 $this->deck->addPoll($this->room('quiz'), ['type' => 'number', 'question' => 'N?', 'target' => $target, 'timeLimit' => 30]);
-                $this->fail('Zielzahl ' . var_export($target, true) . ' angenommen');
+                $this->fail('target number ' . var_export($target, true) . ' accepted');
             } catch (\InvalidArgumentException $e) {
                 $this->assertSame('Please enter a target number.', $e->getMessage());
             }
@@ -215,11 +215,11 @@ class HostileInputTest extends TestCase {
     public function testNestedOrderIsInvalid(): void {
         try {
             $this->deck->reorder($this->room('poll'), [[11]]);
-            $this->fail('verschachtelte Reihenfolge angenommen');
+            $this->fail('nested order accepted');
         } catch (\InvalidArgumentException $e) {
             $this->assertSame('Invalid order.', $e->getMessage());
         }
-        $this->assertSame([], $this->positions, 'nichts geschrieben');
+        $this->assertSame([], $this->positions, 'nothing written');
     }
 
     // ── VoteService: every question type, every vote value ─────────────────
@@ -278,7 +278,7 @@ class HostileInputTest extends TestCase {
         foreach (['1e999', INF] as $value) {
             try {
                 $this->votes->normalizeValue($this->poll('number', []), $value);
-                $this->fail('Schätzung ' . var_export($value, true) . ' angenommen');
+                $this->fail('guess ' . var_export($value, true) . ' accepted');
             } catch (\InvalidArgumentException $e) {
                 $this->assertSame('Please enter a number.', $e->getMessage());
             }
@@ -349,7 +349,7 @@ class HostileInputTest extends TestCase {
                 } catch (\Throwable $e) {
                     $this->fail("$label: " . get_class($e) . ' ' . $e->getMessage());
                 }
-                $this->assertNotFalse(json_encode($out), "$label: nicht speicherbar");
+                $this->assertNotFalse(json_encode($out), "$label: not storable");
             }
         }
     }

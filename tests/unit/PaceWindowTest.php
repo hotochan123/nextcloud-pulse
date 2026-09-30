@@ -112,10 +112,10 @@ class PaceWindowTest extends TestCase {
 
     public static function alreadyOpened(): array {
         return [
-            'offen' => [self::NOW - 100, 0, 0, 0],
-            'geschlossen' => [self::NOW - 100, 0, self::NOW - 1, 0],
-            'Frist abgelaufen' => [self::NOW - 100, self::NOW - 1, 0, 0],
-            'freigegeben' => [self::NOW - 100, 0, self::NOW - 1, self::NOW - 1],
+            'open' => [self::NOW - 100, 0, 0, 0],
+            'closed' => [self::NOW - 100, 0, self::NOW - 1, 0],
+            'deadline passed' => [self::NOW - 100, self::NOW - 1, 0, 0],
+            'released' => [self::NOW - 100, 0, self::NOW - 1, self::NOW - 1],
         ];
     }
 
@@ -137,12 +137,12 @@ class PaceWindowTest extends TestCase {
 
     public static function deadlines(): array {
         return [
-            'eine Sekunde zu früh' => [self::NOW + 59, false],
-            'genau eine Minute' => [self::NOW + 60, true],
-            'genau 30 Tage' => [self::NOW + 30 * self::DAY, true],
-            'eine Sekunde zu spät' => [self::NOW + 30 * self::DAY + 1, false],
-            'Vergangenheit' => [self::NOW - 5, false],
-            'negativ' => [-1, false],
+            'one second too early' => [self::NOW + 59, false],
+            'exactly one minute' => [self::NOW + 60, true],
+            'exactly 30 days' => [self::NOW + 30 * self::DAY, true],
+            'one second too late' => [self::NOW + 30 * self::DAY + 1, false],
+            'in the past' => [self::NOW - 5, false],
+            'negative' => [-1, false],
         ];
     }
 
@@ -221,12 +221,12 @@ class PaceWindowTest extends TestCase {
 
     public function testWriteErrorRollsBack(): void {
         $this->locked = $this->room(self::NOW - 100);
-        $this->rooms->method('update')->willThrowException(new \RuntimeException('DB weg'));
+        $this->rooms->method('update')->willThrowException(new \RuntimeException('DB gone'));
         try {
             $this->service->closeWindow($this->room());
-            $this->fail('Ausnahme erwartet');
+            $this->fail('exception expected');
         } catch (\RuntimeException $e) {
-            $this->assertSame('DB weg', $e->getMessage());
+            $this->assertSame('DB gone', $e->getMessage());
         }
         $this->assertSame(['beginTransaction', 'rollBack'], $this->tx);
     }
@@ -283,10 +283,10 @@ class PaceWindowTest extends TestCase {
     /** closesAt, release, releasedAt afterwards */
     public static function releaseChoices(): array {
         return [
-            'Rennen, release false' => [0, false, 0],
-            'Rennen, release true' => [0, true, self::NOW],
-            'Hausaufgabe, release false' => [self::NOW + 3600, false, 0],
-            'Hausaufgabe, release true' => [self::NOW + 3600, true, self::NOW],
+            'race, release false' => [0, false, 0],
+            'race, release true' => [0, true, self::NOW],
+            'homework, release false' => [self::NOW + 3600, false, 0],
+            'homework, release true' => [self::NOW + 3600, true, self::NOW],
         ];
     }
 
@@ -304,10 +304,10 @@ class PaceWindowTest extends TestCase {
     /** closesAt, release — the window is already closed */
     public static function alreadyClosed(): array {
         return [
-            'Rennen gestoppt, ohne Angabe' => [0, null],
-            'Rennen gestoppt, release true' => [0, true],
-            'Rennen gestoppt, release false' => [0, false],
-            'Hausaufgabe geschlossen, release true' => [self::NOW + 3600, true],
+            'race stopped, release not given' => [0, null],
+            'race stopped, release true' => [0, true],
+            'race stopped, release false' => [0, false],
+            'homework closed, release true' => [self::NOW + 3600, true],
         ];
     }
 
@@ -441,7 +441,7 @@ class PaceWindowTest extends TestCase {
     private function conflict(callable $action, string $message): void {
         try {
             $action();
-            $this->fail('ConflictException erwartet');
+            $this->fail('ConflictException expected');
         } catch (ConflictException $e) {
             $this->assertSame($message, $e->getMessage());
         }
@@ -452,7 +452,7 @@ class PaceWindowTest extends TestCase {
     private function invalid(callable $action, string $message): void {
         try {
             $action();
-            $this->fail('InvalidArgumentException erwartet');
+            $this->fail('InvalidArgumentException expected');
         } catch (\InvalidArgumentException $e) {
             $this->assertSame($message, $e->getMessage());
         }

@@ -99,9 +99,9 @@ class SelfJoinTest extends TestCase {
     public static function closedWindows(): array {
         return [
             // closesAt, closedAt, releasedAt
-            'manuell geschlossen' => [0, self::NOW - 1, 0],
-            'Frist abgelaufen' => [self::NOW, 0, 0],
-            'freigegeben' => [0, self::NOW - 1, self::NOW - 1],
+            'closed manually' => [0, self::NOW - 1, 0],
+            'deadline passed' => [self::NOW, 0, 0],
+            'released' => [0, self::NOW - 1, self::NOW - 1],
         ];
     }
 
@@ -138,7 +138,7 @@ class SelfJoinTest extends TestCase {
 
         try {
             $this->service->quizJoin($this->room(self::NOW - 100), 'tok-neu', 'Cem');
-            $this->fail('InvalidArgumentException erwartet');
+            $this->fail('InvalidArgumentException expected');
         } catch (\InvalidArgumentException $e) {
             $this->assertSame('The quiz is closed.', $e->getMessage());
         }
@@ -314,7 +314,7 @@ class SelfJoinTest extends TestCase {
         $this->players->expects($this->never())->method('register');
         try {
             $this->join($token, $nickname);
-            $this->fail('InvalidArgumentException erwartet: ' . $message);
+            $this->fail('InvalidArgumentException expected: ' . $message);
         } catch (\InvalidArgumentException $e) {
             $this->assertSame($message, $e->getMessage());
         }

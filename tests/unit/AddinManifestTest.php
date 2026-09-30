@@ -27,12 +27,12 @@ class AddinManifestTest extends TestCase {
 
     public static function versions(): array {
         return [
-            'gewöhnlich'        => ['0.18.0', '0.18.0.0'],
-            'Vorabversion'      => ['0.19.0-beta.1', '0.19.0.0'],
-            'Build-Metadaten'   => ['0.18.0+build.7', '0.18.0.0'],
-            'nur Hauptversion'  => ['1', '1.0.0.0'],
-            'zu viele Stellen'  => ['2.3.4.5.6', '2.3.4.5'],
-            'leer'              => ['', '0.0.0.0'],
+            'ordinary'            => ['0.18.0', '0.18.0.0'],
+            'pre-release'         => ['0.19.0-beta.1', '0.19.0.0'],
+            'build metadata'      => ['0.18.0+build.7', '0.18.0.0'],
+            'major version only'  => ['1', '1.0.0.0'],
+            'too many parts'      => ['2.3.4.5.6', '2.3.4.5'],
+            'empty'               => ['', '0.0.0.0'],
         ];
     }
 
@@ -47,10 +47,10 @@ class AddinManifestTest extends TestCase {
 
     public static function urls(): array {
         return [
-            'Wurzel'         => ['https://cloud.example.com/', 'https://cloud.example.com'],
-            'Unterordner'    => ['https://cloud.example.com/nextcloud/', 'https://cloud.example.com'],
-            'eigener Port'   => ['https://cloud.example.com:8443/nextcloud/', 'https://cloud.example.com:8443'],
-            'ohne TLS'       => ['http://localhost/nc/', 'http://localhost'],
+            'root'           => ['https://cloud.example.com/', 'https://cloud.example.com'],
+            'subfolder'      => ['https://cloud.example.com/nextcloud/', 'https://cloud.example.com'],
+            'custom port'    => ['https://cloud.example.com:8443/nextcloud/', 'https://cloud.example.com:8443'],
+            'without TLS'    => ['http://localhost/nc/', 'http://localhost'],
         ];
     }
 
@@ -74,7 +74,7 @@ class AddinManifestTest extends TestCase {
         $doc = simplexml_load_string($xml);
         libxml_use_internal_errors($previous);
 
-        $this->assertNotFalse($doc, 'Das erzeugte Manifest ist kein wohlgeformtes XML.');
+        $this->assertNotFalse($doc, 'The generated manifest is not well-formed XML.');
     }
 
     /**
@@ -169,7 +169,7 @@ class AddinManifestTest extends TestCase {
 
         $this->assertNotEmpty(
             $attributes,
-            'AddinController::manifest wird über einen Link geladen und braucht #[NoCSRFRequired].',
+            'AddinController::manifest is loaded through a link and needs #[NoCSRFRequired].',
         );
     }
 }

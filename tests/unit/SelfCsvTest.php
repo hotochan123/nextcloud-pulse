@@ -32,7 +32,7 @@ class SelfCsvTest extends PaceStateTestCase {
         $this->assertSame(['Name', 'No.', 'Question', 'Type', 'Answer', 'Result', 'Points', 'Time (s)', 'Answered at'], $lines[0]);
         $this->assertSame(['Anna', '1', 'Hauptstadt von Frankreich?', 'Multiple choice', 'Paris', 'Correct', '900', '10', 'T' . (self::NOW - 80)], $lines[1]);
         $this->assertSame(['Anna', '2', 'Planeten nach Größe', 'Ranking', 'Jupiter > Saturn > Neptun', 'Correct', '1000', '', 'T' . (self::NOW - 40)], $lines[2]);
-        $this->assertCount(3, $lines, 'eine Zeile je Stimme');
+        $this->assertCount(3, $lines, 'one line per vote');
     }
 
     public function testAnswersByQuestionThenNameAndResult(): void {
@@ -68,8 +68,8 @@ class SelfCsvTest extends PaceStateTestCase {
         $answers = array_column(array_slice($this->csv('answers'), 1), 4, 1);
 
         $this->assertSame('Paris, Berlin', $answers['4']);
-        $this->assertSame('1,969.5', $answers['5'], 'Zahl in der Sprache des Exports');
-        $this->assertSame('\'=HYPERLINK("x")', $answers['3'], 'Freitext aus dem Publikum wird keine Formel');
+        $this->assertSame('1,969.5', $answers['5'], 'number in the language of the export');
+        $this->assertSame('\'=HYPERLINK("x")', $answers['3'], 'free text from the audience does not become a formula');
     }
 
     public function testPlayersWithoutTimerTimeEmpty(): void {
@@ -105,13 +105,13 @@ class SelfCsvTest extends PaceStateTestCase {
         $this->row(12, 'tok-ben', self::NOW - 60, self::NOW - 30);
         $this->row(13, 'tok-ben', self::NOW - 30);
 
-        $this->assertSame('yes', $this->playerLine('Anna')[6], 'beantwortet, offen');
-        $this->assertSame('no', $this->playerLine('Ben')[6], 'unbeantwortet, offen');
+        $this->assertSame('yes', $this->playerLine('Anna')[6], 'answered, open');
+        $this->assertSame('no', $this->playerLine('Ben')[6], 'unanswered, open');
 
         $this->close();
         $this->assertSame('yes', $this->playerLine('Anna')[6]);
-        $this->assertSame('yes', $this->playerLine('Ben')[6], 'Fenster zu');
-        $this->assertSame('no', $this->playerLine('Cem')[6], 'nie gestartet');
+        $this->assertSame('yes', $this->playerLine('Ben')[6], 'window closed');
+        $this->assertSame('no', $this->playerLine('Cem')[6], 'never started');
     }
 
     public function testPlayersInLeaderboardOrderWithBom(): void {
@@ -124,7 +124,7 @@ class SelfCsvTest extends PaceStateTestCase {
         $this->assertStringStartsWith("\xEF\xBB\xBF", $raw);
         $this->assertSame(['Rank', 'Name', 'Score', 'Correct', 'Answered', 'Reached', 'Finished', 'Started', 'Last activity', 'Time (s)'], $lines[0]);
         $this->assertSame(['Cem', 'Anna', 'Ben'], array_column(array_slice($lines, 1), 1));
-        $this->assertSame(['', ''], [$lines[2][7], $lines[2][8]], 'nie gestartet: leere Zeitpunkte');
+        $this->assertSame(['', ''], [$lines[2][7], $lines[2][8]], 'never started: empty timestamps');
         $this->assertSame('0 / 3', $lines[2][5]);
     }
 
@@ -151,6 +151,6 @@ class SelfCsvTest extends PaceStateTestCase {
                 return $line;
             }
         }
-        $this->fail('keine Zeile für ' . $name);
+        $this->fail('no line for ' . $name);
     }
 }

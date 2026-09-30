@@ -24,14 +24,14 @@ use PHPUnit\Framework\Attributes\DataProvider;
 class SelfSummaryGateTest extends PaceStateTestCase {
 
     public static function cookies(): array {
-        return ['ohne Cookie' => [null], 'leeres Cookie' => [''], 'Cookie ohne Zeilen' => ['tok-cem']];
+        return ['without cookie' => [null], 'empty cookie' => [''], 'cookie without rows' => ['tok-cem']];
     }
 
     #[DataProvider('cookies')]
     public function testWithoutRowsNothingBeforeRelease(?string $token): void {
         $this->annaReachedTwo();
 
-        foreach (['offen' => fn () => null, 'geschlossen' => fn () => $this->close()] as $state => $apply) {
+        foreach (['open' => fn () => null, 'closed' => fn () => $this->close()] as $state => $apply) {
             $apply();
             $summary = $this->service->publicSummary($this->room, $token);
 
@@ -60,7 +60,7 @@ class SelfSummaryGateTest extends PaceStateTestCase {
 
         $summary = $this->service->publicSummary($this->room, 'tok-anna');
 
-        $this->assertSame([11], array_map(static fn (array $i): int => $i['poll']['id'], $summary['items']), 'die offene Q2 steht auf dem Hauptbildschirm');
+        $this->assertSame([11], array_map(static fn (array $i): int => $i['poll']['id'], $summary['items']), 'the open Q2 is on the main screen');
         $item = $summary['items'][0];
         $this->assertFalse($item['revealed']);
         $this->assertNull($item['results']);
@@ -81,8 +81,8 @@ class SelfSummaryGateTest extends PaceStateTestCase {
         $summary = $this->service->publicSummary($this->room, 'tok-anna');
 
         $this->assertSame([11, 12], array_map(static fn (array $i): int => $i['poll']['id'], $summary['items']));
-        $this->assertNull($summary['items'][1]['mine'], 'Q2 unbeantwortet');
-        $this->assertNull($summary['leaderboard'], 'geschlossen ist nicht freigegeben');
+        $this->assertNull($summary['items'][1]['mine'], 'Q2 unanswered');
+        $this->assertNull($summary['leaderboard'], 'closed is not released');
         $this->assertNoSolution($summary);
     }
 
@@ -103,14 +103,14 @@ class SelfSummaryGateTest extends PaceStateTestCase {
 
         $summary = $this->service->publicSummary($this->room, 'tok-anna');
 
-        $this->assertSame([11, 12], array_map(static fn (array $i): int => $i['poll']['id'], $summary['items']), 'Q3 nie erreicht: fehlt ganz');
+        $this->assertSame([11, 12], array_map(static fn (array $i): int => $i['poll']['id'], $summary['items']), 'Q3 never reached: missing entirely');
         $first = $summary['items'][0];
         $this->assertTrue($first['revealed']);
         $this->assertTrue($first['poll']['revealed']);
         $this->assertSame('AA', $first['poll']['correctOption']);
         $this->assertArrayHasKey('answerKey', $first['poll']);
-        $this->assertSame(2, $first['results']['total'], 'alle Stimmen der Frage, auch fremde');
-        $this->assertSame(['JU01', 'SA02', 'NE03'], array_column($summary['items'][1]['poll']['options'], 'id'), 'aufgelöst: gespeicherte Folge');
+        $this->assertSame(2, $first['results']['total'], 'all votes on the question, including other players');
+        $this->assertSame(['JU01', 'SA02', 'NE03'], array_column($summary['items'][1]['poll']['options'], 'id'), 'revealed: stored order');
         $this->assertSame(['order' => ['JU01', 'SA02', 'NE03']], $summary['items'][1]['poll']['answerKey']);
         $this->assertSame(['Anna' => true, 'Ben' => false, 'Cem' => false], self::column($summary['leaderboard'], 'me'));
         $this->assertStringNotContainsString('Größter Planet', json_encode($summary, JSON_UNESCAPED_UNICODE));

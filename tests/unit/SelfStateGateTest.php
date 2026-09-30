@@ -29,7 +29,7 @@ class SelfStateGateTest extends PaceStateTestCase {
     // ── No solution, no distribution ───────────────────────────────────────
 
     public static function unreleasedStates(): array {
-        return ['Entwurf' => ['draft'], 'offen' => ['open'], 'geschlossen' => ['closed']];
+        return ['draft' => ['draft'], 'open' => ['open'], 'closed' => ['closed']];
     }
 
     #[DataProvider('unreleasedStates')]
@@ -46,7 +46,7 @@ class SelfStateGateTest extends PaceStateTestCase {
             $this->close();
         }
 
-        foreach (['Handy' => $this->phone(), 'Beamer' => $this->beamer()] as $who => $data) {
+        foreach (['phone' => $this->phone(), 'projector' => $this->beamer()] as $who => $data) {
             $this->assertArrayHasKey('results', $data);
             $this->assertNull($data['results'], $who);
             $json = json_encode($data);
@@ -59,7 +59,7 @@ class SelfStateGateTest extends PaceStateTestCase {
             }
         }
         if ($state === 'open') {
-            $this->assertSame(12, $this->phone()['poll']['id'], 'die offene Frage steht auf dem Handy');
+            $this->assertSame(12, $this->phone()['poll']['id'], 'the open question is on the phone');
         }
     }
 
@@ -94,8 +94,8 @@ class SelfStateGateTest extends PaceStateTestCase {
 
         $data = $this->phone();
 
-        $this->assertSame(0, $data['poll']['timeLimit'], 'ohne Timer zeigt der Client keinen Countdown');
-        $this->assertFalse($data['progress']['timeUp'], 'und die Zeit läuft nie ab');
+        $this->assertSame(0, $data['poll']['timeLimit'], 'without a timer the client shows no countdown');
+        $this->assertFalse($data['progress']['timeUp'], 'and the time never runs out');
     }
 
     // ── Verdict ────────────────────────────────────────────────────────────
@@ -111,9 +111,9 @@ class SelfStateGateTest extends PaceStateTestCase {
         $this->assertSame(
             ['answered' => true, 'final' => false, 'verdict' => null, 'correct' => null, 'points' => null],
             $data['myResult'],
-            'in der Sekunde created+fw ist noch korrigierbar',
+            'still correctable in the second created+fw',
         );
-        $this->assertSame(0, $data['myScore'], 'auch nicht über die eigenen Punkte');
+        $this->assertSame(0, $data['myScore'], 'not through their own points either');
     }
 
     public function testPerQuestionFinalWithVerdictAndPoints(): void {
@@ -152,7 +152,7 @@ class SelfStateGateTest extends PaceStateTestCase {
             ['answered' => true, 'final' => true, 'verdict' => 'saved', 'correct' => null, 'points' => null],
             $data['myResult'],
         );
-        $this->assertNull($data['myScore'], 'auch die Summe verriete das Urteil');
+        $this->assertNull($data['myScore'], 'the sum would give the verdict away too');
         $this->assertNull($data['leaderboard']);
     }
 
@@ -165,7 +165,7 @@ class SelfStateGateTest extends PaceStateTestCase {
         $data = $this->phone();
 
         $this->assertSame(900, $data['myScore']);
-        $this->assertNull($data['poll'], 'Rückblick nur über /summary');
+        $this->assertNull($data['poll'], 'review only through /summary');
     }
 
     public function testPracticeRunGivesVerdictDespiteFeedbackAtEnd(): void {
@@ -253,7 +253,7 @@ class SelfStateGateTest extends PaceStateTestCase {
 
         $this->assertNull($data['poll']);
         $this->assertSame(0, $data['progress']['currentPollId']);
-        $this->assertSame(11, $data['progress']['after'], 'damit heilt das nächste /next');
+        $this->assertSame(11, $data['progress']['after'], 'so the next /next heals it');
         $this->assertSame(1, $data['progress']['k']);
     }
 
@@ -266,7 +266,7 @@ class SelfStateGateTest extends PaceStateTestCase {
 
         $this->assertNull($data['poll']);
         $this->assertSame(12, $data['progress']['currentPollId']);
-        $this->assertSame(12, $data['progress']['after'], '/next mit dieser Frage geht weiter');
+        $this->assertSame(12, $data['progress']['after'], '/next with this question carries on');
     }
 
     public function testBeforeTheStartNoQuestionYet(): void {
@@ -281,19 +281,19 @@ class SelfStateGateTest extends PaceStateTestCase {
         $this->row(11, 'tok-anna', self::NOW - 50, self::NOW - 40);
         $this->row(12, 'tok-anna', self::NOW - 40, self::NOW - 30);
         $this->row(13, 'tok-anna', self::NOW - 30);
-        $this->assertFalse($this->phone()['progress']['finished'], 'letzte Frage offen, unbeantwortet');
+        $this->assertFalse($this->phone()['progress']['finished'], 'last question open, unanswered');
 
         $this->vote(13, 'tok-anna', 'Jupiter', 1000, true, self::NOW - 20);
-        $this->assertTrue($this->phone()['progress']['finished'], 'letzte beantwortet, „Fertig" nie getippt');
+        $this->assertTrue($this->phone()['progress']['finished'], 'last one answered, "I’m done" never tapped');
 
         $this->votes = [];
         $this->close();
-        $this->assertTrue($this->phone()['progress']['finished'], 'unbeantwortet, aber Fenster zu');
+        $this->assertTrue($this->phone()['progress']['finished'], 'unanswered, but window closed');
     }
 
     public function testTimeUpFlipsAtLimitPlusOne(): void {
         $this->row(11, 'tok-anna', self::NOW - 20);
-        $this->assertFalse($this->phone()['progress']['timeUp'], 'Grenze wie /vote: elapsed > limit');
+        $this->assertFalse($this->phone()['progress']['timeUp'], 'boundary as in /vote: elapsed > limit');
 
         $this->now = self::NOW + 1;
         $this->assertTrue($this->phone()['progress']['timeUp']);
@@ -302,12 +302,12 @@ class SelfStateGateTest extends PaceStateTestCase {
     public function testPresenceOnlyInDraft(): void {
         $this->present = 7;
         $this->row(11, 'tok-anna', self::NOW - 20);
-        $this->assertSame(0, $this->phone()['present'], 'offen: sonst trieben Heartbeats die Version');
+        $this->assertSame(0, $this->phone()['present'], 'open: otherwise heartbeats would drive the version');
 
         $this->room->setOpenedAt(0);
         $this->room->setDeckOrder(null);
         $this->rows = [];
-        $this->assertSame(7, $this->phone()['present'], 'Wartezustand: „N dabei"');
+        $this->assertSame(7, $this->phone()['present'], 'waiting state: "N here"');
     }
 
     public function testHeaderFields(): void {
@@ -345,7 +345,7 @@ class SelfStateGateTest extends PaceStateTestCase {
 
         // Anna on Q3, Ben done (answered Q3, did not tap "I’m done" — counts only as done), Cem on Q1.
         $this->assertSame(['n' => 3, 'joined' => 3, 'started' => 3, 'finished' => 1, 'onQuestion' => [1, 0, 1]], $race);
-        $this->assertSame($race['joined'], $race['joined'] - $race['started'] + array_sum($race['onQuestion']) + $race['finished'], 'jede Person genau einmal');
+        $this->assertSame($race['joined'], $race['joined'] - $race['started'] + array_sum($race['onQuestion']) + $race['finished'], 'every person exactly once');
     }
 
     public function testProjectorLeaderboardOnlyWithFeedbackPerQuestion(): void {
@@ -355,23 +355,23 @@ class SelfStateGateTest extends PaceStateTestCase {
             range(1, 9),
         ));
 
-        $this->assertCount(8, $this->beamer()['leaderboard'], 'offen: die Spitze');
+        $this->assertCount(8, $this->beamer()['leaderboard'], 'open: the top');
 
         $this->cacheStore = [];
         $this->room->setFeedback('end');
-        $this->assertNull($this->beamer()['leaderboard'], 'Rückmeldung am Ende: nichts');
+        $this->assertNull($this->beamer()['leaderboard'], 'feedback at the end: nothing');
 
         $this->cacheStore = [];
         $this->release();
         // Released: the top 10 of the final standings plus their true length
         // (public payloads are capped, see PublicPayloadTest).
         $final = $this->beamer();
-        $this->assertCount(10, $final['leaderboard'], 'freigegeben: die ersten zehn des Endstands');
-        $this->assertSame(12, $final['leaderboardTotal'], 'freigegeben: wie viele es insgesamt sind');
+        $this->assertCount(10, $final['leaderboard'], 'released: the top ten of the final standings');
+        $this->assertSame(12, $final['leaderboardTotal'], 'released: how many there are in total');
 
         $this->cacheStore = [];
         $this->room->setPractice(true);
-        $this->assertNull($this->beamer()['leaderboard'], 'Probelauf: nie');
+        $this->assertNull($this->beamer()['leaderboard'], 'practice run: never');
     }
 
     public function testProjectorShowsThosePresent(): void {
@@ -393,9 +393,9 @@ class SelfStateGateTest extends PaceStateTestCase {
 
     public static function raceStates(): array {
         return [
-            'offen' => ['open', [2, 0, 1], 2],
-            'geschlossen' => ['closed', [2, 0, 0], 3],
-            'freigegeben' => ['released', [2, 0, 0], 3],
+            'open' => ['open', [2, 0, 1], 2],
+            'closed' => ['closed', [2, 0, 0], 3],
+            'released' => ['released', [2, 0, 0], 3],
         ];
     }
 
@@ -416,7 +416,7 @@ class SelfStateGateTest extends PaceStateTestCase {
         $race = $this->beamer()['race'];
 
         $this->assertSame(['n' => 3, 'joined' => 6, 'started' => 5, 'finished' => $finished, 'onQuestion' => $onQuestion], $race);
-        $this->assertSame(6, 6 - $race['started'] + array_sum($race['onQuestion']) + $race['finished'], 'Zeilen teilen die Beigetretenen auf');
+        $this->assertSame(6, 6 - $race['started'] + array_sum($race['onQuestion']) + $race['finished'], 'the rows split up those who joined');
         // The same split as the progress view: done, otherwise question k.
         $on = array_fill(0, 3, 0);
         $done = 0;
@@ -427,7 +427,7 @@ class SelfStateGateTest extends PaceStateTestCase {
                 $on[$p['k'] - 1]++;
             }
         }
-        $this->assertSame([$on, $done], [$race['onQuestion'], $race['finished']], 'Beamer = Laufansicht');
+        $this->assertSame([$on, $done], [$race['onQuestion'], $race['finished']], 'projector = progress view');
     }
 
     /**

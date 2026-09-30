@@ -51,7 +51,7 @@ class SelfStateCapTest extends PaceStateTestCase {
         $beamer = $this->beamer();
         $this->assertCount(10, $beamer['leaderboard']);
         $this->assertSame(17, $beamer['leaderboardTotal']);
-        $this->assertNull($beamer['leaderboardMe'], 'der Beamer hat kein "ich"');
+        $this->assertNull($beamer['leaderboardMe'], 'the projector has no "me"');
 
         $summary = $this->service->publicSummary($this->room, 'tok-anna');
         $this->assertCount(10, $summary['leaderboard']);
@@ -62,7 +62,7 @@ class SelfStateCapTest extends PaceStateTestCase {
         $this->assertSame(17, $stranger['leaderboardTotal']);
         $this->assertNull($stranger['leaderboardMe']);
 
-        $this->assertCount(17, $this->service->progress($this->room, true)['leaderboard'], 'Moderator: alle');
+        $this->assertCount(17, $this->service->progress($this->room, true)['leaderboard'], 'moderator: all');
     }
 
     public function testBeforeReleaseEmptyExtraFields(): void {
