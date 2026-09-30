@@ -230,7 +230,7 @@
 			     is no me (§7.4). -->
 			<StageCompass v-else-if="wide"
 				:points="results.points || []" :point-count="results.pointsTotal || 0" :centroid="results.centroid"
-				:range="results.range || 5" :threshold="results.heatmapThreshold || 45"
+				:range="results.range || 5" :threshold="heatmapThreshold"
 				:axis-x="results.axisX || {}" :axis-y="results.axisY || {}"
 				:corner-labels="results.cornerLabels || []" :aria-label="compassAria" />
 			<template v-else-if="compass">
@@ -322,7 +322,7 @@
  * self-paced quiz, which are not in the public repository (see "References in
  * code comments" in the README).
  */
-import { fmtNum, hasTallLabel } from '../util/format.js'
+import { fmtNum, hasTallLabel, HEATMAP_THRESHOLD } from '../util/format.js'
 import { option, rampStep, withPalette } from '../util/palette.js'
 import PulseIcon from './ui/PulseIcon.vue'
 import StageCompass from './StageCompass.vue'
@@ -530,6 +530,13 @@ export default {
 			if (!r || r.type !== 'words' || !Array.isArray(r.results)) return 0
 			return Math.max(0, (r.resultsTotal || 0) - r.results.length)
 		},
+		// From this many answers a heat map instead of single dots: ONE value
+		// for the phone and moderator field (compass) and the projector
+		// (StageCompass). The server always sends it; the constant is the same
+		// default for a result without it.
+		heatmapThreshold() {
+			return (this.results && this.results.heatmapThreshold) || HEATMAP_THRESHOLD
+		},
 		compassAria() {
 			if (!this.results) return ''
 			const ax = this.results.axisX || {}, ay = this.results.axisY || {}
@@ -565,9 +572,8 @@ export default {
 			if (cl[2]) corners.push({ x: r1(sx(-R) + 6), y: r1(sy(R) + 16), anchor: 'start', t: cl[2] })
 			if (cl[3]) corners.push({ x: r1(sx(R) - 6), y: r1(sy(R) + 16), anchor: 'end', t: cl[3] })
 			const total = this.results.total || 0
-			const threshold = this.results.heatmapThreshold || 40
 			const pts = this.results.points || []
-			const heatmap = total >= threshold
+			const heatmap = total >= this.heatmapThreshold
 			const dots = [], cells = []
 			if (heatmap) {
 				const bin = R > 10 ? 2 : 1

@@ -53,6 +53,7 @@
  * There is deliberately no "You" dot here: on the big screen there is no me.
  * Highlighting one's own answer is the phone's job.
  */
+import { HEATMAP_THRESHOLD } from '../util/format.js'
 
 // Heat map grid (cells per edge).
 const GRID = 12
@@ -67,7 +68,7 @@ export default {
 		pointCount: { type: Number, default: 0 },
 		centroid: { type: Object, default: null },
 		range: { type: Number, default: 5 },
-		threshold: { type: Number, default: 45 },
+		threshold: { type: Number, default: HEATMAP_THRESHOLD },
 		axisX: { type: Object, default: () => ({}) },
 		axisY: { type: Object, default: () => ({}) },
 		cornerLabels: { type: Array, default: () => [] },

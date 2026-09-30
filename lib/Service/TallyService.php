@@ -361,7 +361,11 @@ class TallyService {
 
     /**
      * Compass: all points {x,y} (for scatter/heatmap) + centre of gravity (centroid).
-     * The client decides scatter vs. heatmap based on total >= heatmapThreshold.
+     * The client decides scatter vs. heatmap: the phone and moderator view on
+     * total >= heatmapThreshold, the projector (StageCompass) on the number of
+     * valid points, max(pointsTotal, points.length), because the public tally
+     * only carries a sample of them (PublicPayload). heatmapThreshold is always
+     * set; the default 45 is also HEATMAP_THRESHOLD in src/util/format.js.
      *
      * @param array $cfg getScaleConfig() (mode=compass, range/axisX/axisY/…)
      * @param Vote[] $votes

@@ -135,3 +135,14 @@ const TALL_LABEL_CHARS = 34
 export function hasTallLabel(rows) {
 	return rows.some((r) => (r.label || '').length > TALL_LABEL_CHARS)
 }
+
+/**
+ * Compass: from this many answers the result is a heat map instead of single
+ * dots. The default for a question without a value of its own: the composer
+ * (util/question-types.js) offers it, and the phone and moderator result
+ * (ResultsView) and the projector (StageCompass) fall back to it. Here and not
+ * in question-types.js because this file is in both bundles. The server has
+ * the same number as `?? 45` in Poll, DeckService and TallyService;
+ * dev/unit/format.test.mjs compares them.
+ */
+export const HEATMAP_THRESHOLD = 45

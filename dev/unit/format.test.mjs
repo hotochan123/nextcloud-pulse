@@ -11,11 +11,19 @@
 //   and the reveal (ResultsView) switches at the same label length.
 // - fmtAgo(): "x min ago" in the run view (server time) and in the
 //   moderator's room list (Moderator.ago(), laptop clock with milliseconds).
+// - HEATMAP_THRESHOLD: the compass default of the composer, the phone and
+//   moderator result and the projector is the server's (read from the PHP
+//   sources), and no file under src/ keeps a number of its own.
 //
 // Without Nextcloud's translation bundle t()/n() return the English source
 // texts, so the expectations are the English strings.
 import assert from 'node:assert/strict'
-import { fmtAgo, hasTallLabel } from '../../src/util/format.js'
+import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { dirname, join, relative } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { fmtAgo, hasTallLabel, HEATMAP_THRESHOLD } from '../../src/util/format.js'
+
+const APP = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
 
 let passed = 0
 const failures = []
@@ -91,6 +99,46 @@ test('fmtAgo: a fractional now (Date.now() / 1000) does not move a step', () => 
 	assert.equal(fmtAgo(NOW - 90, NOW + 0.001), '1 min ago')
 	assert.equal(fmtAgo(NOW - 3599, NOW + 0.999), '59 min ago')
 	assert.equal(fmtAgo(NOW - 86399, NOW + 0.999), '23 h ago')
+})
+
+// ── HEATMAP_THRESHOLD ────────────────────────────────────────────────────
+// The default moved from 40 to 45 once, and one copy in ResultsView stayed
+// at 40. The server keeps its own literal in three places: DeckService
+// writes it for a question saved without a value, Poll reads it for a
+// stored question without the field, TallyService passes it on.
+
+test('HEATMAP_THRESHOLD: the same default as the server', () => {
+	for (const rel of ['lib/Db/Poll.php', 'lib/Service/DeckService.php', 'lib/Service/TallyService.php']) {
+		const lines = readFileSync(join(APP, rel), 'utf8').split('\n').filter((l) => l.includes("['heatmapThreshold']"))
+		const defaults = lines.flatMap((l) => [...l.matchAll(/\?\?\s*(\d+)/g)].map((m) => Number(m[1])))
+		assert.deepEqual(defaults, [HEATMAP_THRESHOLD], rel)
+	}
+})
+
+function walk(dir) {
+	return readdirSync(dir).flatMap((name) => {
+		const p = join(dir, name)
+		return statSync(p).isDirectory() ? walk(p) : [p]
+	})
+}
+
+test('HEATMAP_THRESHOLD: no file under src/ keeps a number of its own', () => {
+	const own = [
+		/heatmapThreshold[^\n,;]*(?:\?\?|\|\|)\s*\d/, // a fallback: r.heatmapThreshold || 40
+		/heatmapThreshold:\s*\d/, // an object literal: { heatmapThreshold: 45 }
+	]
+	// StageCompass names its prop just "threshold"; elsewhere that word may mean anything.
+	const ownProp = /threshold:\s*\{\s*type:\s*Number,\s*default:\s*\d/ // a prop default
+	const offenders = []
+	for (const file of walk(join(APP, 'src'))) {
+		const rel = relative(APP, file).split('\\').join('/')
+		if (!/\.(js|vue|mjs)$/.test(rel)) continue
+		readFileSync(file, 'utf8').split('\n').forEach((line, i) => {
+			const hit = own.some((re) => re.test(line)) || (rel === 'src/components/StageCompass.vue' && ownProp.test(line))
+			if (hit) offenders.push(rel + ':' + (i + 1) + ': ' + line.trim().slice(0, 80))
+		})
+	}
+	assert.deepEqual(offenders, [])
 })
 
 console.log(`\n==== format.js: ${passed} ok / ${failures.length} failed ====`)

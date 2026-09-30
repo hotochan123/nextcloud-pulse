@@ -192,6 +192,9 @@ class TallyServiceTest extends TestCase {
         ]);
 
         $this->assertCount(1, $tally['points']);
+        // A question stored without a threshold still sends one: the same
+        // default as HEATMAP_THRESHOLD in src/util/format.js.
+        $this->assertSame(45, $tally['heatmapThreshold']);
     }
 
     public function testCompassWithoutVotesHasNoCentroid(): void {

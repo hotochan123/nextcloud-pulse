@@ -9,15 +9,17 @@
  * sentence of the destructive confirmations. Moved out of Moderator.vue, which
  * keeps thin method wrappers for the names its template calls.
  *
- * Pure functions whose only dependency is t()/n() from util/l10n.js: no Vue
- * state, no router, no axios. That keeps the file runnable under plain
- * `node` (dev/unit/question-types.test.mjs).
+ * Pure functions whose only dependencies are t()/n() from util/l10n.js and
+ * the compass default from util/format.js: no Vue state, no router, no
+ * axios. That keeps the file runnable under plain `node`
+ * (dev/unit/question-types.test.mjs).
  *
  * Section references (§…) point to the specification of the self-paced quiz,
  * which is not in the public repository (see "References in code comments" in
  * the README).
  */
 import { t, n } from './l10n.js'
+import { HEATMAP_THRESHOLD } from './format.js'
 
 // Per question type in ONE place: deserialization (poll -> draft) and
 // serialization+validation (draft -> body). Keeps the two composer sides
@@ -149,7 +151,7 @@ export const QUESTION_TYPES = {
 				d.axisY = ax(sc.axisY)
 				const cl = Array.isArray(sc.cornerLabels) ? sc.cornerLabels : []
 				d.cornerLabels = [cl[0] || '', cl[1] || '', cl[2] || '', cl[3] || '']
-				d.heatmapThreshold = sc.heatmapThreshold || 45
+				d.heatmapThreshold = sc.heatmapThreshold || HEATMAP_THRESHOLD
 			}
 		},
 		toBody(draft, body, isQuiz, fail) {
@@ -172,7 +174,7 @@ export const QUESTION_TYPES = {
 				body.axisX = axisX
 				body.axisY = axisY
 				body.cornerLabels = draft.cornerLabels.map((c) => (c || '').trim())
-				body.heatmapThreshold = draft.heatmapThreshold || 45
+				body.heatmapThreshold = draft.heatmapThreshold || HEATMAP_THRESHOLD
 			} else {
 				body.minLabel = draft.minLabel
 				body.maxLabel = draft.maxLabel
@@ -190,7 +192,7 @@ export const QUESTION_TYPES = {
 }
 
 export function emptyDraft() {
-	return { type: 'choice', question: '', options: ['', ''], maxWords: 3, scaleMax: 5, scaleMode: 'single', aspects: [{ label: '', poleLow: '', poleHigh: '' }, { label: '', poleLow: '', poleHigh: '' }, { label: '', poleLow: '', poleHigh: '' }], range: 5, axisX: { title: '', poleLow: '', poleHigh: '' }, axisY: { title: '', poleLow: '', poleHigh: '' }, cornerLabels: ['', '', '', ''], heatmapThreshold: 45, minLabel: '', maxLabel: '', imageFile: null, imagePreview: '', imageExisting: '', imageRemove: false, correctIndex: 0, correctIndexes: [], target: '', tolerance: 0, answers: [''], pairs: [{ left: '', right: '' }, { left: '', right: '' }], timeLimit: 30 }
+	return { type: 'choice', question: '', options: ['', ''], maxWords: 3, scaleMax: 5, scaleMode: 'single', aspects: [{ label: '', poleLow: '', poleHigh: '' }, { label: '', poleLow: '', poleHigh: '' }, { label: '', poleLow: '', poleHigh: '' }], range: 5, axisX: { title: '', poleLow: '', poleHigh: '' }, axisY: { title: '', poleLow: '', poleHigh: '' }, cornerLabels: ['', '', '', ''], heatmapThreshold: HEATMAP_THRESHOLD, minLabel: '', maxLabel: '', imageFile: null, imagePreview: '', imageExisting: '', imageRemove: false, correctIndex: 0, correctIndexes: [], target: '', tolerance: 0, answers: [''], pairs: [{ left: '', right: '' }, { left: '', right: '' }], timeLimit: 30 }
 }
 
 // Composer segmented control: question types per mode (§4.3, wrap-safe). The
