@@ -159,6 +159,11 @@
 						<span class="img-hint">{{ t('pulse', 'PNG, JPEG, GIF or WebP · up to 5 MB') }}</span>
 					</div>
 
+					<!-- The text fields below stop at the length DeckService keeps: it cuts
+					     longer text silently on save, and the composer closes without a hint.
+					     The question above has no maxlength on purpose (an overlong one is
+					     rejected with a message). dev/unit/composer-limits.test.mjs keeps the
+					     numbers in step with the PHP. -->
 					<!-- Multiple choice + multiple answers: options -->
 					<template v-if="draft.type === 'choice' || draft.type === 'multi' || draft.type === 'rank'">
 						<p v-if="draft.type === 'rank'" class="quiz-hint">{{ isQuiz ? t('pulse', 'Enter the answers in the CORRECT order — that is the solution. On the phone they appear shuffled.') : t('pulse', 'The audience sorts these answers. The order here is only the starting line-up.') }}</p>
@@ -170,7 +175,7 @@
 								<span class="opt-correct-txt">{{ t('pulse', 'correct') }}</span>
 							</button>
 							<span v-if="draft.type === 'rank'" class="opt-rank-pos" aria-hidden="true">{{ i + 1 }}</span>
-							<input v-model="draft.options[i]" ref="optionInputs" class="pinput" type="text" :placeholder="draft.type === 'rank' ? t('pulse', '{number}. answer', { number: i + 1 }) : t('pulse', 'Option {number}', { number: i + 1 })">
+							<input v-model="draft.options[i]" ref="optionInputs" class="pinput" type="text" maxlength="200" :placeholder="draft.type === 'rank' ? t('pulse', '{number}. answer', { number: i + 1 }) : t('pulse', 'Option {number}', { number: i + 1 })">
 							<button v-if="draft.options.length > 2" class="pulse-btn is-secondary is-icon" :title="t('pulse', 'Remove option')" :aria-label="t('pulse', 'Remove option')" @click="removeOption(i)"><PulseIcon name="close" size="1.05em" /></button>
 						</div>
 						<button v-if="draft.options.length < 8" class="pulse-btn is-secondary is-sm" @click="addOption"><PulseIcon name="plus" size="1em" /> {{ t('pulse', 'Option') }}</button>
@@ -181,9 +186,9 @@
 						<p class="quiz-hint">{{ isQuiz ? t('pulse', 'Each row is one correct pair — on the phone the right-hand column appears shuffled.') : t('pulse', 'Each row is one pair. The audience assigns the right column to the left one; there is no right or wrong.') }}</p>
 						<div v-for="(pair, i) in draft.pairs" :key="i" class="pair-row">
 							<span class="opt-rank-pos" aria-hidden="true">{{ i + 1 }}</span>
-							<input v-model="pair.left" ref="optionInputs" class="pinput" type="text" :placeholder="t('pulse', 'Item {number}', { number: i + 1 })">
+							<input v-model="pair.left" ref="optionInputs" class="pinput" type="text" maxlength="100" :placeholder="t('pulse', 'Item {number}', { number: i + 1 })">
 							<PulseIcon name="arrow-right" size="1.1em" class="pair-arrow" />
-							<input v-model="pair.right" class="pinput" type="text" :placeholder="t('pulse', 'Belongs to {number}', { number: i + 1 })">
+							<input v-model="pair.right" class="pinput" type="text" maxlength="100" :placeholder="t('pulse', 'Belongs to {number}', { number: i + 1 })">
 							<button v-if="draft.pairs.length > 2" class="pulse-btn is-secondary is-icon" :title="t('pulse', 'Remove pair')" :aria-label="t('pulse', 'Remove pair')" @click="removePair(i)"><PulseIcon name="close" size="1.05em" /></button>
 						</div>
 						<button v-if="draft.pairs.length < 8" class="pulse-btn is-secondary is-sm" @click="addPair"><PulseIcon name="plus" size="1em" /> {{ t('pulse', 'Pair') }}</button>
@@ -215,7 +220,7 @@
 					<template v-else-if="draft.type === 'text'">
 						<p class="quiz-hint">{{ t('pulse', 'Accepted answer(s) — you can approve further spellings later during the reveal:') }}</p>
 						<div v-for="(a, i) in draft.answers" :key="i" class="opt-row">
-							<input v-model="draft.answers[i]" ref="optionInputs" class="pinput" type="text" :placeholder="i === 0 ? t('pulse', 'Correct answer') : t('pulse', 'Another accepted answer')">
+							<input v-model="draft.answers[i]" ref="optionInputs" class="pinput" type="text" maxlength="100" :placeholder="i === 0 ? t('pulse', 'Correct answer') : t('pulse', 'Another accepted answer')">
 							<button v-if="draft.answers.length > 1" class="pulse-btn is-secondary is-icon" :title="t('pulse', 'Remove answer')" :aria-label="t('pulse', 'Remove answer')" @click="removeAnswer(i)"><PulseIcon name="close" size="1.05em" /></button>
 						</div>
 						<button v-if="draft.answers.length < 8" class="pulse-btn is-secondary is-sm" @click="addAnswer"><PulseIcon name="plus" size="1em" /> {{ t('pulse', 'Answer') }}</button>
@@ -234,8 +239,8 @@
 						</label>
 						<!-- Single: optional pole labels at 1 and X -->
 						<template v-if="draft.scaleMode === 'single'">
-							<input v-model="draft.minLabel" class="pinput" type="text" :placeholder="t('pulse', 'Label for 1 (optional, e.g. “disagree”)')">
-							<input v-model="draft.maxLabel" class="pinput" type="text" :placeholder="t('pulse', 'Label for {max} (optional, e.g. “fully agree”)', { max: draft.scaleMax })">
+							<input v-model="draft.minLabel" class="pinput" type="text" maxlength="40" :placeholder="t('pulse', 'Label for 1 (optional, e.g. “disagree”)')">
+							<input v-model="draft.maxLabel" class="pinput" type="text" maxlength="40" :placeholder="t('pulse', 'Label for {max} (optional, e.g. “fully agree”)', { max: draft.scaleMax })">
 						</template>
 						<!-- Spectrum: 3–8 aspects, one slider each from 0 to X -->
 						<template v-else-if="draft.scaleMode === 'spectrum'">
@@ -243,10 +248,10 @@
 							<div v-for="(asp, i) in draft.aspects" :key="i" class="aspect-row">
 								<span class="aspect-idx">{{ i + 1 }}</span>
 								<div class="aspect-fields">
-									<input v-model="draft.aspects[i].label" class="pinput" type="text" :placeholder="t('pulse', 'Aspect name (e.g. pace)')">
+									<input v-model="draft.aspects[i].label" class="pinput" type="text" maxlength="40" :placeholder="t('pulse', 'Aspect name (e.g. pace)')">
 									<div class="aspect-poles">
-										<input v-model="draft.aspects[i].poleLow" class="pinput pinput--pole" type="text" :placeholder="t('pulse', 'Pole at 0 (optional)')">
-										<input v-model="draft.aspects[i].poleHigh" class="pinput pinput--pole" type="text" :placeholder="t('pulse', 'Pole at X (optional)')">
+										<input v-model="draft.aspects[i].poleLow" class="pinput pinput--pole" type="text" maxlength="40" :placeholder="t('pulse', 'Pole at 0 (optional)')">
+										<input v-model="draft.aspects[i].poleHigh" class="pinput pinput--pole" type="text" maxlength="40" :placeholder="t('pulse', 'Pole at X (optional)')">
 									</div>
 								</div>
 								<button v-if="draft.aspects.length > 3" class="pulse-btn is-secondary is-icon" :title="t('pulse', 'Remove aspect')" :aria-label="t('pulse', 'Remove aspect')" @click="removeAspect(i)"><PulseIcon name="close" size="1.05em" /></button>
@@ -260,18 +265,18 @@
 								<div class="sgroup-in">
 									<div class="axis-block">
 										<p class="quiz-hint">{{ t('pulse', 'X axis (horizontal) — title + both poles (required)') }}</p>
-										<input v-model="draft.axisX.title" class="pinput" type="text" :placeholder="t('pulse', 'Title of the X axis (e.g. practical ↔ theoretical)')">
+										<input v-model="draft.axisX.title" class="pinput" type="text" maxlength="40" :placeholder="t('pulse', 'Title of the X axis (e.g. practical ↔ theoretical)')">
 										<div class="aspect-poles">
-											<input v-model="draft.axisX.poleLow" class="pinput pinput--pole" type="text" :placeholder="t('pulse', 'Pole on the left (−)')">
-											<input v-model="draft.axisX.poleHigh" class="pinput pinput--pole" type="text" :placeholder="t('pulse', 'Pole on the right (+)')">
+											<input v-model="draft.axisX.poleLow" class="pinput pinput--pole" type="text" maxlength="40" :placeholder="t('pulse', 'Pole on the left (−)')">
+											<input v-model="draft.axisX.poleHigh" class="pinput pinput--pole" type="text" maxlength="40" :placeholder="t('pulse', 'Pole on the right (+)')">
 										</div>
 									</div>
 									<div class="axis-block">
 										<p class="quiz-hint">{{ t('pulse', 'Y axis (vertical) — title + both poles (required)') }}</p>
-										<input v-model="draft.axisY.title" class="pinput" type="text" :placeholder="t('pulse', 'Title of the Y axis (e.g. alone ↔ together)')">
+										<input v-model="draft.axisY.title" class="pinput" type="text" maxlength="40" :placeholder="t('pulse', 'Title of the Y axis (e.g. alone ↔ together)')">
 										<div class="aspect-poles">
-											<input v-model="draft.axisY.poleLow" class="pinput pinput--pole" type="text" :placeholder="t('pulse', 'Pole at the bottom (−)')">
-											<input v-model="draft.axisY.poleHigh" class="pinput pinput--pole" type="text" :placeholder="t('pulse', 'Pole at the top (+)')">
+											<input v-model="draft.axisY.poleLow" class="pinput pinput--pole" type="text" maxlength="40" :placeholder="t('pulse', 'Pole at the bottom (−)')">
+											<input v-model="draft.axisY.poleHigh" class="pinput pinput--pole" type="text" maxlength="40" :placeholder="t('pulse', 'Pole at the top (+)')">
 										</div>
 									</div>
 								</div>
@@ -284,7 +289,7 @@
 											<input v-model.number="draft.range" class="pinput pinput--num" type="number" min="2" max="20" step="1">
 										</label>
 										<label class="words-hint words-hint--col">{{ t('pulse', 'Heat map from … votes') }}
-											<input v-model.number="draft.heatmapThreshold" class="pinput pinput--num" type="number" min="2" max="999" step="1">
+											<input v-model.number="draft.heatmapThreshold" class="pinput pinput--num" type="number" min="2" max="9999" step="1">
 										</label>
 									</div>
 								</div>
@@ -294,10 +299,10 @@
 								<div class="sgroup-in">
 									<p class="quiz-hint">{{ t('pulse', 'They label the four quadrants of the field — placed as on the projector.') }}</p>
 									<div class="corner-grid">
-										<label class="corner-cell"><span class="corner-lbl">{{ t('pulse', 'Top left') }}</span><input v-model="draft.cornerLabels[2]" class="pinput pinput--pole" type="text" :placeholder="t('pulse', 'e.g. practical & together')"></label>
-										<label class="corner-cell"><span class="corner-lbl">{{ t('pulse', 'Top right') }}</span><input v-model="draft.cornerLabels[3]" class="pinput pinput--pole" type="text" :placeholder="t('pulse', 'e.g. theoretical & together')"></label>
-										<label class="corner-cell"><span class="corner-lbl">{{ t('pulse', 'Bottom left') }}</span><input v-model="draft.cornerLabels[0]" class="pinput pinput--pole" type="text" :placeholder="t('pulse', 'e.g. practical & alone')"></label>
-										<label class="corner-cell"><span class="corner-lbl">{{ t('pulse', 'Bottom right') }}</span><input v-model="draft.cornerLabels[1]" class="pinput pinput--pole" type="text" :placeholder="t('pulse', 'e.g. theoretical & alone')"></label>
+										<label class="corner-cell"><span class="corner-lbl">{{ t('pulse', 'Top left') }}</span><input v-model="draft.cornerLabels[2]" class="pinput pinput--pole" type="text" maxlength="40" :placeholder="t('pulse', 'e.g. practical & together')"></label>
+										<label class="corner-cell"><span class="corner-lbl">{{ t('pulse', 'Top right') }}</span><input v-model="draft.cornerLabels[3]" class="pinput pinput--pole" type="text" maxlength="40" :placeholder="t('pulse', 'e.g. theoretical & together')"></label>
+										<label class="corner-cell"><span class="corner-lbl">{{ t('pulse', 'Bottom left') }}</span><input v-model="draft.cornerLabels[0]" class="pinput pinput--pole" type="text" maxlength="40" :placeholder="t('pulse', 'e.g. practical & alone')"></label>
+										<label class="corner-cell"><span class="corner-lbl">{{ t('pulse', 'Bottom right') }}</span><input v-model="draft.cornerLabels[1]" class="pinput pinput--pole" type="text" maxlength="40" :placeholder="t('pulse', 'e.g. theoretical & alone')"></label>
 									</div>
 								</div>
 							</div>

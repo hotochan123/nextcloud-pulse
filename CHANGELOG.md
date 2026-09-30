@@ -490,6 +490,11 @@ described under "Security notes" and "Known limits" in the README.
 - Moving a question with the keyboard ("Move up" / "Move down" in its row menu)
   keeps the focus on that question. The focus landed on the neighbour it had
   just swapped places with, so pressing again moved the neighbour back instead.
+- The question editor stops labels at 40 characters, answer options at 200 and
+  match pairs and accepted answers at 100 — the lengths the server keeps.
+  Longer text used to be cut on saving without a word. The compass field for
+  the heat-map threshold now also goes up to 9999 with its arrows, the value
+  saving always accepted.
 
 ### Removed
 - `office-addin/manifest.xml`. It is generated now, and a second editable copy

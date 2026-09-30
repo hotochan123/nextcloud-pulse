@@ -327,6 +327,7 @@ TZ=Europe/Berlin node dev/unit/pace.test.mjs   # self-paced rules (deadlines, ph
 node dev/unit/format.test.mjs                  # shared formatting helpers (tall labels, "x min ago")
 node dev/unit/question-types.test.mjs          # composer contract per question type, deck labels, loss texts
 node dev/unit/routes.test.mjs                  # Vue frontend URLs and their call sites, checked against appinfo/routes.php
+node dev/unit/composer-limits.test.mjs         # composer maxlength/min/max, checked against what DeckService keeps
 dev/sim/run.sh        # HTTP simulation of complete runs against the running instance (dev/sim/README.md)
 ```
 
