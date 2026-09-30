@@ -637,6 +637,11 @@ class PaceService {
      * question left as $after (the client uses progress.after for that).
      * Against the person being removed in the middle of the request: assertStillJoined.
      *
+     * Every refusal here is an \InvalidArgumentException (400), "not self-paced"
+     * included, although the moderator's /pace and /progress answer that one
+     * with 409: ConflictException is for the moderator API only, public routes
+     * answer 400 (the rule in ConflictException; pinned in NotSelfPacedTest).
+     *
      * @throws \InvalidArgumentException not a self room / draft / closed /
      *         without a name / $after < 0
      * @throws RoomGoneException          the room was deleted in the meantime

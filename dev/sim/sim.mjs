@@ -825,6 +825,10 @@ async function livePlayers() {
 	const lb3 = await modOk('GET', '/' + code + '/leaderboard')
 	check(lb3.find((r) => r.nickname === 'Ben')?.score === 0, 'Live: Ben fängt bei null an', lb3)
 	check((await pace(code, { action: 'removePlayer', playerId: 0 })).status === 400, 'Live: removePlayer mit fremder ID abgelehnt')
+	// Not self-paced: 409 in the moderator API, 400 on the public /next —
+	// ConflictException is for the moderator API only (NotSelfPacedTest).
+	const notSelf = [await progressOf(code), await pace(code, { action: 'open' }), await A.next(0)]
+	check(notSelf.map((r) => r.status).join() === '409,409,400' && notSelf.every((r) => r.data?.message === 'This room is not self-paced.'), 'Live: nicht im eigenen Tempo -> /progress und /pace 409, /next am Handy 400', notSelf.map((r) => [r.status, r.data?.message]))
 	const { code: pollCode } = await newRoom('poll', 'SIM Live Poll')
 	check((await pace(pollCode, { action: 'lockJoins' })).status === 409, 'Umfrage: Beitritt sperren -> 409')
 }
