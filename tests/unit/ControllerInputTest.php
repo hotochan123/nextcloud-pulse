@@ -514,18 +514,22 @@ class ControllerInputTest extends TestCase {
     // ── Source-code guard ──────────────────────────────────────────────────
 
     public function testNoRawCastOnRequestValues(): void {
-        $files = glob(dirname(__DIR__, 2) . '/lib/Controller/*.php');
-        $this->assertNotEmpty($files);
-        foreach ($files as $file) {
-            $source = file_get_contents($file);
-            $this->assertNotFalse($source, $file);
-            $this->assertDoesNotMatchRegularExpression('/\((?:string|int|float|bool)\)\s*\$this->request->/', $source, basename($file));
-            $this->assertDoesNotMatchRegularExpression('/(?:intval|floatval|strval|settype|filter_var)\(\s*\$this->request->/', $source, basename($file));
+        // All of lib/, not only lib/Controller: request parsing moved into a
+        // helper class or a trait stays under the guard.
+        $sources = $this->libSources();
+        $this->assertGreaterThan(40, count($sources), 'the guard found the lib/ files it is about');
+        $this->assertArrayHasKey('Controller/RoomApiController.php', $sources);
+        foreach ($sources as $file => $source) {
+            $this->assertDoesNotMatchRegularExpression('/\((?:string|int|float|bool)\)\s*\$this->request->/', $source, $file);
+            $this->assertDoesNotMatchRegularExpression('/(?:intval|floatval|strval|settype|filter_var)\(\s*\$this->request->/', $source, $file);
         }
         // Only PublicVoteController::cookieValue() reads the voter cookie.
         $controllers = dirname(__DIR__, 2) . '/lib/Controller/';
         $this->assertSame(1, substr_count((string)file_get_contents($controllers . 'PublicVoteController.php'), '->getCookie('));
         $this->assertSame(0, substr_count((string)file_get_contents($controllers . 'RoomApiController.php'), '->getCookie('));
+        // … and nothing else anywhere in lib/.
+        $readers = array_filter(array_map(static fn (string $s): int => substr_count($s, '->getCookie('), $sources));
+        $this->assertSame(['Controller/PublicVoteController.php' => 1], $readers);
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────
@@ -612,5 +616,22 @@ class ControllerInputTest extends TestCase {
         $room->setOpenedAt(1_799_999_900);
         $room->setDeckOrder('[11]');
         return $room;
+    }
+
+    /** @return array<string, string> every PHP file under lib/, by path relative to lib/ */
+    private function libSources(): array {
+        $lib = dirname(__DIR__, 2) . '/lib';
+        $out = [];
+        $it = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($lib, \FilesystemIterator::SKIP_DOTS));
+        foreach ($it as $file) {
+            if ($file->getExtension() !== 'php') {
+                continue;
+            }
+            $source = file_get_contents($file->getPathname());
+            $this->assertNotFalse($source, $file->getPathname());
+            $out[substr($file->getPathname(), strlen($lib) + 1)] = $source;
+        }
+        ksort($out);
+        return $out;
     }
 }

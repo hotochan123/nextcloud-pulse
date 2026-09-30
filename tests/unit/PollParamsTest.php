@@ -40,6 +40,9 @@ class PollParamsTest extends TestCase {
      */
     private const INTERNAL = ['answerKey', 'correctOption', 'polls', 'window'];
 
+    /** Fields DeckService is known to read; the regex must keep finding them. */
+    private const KNOWN = ['options', 'pairs', 'question', 'timeLimit'];
+
     /** @return list<string> fields that DeckService reads from $data. */
     private function fieldsReadByDeckService(): array {
         $source = file_get_contents(dirname(__DIR__, 2) . '/lib/Service/DeckService.php');
@@ -47,6 +50,12 @@ class PollParamsTest extends TestCase {
         preg_match_all("/data\['([a-zA-Z]+)'\]/", $source, $m);
         $fields = array_values(array_diff(array_unique($m[1]), self::INTERNAL));
         sort($fields);
+        // Without a floor the guard would pass while checking nothing: if
+        // DeckService read its fields through a helper or from a differently
+        // named array, the regex would find no keys and the comparisons in the
+        // tests below would pass on an empty list. 21 today.
+        $this->assertGreaterThanOrEqual(15, count($fields), 'the regex no longer finds the fields DeckService reads');
+        $this->assertSame([], array_values(array_diff(self::KNOWN, $fields)), 'known fields the regex no longer finds');
         return $fields;
     }
 
