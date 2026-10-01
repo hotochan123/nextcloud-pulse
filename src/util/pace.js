@@ -236,6 +236,28 @@ export function raceRows(race, open = true) {
 	return { rows, cols, perCol }
 }
 
+// Leaderboard rows beside the open race, and the fewest it gives up to.
+export const RACE_BOARD_ROWS = 8
+export const RACE_BOARD_MIN = 3
+
+/**
+ * Leaderboard rows beside the open race when even tight rows overflow at the
+ * shrink limit — the embed frame (1264×576) is lower than the 1280×720
+ * kiosk. The leaderboard gives up as many rows at the bottom as the overflow
+ * needs, instead of being cut off mid-row. Only the part by which it is
+ * taller than the bars next to it counts (beyond that the bars overflow
+ * themselves, fewer leaders would not help), and never below RACE_BOARD_MIN.
+ * @param {object} m {shown, overflow, excess, pitch}: rows shown now, stage
+ *   overflow (px), how much taller the leaderboard is than the bars (px),
+ *   distance from one leaderboard row to the next (px)
+ * @return {number} rows to show
+ */
+export function trimRaceBoard({ shown, overflow, excess, pitch }) {
+	const n = Math.max(0, Math.floor(Number(shown) || 0))
+	if (!(overflow > 0) || !(excess > 0) || !(pitch > 0) || n <= RACE_BOARD_MIN) return n
+	return Math.max(RACE_BOARD_MIN, n - Math.ceil(Math.min(overflow, excess) / pitch))
+}
+
 /**
  * Phone: which card without a question (specification §2.2). Only self-paced
  * and only without an open question; '' = no match, then the remaining

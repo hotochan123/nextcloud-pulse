@@ -23,6 +23,7 @@ import {
 	DEADLINE_MIN, DEADLINE_MAX, DEADLINE_SLACK, CLOSING_SOON, STOP_LEAD,
 	isPacedRoom, windowState, stopDeadline, toLocalInput, fromLocalInput, defaultDeadline,
 	deadlineInRange, deadlineInputRange, deadlinePresets, splitDuration, raceRows, paceCard, canNext, phoneDelay, progressDelay, progressCounts,
+	RACE_BOARD_ROWS, RACE_BOARD_MIN, trimRaceBoard,
 } from '../../src/util/pace.js'
 
 let passed = 0
@@ -513,6 +514,37 @@ test('progressCounts: no payload -> null, missing or odd fields count as zero', 
 	// numeric strings count, anything else as 0
 	const odd = progressCounts({ present: '4', window: { state: 'closed' }, players: [{ answered: '3', pending: 'x' }, { answered: null }, {}] })
 	assert.deepEqual(odd, { joined: 3, present: 4, started: 0, finished: 0, answers: 3, pending: 0, state: 'closed' })
+})
+
+test('trimRaceBoard: the leaderboard gives up rows for the overflow, not below three', () => {
+	assert.equal(RACE_BOARD_ROWS, 8)
+	assert.equal(RACE_BOARD_MIN, 3)
+	// the embed frame after two minutes: 75 px over, leaderboard 120 px taller than the bars
+	assert.equal(trimRaceBoard({ shown: 8, overflow: 75, excess: 120, pitch: 44 }), 6)
+	// exactly one pitch -> one row; a pixel more -> two
+	assert.equal(trimRaceBoard({ shown: 8, overflow: 44, excess: 120, pitch: 44 }), 7)
+	assert.equal(trimRaceBoard({ shown: 8, overflow: 45, excess: 120, pitch: 44 }), 6)
+	// a lot of overflow: down to the minimum, not further
+	assert.equal(trimRaceBoard({ shown: 8, overflow: 900, excess: 900, pitch: 44 }), RACE_BOARD_MIN)
+	// fewer leaders than rows: counted from what is shown
+	assert.equal(trimRaceBoard({ shown: 5, overflow: 50, excess: 80, pitch: 44 }), 3)
+})
+
+test('trimRaceBoard: only the part by which the leaderboard is taller counts', () => {
+	// leaderboard 30 px taller, stage 75 px over: one row frees the 30 px, the bars overflow the rest
+	assert.equal(trimRaceBoard({ shown: 8, overflow: 75, excess: 30, pitch: 44 }), 7)
+	// bars as tall or taller: fewer leaders would not help
+	assert.equal(trimRaceBoard({ shown: 8, overflow: 75, excess: 0, pitch: 44 }), 8)
+	assert.equal(trimRaceBoard({ shown: 8, overflow: 75, excess: -40, pitch: 44 }), 8)
+})
+
+test('trimRaceBoard: nothing to gain -> keeps what it shows', () => {
+	assert.equal(trimRaceBoard({ shown: 8, overflow: 0, excess: 120, pitch: 44 }), 8)
+	assert.equal(trimRaceBoard({ shown: 8, overflow: 1, excess: 120, pitch: 0 }), 8)
+	assert.equal(trimRaceBoard({ shown: 3, overflow: 75, excess: 120, pitch: 44 }), 3)
+	assert.equal(trimRaceBoard({ shown: 2, overflow: 75, excess: 120, pitch: 44 }), 2)
+	assert.equal(trimRaceBoard({ shown: 0, overflow: 75, excess: 0, pitch: 0 }), 0)
+	assert.equal(trimRaceBoard({ shown: undefined, overflow: NaN, excess: NaN, pitch: NaN }), 0)
 })
 
 console.log(`\n==== pace.js: ${passed} ok / ${failures.length} fehlgeschlagen ====`)

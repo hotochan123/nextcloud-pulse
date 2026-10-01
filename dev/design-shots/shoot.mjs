@@ -1171,14 +1171,26 @@ async function embedPass(s, dark) {
 	// Self-paced (§5.2 step 4.5): the same shell with a running
 	// race; the canvas in the frame shows the bars, not the lobby.
 	if (paceData) {
-		await shot(s, {
-			name: 'embed-pace', url: `/apps/pulse/embed?code=${paceData.race.code}`, size: [1280, 720],
-			waitSel: '.pulse-embed-frame', settle: 2500, measure: EMBED_PACE,
-			actions: [{ until: '(() => { const f = document.querySelector(".pulse-embed-frame"); const d = f && f.contentDocument; return d && d.querySelector(".scr.is-race .pace-race") })()', timeout: 12000 }],
-			note: 'Einbett-Shell: Rennen im eigenen Tempo im Rahmen',
-		})
-		const line = index[index.length - 1]
-		if (/KEIN RENNEN|LÄUFT ÜBER/.test(line)) { overflow.push('embed-pace: ' + line.split(' | ').slice(-1)[0]) }
+		const embedPace = async (name, code, note) => {
+			await shot(s, {
+				name, url: `/apps/pulse/embed?code=${code}`, size: [1280, 720],
+				waitSel: '.pulse-embed-frame', settle: 2500, measure: EMBED_PACE,
+				actions: [{ until: '(() => { const f = document.querySelector(".pulse-embed-frame"); const d = f && f.contentDocument; return d && d.querySelector(".scr.is-race .pace-race") })()', timeout: 12000 }],
+				note,
+			})
+			const line = index[index.length - 1]
+			if (/KEIN RENNEN|LÄUFT ÜBER|ABGESCHNITTEN/.test(line)) { overflow.push(name + ': ' + line.split(' | ').slice(-1)[0]) }
+		}
+		// In the first two minutes joining stands on the right, after that the
+		// leaderboard — eight rows in a frame lower than the 1280×720 kiosk.
+		// The probe sets the opening for both: a single pass is done long
+		// before two minutes, a full run long after.
+		probe('window', paceData.race.code, 'openedAt=now-30')
+		await embedPace('embed-pace', paceData.race.code, 'Einbett-Shell: Rennen im eigenen Tempo im Rahmen')
+		probe('window', paceData.race.code, 'openedAt=now-600')
+		await embedPace('embed-pace-board', paceData.race.code, 'Einbett-Shell: Rennen nach 2 min, rechts die Spitze')
+		probe('window', paceData.big.code, 'openedAt=now-600')
+		await embedPace('embed-pace-big', paceData.big.code, 'Einbett-Shell: n=24, 300 Beigetretene, rechts die Spitze')
 	}
 }
 
@@ -1189,8 +1201,16 @@ const EMBED_PACE = `
 	if (!d) { return 'Rahmen nicht lesbar' }
 	const st = d.querySelector('.scr-stage')
 	const over = st ? st.scrollHeight - st.clientHeight : 0
+	const scr = d.querySelector('.scr')
+	const vm = scr && scr.__vue__
+	// Leaderboard rows the stage cuts off at the bottom — the frame clips them silently.
+	const board = Array.from(d.querySelectorAll('.pace-race-board .lb-row'))
+	const floor = st ? st.getBoundingClientRect().bottom + 1 : Infinity
+	const cut = board.filter((r) => r.getBoundingClientRect().bottom > floor).length
 	return (d.querySelector('.scr.is-race .pace-race') ? 'Rennen im Rahmen' : 'KEIN RENNEN IM RAHMEN')
 		+ (d.querySelector('.pace-race.is-dense') ? ', enge Zeilen' : '')
+		+ (vm && vm.raceSide ? ', rechts ' + vm.raceSide + (board.length ? ' ' + board.length + ' Zeilen' : '') : '')
+		+ (cut ? ', SPITZE ABGESCHNITTEN ' + cut : '')
 		+ ', Rahmen ' + f.clientWidth + '×' + f.clientHeight
 		+ (st ? ', Bühne ' + (over > 1 ? 'LÄUFT ÜBER ' + over + ' px' : 'passt') + ' (' + getComputedStyle(st).fontSize + ')' : '')
 `

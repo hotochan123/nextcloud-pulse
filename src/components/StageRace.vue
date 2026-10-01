@@ -7,7 +7,7 @@
 		<!-- Left: where people are right now. At the top those who have not started,
 		     one row per question, at the bottom those who are through. From eleven
 		     questions two columns, from 21 groups — "Finished" is always full width below. -->
-		<div class="srows pace-race-rows">
+		<div ref="bars" class="srows pace-race-rows">
 			<StageRow v-if="idle"
 				class="pace-race-row is-idle"
 				:label="t('pulse', 'Not started')"
@@ -49,11 +49,11 @@
 				{{ joinUrl }}
 			</p>
 		</aside>
-		<aside v-else-if="side === 'board'" class="pace-race-side pace-race-board">
+		<aside v-else-if="side === 'board'" ref="board" class="pace-race-side pace-race-board">
 			<p class="pace-race-side-head">
 				{{ t('pulse', 'Leaderboard') }}
 			</p>
-			<Leaderboard :rows="board" :limit="8" />
+			<Leaderboard :rows="board" :limit="boardRows" />
 		</aside>
 	</div>
 </template>
@@ -72,7 +72,7 @@
  * Everything in em: the projector's shrink loop only writes
  * --scr-stage-fs. The frame `ref="stage"` stays in Screen.vue.
  */
-import { raceRows } from '../util/pace.js'
+import { raceRows, RACE_BOARD_ROWS } from '../util/pace.js'
 import { fmtNum } from '../util/format.js'
 import StageRow from './StageRow.vue'
 import Leaderboard from './Leaderboard.vue'
@@ -99,6 +99,8 @@ export default {
 		code: { type: String, default: '' },
 		// From the projector: the airy layout does not fit even at the shrink limit.
 		tight: { type: Boolean, default: false },
+		// From the projector: leaderboard rows — fewer when even tight rows do not fit.
+		boardRows: { type: Number, default: RACE_BOARD_ROWS },
 	},
 	computed: {
 		// The component only appears in the open window — "Not started" belongs to it.
@@ -138,6 +140,19 @@ export default {
 		// Every bar relative to "joined"; together 100 % (see above).
 		pct(v) {
 			return Math.min(100, (Number(v) || 0) / this.joined * 100)
+		},
+		// For the projector's shrink loop (Screen.vue fitTight): leaderboard rows
+		// shown, how much taller the leaderboard is than the bars, row pitch.
+		boardMeasure() {
+			const board = this.$refs.board
+			const bars = this.$refs.bars
+			const rows = board ? board.querySelectorAll('.lb-row') : []
+			if (!board || !bars || rows.length < 2) return { shown: rows.length, excess: 0, pitch: 0 }
+			return {
+				shown: rows.length,
+				excess: board.getBoundingClientRect().height - bars.getBoundingClientRect().height,
+				pitch: rows[1].getBoundingClientRect().top - rows[0].getBoundingClientRect().top,
+			}
 		},
 	},
 }

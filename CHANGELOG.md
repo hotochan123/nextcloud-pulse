@@ -527,6 +527,12 @@ described under "Security notes" and "Known limits" in the README.
   stays in its quadrant and wraps onto at most two lines, ending in "…" only
   when it is longer still (the moderator sees the full label on hover). Short
   labels look as before.
+- Self-paced quiz embedded in PowerPoint: after the first two minutes, when the
+  leaderboard appears next to the race, the slide shows as many leaders as fit
+  — at least three — instead of cutting off the last two rows in the middle.
+  The embed frame is lower than a projector at 1280 × 720, and the race with
+  eight leaders did not fit even at the smallest text size. The projector
+  itself looks as before.
 
 ### Removed
 - `office-addin/manifest.xml`. It is generated now, and a second editable copy

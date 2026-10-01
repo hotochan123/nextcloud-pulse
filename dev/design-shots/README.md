@@ -103,6 +103,14 @@ without a localStorage marker. Since the go-live (step 4.6, see
 `docs/pace-2026-09/UI.md`) the tracks run without `?pace=1` — the "Self-paced"
 switch is in every quiz deck.
 
+`embed` puts the race into the shell's frame (1264 × 576, lower than the
+1280 × 720 kiosk) three times: in the first two minutes with joining on the
+right, then with the leaderboard — the probe sets the opening for both, a single
+track is done long before two minutes, a full run long after — and the `big`
+room with groups and leaderboard. It measures that the stage fits and that no
+leaderboard row is cut off (`SPITZE ABGESCHNITTEN`): where the frame is too
+low, the projector shows fewer leaders, at least three.
+
 Probe commands for test cases (through the real services; `window` and `leave`
 deliberately write raw):
 

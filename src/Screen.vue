@@ -19,8 +19,9 @@
 				<h1 class="scr-q">{{ raceHead }}</h1>
 			</header>
 			<main class="scr-stage" ref="stage" :style="stageStyle">
-				<StageRace v-if="paceState === 'open'" :race="race" :board="raceBoard" :side="raceSide"
-					:join-url="joinUrl" :join-url-full="joinUrlFull" :code="spacedCode" :tight="raceTight" />
+				<StageRace v-if="paceState === 'open'" ref="race" :race="race" :board="raceBoard" :side="raceSide"
+					:join-url="joinUrl" :join-url-full="joinUrlFull" :code="spacedCode" :tight="raceTight"
+					:board-rows="raceBoardRows" />
 				<!-- Released: the same final standings as at the end of a moderated quiz. -->
 				<div v-else-if="raceFinal" class="scr-final">
 					<p class="scr-final-title">{{ t('pulse', 'Final standings') }}</p>
@@ -199,7 +200,7 @@ import axios from '@nextcloud/axios'
 import { PHONE_TIMEOUT, publicApi, pollImage, participantPage } from './util/routes.js'
 import { loadState } from '@nextcloud/initial-state'
 import { formatCode, remainingSecs, fmtDeadline } from './util/format.js'
-import { windowState } from './util/pace.js'
+import { windowState, trimRaceBoard, RACE_BOARD_ROWS } from './util/pace.js'
 import { reloadOnProtocolMismatch } from './util/protocol.js'
 import pollingMixin from './mixins/polling.js'
 import PulseIcon from './components/ui/PulseIcon.vue'
@@ -249,6 +250,9 @@ export default {
 			// Tight race rows: fitPass sets it when the race does not fit at the
 			// shrink limit (small kiosk, embed frame).
 			raceTight: false,
+			// Leaderboard rows beside the race: fitTight takes rows away when
+			// tight rows are not enough either (embed frame).
+			raceBoardRows: RACE_BOARD_ROWS,
 		}
 	},
 	computed: {
@@ -509,7 +513,7 @@ export default {
 				const notStartedShown = this.paceState === 'open' && (r.joined || 0) > (r.started || 0)
 				const board = this.paceState === 'released' ? (this.leaderboard || []).length : this.raceBoard.length
 				return 'race:' + this.paceState + ':' + (r.n || 0) + ':' + board + ':' + this.raceSide + ':' + (notStartedShown ? 1 : 0)
-					+ (this.raceTight ? ':t' : '')
+					+ (this.raceTight ? ':t' + this.raceBoardRows : '')
 			}
 			if (!this.poll) return null
 			const r = this.results
@@ -651,9 +655,10 @@ export default {
 			// race key depends on raceTight: a moderated question after it (room
 			// reset and switched) fits itself in THIS call —
 			// otherwise the shrunken race font would stay until the reveal.
-			const shape = key.replace(/:t$/, '')
+			const shape = key.replace(/:t\d+$/, '')
 			if (this.raceTight && (force || shape !== this._raceShape)) {
 				this.raceTight = false
+				this.raceBoardRows = RACE_BOARD_ROWS
 				if (this.raceView) return
 			}
 			if (this.raceView) this._raceShape = shape
@@ -662,7 +667,12 @@ export default {
 			if (!force && key === this._fitKey) return
 			this._fitKey = key
 			this.stageFs = null // first back to the clamp() start value
-			this.$nextTick(() => requestAnimationFrame(() => this.fitPass(0)))
+			// One chain at a time: a new one ends the one still running. Two chains
+			// share stageFs and _fitBase; the older one could take the other's
+			// smaller value for the floor and call fitTight at 29 px instead of
+			// 24 — rows tight too early, the leaderboard trimmed too far.
+			const gen = this._fitGen = (this._fitGen || 0) + 1
+			this.$nextTick(() => requestAnimationFrame(() => this.fitPass(0, gen)))
 		},
 		// Measure class C on the real element instead of rebuilding the clamp() formula
 		// in JavaScript — the lower bound of the word cloud is exactly the
@@ -671,9 +681,9 @@ export default {
 			const el = this.$el && this.$el.querySelector ? this.$el.querySelector('.scr-meta') : null
 			if (el) this.metaFs = Math.round(parseFloat(getComputedStyle(el).fontSize)) || 23
 		},
-		fitPass(iter) {
+		fitPass(iter, gen) {
 			const el = this.$refs.stage
-			if (!el) return
+			if (!el || gen !== this._fitGen) return
 			// The start value is the computed clamp() value — on the first pass
 			// there is no inline override on the stage any more.
 			if (iter === 0) this._fitBase = parseFloat(getComputedStyle(el).fontSize) || 46
@@ -685,7 +695,7 @@ export default {
 				// stage and should be shortened, not shrunk further.
 				if (this.stageFs !== FIT_FLOOR_PX) {
 					this.stageFs = FIT_FLOOR_PX
-					this.$nextTick(() => requestAnimationFrame(() => this.fitPass(iter + 1)))
+					this.$nextTick(() => requestAnimationFrame(() => this.fitPass(iter + 1, gen)))
 				} else {
 					this.fitTight()
 				}
@@ -697,14 +707,29 @@ export default {
 				return
 			}
 			this.stageFs = next
-			this.$nextTick(() => requestAnimationFrame(() => this.fitPass(iter + 1)))
+			this.$nextTick(() => requestAnimationFrame(() => this.fitPass(iter + 1, gen)))
 		},
 		// Self-paced: if the open race does not fit even at the shrink limit,
 		// the rows move closer together (StageRace `tight`). The key
 		// changes, the watcher refits. In the embed frame (PowerPoint,
 		// 1264×576) eight airy rows would otherwise overflow by 55 px.
+		// If tight rows are not enough either — there, the leaderboard after
+		// two minutes overflowed by 75 px and lost two rows mid-row — the
+		// leaderboard gives up rows at the bottom (trimRaceBoard), a new key
+		// again, until it fits or nothing is left to gain.
 		fitTight() {
-			if (this.raceView && this.paceState === 'open' && !this.raceTight) this.raceTight = true
+			if (!this.raceView || this.paceState !== 'open') return
+			if (!this.raceTight) {
+				this.raceTight = true
+				return
+			}
+			// The overflow trimRaceBoard works from is the one at the floor.
+			const el = this.$refs.stage
+			const race = this.$refs.race
+			if (!el || !race || this.stageFs !== FIT_FLOOR_PX) return
+			const m = race.boardMeasure()
+			const rows = trimRaceBoard({ ...m, overflow: el.scrollHeight - el.clientHeight })
+			if (rows < m.shown) this.raceBoardRows = rows
 		},
 		// Single-flight in self-paced mode (mixins/polling.js): every fetch has a
 		// timeout there; a returning tab would otherwise start a second chain.
