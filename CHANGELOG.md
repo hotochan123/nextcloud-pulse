@@ -540,6 +540,11 @@ described under "Security notes" and "Known limits" in the README.
   rows, "Finished" among them. On the projector itself nothing changes. A last
   group of a single question now reads "Question 22" instead of "Questions
   22–22".
+- On the phone, "See all results" and "See your answers" scroll again. The
+  overall summary stopped at the bottom of the screen: with more than two or
+  three questions the rest of the list, the leaderboard and the "Back" button
+  below it could not be reached, because Nextcloud keeps its page frame at
+  screen height and Pulse relied on the page scrolling.
 
 ### Removed
 - `office-addin/manifest.xml`. It is generated now, and a second editable copy

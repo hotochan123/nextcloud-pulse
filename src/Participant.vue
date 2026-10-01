@@ -21,7 +21,7 @@
 				<p v-else-if="isPaced && review.myScore != null" class="myrank review-myrank">{{ n('pulse', '%n point', '%n points', review.myScore) }}</p>
 				<ol class="review-list">
 					<li v-for="(it, i) in review.items" :key="it.poll.id" class="review-item">
-						<h2 class="review-q"><span class="review-num">{{ i + 1 }}</span><span>{{ it.poll.question }}</span></h2>
+						<h2 class="review-q"><span class="review-num">{{ i + 1 }}</span><span class="review-q-text">{{ it.poll.question }}</span></h2>
 						<p v-if="it.mine" class="review-mine" :class="{ 'is-ok': it.mine.correct === true, 'is-no': it.mine.correct === false }">
 							<span class="review-mine-lbl">{{ t('pulse', 'Your answer:') }}</span> <b>{{ myAnswerText(it) }}</b>
 							<span v-if="it.mine.correct === true" class="pulse-chip is-success review-chip"><PulseIcon name="check" size="1em" /> +{{ it.mine.points }}</span>
@@ -954,7 +954,7 @@ export default {
 				// Self-paced: when the window state changes, it closes itself (§2.1).
 				this.reviewState = (this.paceWindow && this.paceWindow.state) || ''
 				this.review = data
-				window.scrollTo(0, 0)
+				this.toTop()
 			} catch (e) {
 				showError(t('pulse', 'Could not load the results.'))
 				if (this.isPaced && !e?.response) this.online = false
@@ -964,6 +964,15 @@ export default {
 		},
 		closeReview() {
 			this.review = null
+			this.toTop()
+		},
+		// To the top of the page: the root is the scroll container (see .pulse-part),
+		// the window only where a page around it scrolls.
+		toTop() {
+			this.$nextTick(() => {
+				if (this.$el) this.$el.scrollTop = 0
+				window.scrollTo(0, 0)
+			})
 		},
 		// Make your own answer readable — it is stored differently per question type.
 		myAnswerText(item) {
@@ -1494,9 +1503,10 @@ export default {
 	   is the conservative size — what fits with it always fits. */
 	/* The Nextcloud header bar sits above the page and is not part of the
 	   height budget (§8.1) — without the deduction the submit bar slides exactly
-	   its own height below the fold. */
-	min-height: calc(100vh - var(--header-height, 50px));
-	min-height: calc(100svh - var(--header-height, 50px));
+	   its own height below the fold. Nor is the margin Nextcloud leaves below
+	   #content from 1024 px on: its last 8 px would lie under the clip edge. */
+	min-height: calc(100vh - var(--header-height, 50px) - var(--body-container-margin, 0px));
+	min-height: calc(100svh - var(--header-height, 50px) - var(--body-container-margin, 0px));
 	background: var(--pulse-bg);
 	color: var(--pulse-text);
 	display: flex;
@@ -1504,6 +1514,14 @@ export default {
 	align-items: stretch;
 	box-sizing: border-box;
 	font-family: var(--font-face, system-ui, -apple-system, sans-serif);
+	/* The scroll container of the phone page. Nextcloud's #content has a fixed
+	   height and overflow: clip, so the page itself never scrolls: the overall
+	   summary with ten questions was 5,000 px tall and stopped at the screen
+	   edge. The answer view still scrolls inside .h-scroll — it fills exactly
+	   this height and does not overflow it. Sideways nothing scrolls, as
+	   before under #content (overflow-y: auto alone would make x auto too). */
+	overflow-y: auto;
+	overflow-x: hidden;
 }
 .sheet {
 	width: 100%; max-width: 460px; min-height: 0;
@@ -1957,13 +1975,16 @@ export default {
 }
 
 /* ── Overall summary ("All results") ────────────────────────────────────── */
-.review { display: flex; flex-direction: column; gap: 14px; }
+/* Room below "Back": the end of the scroll range is the end of the summary. */
+.review { display: flex; flex-direction: column; gap: 14px; padding-bottom: 16px; }
 .review-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .review-h { margin: 0; font-size: 22px; }
-.review-title { margin: 0; font-size: 15px; color: var(--pulse-text-2); }
+.review-title { margin: 0; font-size: 15px; color: var(--pulse-text-2); overflow-wrap: anywhere; }
 .review-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 22px; }
 .review-item { display: flex; flex-direction: column; gap: 8px; }
 .review-q { display: flex; gap: 8px; align-items: baseline; margin: 0; font-size: 17px; line-height: 1.3; }
+/* A long word in the question wraps instead of widening the summary. */
+.review-q-text { min-width: 0; overflow-wrap: anywhere; }
 .review-num {
 	flex: 0 0 auto; min-width: 1.6em; height: 1.6em; display: inline-flex; align-items: center;
 	justify-content: center; border-radius: var(--pulse-r-pill, 999px); background: var(--pulse-fill);

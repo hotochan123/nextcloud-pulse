@@ -642,7 +642,9 @@ const PHONE_LONG = `
 	const out = cr ? words.filter((w) => { const r = w.getBoundingClientRect(); return r.left < cr.left - 0.5 || r.right > cr.right + 0.5 }).length : 0
 	const sc = document.querySelector('.h-scroll')
 	const de = document.documentElement
-	const pageX = de.scrollWidth - de.clientWidth, scrollX = sc ? sc.scrollWidth - sc.clientWidth : 0
+	// The page scroller is .pulse-part (Nextcloud's #content clips), not the document.
+	const pp = document.querySelector('.pulse-part')
+	const pageX = Math.max(de.scrollWidth - de.clientWidth, pp ? pp.scrollWidth - pp.clientWidth : 0), scrollX = sc ? sc.scrollWidth - sc.clientWidth : 0
 	return 'eigene Antwort ' + (mine ? (mine.scrollWidth > mine.clientWidth + 1 ? 'LÄUFT ÜBER' : 'im Kasten, ' + lines(mine) + ' Zeilen') : 'FEHLT')
 		+ ', langes Wort in der Wolke ' + (long ? Math.round(parseFloat(getComputedStyle(long).fontSize)) + ' px, ' + lines(long) + ' Zeilen' : 'FEHLT')
 		+ (out ? ', LÄUFT ÜBER: ' + out + ' Wörter ragen aus der Wolke' : ', alle Wörter in der Wolke')
@@ -728,7 +730,9 @@ const CORNERS_PHONE = `
 	const tip = names.filter((n) => groups[n].some((el) => el.querySelector('title')))
 	const sc = document.querySelector('.h-scroll')
 	const de = document.documentElement
-	const pageX = de.scrollWidth - de.clientWidth, scrollX = sc ? sc.scrollWidth - sc.clientWidth : 0
+	// The page scroller is .pulse-part (Nextcloud's #content clips), not the document.
+	const pp = document.querySelector('.pulse-part')
+	const pageX = Math.max(de.scrollWidth - de.clientWidth, pp ? pp.scrollWidth - pp.clientWidth : 0), scrollX = sc ? sc.scrollWidth - sc.clientWidth : 0
 	return names.length + ' Ecken, ' + names.map((n) => n + ' ' + groups[n].length + ' Z.').join(', ')
 		+ ', ' + (cut.length ? cut.length + ' gekürzt (' + tip.length + ' mit Tooltip)' : 'nichts gekürzt')
 		+ (hits.length ? ', ÜBERLAPPT: ' + hits.join(', ') : ', keine Überlappung')
@@ -2518,6 +2522,22 @@ const PACE_PHONE = `
 	const parts = ['Viewport ' + window.innerWidth + '×' + window.innerHeight, view + ' (Fenster ' + (vm.paceState || '—') + (p ? ', Frage ' + p.k + '/' + p.n + (p.started ? '' : ', nicht gestartet') + (p.finished ? ', fertig' : '') : '') + ')']
 	const h = q('.pace-card h1, .nick h1, .h-app .end-title, .review-h')
 	if (h) { parts.push('„' + txt(h) + '"') }
+	// The overall summary outgrows the screen after a few questions: can its end
+	// be reached? Nextcloud's #content clips (overflow: clip), the page itself
+	// never scrolls — only a scroll container inside the app does.
+	const rv = q('.review')
+	if (rv) {
+		const below = Math.round(rv.getBoundingClientRect().bottom - window.innerHeight)
+		let box = null
+		for (let n = rv.parentElement; n && !box; n = n.parentElement) {
+			const oy = getComputedStyle(n).overflowY
+			if ((oy === 'auto' || oy === 'scroll') && n.scrollHeight > n.clientHeight + 1) { box = n }
+		}
+		const doc = document.scrollingElement
+		const room = Math.round(box ? box.scrollHeight - box.clientHeight - box.scrollTop : doc.scrollHeight - doc.clientHeight - doc.scrollTop)
+		parts.push(below <= 0 ? 'Auswertung ganz im Bild' : 'Auswertung ' + below + ' px unter dem Rand, '
+			+ (room >= below - 2 ? 'scrollbar' : 'SCROLLT NICHT (' + Math.max(0, room) + ' px Spielraum)'))
+	}
 	for (const el of root.querySelectorAll('.pace-notice')) { parts.push('Hinweis „' + txt(el) + '"') }
 	const when = q('.pace-when')
 	if (when) {
@@ -2572,7 +2592,8 @@ const PACE_PHONE = `
 	if (sr && txt(sr)) { parts.push('Ansage „' + txt(sr) + '"') }
 	for (const el of document.querySelectorAll('.pulse-toast')) { parts.push('Toast „' + txt(el) + '"') }
 	const de = document.documentElement
-	if (de.scrollWidth > de.clientWidth) { parts.push('SEITE SCROLLT WAAGERECHT ' + (de.scrollWidth - de.clientWidth) + ' px') }
+	const pageX = Math.max(de.scrollWidth - de.clientWidth, root.scrollWidth - root.clientWidth)
+	if (pageX > 0) { parts.push('SEITE SCROLLT WAAGERECHT ' + pageX + ' px') }
 	if (vm.paceState !== 'released' && document.querySelector('.pulse-results, .tg-accepted, .srow-mark')) { parts.push('LÖSUNG SICHTBAR') }
 	return parts.join(', ')
 `
@@ -2798,7 +2819,7 @@ async function pacePhonePass(s, dark) {
 		await s.mouseAway()
 		await shot(s, { settle: 800, measure: PACE_PHONE, ...opts, size: frameWin(at), open, name: tag + opts.name })
 		const line = index[index.length - 1]
-		for (const mark of ['UNTER DER FALZ', 'WAAGERECHT', 'LÖSUNG SICHTBAR', 'GEFÜLLTE KNÖPFE', 'FRAGE NICHT SICHTBAR']) {
+		for (const mark of ['UNTER DER FALZ', 'WAAGERECHT', 'LÖSUNG SICHTBAR', 'GEFÜLLTE KNÖPFE', 'FRAGE NICHT SICHTBAR', 'SCROLLT NICHT']) {
 			if (line.includes(mark)) { overflow.push(line.split(' | ')[0].slice(2) + ': ' + mark) }
 		}
 		return line
