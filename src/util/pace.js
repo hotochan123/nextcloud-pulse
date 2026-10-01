@@ -196,18 +196,25 @@ export function splitDuration(sec) {
  * (only while open and only if someone is missing) · questions · "Finished" (outside the
  * grid). Up to 10 questions one column, 11–20 two columns (`perCol` rows
  * per column), above that groups of ceil(n/10) questions in one column.
+ * `maxRows` caps the question rows per column (fitRaceRows, embed frame):
+ * one column only up to that many, two columns only up to twice that many,
+ * otherwise groups large enough to stay within it.
  * The server counts every person exactly once (not started, on question k
  * or finished): while open the values add up to `joined`, without "Not
  * started" to those who started.
  * @param {object|null} race `race` from /state?spectate=1 ({n, joined, started, finished, onQuestion})
  * @param {boolean} [open] window open (only then is "Not started" shown)
+ * @param {number} [maxRows] question rows per column at most (0 = no limit)
  * @return {{rows: Array<object>, cols: number, perCol: number}}
  *   rows: {key, kind: 'idle'|'q'|'group'|'done', value, k?, from?, to?}
  *   perCol: question rows per column (without "Not started"/"Finished")
  */
-export function raceRows(race, open = true) {
+export function raceRows(race, open = true, maxRows = 0) {
 	if (!race) return { rows: [], cols: 1, perCol: 0 }
 	const n = Math.max(0, Number(race.n) || 0)
+	const fit = maxRows > 0 ? Math.max(1, Math.floor(maxRows)) : Infinity
+	const oneCol = n <= 10 && n <= fit
+	const twoCols = !oneCol && n <= 20 && Math.ceil(n / 2) <= fit
 	const on = Array.isArray(race.onQuestion) ? race.onQuestion : []
 	const at = (i) => Number(on[i]) || 0
 	const rows = []
@@ -215,8 +222,8 @@ export function raceRows(race, open = true) {
 	if (open && idle > 0) rows.push({ key: 'idle', kind: 'idle', value: idle })
 	let cols = 1
 	let perCol = n
-	if (n > 20) {
-		const b = Math.ceil(n / 10)
+	if (!oneCol && !twoCols) {
+		const b = Math.max(Math.ceil(n / 10), Math.ceil(n / fit))
 		perCol = 0
 		for (let from = 1; from <= n; from += b) {
 			const to = Math.min(n, from + b - 1)
@@ -227,7 +234,7 @@ export function raceRows(race, open = true) {
 		}
 	} else {
 		for (let k = 1; k <= n; k++) rows.push({ key: 'q' + k, kind: 'q', k, value: at(k - 1) })
-		if (n > 10) {
+		if (twoCols) {
 			cols = 2
 			perCol = Math.ceil(n / 2)
 		}
@@ -256,6 +263,29 @@ export function trimRaceBoard({ shown, overflow, excess, pitch }) {
 	const n = Math.max(0, Math.floor(Number(shown) || 0))
 	if (!(overflow > 0) || !(excess > 0) || !(pitch > 0) || n <= RACE_BOARD_MIN) return n
 	return Math.max(RACE_BOARD_MIN, n - Math.ceil(Math.min(overflow, excess) / pitch))
+}
+
+// Question rows per column the race keeps at the least.
+export const RACE_ROWS_MIN = 3
+
+/**
+ * Question rows per column for the open race when even tight rows overflow at
+ * the shrink limit and fewer leaders would not help (trimRaceBoard): the
+ * embed frame (1264×576) holds eight tight rows, a quiz with ten questions
+ * and people who have not started needs twelve. As many rows fewer as the
+ * bars' own overflow needs; raceRows then moves on to two columns or larger
+ * groups. Never below RACE_ROWS_MIN; without anything to gain the rows stay.
+ * @param {object} m {perCol, overflow, excess, pitch}: question rows in the
+ *   tallest column now, stage overflow (px), how much taller the leaderboard
+ *   is than the bars (px; 0 or less when the bars are the tallest), distance
+ *   from one bar to the next (px)
+ * @return {number} question rows per column at most
+ */
+export function fitRaceRows({ perCol, overflow, excess, pitch }) {
+	const n = Math.max(0, Math.floor(Number(perCol) || 0))
+	const over = (Number(overflow) || 0) - Math.max(0, Number(excess) || 0)
+	if (!(over > 0) || !(pitch > 0) || n <= RACE_ROWS_MIN) return n
+	return Math.max(RACE_ROWS_MIN, n - Math.ceil(over / pitch))
 }
 
 /**

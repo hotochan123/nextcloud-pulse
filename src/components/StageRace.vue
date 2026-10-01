@@ -38,7 +38,7 @@
 		<!-- On the right, in the first two minutes (and as long as nobody has points),
 		     joining: in a classroom people are still arriving, and the mini QR in
 		     the meta bar alone is not enough for that. After that the leaders. -->
-		<aside v-if="side === 'join'" class="pace-race-side pace-race-join">
+		<aside v-if="side === 'join'" ref="side" class="pace-race-side pace-race-join">
 			<div class="pace-race-qr">
 				<QrCode :value="joinUrlFull" />
 			</div>
@@ -49,7 +49,7 @@
 				{{ joinUrl }}
 			</p>
 		</aside>
-		<aside v-else-if="side === 'board'" ref="board" class="pace-race-side pace-race-board">
+		<aside v-else-if="side === 'board'" ref="side" class="pace-race-side pace-race-board">
 			<p class="pace-race-side-head">
 				{{ t('pulse', 'Leaderboard') }}
 			</p>
@@ -101,11 +101,14 @@ export default {
 		tight: { type: Boolean, default: false },
 		// From the projector: leaderboard rows — fewer when even tight rows do not fit.
 		boardRows: { type: Number, default: RACE_BOARD_ROWS },
+		// From the projector: question rows per column at most (0 = no limit) —
+		// set when tight rows and fewer leaders are not enough either.
+		maxRows: { type: Number, default: 0 },
 	},
 	computed: {
 		// The component only appears in the open window — "Not started" belongs to it.
 		layout() {
-			return raceRows(this.race, true)
+			return raceRows(this.race, true, this.maxRows)
 		},
 		idle() {
 			return this.layout.rows.find((r) => r.kind === 'idle') || null
@@ -124,15 +127,19 @@ export default {
 		// Also dense when the projector asks for it (small kiosk, embed frame).
 		dense() {
 			if (this.tight) return true
-			const perCol = this.layout.cols === 2 ? this.layout.perCol : this.steps.length
-			return (this.idle ? 1 : 0) + perCol + 1 > DENSE_ROWS
+			return (this.idle ? 1 : 0) + this.perCol + 1 > DENSE_ROWS
+		},
+		// Question rows in the tallest column.
+		perCol() {
+			return this.layout.cols === 2 ? this.layout.perCol : this.steps.length
 		},
 	},
 	methods: {
+		// A group of one (the last one, 22 of 22 in threes) reads as a question.
 		labelOf(row) {
-			return row.kind === 'group'
+			return row.kind === 'group' && row.to > row.from
 				? this.t('pulse', 'Questions {from}–{to}', { from: row.from, to: row.to })
-				: this.t('pulse', 'Question {number}', { number: row.k })
+				: this.t('pulse', 'Question {number}', { number: row.kind === 'group' ? row.from : row.k })
 		},
 		num(v) {
 			return fmtNum(v, 0)
@@ -142,16 +149,22 @@ export default {
 			return Math.min(100, (Number(v) || 0) / this.joined * 100)
 		},
 		// For the projector's shrink loop (Screen.vue fitTight): leaderboard rows
-		// shown, how much taller the leaderboard is than the bars, row pitch.
-		boardMeasure() {
-			const board = this.$refs.board
+		// shown, how much taller the right column is than the bars — joining
+		// as well, else its overflow would count as the bars' — the
+		// leaderboard's row pitch; question rows in the tallest column and the
+		// bars' row pitch.
+		measure() {
+			const side = this.$refs.side
 			const bars = this.$refs.bars
-			const rows = board ? board.querySelectorAll('.lb-row') : []
-			if (!board || !bars || rows.length < 2) return { shown: rows.length, excess: 0, pitch: 0 }
+			const rows = side ? side.querySelectorAll('.lb-row') : []
+			const bar = bars ? bars.querySelector('.pace-race-row') : null
+			const gap = bars ? parseFloat(getComputedStyle(bars).rowGap) || 0 : 0
 			return {
 				shown: rows.length,
-				excess: board.getBoundingClientRect().height - bars.getBoundingClientRect().height,
-				pitch: rows[1].getBoundingClientRect().top - rows[0].getBoundingClientRect().top,
+				excess: side && bars ? side.getBoundingClientRect().height - bars.getBoundingClientRect().height : 0,
+				pitch: rows.length > 1 ? rows[1].getBoundingClientRect().top - rows[0].getBoundingClientRect().top : 0,
+				perCol: this.perCol,
+				barPitch: bar ? bar.getBoundingClientRect().height + gap : 0,
 			}
 		},
 	},

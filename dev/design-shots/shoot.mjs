@@ -1179,7 +1179,7 @@ async function embedPass(s, dark) {
 				note,
 			})
 			const line = index[index.length - 1]
-			if (/KEIN RENNEN|LÄUFT ÜBER|ABGESCHNITTEN/.test(line)) { overflow.push(name + ': ' + line.split(' | ').slice(-1)[0]) }
+			if (/KEIN RENNEN|LÄUFT ÜBER|ABGESCHNITTEN|SUMME FALSCH/.test(line)) { overflow.push(name + ': ' + line.split(' | ').slice(-1)[0]) }
 		}
 		// In the first two minutes joining stands on the right, after that the
 		// leaderboard — eight rows in a frame lower than the 1280×720 kiosk.
@@ -1189,8 +1189,15 @@ async function embedPass(s, dark) {
 		await embedPace('embed-pace', paceData.race.code, 'Einbett-Shell: Rennen im eigenen Tempo im Rahmen')
 		probe('window', paceData.race.code, 'openedAt=now-600')
 		await embedPace('embed-pace-board', paceData.race.code, 'Einbett-Shell: Rennen nach 2 min, rechts die Spitze')
-		probe('window', paceData.big.code, 'openedAt=now-600')
-		await embedPace('embed-pace-big', paceData.big.code, 'Einbett-Shell: n=24, 300 Beigetretene, rechts die Spitze')
+		// More questions than the frame has rows (it holds eight tight ones):
+		// two columns or larger groups instead of losing the bottom rows,
+		// "Finished" among them — with joining on the right and with the leaderboard.
+		probe('window', paceData.wide.code, 'openedAt=now-30')
+		await embedPace('embed-pace-wide-join', paceData.wide.code, 'Einbett-Shell: n=20, 40 Beigetretene, rechts der Beitritt')
+		for (const [key, what] of [['mid', 'n=16, 40 Beigetretene'], ['wide', 'n=20, 40 Beigetretene'], ['big', 'n=24, 300 Beigetretene']]) {
+			probe('window', paceData[key].code, 'openedAt=now-600')
+			await embedPace(`embed-pace-${key}`, paceData[key].code, `Einbett-Shell: ${what}, rechts die Spitze`)
+		}
 	}
 }
 
@@ -1203,12 +1210,26 @@ const EMBED_PACE = `
 	const over = st ? st.scrollHeight - st.clientHeight : 0
 	const scr = d.querySelector('.scr')
 	const vm = scr && scr.__vue__
-	// Leaderboard rows the stage cuts off at the bottom — the frame clips them silently.
+	const txt = (el) => (el ? el.textContent.trim().replace(/\\s+/g, ' ') : '')
+	// Leaderboard rows and bars the stage cuts off at the bottom — the frame clips them silently.
 	const board = Array.from(d.querySelectorAll('.pace-race-board .lb-row'))
+	const bars = Array.from(d.querySelectorAll('.pace-race-row'))
 	const floor = st ? st.getBoundingClientRect().bottom + 1 : Infinity
 	const cut = board.filter((r) => r.getBoundingClientRect().bottom > floor).length
+	const barsCut = bars.filter((r) => r.getBoundingClientRect().bottom > floor).length
+	// Every person in exactly one row, groups included.
+	const sum = bars.reduce((s, r) => s + (Number(txt(r.querySelector('.srow-text--track .srow-val')).replace(/[^0-9]/g, '')) || 0), 0)
+	const joined = vm && vm.race ? vm.race.joined : null
+	// Single questions as first … last, groups all of them.
+	const labels = bars.map((r) => txt(r.querySelector('.srow-text--track .srow-label')))
+	const shown = labels.some((l) => l.includes('–')) || labels.length <= 4 ? labels.join(', ')
+		: labels.slice(0, 2).join(', ') + ' … ' + labels.slice(-2).join(', ')
 	return (d.querySelector('.scr.is-race .pace-race') ? 'Rennen im Rahmen' : 'KEIN RENNEN IM RAHMEN')
 		+ (d.querySelector('.pace-race.is-dense') ? ', enge Zeilen' : '')
+		+ ', Balken ' + bars.length + (d.querySelector('.pace-race-grid') ? ' in zwei Spalten' : '')
+		+ ' (' + shown + ')'
+		+ (joined !== null ? ', Summe ' + sum + ' von ' + joined + (sum !== joined ? ' SUMME FALSCH' : '') : '')
+		+ (barsCut ? ', BALKEN ABGESCHNITTEN ' + barsCut : '')
 		+ (vm && vm.raceSide ? ', rechts ' + vm.raceSide + (board.length ? ' ' + board.length + ' Zeilen' : '') : '')
 		+ (cut ? ', SPITZE ABGESCHNITTEN ' + cut : '')
 		+ ', Rahmen ' + f.clientWidth + '×' + f.clientHeight

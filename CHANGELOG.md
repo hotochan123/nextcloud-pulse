@@ -533,6 +533,13 @@ described under "Security notes" and "Known limits" in the README.
   The embed frame is lower than a projector at 1280 × 720, and the race with
   eight leaders did not fit even at the smallest text size. The projector
   itself looks as before.
+- Self-paced quiz embedded in PowerPoint: when the race has more rows than the
+  embed frame holds — more than six questions while some people have not
+  started, or a long quiz in two columns or groups — the questions move into
+  two columns or larger groups ("Questions 1–4") instead of losing their bottom
+  rows, "Finished" among them. On the projector itself nothing changes. A last
+  group of a single question now reads "Question 22" instead of "Questions
+  22–22".
 
 ### Removed
 - `office-addin/manifest.xml`. It is generated now, and a second editable copy

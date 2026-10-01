@@ -23,7 +23,7 @@ import {
 	DEADLINE_MIN, DEADLINE_MAX, DEADLINE_SLACK, CLOSING_SOON, STOP_LEAD,
 	isPacedRoom, windowState, stopDeadline, toLocalInput, fromLocalInput, defaultDeadline,
 	deadlineInRange, deadlineInputRange, deadlinePresets, splitDuration, raceRows, paceCard, canNext, phoneDelay, progressDelay, progressCounts,
-	RACE_BOARD_ROWS, RACE_BOARD_MIN, trimRaceBoard,
+	RACE_BOARD_ROWS, RACE_BOARD_MIN, trimRaceBoard, RACE_ROWS_MIN, fitRaceRows,
 } from '../../src/util/pace.js'
 
 let passed = 0
@@ -545,6 +545,80 @@ test('trimRaceBoard: nothing to gain -> keeps what it shows', () => {
 	assert.equal(trimRaceBoard({ shown: 2, overflow: 75, excess: 120, pitch: 44 }), 2)
 	assert.equal(trimRaceBoard({ shown: 0, overflow: 75, excess: 0, pitch: 0 }), 0)
 	assert.equal(trimRaceBoard({ shown: undefined, overflow: NaN, excess: NaN, pitch: NaN }), 0)
+})
+
+test('raceRows: without maxRows (or with room to spare) the layout stays as it was', () => {
+	for (let n = 0; n <= 300; n++) {
+		const r = race(n, n + 5, n, 1)
+		const plain = raceRows(r)
+		assert.deepEqual(raceRows(r, true, 0), plain, 'n=' + n + ', 0')
+		assert.deepEqual(raceRows(r, true, 99), plain, 'n=' + n + ', 99')
+		assert.equal(plain.cols, n > 10 && n <= 20 ? 2 : 1, 'n=' + n + ' columns')
+	}
+})
+
+test('raceRows with maxRows: one column -> two columns -> larger groups', () => {
+	// ten questions in a frame for six rows per column: two columns of five
+	let r = raceRows(race(10, 20, 15, 2), true, 6)
+	assert.deepEqual([r.cols, r.perCol, qrows(r).length], [2, 5, 10])
+	assert.ok(qrows(r).every((x) => x.kind === 'q'))
+	assert.deepEqual(kinds(r)[0], 'idle')
+	// seven: two columns of four; six: one column as before
+	r = raceRows(race(7, 9, 9, 0), true, 6)
+	assert.deepEqual([r.cols, r.perCol], [2, 4])
+	assert.deepEqual(raceRows(race(6, 9, 9, 0), true, 6), raceRows(race(6, 9, 9, 0)))
+	// ten in four rows: groups of three, the last one a single question
+	r = raceRows(race(10, 20, 20, 0, () => 1), true, 4)
+	assert.deepEqual([r.cols, r.perCol], [1, 4])
+	assert.deepEqual(qrows(r).map((x) => [x.from, x.to, x.value]), [[1, 3, 3], [4, 6, 3], [7, 9, 3], [10, 10, 1]])
+	// sixteen in six: two columns would need eight -> groups of three
+	r = raceRows(race(16, 40, 30, 9), true, 6)
+	assert.deepEqual([r.cols, r.perCol], [1, 6])
+	assert.deepEqual(qrows(r).map((x) => [x.from, x.to]), [[1, 3], [4, 6], [7, 9], [10, 12], [13, 15], [16, 16]])
+	// twenty-four in six: groups of four instead of three
+	r = raceRows(race(24, 300, 262, 85), true, 6)
+	assert.deepEqual(qrows(r).map((x) => [x.from, x.to]), [[1, 4], [5, 8], [9, 12], [13, 16], [17, 20], [21, 24]])
+})
+
+test('raceRows with maxRows: never more rows per column, every person still counted once', () => {
+	for (let n = 0; n <= 40; n++) {
+		for (let max = 1; max <= 12; max++) {
+			const r = raceRows(race(n, n * 3 + 4, n * 3, 2, (i) => (i * 7) % 5), true, max)
+			const q = qrows(r)
+			const perCol = r.cols === 2 ? Math.ceil(q.length / 2) : q.length
+			assert.ok(perCol <= max, 'n=' + n + ' max=' + max + ': ' + perCol + ' rows per column')
+			assert.equal(r.perCol, perCol, 'n=' + n + ' max=' + max + ' perCol')
+			const want = Array.from({ length: n }, (_, i) => (i * 7) % 5).reduce((a, v) => a + v, 0)
+			assert.equal(q.reduce((a, x) => a + x.value, 0), want, 'n=' + n + ' max=' + max + ' sum')
+			// groups cover 1..n without gaps
+			if (q.length && q[0].kind === 'group') {
+				assert.deepEqual(q.map((x) => x.from), q.map((_, i) => i * (q[0].to - q[0].from + 1) + 1))
+				assert.equal(q[q.length - 1].to, n)
+			}
+		}
+	}
+})
+
+test('fitRaceRows: as many rows fewer as the bars overflow, not below three', () => {
+	assert.equal(RACE_ROWS_MIN, 3)
+	// the big room in the embed frame: groups of three, 43 px over, bars the tallest
+	assert.equal(fitRaceRows({ perCol: 8, overflow: 43, excess: -12, pitch: 37.2 }), 6)
+	// ten questions in one column, about four rows too many
+	assert.equal(fitRaceRows({ perCol: 10, overflow: 150, excess: 0, pitch: 37.2 }), 5)
+	// the leaderboard is taller by 32 px: only the bars' own 43 px count
+	assert.equal(fitRaceRows({ perCol: 8, overflow: 75, excess: 32, pitch: 37.2 }), 6)
+	// down to the minimum, not further
+	assert.equal(fitRaceRows({ perCol: 12, overflow: 900, excess: 0, pitch: 37.2 }), RACE_ROWS_MIN)
+})
+
+test('fitRaceRows: nothing to gain -> the rows stay', () => {
+	// only the leaderboard overflows
+	assert.equal(fitRaceRows({ perCol: 8, overflow: 30, excess: 30, pitch: 37 }), 8)
+	assert.equal(fitRaceRows({ perCol: 8, overflow: 30, excess: 50, pitch: 37 }), 8)
+	assert.equal(fitRaceRows({ perCol: 8, overflow: 0, excess: 0, pitch: 37 }), 8)
+	assert.equal(fitRaceRows({ perCol: 8, overflow: 40, excess: 0, pitch: 0 }), 8)
+	assert.equal(fitRaceRows({ perCol: 3, overflow: 90, excess: 0, pitch: 37 }), 3)
+	assert.equal(fitRaceRows({ perCol: undefined, overflow: NaN, excess: NaN, pitch: NaN }), 0)
 })
 
 console.log(`\n==== pace.js: ${passed} ok / ${failures.length} fehlgeschlagen ====`)

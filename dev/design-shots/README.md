@@ -104,12 +104,16 @@ without a localStorage marker. Since the go-live (step 4.6, see
 switch is in every quiz deck.
 
 `embed` puts the race into the shell's frame (1264 × 576, lower than the
-1280 × 720 kiosk) three times: in the first two minutes with joining on the
-right, then with the leaderboard — the probe sets the opening for both, a single
-track is done long before two minutes, a full run long after — and the `big`
-room with groups and leaderboard. It measures that the stage fits and that no
-leaderboard row is cut off (`SPITZE ABGESCHNITTEN`): where the frame is too
-low, the projector shows fewer leaders, at least three.
+1280 × 720 kiosk): `race` in the first two minutes with joining on the right
+and then with the leaderboard — the probe sets the opening for both, a single
+track is done long before two minutes, a full run long after — then `wide`
+with joining, and `mid`, `wide` and `big` with the leaderboard. It measures
+that the stage fits, that no bar and no leaderboard row is cut off
+(`BALKEN ABGESCHNITTEN`, `SPITZE ABGESCHNITTEN`) and that the bars still
+add up to everyone who joined (`SUMME FALSCH`). The frame holds eight tight
+rows: where it is too low, the projector first shows fewer leaders (at least
+three), then puts the questions into two columns or larger groups (at least
+three rows per column).
 
 Probe commands for test cases (through the real services; `window` and `leave`
 deliberately write raw):

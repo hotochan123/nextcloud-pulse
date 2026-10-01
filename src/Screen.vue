@@ -21,7 +21,7 @@
 			<main class="scr-stage" ref="stage" :style="stageStyle">
 				<StageRace v-if="paceState === 'open'" ref="race" :race="race" :board="raceBoard" :side="raceSide"
 					:join-url="joinUrl" :join-url-full="joinUrlFull" :code="spacedCode" :tight="raceTight"
-					:board-rows="raceBoardRows" />
+					:board-rows="raceBoardRows" :max-rows="raceMaxRows" />
 				<!-- Released: the same final standings as at the end of a moderated quiz. -->
 				<div v-else-if="raceFinal" class="scr-final">
 					<p class="scr-final-title">{{ t('pulse', 'Final standings') }}</p>
@@ -200,7 +200,7 @@ import axios from '@nextcloud/axios'
 import { PHONE_TIMEOUT, publicApi, pollImage, participantPage } from './util/routes.js'
 import { loadState } from '@nextcloud/initial-state'
 import { formatCode, remainingSecs, fmtDeadline } from './util/format.js'
-import { windowState, trimRaceBoard, RACE_BOARD_ROWS } from './util/pace.js'
+import { windowState, trimRaceBoard, fitRaceRows, RACE_BOARD_ROWS } from './util/pace.js'
 import { reloadOnProtocolMismatch } from './util/protocol.js'
 import pollingMixin from './mixins/polling.js'
 import PulseIcon from './components/ui/PulseIcon.vue'
@@ -253,6 +253,9 @@ export default {
 			// Leaderboard rows beside the race: fitTight takes rows away when
 			// tight rows are not enough either (embed frame).
 			raceBoardRows: RACE_BOARD_ROWS,
+			// … and question rows per column (0 = no limit) when fewer leaders
+			// are not enough either.
+			raceMaxRows: 0,
 		}
 	},
 	computed: {
@@ -513,7 +516,7 @@ export default {
 				const notStartedShown = this.paceState === 'open' && (r.joined || 0) > (r.started || 0)
 				const board = this.paceState === 'released' ? (this.leaderboard || []).length : this.raceBoard.length
 				return 'race:' + this.paceState + ':' + (r.n || 0) + ':' + board + ':' + this.raceSide + ':' + (notStartedShown ? 1 : 0)
-					+ (this.raceTight ? ':t' + this.raceBoardRows : '')
+					+ (this.raceTight ? ':t' + this.raceBoardRows + '.' + this.raceMaxRows : '')
 			}
 			if (!this.poll) return null
 			const r = this.results
@@ -655,10 +658,11 @@ export default {
 			// race key depends on raceTight: a moderated question after it (room
 			// reset and switched) fits itself in THIS call —
 			// otherwise the shrunken race font would stay until the reveal.
-			const shape = key.replace(/:t\d+$/, '')
+			const shape = key.replace(/:t\d+\.\d+$/, '')
 			if (this.raceTight && (force || shape !== this._raceShape)) {
 				this.raceTight = false
 				this.raceBoardRows = RACE_BOARD_ROWS
+				this.raceMaxRows = 0
 				if (this.raceView) return
 			}
 			if (this.raceView) this._raceShape = shape
@@ -716,7 +720,10 @@ export default {
 		// If tight rows are not enough either — there, the leaderboard after
 		// two minutes overflowed by 75 px and lost two rows mid-row — the
 		// leaderboard gives up rows at the bottom (trimRaceBoard), a new key
-		// again, until it fits or nothing is left to gain.
+		// again, until it fits or nothing is left to gain. Then the bars: the
+		// frame holds eight tight rows, so ten questions plus "Not started" and
+		// "Finished" lost their bottom rows, "Finished" included. They move on
+		// to two columns or larger groups (fitRaceRows -> raceRows).
 		fitTight() {
 			if (!this.raceView || this.paceState !== 'open') return
 			if (!this.raceTight) {
@@ -727,9 +734,15 @@ export default {
 			const el = this.$refs.stage
 			const race = this.$refs.race
 			if (!el || !race || this.stageFs !== FIT_FLOOR_PX) return
-			const m = race.boardMeasure()
-			const rows = trimRaceBoard({ ...m, overflow: el.scrollHeight - el.clientHeight })
-			if (rows < m.shown) this.raceBoardRows = rows
+			const m = race.measure()
+			const overflow = el.scrollHeight - el.clientHeight
+			const rows = trimRaceBoard({ shown: m.shown, overflow, excess: m.excess, pitch: m.pitch })
+			if (rows < m.shown) {
+				this.raceBoardRows = rows
+				return
+			}
+			const perCol = fitRaceRows({ perCol: m.perCol, overflow, excess: m.excess, pitch: m.barPitch })
+			if (perCol < m.perCol) this.raceMaxRows = perCol
 		},
 		// Single-flight in self-paced mode (mixins/polling.js): every fetch has a
 		// timeout there; a returning tab would otherwise start a second chain.
