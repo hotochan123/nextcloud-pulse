@@ -176,15 +176,16 @@ async function waitFor(s, sel, timeout = 15000) {
 }
 
 /**
- * One capture: set the window size, load the page, wait for the anchor,
- * run optional clicks, let things settle briefly, take the shot.
+ * The steps of a capture, in order. `{ if, then }` runs the steps in `then`
+ * only when the expression holds — the second attempt of a join the server
+ * turned away (joinQuiz) — and costs nothing but the check otherwise.
  */
-async function shot(s, { name, url, open, size, waitSel, actions = [], settle = 1200, note = '', measure = '' }) {
-	await s.size(size)
-	// open: a custom route to the page (e.g. through a menu); url then only appears in the index.
-	if (open) { await open() } else if (url) { await s.go(HOST + url) }
-	if (waitSel) { await waitFor(s, waitSel) }
+async function steps(s, actions) {
 	for (const act of actions) {
+		if (act.if) {
+			if (await s.script('return !!(' + act.if + ')')) { await steps(s, act.then) }
+			continue
+		}
 		if (act.click) { await s.click(act.click) }
 		if (act.js) { await s.script(act.js) }
 		if (act.type) { await s.type(act.type[0], act.type[1]) }
@@ -197,6 +198,18 @@ async function shot(s, { name, url, open, size, waitSel, actions = [], settle = 
 		}
 		if (act.sleep) { await sleep(act.sleep) }
 	}
+}
+
+/**
+ * One capture: set the window size, load the page, wait for the anchor,
+ * run optional clicks, let things settle briefly, take the shot.
+ */
+async function shot(s, { name, url, open, size, waitSel, actions = [], settle = 1200, note = '', measure = '' }) {
+	await s.size(size)
+	// open: a custom route to the page (e.g. through a menu); url then only appears in the index.
+	if (open) { await open() } else if (url) { await s.go(HOST + url) }
+	if (waitSel) { await waitFor(s, waitSel) }
+	await steps(s, actions)
 	await sleep(settle)
 	const file = `${String(++shotNo).padStart(2, '0')}-${name}.png`
 	writeFileSync(join(OUT, file), Buffer.from(await s.png(), 'base64'))
@@ -406,6 +419,27 @@ async function shot(s, { name, url, open, size, waitSel, actions = [], settle = 
 const poll = probeData.poll
 const quiz = probeData.quiz
 
+/*
+ * Join a quiz as `name`: type it, send it, wait `ms`. Names are unique per
+ * room (VoteService::liveJoin), and every pass starts a browser of its own,
+ * hence a voter cookie of its own: a later pass that joins the same room
+ * under the same name is turned away. That happens in a full run, where the
+ * public pass has joined the quiz room as Alex before the phone pass gets
+ * there, and on every run of the match pass, whose dark half joins the match
+ * room after the light half. Only then — the name form is still there, with
+ * its error — does the name get a " 2" (typing appends to what the field
+ * holds) and go once more; a pass whose name is free keeps it, and with it
+ * its pictures.
+ */
+function joinQuiz(name, ms) {
+	return [
+		{ type: ['.nick-input', name] }, { click: '.nick .submit' }, { sleep: ms },
+		{ if: 'document.querySelector(".nick .entry-error")', then: [
+			{ type: ['.nick-input', ' 2'] }, { click: '.nick .submit' }, { sleep: ms },
+		] },
+	]
+}
+
 async function publicPass(s, dark) {
 	const tag = dark ? 'dark-' : ''
 
@@ -432,7 +466,7 @@ async function publicPass(s, dark) {
 			})
 			await shot(s, {
 				name: `${tag}phone-quiz-joined`, size: PHONE,
-				actions: [{ type: ['.nick-input', 'Alex'] }, { click: '.nick .submit' }, { sleep: 1500 }],
+				actions: joinQuiz('Alex', 1500),
 				note: 'Handy: gerade beigetreten',
 			})
 		}
@@ -879,7 +913,7 @@ async function phonePass(s) {
 	await shot(s, {
 		name: 'phone-quiz-tap', url: `/apps/pulse/s/${quiz.code}`, size: PHONE,
 		waitSel: '.nick-input',
-		actions: [{ type: ['.nick-input', 'Alex'] }, { click: '.nick .submit' }, { sleep: 1800 }],
+		actions: joinQuiz('Alex', 1800),
 		note: 'Handy Quiz: Karten, Hinweis „Tippen sendet sofort"',
 	})
 	await shot(s, {
@@ -965,7 +999,11 @@ async function phonePass(s) {
 		})
 		if (index[index.length - 1].includes('VERLOREN')) { overflow.push(index[index.length - 1].split(' | ')[0].slice(2) + ': Fokus nach Verschieben VERLOREN') }
 		// Back to the state the pass had before, so a full run hands the next
-		// passes (dark photographs the poll room first) the same room as ever.
+		// passes (dark photographs the poll room first) the same room as ever:
+		// the ordering question revealed again, as the public pass left it
+		// (reopening made it 'active', and moving on to another question does
+		// not change that), and the first question current.
+		probe('state', poll.code, String(rank.id), 'locked')
 		probe('state', poll.code, String(first.id), 'locked')
 	}
 
@@ -1377,7 +1415,7 @@ async function matchPass(s, dark) {
 	await shot(s, {
 		name: `${tag}phone-match8-vote`, url: `/apps/pulse/s/${match.code}`, size: PHONE,
 		waitSel: '.nick-input', settle: 1500,
-		actions: [{ type: ['.nick-input', 'Alex'] }, { click: '.nick .submit' }, { sleep: 1800 }],
+		actions: joinQuiz('Alex', 1800),
 		note: 'Handy Zuordnung 8 Paare, Abstimm-Ansicht',
 	})
 	probe('seed', match.code, '24')

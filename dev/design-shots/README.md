@@ -50,6 +50,32 @@ track: `public`, `edge`, `phone`, `types`, `dark`, `embed`, `overview`,
 `match`, `moderator`, `store` as well as `pace` (all four self-paced tracks)
 or individually `pace-mod`, `pace-run`, `pace-phone`, `pace-screen`.
 
+## Full run
+
+Without `PULSE_SHOTS_ONLY` every track but `store` runs in one go, in the
+order of the list above, on one set of rooms: a later track finds them as the
+earlier ones left them — more players and seeded votes, a quiz that has been
+ended once, the question the `phone` track appends to the types room before
+`types` runs. A single track always starts on fresh rooms (`run.sh` builds
+them for every run). Two consequences:
+
+- **Compare single tracks.** Baselines and comparisons of measurement lines
+  are per track (`PULSE_SHOTS_ONLY=<track>`). A full run shows that the tracks
+  run through together; its `index.md` does not line up with theirs.
+- **Numbering.** The counter runs across the whole run, so a track's files
+  carry on from the previous track's last number instead of starting at `01-`
+  — in the file names, in the first column of `index.md` and in its list of
+  findings. Kept that way on purpose: one counter keeps the folder in the order
+  the pictures were taken.
+
+Every track starts a browser of its own, hence a voter cookie of its own, and
+names are unique per quiz room. A track whose name is already taken in a room
+joins again as "Alex 2" (`joinQuiz` in `shoot.mjs`): in a full run the `phone`
+track (the `public` track joined the quiz room as Alex first), on every run
+the dark half of `match`. Where the name is free, nothing changes. The `phone`
+track also puts the ordering question it reopens back to revealed, as the
+`public` track left it.
+
 ## Self-paced quiz
 
 `run.sh` creates the rooms for this with `probe.php pace-create` and writes
