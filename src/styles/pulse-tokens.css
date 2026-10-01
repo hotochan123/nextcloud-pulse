@@ -92,7 +92,7 @@
 	/* ── Canonical answer palette A–H — AA-checked, THEME-INDEPENDENT ───────
 	   Every colour carries its own checked text colour (--opt-*-ink). It runs
 	   from the live tile via the phone button all the way into the result bar
-	   (the Kahoot bridge, see util/palette.js). */
+	   (the palette bridge, see util/palette.js). */
 	--opt-a: #c23b2e; --opt-a-ink: #ffffff; /* red     */
 	--opt-b: #1d6fb0; --opt-b-ink: #ffffff; /* blue    */
 	--opt-c: #2e7d46; --opt-c-ink: #ffffff; /* green   */

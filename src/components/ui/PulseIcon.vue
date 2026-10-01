@@ -31,7 +31,9 @@
  * code comments" in the README).
  */
 
-// Inner SVG content per name (viewBox 0 0 24 24, stroke icons).
+// Inner SVG content per name (viewBox 0 0 24 24, stroke icons). copy, more,
+// plus and close are taken from or adapted from Feather Icons (MIT, Copyright
+// (c) 2013-2023 Cole Bemis), see "Licence" in the README.
 const ICONS = {
 	check: '<polyline points="4 12 10 18 20 6"/>',
 	close: '<line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>',

@@ -6,9 +6,11 @@
     <summary>Live polls for presentations — the audience votes with a code</summary>
     <summary lang="de">Live-Umfragen für Präsentationen — Publikum stimmt per Code ab</summary>
     <description><![CDATA[
-Pulse brings Mentimeter-style live polls to Nextcloud. The presenter opens a room
-and projects a six-character code; the audience joins through a public link without
-a Nextcloud account and votes from their own phone. Results update live.
+Pulse brings live polls, word clouds and quizzes for presentations to Nextcloud.
+It is a self-hosted alternative to services such as Kahoot!, Mentimeter or Slido.
+The presenter opens a room and projects a six-character code; the audience joins
+through a public link without a Nextcloud account and votes from their own phone.
+Results update live.
 
 Two room modes:
 - Poll (anonymous): multiple choice, word cloud, scale (single slider, spectrum
@@ -31,12 +33,18 @@ maintainer set the goals, made the product decisions and tried the app out in
 the browser. There has been no independent human code review and no security
 audit, so please evaluate it yourself before relying on it. Details in the
 [README](https://github.com/hotochan123/nextcloud-pulse#how-this-app-was-built-ai-disclosure).
+
+Pulse is an independent project and is not affiliated with or endorsed by the
+providers of Kahoot!, Mentimeter or Slido; these names are trademarks of their
+respective owners.
     ]]></description>
     <description lang="de"><![CDATA[
-Pulse bringt Mentimeter-artige Live-Umfragen nach Nextcloud. Die vortragende Person
-öffnet einen Raum und projiziert einen 6-stelligen Code; das Publikum tritt ohne
-Nextcloud-Konto über einen öffentlichen Link bei und stimmt vom eigenen Handy ab.
-Ergebnisse aktualisieren sich live.
+Pulse bringt Live-Umfragen, Wortwolken und Quizrunden für Präsentationen nach
+Nextcloud und ist damit eine selbst gehostete Alternative zu Diensten wie Kahoot!,
+Mentimeter oder Slido. Die vortragende Person öffnet einen Raum und projiziert
+einen 6-stelligen Code; das Publikum tritt ohne Nextcloud-Konto über einen
+öffentlichen Link bei und stimmt vom eigenen Handy ab. Ergebnisse aktualisieren
+sich live.
 
 Zwei Raum-Modi:
 - Umfrage (anonym): Multiple Choice, Wortwolke, Skala (Einzel-Slider, Spektrum-Radar,
@@ -60,6 +68,10 @@ App im Browser ausprobiert. Es gab keine unabhängige menschliche Code-Prüfung 
 Sicherheitsaudit — bitte vor dem Einsatz selbst prüfen. Details in der
 [README](https://github.com/hotochan123/nextcloud-pulse#how-this-app-was-built-ai-disclosure)
 (englisch).
+
+Pulse ist ein unabhängiges Projekt; es steht in keiner Verbindung zu den Anbietern
+von Kahoot!, Mentimeter oder Slido und wird von ihnen weder unterstützt noch
+empfohlen. Die genannten Namen sind Marken ihrer jeweiligen Inhaber.
     ]]></description>
     <version>0.18.0</version>
     <licence>AGPL-3.0-or-later</licence>

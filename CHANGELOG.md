@@ -314,6 +314,11 @@ described under "Security notes" and "Known limits" in the README.
   screenshots), the add-in manifest's support link, the setup check's link to
   the add-in guide and the documentation point to the new address; GitHub
   redirects the old one.
+- The store description and the README describe Pulse as a self-hosted
+  alternative to services such as Kahoot!, Mentimeter or Slido and state that
+  Pulse is not affiliated with their providers. Code comments no longer name
+  other products, and the README credits the four icons taken from or adapted
+  from Feather Icons and includes their MIT licence text.
 
 ### Fixed
 - On SQLite, a class joining a quiz at the same moment no longer gets

@@ -107,7 +107,7 @@ export function layoutCloud(words, { W, H, minSize, measure }, shrink) {
 
 /**
  * Fit loop: shrinks the font sizes until ALL words fit, instead of
- * overlapping them or silently dropping them (like Mentimeter).
+ * overlapping them or silently dropping them.
  * @param {Map<string, number>} words display word -> frequency
  * @param {{W:number, H:number, minSize:number, measure:function(string, number):number}} box see layoutCloud()
  * @return {{layout:Map<string, {x:number, y:number, size:number}>, placed:number, attempted:number, hidden:number}}

@@ -10,7 +10,7 @@ namespace OCA\Pulse\Service;
 use OCA\Pulse\Db\Player;
 
 /**
- * Quiz scoring (Kahoot-like): a correct answer earns points, a faster one more.
+ * Speed-weighted quiz scoring: a correct answer earns points, a faster one more.
  * Pure computation without a DB — testable and easy to tune.
  */
 class QuizService {

@@ -5,10 +5,11 @@
 > the app out in the browser; there has been no independent human code review and
 > no security audit. Details: [How this app was built](#how-this-app-was-built-ai-disclosure).
 
-Mentimeter-style live polls as a native Nextcloud app. The presenter opens a room
-and projects a six-character code; the audience joins through a public link
-without a Nextcloud account and votes from their phones. Results update live
-through polling.
+Live polls, word clouds and quizzes for presentations as a native Nextcloud app —
+a self-hosted alternative to services such as Kahoot!, Mentimeter or Slido. The
+presenter opens a room and projects a six-character code; the audience joins
+through a public link without a Nextcloud account and votes from their phones.
+Results update live through polling.
 
 ## How this app was built (AI disclosure)
 
@@ -216,8 +217,8 @@ record of the self-paced UI, which is included.
 ## Installation
 
 Pulse is not in the Nextcloud App Store yet: the signing certificate it needs
-has not been requested so far (as of 29 September 2026; steps and status in
-[`docs/APPSTORE.md`](docs/APPSTORE.md)). Until then it is installed from this
+has been requested but not issued yet (as of 1 October 2026; steps and status
+in [`docs/APPSTORE.md`](docs/APPSTORE.md)). Until then it is installed from this
 repository. It has only been tested on Nextcloud 34 (34.0.1), with fresh
 installations on SQLite, MariaDB 11.8, PostgreSQL 17 and MySQL 8.4.
 
@@ -546,14 +547,49 @@ app ID registration, version, signature, upload — is described in
 ## Licence
 
 AGPL-3.0-or-later, see [`LICENSE`](LICENSE). Every source file carries the
-matching SPDX header.
+matching SPDX header. The one exception inside a file: the `copy`, `more`,
+`plus` and `close` icons in `src/components/ui/PulseIcon.vue` are taken from
+or adapted from [Feather Icons](https://github.com/feathericons/feather)
+(`copy` with a slightly smaller front square), under the MIT License:
+
+<details>
+<summary>Feather Icons licence text</summary>
+
+```text
+The MIT License (MIT)
+
+Copyright (c) 2013-2023 Cole Bemis
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+</details>
+
+Pulse is an independent project and is not affiliated with or endorsed by the
+providers of Kahoot!, Mentimeter or Slido; these names are trademarks of their
+respective owners.
 
 ## Known limits and possible extensions
 
-- App Store: not published yet. The screenshots are in `screenshots/`; still
-  to do, in this order, are making this repository public, the pull request
-  for the signing certificate (not opened yet), registering the app ID and the
-  first signed release (as of 29 September 2026). Checklist in
+- App Store: not published yet. The repository is public and the pull request
+  for the signing certificate is open; still to do are registering the app ID
+  and the first signed release (as of 1 October 2026). Checklist in
   `docs/APPSTORE.md`. Further languages would go through Transifex and need
   Nextcloud's involvement.
 - Tested on Nextcloud 34 only; `info.xml` declares 34 only. Nextcloud 35

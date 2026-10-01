@@ -109,8 +109,8 @@ class PublicController extends Controller {
             TemplateResponse::RENDER_AS_PUBLIC,
         );
         // The projector/audience view is read-only (no action that could be
-        // abused via clickjacking) and should embed in presentation tools like a
-        // Mentimeter slide — above all the
+        // abused via clickjacking) and should embed in presentation tools as a
+        // live slide — above all the
         // "Web Viewer" add-in in PowerPoint. Hence frame-ancestors open.
         // Caution: the second framing blocker, X-Frame-Options: SAMEORIGIN, comes
         // from the core .htaccess (Header always set) and can NOT be

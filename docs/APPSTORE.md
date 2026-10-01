@@ -19,7 +19,7 @@ As of 1 October 2026:
 | Signing certificate from Nextcloud | key and `.csr` since 14 Aug 2026; pull request [#1292](https://github.com/nextcloud/app-certificate-requests/pull/1292) opened by the owner on 1 Oct 2026, DCO green, waiting for review |
 | Store account, app ID registered | not yet — needs the certificate |
 | `appinfo/info.xml` valid against the store schema | done — validates against the store's current schema (`xmllint`, also in CI and in `build/package.sh`) |
-| Licence | done — `LICENSE` (AGPL-3.0-or-later), SPDX header in every source file, `<licence>AGPL-3.0-or-later</licence>` in `info.xml` |
+| Licence | done — `LICENSE` (AGPL-3.0-or-later), SPDX header in every source file, `<licence>AGPL-3.0-or-later</licence>` in `info.xml`; four icons in `PulseIcon.vue` come from Feather Icons (MIT), credited with the licence text under "Licence" in the README |
 | `CHANGELOG.md` (the store's release notes) | format done; `[Unreleased]` still has to become the first release's section |
 | Release archive without sources/throwaway files | done (`build/package.sh`); signing tested with a throwaway certificate |
 | First release | not yet — no tag, no GitHub release, no signed archive; version number still to be chosen ([step 6](#6-first-release)) |

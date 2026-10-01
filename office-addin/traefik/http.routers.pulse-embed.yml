@@ -1,4 +1,4 @@
-# Make the Pulse projector/audience view embeddable in presentations (Mentimeter-style).
+# Make the Pulse projector/audience view embeddable in presentations.
 #
 # Nextcloud blocks framing on TWO levels:
 #   1. CSP frame-ancestors  -> solved in the app (PublicController::screen, '*')

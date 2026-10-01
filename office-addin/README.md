@@ -1,7 +1,7 @@
 # Embedding Pulse in PowerPoint (content add-in)
 
-Embeds the Pulse projector/poll view **live in a PowerPoint slide** – like a
-Mentimeter slide. No Office Store needed; the add-in is loaded by **sideloading**.
+Embeds the Pulse projector/poll view **live in a PowerPoint slide**. No Office
+Store needed; the add-in is loaded by **sideloading**.
 
 ## How it works
 
