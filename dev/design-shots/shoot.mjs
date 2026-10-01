@@ -625,6 +625,94 @@ function longWordMarks() {
 }
 
 /*
+ * Compass corner labels of 40 characters (probe.php add-compass), the most
+ * DeckService::buildCorners keeps. Each has to stay in its quadrant: not
+ * across the vertical axis, not on another label or an axis pole, not out of
+ * the field. Shortened ("…") is allowed and counted, not a finding.
+ */
+const CORNERS_STAGE = `
+	const plot = document.querySelector('.splot')
+	if (!plot) { return 'Kompass FEHLT' }
+	const p = plot.getBoundingClientRect()
+	const mid = p.left + p.width / 2
+	const corners = Array.from(plot.querySelectorAll('.splot-corner'))
+	if (!corners.length) { return 'Eckbeschriftungen FEHLT' }
+	const box = (el) => el.getBoundingClientRect()
+	const hit = (a, b) => Math.min(a.right, b.right) - Math.max(a.left, b.left) > 0.5 && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 0.5
+	const name = (el) => el.className.replace(/.*splot-corner--/, '')
+	// Visible lines only: the clamped ones are still laid out below the box.
+	const lines = (el) => {
+		const r = document.createRange()
+		r.selectNodeContents(el)
+		const b = box(el)
+		return new Set(Array.from(r.getClientRects()).filter((q) => q.top < b.bottom - 1).map((q) => Math.round(q.top))).size
+	}
+	const others = Array.from(plot.querySelectorAll('.splot-pole, .splot-centre'))
+	const hits = []
+	corners.forEach((a, i) => {
+		corners.slice(i + 1).forEach((b) => { if (hit(box(a), box(b))) { hits.push(name(a) + '/' + name(b)) } })
+		others.forEach((o) => { if (hit(box(a), box(o))) { hits.push(name(a) + '/' + o.textContent.trim()) } })
+	})
+	const across = corners.filter((el) => { const r = box(el); return /l$/.test(name(el)) ? r.right > mid + 0.5 : r.left < mid - 0.5 })
+	const out = corners.filter((el) => { const r = box(el); return r.left < p.left - 0.5 || r.right > p.right + 0.5 || r.top < p.top - 0.5 || r.bottom > p.bottom + 0.5 })
+	const cut = corners.filter((el) => el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1)
+	return corners.length + ' Ecken, ' + corners.map((el) => name(el) + ' ' + Math.round(box(el).width) + ' px/' + lines(el) + ' Z.').join(', ')
+		+ ' (halbe Fläche ' + Math.round(p.width / 2) + ' px), ' + (cut.length ? cut.length + ' gekürzt' : 'nichts gekürzt')
+		+ (hits.length ? ', ÜBERLAPPT: ' + hits.join(', ') : ', keine Überlappung')
+		+ (across.length ? ', ÜBER DIE MITTE: ' + across.map(name).join(', ') : '')
+		+ (out.length ? ', RAGT HERAUS: ' + out.map(name).join(', ') : ', alle in der Fläche')
+`
+
+// The same on the phone: SVG text, one <text> per line (ResultsView).
+const CORNERS_PHONE = `
+	const svg = document.querySelector('.compass-wrap svg')
+	if (!svg) { return 'Kompass FEHLT' }
+	const frame = svg.querySelector('rect[rx]')
+	if (!frame) { return 'Rahmen FEHLT' }
+	const f = frame.getBoundingClientRect()
+	const mid = f.left + f.width / 2
+	// Corner lines are anchored at the frame's sides (start/end); the centre of
+	// gravity shares the class but sits centred on its point.
+	const lines = Array.from(svg.querySelectorAll('text.fcorner:not([text-anchor="middle"])'))
+	if (!lines.length) { return 'Eckbeschriftungen FEHLT' }
+	const box = (el) => el.getBoundingClientRect()
+	const hit = (a, b) => Math.min(a.right, b.right) - Math.max(a.left, b.left) > 0.5 && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 0.5
+	// One corner = its anchor plus the half it sits in; its own lines may touch.
+	const corner = (el) => (box(el).top + box(el).height / 2 < f.top + f.height / 2 ? 't' : 'b') + (el.getAttribute('text-anchor') === 'start' ? 'l' : 'r')
+	const groups = {}
+	for (const el of lines) { (groups[corner(el)] = groups[corner(el)] || []).push(el) }
+	const names = Object.keys(groups).sort()
+	const poles = Array.from(svg.querySelectorAll('text.flabel')).filter((o) => o.textContent.trim())
+	const hits = []
+	names.forEach((a, i) => {
+		names.slice(i + 1).forEach((b) => { if (groups[a].some((x) => groups[b].some((y) => hit(box(x), box(y))))) { hits.push(a + '/' + b) } })
+		poles.forEach((o) => { if (groups[a].some((x) => hit(box(x), box(o)))) { hits.push(a + '/' + o.textContent.trim()) } })
+	})
+	const across = names.filter((n) => groups[n].some((el) => (/l$/.test(n) ? box(el).right > mid + 0.5 : box(el).left < mid - 0.5)))
+	const out = names.filter((n) => groups[n].some((el) => { const r = box(el); return r.left < f.left - 0.5 || r.right > f.right + 0.5 || r.top < f.top - 0.5 || r.bottom > f.bottom + 0.5 }))
+	const cut = names.filter((n) => groups[n].some((el) => el.textContent.trim().endsWith('…')))
+	const tip = names.filter((n) => groups[n].some((el) => el.querySelector('title')))
+	const sc = document.querySelector('.h-scroll')
+	const de = document.documentElement
+	const pageX = de.scrollWidth - de.clientWidth, scrollX = sc ? sc.scrollWidth - sc.clientWidth : 0
+	return names.length + ' Ecken, ' + names.map((n) => n + ' ' + groups[n].length + ' Z.').join(', ')
+		+ ', ' + (cut.length ? cut.length + ' gekürzt (' + tip.length + ' mit Tooltip)' : 'nichts gekürzt')
+		+ (hits.length ? ', ÜBERLAPPT: ' + hits.join(', ') : ', keine Überlappung')
+		+ (across.length ? ', ÜBER DIE MITTE: ' + across.join(', ') : '')
+		+ (out.length ? ', RAGT HERAUS: ' + out.join(', ') : ', alle im Rahmen')
+		+ ', waagerecht Seite ' + pageX + ' px / Antwortbereich ' + scrollX + ' px' + (pageX > 0 || scrollX > 0 ? ' WAAGERECHT' : '')
+`
+
+// Marks of the corner-label measurements that count as an anomaly (last index line).
+const CORNER_MARKS = ['FEHLT', 'ÜBERLAPPT', 'ÜBER DIE MITTE', 'RAGT HERAUS', 'WAAGERECHT']
+function cornerMarks() {
+	const line = index[index.length - 1]
+	for (const mark of CORNER_MARKS) {
+		if (line.includes(mark)) { overflow.push(line.split(' | ')[0].slice(2) + ': Eckbeschriftung ' + mark) }
+	}
+}
+
+/*
  * Question types revealed (§7.10). The constellations here decide the
  * acceptance of stage 3 and cannot be produced with random votes:
  * Ø ≈ median, all votes on one value, the heatmap threshold at 44 versus
@@ -708,6 +796,19 @@ async function typePass(s) {
 	probe('fixture', types.code, String(full.id), 'words-long', '7', LONG_WORD)
 	await stage('words-long-top', 'Beamer Wortwolke: das Wort mit 40 Zeichen ist das häufigste (8 Nennungen)', { settle: 2500, measure: CLOUD_LONG })
 	longWordMarks()
+
+	// Four compass corner labels of 40 characters: each stays in its quadrant
+	// (two lines, then "…") instead of running across the axis into the
+	// opposite one. A question of its own, added only now like the long words;
+	// at full HD and at 1280 × 720, where the field is narrowest.
+	const corners = JSON.parse(probe('add-compass', types.code, 'compass-corners-long'))
+	probe('state', types.code, String(corners.id), 'open')
+	probe('fixture', types.code, String(corners.id), 'compass', '44')
+	probe('state', types.code, String(corners.id), 'locked')
+	await stage('compass-corners-long', 'Beamer Kompass: vier Eckbeschriftungen mit 40 Zeichen', { settle: 2500, measure: CORNERS_STAGE })
+	cornerMarks()
+	await stage('compass-corners-long-1280', 'Beamer Kompass: vier Eckbeschriftungen mit 40 Zeichen bei 1280 × 720', { size: [1280, 720], measure: CORNERS_STAGE })
+	cornerMarks()
 }
 
 /*
@@ -866,6 +967,24 @@ async function phonePass(s) {
 		// Back to the state the pass had before, so a full run hands the next
 		// passes (dark photographs the poll room first) the same room as ever.
 		probe('state', poll.code, String(first.id), 'locked')
+	}
+
+	// The four corner labels of 40 characters in the phone's compass field:
+	// SVG text does not wrap by itself, so ResultsView breaks them into two
+	// lines each, then "…". A question of its own in the types room, added
+	// only now; this phone has not answered it, so the field shows without
+	// "You".
+	if (types) {
+		const corners = JSON.parse(probe('add-compass', types.code, 'compass-corners-phone'))
+		probe('state', types.code, String(corners.id), 'open')
+		probe('fixture', types.code, String(corners.id), 'compass', '44')
+		probe('state', types.code, String(corners.id), 'locked')
+		await shot(s, {
+			name: 'phone-compass-corners-long', url: `/apps/pulse/s/${types.code}`, size: PHONE,
+			waitSel: '.compass-wrap svg', measure: CORNERS_PHONE,
+			note: 'Handy Kompass aufgelöst: vier Eckbeschriftungen mit 40 Zeichen',
+		})
+		cornerMarks()
 	}
 }
 

@@ -137,6 +137,43 @@ export function hasTallLabel(rows) {
 }
 
 /**
+ * Break a label into lines for SVG text, which does not wrap by itself: at
+ * spaces, a word longer than a line inside it (like overflow-wrap: anywhere),
+ * at most `maxLines` lines, the last one ending in "…" when text is left
+ * over. Counted in characters (code points), not pixels: the caller picks
+ * `perLine` with room for wide letters. Used for the compass corner labels in
+ * ResultsView; the projector (StageCompass) does the same in CSS.
+ * @param {string} text label
+ * @param {number} perLine at most this many characters per line
+ * @param {number} [maxLines] at most this many lines
+ * @return {{lines: string[], cut: boolean}} the lines; cut = text was left out
+ */
+export function wrapLabel(text, perLine, maxLines = 2) {
+	const len = (s) => Array.from(s).length
+	const lines = []
+	let line = ''
+	for (const word of String(text || '').trim().split(/\s+/).filter(Boolean)) {
+		if (line && len(line) + 1 + len(word) <= perLine) {
+			line += ' ' + word
+			continue
+		}
+		if (line) lines.push(line)
+		let chars = Array.from(word)
+		while (chars.length > perLine) {
+			lines.push(chars.slice(0, perLine).join(''))
+			chars = chars.slice(perLine)
+		}
+		line = chars.join('')
+	}
+	if (line) lines.push(line)
+	if (lines.length <= maxLines) return { lines, cut: false }
+	const kept = lines.slice(0, maxLines)
+	const last = Array.from(kept[maxLines - 1])
+	kept[maxLines - 1] = (last.length < perLine ? last : last.slice(0, perLine - 1)).join('').trimEnd() + '…'
+	return { lines: kept, cut: true }
+}
+
+/**
  * Compass: from this many answers the result is a heat map instead of single
  * dots. The default for a question without a value of its own: the composer
  * (util/question-types.js) offers it, and the phone and moderator result

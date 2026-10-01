@@ -11,6 +11,8 @@
 //   and the reveal (ResultsView) switches at the same label length.
 // - fmtAgo(): "x min ago" in the run view (server time) and in the
 //   moderator's room list (Moderator.ago(), laptop clock with milliseconds).
+// - wrapLabel(): the lines of a compass corner label in the phone and
+//   moderator field (ResultsView), where SVG text does not wrap by itself.
 // - HEATMAP_THRESHOLD: the compass default of the composer, the phone and
 //   moderator result and the projector is the server's (read from the PHP
 //   sources), and no file under src/ keeps a number of its own.
@@ -21,7 +23,7 @@ import assert from 'node:assert/strict'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { fmtAgo, hasTallLabel, HEATMAP_THRESHOLD } from '../../src/util/format.js'
+import { fmtAgo, hasTallLabel, HEATMAP_THRESHOLD, wrapLabel } from '../../src/util/format.js'
 
 const APP = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
 
@@ -99,6 +101,53 @@ test('fmtAgo: a fractional now (Date.now() / 1000) does not move a step', () => 
 	assert.equal(fmtAgo(NOW - 90, NOW + 0.001), '1 min ago')
 	assert.equal(fmtAgo(NOW - 3599, NOW + 0.999), '59 min ago')
 	assert.equal(fmtAgo(NOW - 86399, NOW + 0.999), '23 h ago')
+})
+
+// ── wrapLabel ────────────────────────────────────────────────────────────
+// The compass corner labels in ResultsView: up to 40 characters (the server's
+// cut) once ran on one line across the axis into the opposite corner.
+
+test('wrapLabel: a short label stays one line, untouched', () => {
+	for (const s of ['Steady', 'Sprinter', 'Curator', 'Explorer']) {
+		assert.deepEqual(wrapLabel(s, 19), { lines: [s], cut: false })
+	}
+})
+
+test('wrapLabel: breaks at spaces, two lines without "…" when it fits', () => {
+	assert.deepEqual(wrapLabel('Steady hands keep it all alive', 19), { lines: ['Steady hands keep', 'it all alive'], cut: false })
+	assert.deepEqual(wrapLabel('Big picture thinkers', 19), { lines: ['Big picture', 'thinkers'], cut: false })
+})
+
+test('wrapLabel: what does not fit into two lines ends in "…" within the budget', () => {
+	assert.deepEqual(wrapLabel('Steady hands keep the long project alive', 19),
+		{ lines: ['Steady hands keep', 'the long project…'], cut: true })
+	const w = wrapLabel('Sprinting ahead before the plan is ready', 10, 3)
+	assert.equal(w.cut, true)
+	assert.equal(w.lines.length, 3)
+	for (const line of w.lines) assert.ok(Array.from(line).length <= 10, line)
+})
+
+test('wrapLabel: a word longer than a line breaks inside it', () => {
+	assert.deepEqual(wrapLabel('Kraftfahrzeughaftpflichtversicherungsamt', 19),
+		{ lines: ['Kraftfahrzeughaftpf', 'lichtversicherungs…'], cut: true })
+	// As overflow-wrap: anywhere on the projector: the space comes first, the
+	// long word then starts a line of its own.
+	assert.deepEqual(wrapLabel('Go Kraftfahrzeugversicherung', 19),
+		{ lines: ['Go', 'Kraftfahrzeugversi…'], cut: true })
+})
+
+test('wrapLabel: whitespace collapses, nothing gives no lines', () => {
+	assert.deepEqual(wrapLabel('  Quick \t wins  ', 19), { lines: ['Quick wins'], cut: false })
+	assert.deepEqual(wrapLabel('', 19), { lines: [], cut: false })
+	assert.deepEqual(wrapLabel(null, 19), { lines: [], cut: false })
+})
+
+test('wrapLabel: counts characters, not UTF-16 units, and never splits one', () => {
+	const w = wrapLabel('\u{1F600}'.repeat(20), 19)
+	assert.equal(w.lines.length, 2)
+	assert.equal(Array.from(w.lines[0]).length, 19)
+	for (const line of w.lines) assert.doesNotMatch(line, /[\uD800-\uDBFF](?![\uDC00-\uDFFF])/)
+	assert.deepEqual(wrapLabel('Größenverhältnisse', 19), { lines: ['Größenverhältnisse'], cut: false })
 })
 
 // ── HEATMAP_THRESHOLD ────────────────────────────────────────────────────

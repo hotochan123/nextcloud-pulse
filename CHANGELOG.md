@@ -522,6 +522,11 @@ described under "Security notes" and "Known limits" in the README.
   its end accepts a deadline just over a minute away, as its message says. A
   deadline 90 seconds ahead used to be refused with that very message, and the
   date picker could offer such a refused minute.
+- Long compass corner labels no longer run across the axis into the opposite
+  corner. On the projector and in the phone and moderator results each label
+  stays in its quadrant and wraps onto at most two lines, ending in "…" only
+  when it is longer still (the moderator sees the full label on hover). Short
+  labels look as before.
 
 ### Removed
 - `office-addin/manifest.xml`. It is generated now, and a second editable copy

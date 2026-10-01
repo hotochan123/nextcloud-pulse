@@ -151,7 +151,20 @@ export default {
 .splot-pole--bottom { left: 50%; bottom: -0.2em; transform: translate(-50%, 100%); }
 .splot-pole--left { left: -0.4em; top: 50%; transform: translate(-100%, -50%); }
 .splot-pole--right { right: -0.4em; top: 50%; transform: translate(100%, -50%); }
-.splot-corner { position: absolute; font-size: 0.55em; font-weight: 700; color: var(--pulse-meta); }
+/* A corner label names its quadrant and stays in it: at most half the field
+   minus the inset and the same gap again before the axis, two lines, then
+   "…". The server keeps 40 characters (DeckService::buildCorners); on one
+   line that ran across the axis into the opposite label. Short labels are
+   narrower than the cap and sit exactly where they did. The clamp needs
+   overflow: hidden, and that clipped the ink a glyph puts past its advance
+   (the tail of the "y" in "Steady"); the inline padding gives it room, and
+   the negative margin keeps the text in place. */
+.splot-corner {
+	position: absolute; font-size: 0.55em; font-weight: 700; color: var(--pulse-meta);
+	max-width: calc(50% - 0.8em); overflow-wrap: anywhere;
+	overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+	padding-inline: 0.1em; margin-inline: -0.1em;
+}
 .splot-corner--tl { left: 0.4em; top: 0.3em; }
 .splot-corner--tr { right: 0.4em; top: 0.3em; text-align: right; }
 .splot-corner--bl { left: 0.4em; bottom: 0.3em; }

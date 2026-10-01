@@ -247,7 +247,7 @@
 							<text :x="compass.poles.bottom.x" :y="compass.poles.bottom.y" text-anchor="middle" class="flabel">{{ compass.poles.bottom.t }}</text>
 							<text :x="compass.poles.right.x" :y="compass.poles.right.y" text-anchor="start" class="flabel">{{ compass.poles.right.t }}</text>
 							<text :x="compass.poles.left.x" :y="compass.poles.left.y" text-anchor="end" class="flabel">{{ compass.poles.left.t }}</text>
-							<text v-for="(cc, i) in compass.corners" :key="'cc' + i" :x="cc.x" :y="cc.y" :text-anchor="cc.anchor" class="fcorner">{{ cc.t }}</text>
+							<text v-for="(cc, i) in compass.corners" :key="'cc' + i" :x="cc.x" :y="cc.y" :text-anchor="cc.anchor" class="fcorner"><title v-if="cc.full">{{ cc.full }}</title>{{ cc.t }}</text>
 							<template v-if="compass.centroid">
 								<polygon :points="compass.centroid.points" style="fill:var(--pulse-viz);stroke:var(--pulse-bg);stroke-width:2" />
 								<text :x="compass.centroid.x" :y="compass.centroid.ty" text-anchor="middle" class="fcorner" style="fill:var(--pulse-viz);font-weight:800">{{ t('pulse', 'Centre of gravity') }}</text>
@@ -322,7 +322,7 @@
  * self-paced quiz, which are not in the public repository (see "References in
  * code comments" in the README).
  */
-import { fmtNum, hasTallLabel, HEATMAP_THRESHOLD } from '../util/format.js'
+import { fmtNum, hasTallLabel, HEATMAP_THRESHOLD, wrapLabel } from '../util/format.js'
 import { option, rampStep, withPalette } from '../util/palette.js'
 import PulseIcon from './ui/PulseIcon.vue'
 import StageCompass from './StageCompass.vue'
@@ -574,6 +574,20 @@ export default {
 			if (cl[1]) corners.push({ x: r1(sx(R) - 6), y: r1(sy(-R) - 8), anchor: 'end', t: cl[1] })
 			if (cl[2]) corners.push({ x: r1(sx(-R) + 6), y: r1(sy(R) + 16), anchor: 'start', t: cl[2] })
 			if (cl[3]) corners.push({ x: r1(sx(R) - 6), y: r1(sy(R) + 16), anchor: 'end', t: cl[3] })
+			// SVG text does not wrap: a label of up to 40 characters ran across
+			// the axis into the opposite corner. Two lines of what fits into half
+			// the field (148 units between the inset and a gap before the axis;
+			// 19 bold characters at 13 units stay within about 150 in Noto Sans,
+			// capitals included — a wide fallback font can still reach the axis),
+			// then "…", the whole label as a tooltip. A top label grows down into
+			// the field and a bottom one up, so a short label keeps its one line
+			// exactly where it was.
+			const cornerLines = []
+			for (const c of corners) {
+				const w = wrapLabel(c.t, 19)
+				const first = c.y > cy ? 1 - w.lines.length : 0
+				w.lines.forEach((t, i) => cornerLines.push({ x: c.x, y: r1(c.y + (first + i) * 15), anchor: c.anchor, t, full: w.cut ? c.t : '' }))
+			}
 			const total = this.results.total || 0
 			const pts = this.results.points || []
 			const heatmap = total >= this.heatmapThreshold
@@ -614,7 +628,7 @@ export default {
 				const X = sx(m.x), Y = sy(m.y)
 				mine = { x: X, y: Y, tx: r1(X + 15), ty: r1(Y + 4) }
 			}
-			return { grid, frame, nullV, nullH, poles, corners, cells, dots, heatmap, centroid, mine }
+			return { grid, frame, nullV, nullH, poles, corners: cornerLines, cells, dots, heatmap, centroid, mine }
 		},
 		// Figures column for the compass: centre of gravity + "You" as a large tabular
 		// X/Y readout (values in the column instead of at the edge, §1 projector layout).

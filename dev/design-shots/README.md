@@ -103,8 +103,9 @@ docker exec -u www-data nextcloud-nextcloud-1 php /var/www/html/apps/pulse/dev/d
 
 ## Long words
 
-The `types` and `phone` passes end with a word of 40 characters, the most
-the server keeps and the phone's word field takes. `probe.php add-words`
+Near their end (before the corner-label captures, see below), the `types`
+and `phone` passes show a word of 40 characters, the most the server keeps
+and the phone's word field takes. `probe.php add-words`
 appends its questions to the types room only then, so every earlier capture
 and every other pass keeps its rooms and decks. `types` photographs the
 projector cloud with the word alone, inside the 16-word fixture cloud (one
@@ -120,6 +121,21 @@ question by keyboard (focus plus click, as Enter does): three times down to the
 bottom, once up. After every step the focus must be on that item's arrow — at
 the bottom on its "↑", since "↓" is disabled there. The line reads
 `↓ → ↓ → ↑ → ↑`; a lost focus shows as `VERLOREN` and lands in the list too.
+
+## Long corner labels
+
+The `types` pass ends with a compass whose four corner labels have 40
+characters each, the most `DeckService::buildCorners` keeps (three break at
+spaces, one is a single word); `probe.php add-compass` appends the question
+only then, like `add-words`. It is photographed at 1920 × 1080 and at
+1280 × 720, where the field is narrowest. The `phone` pass ends with the same
+labels in the phone's compass field (`ResultsView`, SVG), a question of its
+own again; the phone has not answered it. Both measure that every label stays
+in its quadrant: not across the vertical axis, not on another label or an
+axis pole (the projector also checks the centre of gravity), not out of the
+field. Shortened labels ("…", two lines at most) are counted, not a finding.
+A finding (`FEHLT`, `ÜBERLAPPT`, `ÜBER DIE MITTE`, `RAGT HERAUS`,
+`WAAGERECHT`) lands in the list at the end of `index.md`.
 
 ## Brute-force trap
 

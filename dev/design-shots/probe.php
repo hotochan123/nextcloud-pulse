@@ -18,6 +18,7 @@ declare(strict_types=1);
  *   php probe.php end    <code>
  *   php probe.php destroy <uid>
  *   php probe.php add-words <code> <label> [maxWords]
+ *   php probe.php add-compass <code> <label>
  *
  * Self-paced quiz (stage 4):
  *   php probe.php pace <code> live|self
@@ -557,6 +558,30 @@ if ($cmd === 'add-words') {
         'question' => 'One word: what slowed the project down?',
         'maxWords' => max(1, (int)($argv[4] ?? 3)),
     ], (string)($argv[3] ?? 'words'));
+    echo json_encode($poll, JSON_UNESCAPED_UNICODE), "\n";
+    exit(0);
+}
+
+/*
+ * A compass question with four corner labels of 40 characters, the most
+ * DeckService::buildCorners keeps; appended like `add-words`, so every earlier
+ * capture keeps its deck. Three labels break at spaces, one is a single word
+ * that can only break inside. Order [bottom-left, bottom-right, top-left,
+ * top-right]. Votes come from `fixture compass`.
+ */
+if ($cmd === 'add-compass') {
+    $room = $roomMapper->findByCode((string)$argv[2]);
+    $poll = add($deck, $room, [
+        'type' => 'scale', 'question' => 'Where do you stand?', 'scaleMode' => 'compass', 'range' => 5,
+        'axisX' => ['title' => 'Pace', 'poleLow' => 'Careful', 'poleHigh' => 'Fast'],
+        'axisY' => ['title' => 'Scope', 'poleLow' => 'Focused', 'poleHigh' => 'Broad'],
+        'cornerLabels' => [
+            'Steady hands keep the long project alive',
+            'Sprinting ahead before the plan is ready',
+            'Curating every detail of the whole scope',
+            'Kraftfahrzeughaftpflichtversicherungsamt',
+        ],
+    ], (string)($argv[3] ?? 'compass-corners'));
     echo json_encode($poll, JSON_UNESCAPED_UNICODE), "\n";
     exit(0);
 }

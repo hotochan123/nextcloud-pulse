@@ -17,7 +17,8 @@
 //   TYPES_QUIZ in lib/Service/DeckService.php).
 // - The compass corner labels: the order toBody sends is the one the
 //   composer's inputs, the phone and moderator field (ResultsView) and the
-//   projector (StageCompass) place in the same corners (read from the sources).
+//   projector (StageCompass) place in the same corners, and a long label stays
+//   in its half of the field there (read from the sources).
 // - The deck's type labels, tags and answer hints, and lossText(), the loss
 //   sentence of the destructive confirmations.
 //
@@ -495,6 +496,28 @@ test('scale compass: each corner label sits in the same corner in the composer, 
 	for (const [c, v, h] of [['tl', 'top', 'left'], ['tr', 'top', 'right'], ['bl', 'bottom', 'left'], ['br', 'bottom', 'right']]) {
 		assert.match(sc, new RegExp('\\.splot-corner--' + c + ' \\{ ' + h + ': [^;]+; ' + v + ': '), 'StageCompass: .splot-corner--' + c)
 	}
+})
+
+// A corner label of up to 40 characters (the server's cut) ran on one line
+// across the axis into the opposite label, on the projector and in the phone
+// and moderator field. Both now keep it in its half: the projector in CSS,
+// the SVG through wrapLabel() (dev/unit/format.test.mjs). The harness measures
+// it in the browser (dev/design-shots, "Long corner labels").
+test('scale compass: a corner label stays in its half of the field on every view', () => {
+	const src = (rel) => readFileSync(new URL('../../' + rel, import.meta.url), 'utf8')
+	const rule = src('src/components/StageCompass.vue').match(/\n\.splot-corner \{([^}]*)\}/)
+	assert.ok(rule, 'StageCompass: .splot-corner rule')
+	assert.match(rule[1], /max-width: calc\(50% - /, 'StageCompass: at most half the field')
+	assert.match(rule[1], /-webkit-line-clamp: 2;/, 'StageCompass: two lines')
+	assert.match(rule[1], /overflow: hidden;/, 'StageCompass: the clamp clips')
+	const rv = src('src/components/ResultsView.vue')
+	// 19 characters per line fit into half the field (see the comment there);
+	// a longer budget brings the overlap back for labels that fit on one line.
+	assert.match(rv, /const w = wrapLabel\(c\.t, 19\)/, 'ResultsView: corner labels go through wrapLabel, 19 characters a line')
+	// A top label grows down into the field, a bottom one up: out of the frame otherwise.
+	assert.match(rv, /const first = c\.y > cy \? 1 - w\.lines\.length : 0/, 'ResultsView: lines grow into the field')
+	assert.match(rv, /<title v-if="cc\.full">\{\{ cc\.full \}\}<\/title>/, 'ResultsView: a shortened label keeps its full text as a tooltip')
+	assert.match(rv, /corners: cornerLines,/, 'ResultsView: the field draws the wrapped lines')
 })
 
 // ── words ────────────────────────────────────────────────────────────────
