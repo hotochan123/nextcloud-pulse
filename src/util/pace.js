@@ -22,6 +22,16 @@
 export const DEADLINE_MIN = 60
 export const DEADLINE_MAX = 2592000
 
+// The dialog checks a deadline DEADLINE_SLACK seconds inside those bounds. Its
+// "now" estimates the server clock (laptop time + skew, both in whole seconds,
+// refreshed once a second) and runs up to about 3 s behind it, plus the trips of
+// the last poll's response and of this request — the server measures the lead
+// only when the request arrives. Not more: the error sentence is the server's
+// own ("between one minute and 30 days"), and a wider margin would refuse
+// deadlines it calls fine. A request slower than that gets the server's 400
+// with the same sentence, shown in the dialog.
+export const DEADLINE_SLACK = 5
+
 // From here on the phone shows "Closes in %n min" (name screen and question).
 export const CLOSING_SOON = 15 * 60
 
@@ -103,6 +113,32 @@ export function fromLocalInput(s) {
 	const date = new Date(y, mo - 1, d, h, mi, sec, 0)
 	if (date.getFullYear() !== y || date.getMonth() !== mo - 1 || date.getDate() !== d) return NaN
 	return Math.floor(date.getTime() / 1000)
+}
+
+/**
+ * Will the server take this deadline (DEADLINE_MIN … DEADLINE_MAX ahead),
+ * with DEADLINE_SLACK to spare at both ends?
+ * @param {number} closesAt Unix seconds (NaN = empty or invalid field)
+ * @param {number} nowSec now in server time (seconds)
+ * @return {boolean}
+ */
+export function deadlineInRange(closesAt, nowSec) {
+	const lead = closesAt - nowSec
+	return isFinite(lead) && lead >= DEADLINE_MIN + DEADLINE_SLACK && lead <= DEADLINE_MAX - DEADLINE_SLACK
+}
+
+/**
+ * min/max of the datetime-local field. The field holds whole minutes, so the
+ * earliest one is rounded up and the latest one down: every minute the
+ * picker offers passes deadlineInRange at this second.
+ * @param {number} nowSec now in server time (seconds)
+ * @return {{min: number, max: number}} Unix seconds, both on a full minute
+ */
+export function deadlineInputRange(nowSec) {
+	return {
+		min: Math.ceil((nowSec + DEADLINE_MIN + DEADLINE_SLACK) / 60) * 60,
+		max: Math.floor((nowSec + DEADLINE_MAX - DEADLINE_SLACK) / 60) * 60,
+	}
 }
 
 /**

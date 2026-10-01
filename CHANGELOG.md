@@ -518,6 +518,10 @@ described under "Security notes" and "Known limits" in the README.
   screen next to the error message, and the next move that did save took it
   along. If a question had been deleted in another tab, every later move failed
   until the page was reloaded.
+- Self-paced quiz: the dialog for opening the quiz, reopening it or changing
+  its end accepts a deadline just over a minute away, as its message says. A
+  deadline 90 seconds ahead used to be refused with that very message, and the
+  date picker could offer such a refused minute.
 
 ### Removed
 - `office-addin/manifest.xml`. It is generated now, and a second editable copy

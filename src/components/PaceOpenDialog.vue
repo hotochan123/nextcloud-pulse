@@ -140,7 +140,7 @@ import { MOD_TIMEOUT, roomApi } from '../util/routes.js'
 import { t, n } from '../util/l10n.js'
 import { serverMessage } from '../toast.js'
 import { fmtDeadline, fmtDuration } from '../util/format.js'
-import { DEADLINE_MIN, DEADLINE_MAX, toLocalInput, fromLocalInput, defaultDeadline, deadlinePresets, stopDeadline, windowState } from '../util/pace.js'
+import { DEADLINE_MIN, deadlineInRange, deadlineInputRange, toLocalInput, fromLocalInput, defaultDeadline, deadlinePresets, stopDeadline, windowState } from '../util/pace.js'
 import PulseIcon from './ui/PulseIcon.vue'
 import PulseSegmented from './ui/PulseSegmented.vue'
 
@@ -148,7 +148,8 @@ const serverNow = (skew) => Math.floor(Date.now() / 1000) + (Number(skew) || 0)
 
 /**
  * Prefill when extending: without a deadline "When I close it"; with a deadline
- * that one — unless it has passed or is too close for the server, then tomorrow (on the full
+ * that one — unless it has passed or is due within two minutes (the server's minute
+ * plus one for reading the dialog before it runs out), then tomorrow (on the full
  * hour) and the old one for comparison. Legacy: a deadline set by the former
  * "Stop without releasing" (deadline in two minutes, then close —
  * two calls) counts as none (stopDeadline): nobody chose it. Since
@@ -240,22 +241,19 @@ export default {
 		},
 		// Browser limits of the field; the actual validation is deadlineError.
 		minInput() {
-			return toLocalInput(this.now + DEADLINE_MIN + 60)
+			return toLocalInput(deadlineInputRange(this.now).min)
 		},
 		maxInput() {
-			return toLocalInput(this.now + DEADLINE_MAX - 60)
+			return toLocalInput(deadlineInputRange(this.now).max)
 		},
 		closesAt() {
 			return this.end === 'manual' ? 0 : fromLocalInput(this.deadline)
 		},
-		// One minute of slack at both ends: time passes between the click and the server.
+		// The server's bounds with a few seconds to spare (deadlineInRange) — and
+		// the server's sentence, so a 400 from a slow request reads the same.
 		deadlineError() {
-			if (this.end !== 'deadline') return ''
-			const lead = this.closesAt - this.now
-			if (!isFinite(this.closesAt) || lead < DEADLINE_MIN + 60 || lead > DEADLINE_MAX - 60) {
-				return t('pulse', 'The deadline must be between one minute and 30 days from now.')
-			}
-			return ''
+			if (this.end !== 'deadline' || deadlineInRange(this.closesAt, this.now)) return ''
+			return t('pulse', 'The deadline must be between one minute and 30 days from now.')
 		},
 		relLine() {
 			if (this.end !== 'deadline' || this.deadlineError) return ''

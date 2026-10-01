@@ -3,7 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Unit test for src/util/pace.js (self-paced quiz): pure decisions
-// and time arithmetic, without a browser and without Nextcloud.
+// and time arithmetic, without a browser and without Nextcloud. One test also
+// reads the deadline dialog and PaceService as source: the dialog's bounds,
+// its error sentence and the server's check have to say the same thing.
 //
 //   TZ=Europe/Berlin node dev/unit/pace.test.mjs      # exit 0 = all green
 //
@@ -16,10 +18,11 @@
 // which is not in the public repository (see "References in code comments" in
 // the README).
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import {
-	DEADLINE_MIN, DEADLINE_MAX, CLOSING_SOON, STOP_LEAD,
+	DEADLINE_MIN, DEADLINE_MAX, DEADLINE_SLACK, CLOSING_SOON, STOP_LEAD,
 	isPacedRoom, windowState, stopDeadline, toLocalInput, fromLocalInput, defaultDeadline,
-	deadlinePresets, splitDuration, raceRows, paceCard, canNext, phoneDelay, progressDelay, progressCounts,
+	deadlineInRange, deadlineInputRange, deadlinePresets, splitDuration, raceRows, paceCard, canNext, phoneDelay, progressDelay, progressCounts,
 } from '../../src/util/pace.js'
 
 let passed = 0
@@ -162,8 +165,7 @@ test('deadlinePresets: vier Knöpfe, minutengenau, morgen 08:00', () => {
 	for (const x of p) {
 		assert.equal(x.ts % 60, 0, x.key + ' minutengenau')
 		assert.equal(fromLocalInput(toLocalInput(x.ts)), x.ts, x.key + ' übersteht das Feld')
-		assert.ok(x.ts - now >= DEADLINE_MIN + 60, x.key + ' über der Client-Untergrenze')
-		assert.ok(x.ts - now <= DEADLINE_MAX - 60, x.key + ' unter der Client-Obergrenze')
+		assert.ok(deadlineInRange(x.ts, now), x.key + ' in den Grenzen des Dialogs')
 	}
 	assert.equal(p[0].ts, local(2026, 9, 27, 14, 23))
 	assert.equal(p[1].ts, local(2026, 9, 27, 15, 8))
@@ -179,6 +181,80 @@ test('deadlinePresets: morgen 08:00 auch kurz vor Mitternacht', () => {
 	assert.equal(deadlinePresets(local(2026, 12, 31, 23, 50))[2].ts, local(2027, 1, 1, 8, 0))
 	// night of the DST change
 	assert.equal(toLocalInput(deadlinePresets(local(2026, 10, 24, 22, 0))[2].ts), '2026-10-25T08:00')
+})
+
+test('deadlineInRange: die Servergrenzen mit wenigen Sekunden Puffer', () => {
+	const now = local(2026, 9, 27, 14, 0, 30)
+	// 90 s ahead: more than the minute the error sentence promises (was refused)
+	assert.equal(deadlineInRange(now + 90, now), true)
+	assert.equal(deadlineInRange(now + DEADLINE_MIN + DEADLINE_SLACK, now), true)
+	assert.equal(deadlineInRange(now + DEADLINE_MIN + DEADLINE_SLACK - 1, now), false)
+	assert.equal(deadlineInRange(now + DEADLINE_MAX - DEADLINE_SLACK, now), true)
+	assert.equal(deadlineInRange(now + DEADLINE_MAX - DEADLINE_SLACK + 1, now), false)
+	assert.equal(deadlineInRange(now, now), false)
+	assert.equal(deadlineInRange(now - 3600, now), false)
+	assert.equal(deadlineInRange(NaN, now), false)
+	assert.equal(deadlineInRange(fromLocalInput(''), now), false)
+	// a few seconds: enough for the whole-second clock estimate, small against the minute
+	assert.ok(DEADLINE_SLACK >= 3 && DEADLINE_SLACK <= 10, 'DEADLINE_SLACK = ' + DEADLINE_SLACK)
+})
+
+test('deadlineInputRange: jede Minute, die das Feld anbietet, ist gültig', () => {
+	for (let sec = 0; sec < 60; sec++) {
+		const now = local(2026, 9, 27, 14, 0, sec)
+		const { min, max } = deadlineInputRange(now)
+		const at = ' um 14:00:' + String(sec).padStart(2, '0')
+		assert.equal(fromLocalInput(toLocalInput(min)), min, 'min minutengenau' + at)
+		assert.equal(fromLocalInput(toLocalInput(max)), max, 'max minutengenau' + at)
+		assert.equal(deadlineInRange(min, now), true, 'min gültig' + at)
+		assert.equal(deadlineInRange(min - 60, now), false, 'die Minute davor nicht' + at)
+		assert.equal(deadlineInRange(max, now), true, 'max gültig' + at)
+		assert.equal(deadlineInRange(max + 60, now), false, 'die Minute danach nicht' + at)
+	}
+	// 14:00:30: 14:01 is only 30 s away, 14:02 (90 s) is the first one offered
+	assert.equal(toLocalInput(deadlineInputRange(local(2026, 9, 27, 14, 0, 30)).min), '2026-09-27T14:02')
+	assert.equal(toLocalInput(deadlineInputRange(local(2026, 9, 27, 14, 0, 56)).min), '2026-09-27T14:03')
+	// 30 days of seconds across the DST change: one hour earlier on the clock
+	assert.equal(toLocalInput(deadlineInputRange(local(2026, 9, 27, 14, 0, 30)).max), '2026-10-27T13:00')
+})
+
+test('Frist-Satz: Dialog und Server sagen denselben, und er nennt DEADLINE_MIN/MAX', () => {
+	const vue = readFileSync(new URL('../../src/components/PaceOpenDialog.vue', import.meta.url), 'utf8')
+	const php = readFileSync(new URL('../../lib/Service/PaceService.php', import.meta.url), 'utf8')
+	// Dialog: deadlineError asks deadlineInRange and has exactly one sentence;
+	// the field's min/max come from the same range.
+	const err = /\n\t\tdeadlineError\(\) \{\n([\s\S]*?)\n\t\t\},/.exec(vue)
+	assert.ok(err, 'computed deadlineError not found')
+	assert.match(err[1], /deadlineInRange\(this\.closesAt, this\.now\)/)
+	const said = [...err[1].matchAll(/t\('pulse', '([^']+)'\)/g)].map((m) => m[1])
+	assert.equal(said.length, 1, 'deadlineError says one sentence')
+	const sentence = said[0]
+	assert.match(vue, /minInput\(\) \{\n\t\t\treturn toLocalInput\(deadlineInputRange\(this\.now\)\.min\)/)
+	assert.match(vue, /maxInput\(\) \{\n\t\t\treturn toLocalInput\(deadlineInputRange\(this\.now\)\.max\)/)
+	// Server: the same sentence where it checks MIN_LEAD/MAX_LEAD, and the same numbers.
+	const check = /function assertDeadline\([^)]*\): void \{([\s\S]*?)\n {4}\}/.exec(php)
+	assert.ok(check, 'PaceService::assertDeadline not found')
+	assert.match(check[1], /self::MIN_LEAD/)
+	assert.match(check[1], /self::MAX_LEAD/)
+	assert.ok(check[1].includes("$this->l10n->t('" + sentence + "')"), 'server says: ' + check[1].trim())
+	const lead = (name) => {
+		const m = new RegExp('public const ' + name + ' = ([\\d *]+);').exec(php)
+		assert.ok(m, 'PaceService::' + name + ' not found')
+		return m[1].split('*').reduce((p, x) => p * Number(x), 1)
+	}
+	assert.equal(lead('MIN_LEAD'), DEADLINE_MIN)
+	assert.equal(lead('MAX_LEAD'), DEADLINE_MAX)
+	// The sentence names exactly those bounds.
+	const unit = { minute: 60, minutes: 60, hour: 3600, hours: 3600, day: 86400, days: 86400 }
+	const secs = (text) => {
+		const m = /^(one|\d+) (\w+)$/.exec(text)
+		assert.ok(m && m[2] in unit, 'bound not readable: ' + text)
+		return (m[1] === 'one' ? 1 : Number(m[1])) * unit[m[2]]
+	}
+	const between = /^The deadline must be between (.+) and (.+) from now\.$/.exec(sentence)
+	assert.ok(between, 'sentence: ' + sentence)
+	assert.equal(secs(between[1]), DEADLINE_MIN)
+	assert.equal(secs(between[2]), DEADLINE_MAX)
 })
 
 test('splitDuration: Tage/Stunden/Minuten, Minuten aufgerundet', () => {
