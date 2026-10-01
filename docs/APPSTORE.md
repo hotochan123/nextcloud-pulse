@@ -5,7 +5,7 @@ what has to be done by hand. Keep to the order — every step needs the one
 before it, and the store accepts no release for an app ID that has not been
 registered with a certificate.
 
-The public repository is `hotochan123/hotochan123-nextcloud-pulse`; the complete
+The public repository is `hotochan123/nextcloud-pulse`; the complete
 development history is in the private archive `hotochan123/pulse`.
 
 ## Status
@@ -14,7 +14,7 @@ As of 29 September 2026:
 
 | Requirement | Status |
 |---|---|
-| Public repository | **not yet** — `hotochan123/hotochan123-nextcloud-pulse` is still private (404). `info.xml` points there for the website, the issue tracker and the screenshots |
+| Public repository | **not yet** — `hotochan123/nextcloud-pulse` is still private (404). `info.xml` points there for the website, the issue tracker and the screenshots |
 | App ID `pulse` available | yes — not in the store, no `pulse/` folder in the certificate repository |
 | Signing certificate from Nextcloud | key and `.csr` since 14 Aug 2026, `.csr` in the fork — **pull request not opened** (checked through the GitHub API) |
 | Store account, app ID registered | not yet — needs the certificate |
@@ -45,7 +45,7 @@ files copy their header from a neighbour, so they stay that way. Check before
 switching to public, and before every push, that `git grep -n "@"` over the
 source files and `git log --format="%ae %ce"` show no personal address.
 
-Switch `hotochan123/hotochan123-nextcloud-pulse` to public — only this one; the
+Switch `hotochan123/nextcloud-pulse` to public — only this one; the
 archive `hotochan123/pulse` stays private (early screenshots in its history
 show an internal host name). Everything else depends on this step: the
 certificate request has to link a public repository, the store fetches the
@@ -161,7 +161,7 @@ Six images are in `screenshots/` and are listed in `info.xml` after
 `<repository>`:
 
 ```xml
-<screenshot>https://raw.githubusercontent.com/hotochan123/hotochan123-nextcloud-pulse/main/screenshots/01-projector-live.png</screenshot>
+<screenshot>https://raw.githubusercontent.com/hotochan123/nextcloud-pulse/main/screenshots/01-projector-live.png</screenshot>
 ```
 
 **The store fetches these URLs itself.** As long as the files are not on `main`
@@ -363,7 +363,7 @@ or has been revoked.
      -H "Authorization: Token $STORE_TOKEN" \
      -H "Content-Type: application/json" \
      -d '{
-           "download": "https://github.com/hotochan123/hotochan123-nextcloud-pulse/releases/download/v<version>/pulse-<version>.tar.gz",
+           "download": "https://github.com/hotochan123/nextcloud-pulse/releases/download/v<version>/pulse-<version>.tar.gz",
            "signature": "<Base64 from step 4>",
            "nightly": false
          }'

@@ -26,7 +26,7 @@ class AddinManifest {
      */
     public const ADDIN_ID = 'c941db89-f0ae-45c6-b685-e94eecc47c91';
 
-    public const SUPPORT_URL = 'https://github.com/hotochan123/hotochan123-nextcloud-pulse';
+    public const SUPPORT_URL = 'https://github.com/hotochan123/nextcloud-pulse';
 
     /**
      * @param string $origin    scheme+host of the instance, e.g. https://cloud.example.com

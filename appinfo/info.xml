@@ -30,7 +30,7 @@ translation were written by AI coding agents (Anthropic's Claude Code); the
 maintainer set the goals, made the product decisions and tried the app out in
 the browser. There has been no independent human code review and no security
 audit, so please evaluate it yourself before relying on it. Details in the
-[README](https://github.com/hotochan123/hotochan123-nextcloud-pulse#how-this-app-was-built-ai-disclosure).
+[README](https://github.com/hotochan123/nextcloud-pulse#how-this-app-was-built-ai-disclosure).
     ]]></description>
     <description lang="de"><![CDATA[
 Pulse bringt Mentimeter-artige Live-Umfragen nach Nextcloud. Die vortragende Person
@@ -58,7 +58,7 @@ Zur Entstehung: Pulse ist „vibe-coded“. Code, Tests, Dokumentation und deuts
 hotochan123 hat die Ziele gesetzt, die Produktentscheidungen getroffen und die
 App im Browser ausprobiert. Es gab keine unabhängige menschliche Code-Prüfung und kein
 Sicherheitsaudit — bitte vor dem Einsatz selbst prüfen. Details in der
-[README](https://github.com/hotochan123/hotochan123-nextcloud-pulse#how-this-app-was-built-ai-disclosure)
+[README](https://github.com/hotochan123/nextcloud-pulse#how-this-app-was-built-ai-disclosure)
 (englisch).
     ]]></description>
     <version>0.18.0</version>
@@ -66,18 +66,18 @@ Sicherheitsaudit — bitte vor dem Einsatz selbst prüfen. Details in der
     <author homepage="https://github.com/hotochan123">hotochan123</author>
     <namespace>Pulse</namespace>
     <documentation>
-        <admin>https://github.com/hotochan123/hotochan123-nextcloud-pulse#readme</admin>
+        <admin>https://github.com/hotochan123/nextcloud-pulse#readme</admin>
     </documentation>
     <category>tools</category>
-    <website>https://github.com/hotochan123/hotochan123-nextcloud-pulse</website>
-    <bugs>https://github.com/hotochan123/hotochan123-nextcloud-pulse/issues</bugs>
-    <repository type="git">https://github.com/hotochan123/hotochan123-nextcloud-pulse.git</repository>
-    <screenshot>https://raw.githubusercontent.com/hotochan123/hotochan123-nextcloud-pulse/main/screenshots/01-projector-live.png</screenshot>
-    <screenshot>https://raw.githubusercontent.com/hotochan123/hotochan123-nextcloud-pulse/main/screenshots/02-join-code.png</screenshot>
-    <screenshot>https://raw.githubusercontent.com/hotochan123/hotochan123-nextcloud-pulse/main/screenshots/03-projector-result.png</screenshot>
-    <screenshot>https://raw.githubusercontent.com/hotochan123/hotochan123-nextcloud-pulse/main/screenshots/04-phone-vote.png</screenshot>
-    <screenshot>https://raw.githubusercontent.com/hotochan123/hotochan123-nextcloud-pulse/main/screenshots/05-moderator.png</screenshot>
-    <screenshot>https://raw.githubusercontent.com/hotochan123/hotochan123-nextcloud-pulse/main/screenshots/06-quiz-standings.png</screenshot>
+    <website>https://github.com/hotochan123/nextcloud-pulse</website>
+    <bugs>https://github.com/hotochan123/nextcloud-pulse/issues</bugs>
+    <repository type="git">https://github.com/hotochan123/nextcloud-pulse.git</repository>
+    <screenshot>https://raw.githubusercontent.com/hotochan123/nextcloud-pulse/main/screenshots/01-projector-live.png</screenshot>
+    <screenshot>https://raw.githubusercontent.com/hotochan123/nextcloud-pulse/main/screenshots/02-join-code.png</screenshot>
+    <screenshot>https://raw.githubusercontent.com/hotochan123/nextcloud-pulse/main/screenshots/03-projector-result.png</screenshot>
+    <screenshot>https://raw.githubusercontent.com/hotochan123/nextcloud-pulse/main/screenshots/04-phone-vote.png</screenshot>
+    <screenshot>https://raw.githubusercontent.com/hotochan123/nextcloud-pulse/main/screenshots/05-moderator.png</screenshot>
+    <screenshot>https://raw.githubusercontent.com/hotochan123/nextcloud-pulse/main/screenshots/06-quiz-standings.png</screenshot>
     <dependencies>
         <nextcloud min-version="34" max-version="34"/>
     </dependencies>

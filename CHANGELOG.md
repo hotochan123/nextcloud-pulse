@@ -309,6 +309,11 @@ described under "Security notes" and "Known limits" in the README.
   store schema still accepts the short form but lists it as deprecated, and
   for apps targeting Nextcloud 31 and later the store's guide asks for an SPDX
   identifier. `package.json` names the licence now as well.
+- The repository moved from `hotochan123/hotochan123-nextcloud-pulse` to
+  `hotochan123/nextcloud-pulse`. `info.xml` (website, issue tracker,
+  screenshots), the add-in manifest's support link, the setup check's link to
+  the add-in guide and the documentation point to the new address; GitHub
+  redirects the old one.
 
 ### Fixed
 - On SQLite, a class joining a quiz at the same moment no longer gets

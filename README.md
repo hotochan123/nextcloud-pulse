@@ -57,7 +57,7 @@ name; the code is the same.
 
 **What this means for you.** Evaluate Pulse yourself before you rely on it,
 especially for anything sensitive. Issues and reviews are welcome
-([issue tracker](https://github.com/hotochan123/hotochan123-nextcloud-pulse/issues)).
+([issue tracker](https://github.com/hotochan123/nextcloud-pulse/issues)).
 Pulse is licensed under AGPL-3.0-or-later and comes without any warranty.
 
 ## Features
@@ -231,7 +231,7 @@ repository, so this needs no build step, only Node.js for the translation
 check:
 
 ```
-git clone https://github.com/hotochan123/hotochan123-nextcloud-pulse.git ~/pulse-src
+git clone https://github.com/hotochan123/nextcloud-pulse.git ~/pulse-src
 cd ~/pulse-src
 SKIP_BUILD=1 ALLOW_UNRELEASED=1 sh build/package.sh   # -> build/pulse-<version>.tar.gz
 tar -xzf build/pulse-<version>.tar.gz -C <nextcloud>/apps/

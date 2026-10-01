@@ -43,7 +43,7 @@ use Psr\Log\LoggerInterface;
 class EmbedFraming implements ISetupCheck {
     use CheckServerResponseTrait;
 
-    private const DOC = 'https://github.com/hotochan123/hotochan123-nextcloud-pulse/blob/main/office-addin/README.md';
+    private const DOC = 'https://github.com/hotochan123/nextcloud-pulse/blob/main/office-addin/README.md';
 
     public function __construct(
         protected IL10N $l10n,

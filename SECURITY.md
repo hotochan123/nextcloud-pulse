@@ -21,9 +21,9 @@ Please do not describe a security problem in a public issue.
 
 - **Preferred:** GitHub's private vulnerability reporting — "Report a
   vulnerability" on the repository's
-  [Security tab](https://github.com/hotochan123/hotochan123-nextcloud-pulse/security).
+  [Security tab](https://github.com/hotochan123/nextcloud-pulse/security).
 - **If that button is not there** (private reporting not switched on yet):
-  open an [issue](https://github.com/hotochan123/hotochan123-nextcloud-pulse/issues)
+  open an [issue](https://github.com/hotochan123/nextcloud-pulse/issues)
   that only says you have found a security problem and asks for a private way
   to send the details — no description, no proof of concept. The maintainer
   will answer with a contact.
