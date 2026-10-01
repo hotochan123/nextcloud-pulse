@@ -937,6 +937,9 @@ export default {
 		// reactive proxy.
 		this.canvasRo = null
 		this.canvasWatched = null
+		// Deck order saves started so far (onReorder). Tells a read-back of the
+		// order whether a newer move has overtaken it; nothing renders it.
+		this.reorderSeq = 0
 	},
 	async mounted() {
 		document.addEventListener('fullscreenchange', this.onFsChange)
@@ -1346,11 +1349,16 @@ export default {
 		async refreshRoom(quiet = false) {
 			if (!this.room) return
 			const code = this.room.code
+			const moves = this.reorderSeq
 			try {
 				const { data } = await axios.get(this.api(code), { timeout: MOD_TIMEOUT })
 				if (!this.room || this.room.code !== code) return
 				this.room = data
-				this.deck = data.polls || []
+				// A question was moved while this was loading: the order read here is
+				// older than the one on the screen. That move's own save settles it
+				// (and reads the order back if it fails); taking this one would undo
+				// the move on the screen only.
+				if (moves === this.reorderSeq) this.deck = data.polls || []
 				if (this.deckLocked && this.showComposer) {
 					this.cancelComposer()
 					if (!quiet) showError(t('pulse', 'The questions are locked since the quiz was opened. Reset the room to edit them.'))
@@ -1656,10 +1664,30 @@ export default {
 		},
 		async onReorder() {
 			// vuedraggable has already re-sorted this.deck -> persist the order.
+			const seq = ++this.reorderSeq
 			try {
 				await axios.post(this.api(this.room.code, '/deck/order'), { order: this.deck.map((p) => p.id) })
 			} catch (e) {
 				this.failWrite(e, t('pulse', 'Could not save the order.'))
+				// failWrite reloads only on a 409. After any other failure (a question
+				// deleted in another tab -> 404, a 5xx, the network) the server kept its
+				// order while the screen shows the new one, and the next move that gets
+				// through would save the failed one along with it. So read the order
+				// back — unless a newer move is already on its way: it sends the whole
+				// order again and settles it either way.
+				if (e?.response?.status === 409 || seq !== this.reorderSeq) return
+				// Rows moving back can take the focus with them (a moved node drops
+				// it to <body>); then it returns to the ⋯ of the question that had
+				// it, as after ↑/↓.
+				const had = (this.$refs.rowMenus || []).find((m) => m.$el.contains(document.activeElement))
+				const id = had ? had.$el.dataset.pollId : ''
+				await this.refreshRoom()
+				this.$nextTick(() => {
+					const now = document.activeElement
+					if (!id || (now && now !== document.body)) return
+					const menu = (this.$refs.rowMenus || []).find((m) => m.$el.dataset.pollId === id)
+					if (menu) menu.focusTrigger()
+				})
 			}
 		},
 		// Deck row: one visible action ("Show"), the rest hangs off the ⋯ (R5).

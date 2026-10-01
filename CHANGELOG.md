@@ -512,6 +512,12 @@ described under "Security notes" and "Known limits" in the README.
   when the question no longer exists or belongs to another room, like every
   other question action, instead of 400. Grading a free-text answer stays at
   400, which the run view relies on.
+- When a new order of the deck cannot be saved, the deck goes back to the order
+  the server kept (as soon as Pulse reaches the server again), and the keyboard
+  focus stays on the question that was moved. The unsaved order used to stay on
+  screen next to the error message, and the next move that did save took it
+  along. If a question had been deleted in another tab, every later move failed
+  until the page was reloaded.
 
 ### Removed
 - `office-addin/manifest.xml`. It is generated now, and a second editable copy
