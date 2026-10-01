@@ -10,21 +10,21 @@ development history is in the private archive `hotochan123/pulse`.
 
 ## Status
 
-As of 29 September 2026:
+As of 1 October 2026:
 
 | Requirement | Status |
 |---|---|
-| Public repository | **not yet** — `hotochan123/nextcloud-pulse` is still private (404). `info.xml` points there for the website, the issue tracker and the screenshots |
+| Public repository | done — `hotochan123/nextcloud-pulse` is public since 1 Oct 2026 (renamed from `hotochan123-nextcloud-pulse`, GitHub redirects the old name), Issues and private vulnerability reporting are on, description and topics set. `info.xml` points there for the website, the issue tracker and the screenshots |
 | App ID `pulse` available | yes — not in the store, no `pulse/` folder in the certificate repository |
-| Signing certificate from Nextcloud | key and `.csr` since 14 Aug 2026, `.csr` in the fork — **pull request not opened** (checked through the GitHub API) |
+| Signing certificate from Nextcloud | key and `.csr` since 14 Aug 2026; pull request [#1292](https://github.com/nextcloud/app-certificate-requests/pull/1292) opened by the owner on 1 Oct 2026, DCO green, waiting for review |
 | Store account, app ID registered | not yet — needs the certificate |
 | `appinfo/info.xml` valid against the store schema | done — validates against the store's current schema (`xmllint`, also in CI and in `build/package.sh`) |
 | Licence | done — `LICENSE` (AGPL-3.0-or-later), SPDX header in every source file, `<licence>AGPL-3.0-or-later</licence>` in `info.xml` |
 | `CHANGELOG.md` (the store's release notes) | format done; `[Unreleased]` still has to become the first release's section |
 | Release archive without sources/throwaway files | done (`build/package.sh`); signing tested with a throwaway certificate |
 | First release | not yet — no tag, no GitHub release, no signed archive; version number still to be chosen ([step 6](#6-first-release)) |
-| CI: bundle, tests, translations, schema | workflow in `.github/workflows/ci.yml`; its runs only become visible once the repository is public — check them before tagging |
-| Screenshots for the store page | done — six images in `screenshots/`, linked in `info.xml` (**they only show once the repository is public**) |
+| CI: bundle, tests, translations, schema | workflow in `.github/workflows/ci.yml`, green on the public repository — check it again before tagging |
+| Screenshots for the store page | done — six images in `screenshots/`, linked in `info.xml`; all six URLs answer 200 `image/png` (1 Oct 2026), and the join code on them no longer opens a room |
 | Databases | fresh installations of Nextcloud 34.0.1 tested with SQLite, MariaDB 11.8, PostgreSQL 17 and MySQL 8.4 (MySQL after the fix for new questions, see `CHANGELOG.md`) |
 | Server versions | 34 only, tested on 34.0.1 — **Nextcloud 35 is out (15 Sep 2026), decision open**, see [below](#what-is-still-missing-to-stay-honest) |
 | Public e-mail address | decided: **none**. Commits carry the GitHub no-reply address, the SPDX headers name only `hotochan123`, and `info.xml` gives the GitHub profile as `<author homepage>`; contact goes through the issue tracker. The store's developer guide asks for an address on the GitHub profile with the certificate request, see [step 2](#2-request-the-certificate) |
@@ -94,10 +94,12 @@ as `pulse/pulse.csr`. It is prepared in the fork
 `pulse/pulse.csr`, committed through the GitHub web interface on 14 Aug 2026).
 Cross-checked: the uploaded `.csr` is byte for byte the local one, `CN=pulse`,
 and its public key belongs to `pulse.key` (SHA-256 of the public key is the same
-on both sides). **The pull request itself was never opened** — checked through
-the GitHub API on 29 Sep 2026: no PR from this branch. Open it from
+on both sides). The owner opened the pull request on 1 Oct 2026:
+<https://github.com/nextcloud/app-certificate-requests/pull/1292> (one file,
+DCO green, the two Actions checks waiting for a maintainer's approval). A
+request is opened from
 <https://github.com/nextcloud/app-certificate-requests/compare/master...hotochan123:app-certificate-requests:pulse-cert>
-("Create pull request") and check afterwards that it really exists. Should the
+("Create pull request"); check afterwards that it really exists. Should the
 fork ever have to be made again: create it by hand first — the automatic fork
 on "Create new file" does not kick in for this repository.
 
@@ -123,10 +125,39 @@ Before opening it: the store's developer guide asks to show an e-mail address
 on the GitHub profile along with the request, and Nextcloud may ask for more to
 confirm who owns the app. The profile shows none, and the personal address is
 not meant to be public (step 1). Either show a dedicated address there, or open
-the request without one and expect a question about ownership in the PR.
+the request without one and expect a question about ownership in the PR. In
+practice the address is not enforced: at least six requests merged in late
+September 2026 came from profiles without one. The ownership evidence is the
+same account owning the repository, being `<author>` in `info.xml` and having
+written every commit.
 
-Requests there have recently been merged within one to four days, but at the
-end of September 2026 about 15 had been waiting since 24 September.
+What the certificate repository checks (as of 1 Oct 2026):
+
+- **DCO** (GitHub app, runs at once): every commit signed off with the
+  account's address — the no-reply address counts. The commit on `pulse-cert`
+  carries `Signed-off-by` with the no-reply address of `hotochan123`. The AI
+  policy allows only humans to add that line, so the person who signs off must
+  be the one who created the commit.
+- **Validate CSR Common Name** and **Validate Folder Names** (Actions): path
+  `<id>/<id>.csr`, ID matching `^[a-z]+[a-z0-9_]*[a-z0-9]$` and at most 32
+  characters, CN equal to the folder name. `pulse/pulse.csr` with `CN=pulse`
+  passes the same shell logic run locally. For first-time contributors both
+  show "Action required" until a maintainer approves the run — not a failure.
+- The reviewer opens the linked repository and compares `<id>` in `info.xml`
+  and the commit authors with the request.
+
+Do **not** press "Update branch" and do not rebase: the branch is far behind
+`master`, but the checks run on the merge ref, and `pulse/` does not exist
+upstream. An update adds a commit without a sign-off, which fails DCO, and the
+reviewer asks for a branch with only the request commit. No title format is
+prescribed, and the README says not to mention anyone. A short, generic ID has
+been questioned before (one request was asked for a "less generic" ID); if
+that happens to `pulse`, the answer is the owner's decision — a new ID means a
+new key, a new request and a different `<id>`.
+
+Recent requests were merged after 18 hours to five days (median about two
+days), in batches. The many old open requests are stalled ones waiting for
+their authors, not a queue.
 
 #### After the merge: save and check the certificate
 
