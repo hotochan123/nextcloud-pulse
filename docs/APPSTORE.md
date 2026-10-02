@@ -10,7 +10,7 @@ development history is in the private archive `hotochan123/pulse`.
 
 ## Status
 
-As of 2 October 2026:
+As of 3 October 2026:
 
 | Requirement | Status |
 |---|---|
@@ -20,9 +20,9 @@ As of 2 October 2026:
 | Store account, app ID registered | done — registered by the owner on 2 Oct 2026 through the web form; the store page <https://apps.nextcloud.com/apps/pulse> exists and has no release yet. The account's API token ([step 4](#4-store-account)) is not saved yet; the release can also be uploaded through the web form without it |
 | `appinfo/info.xml` valid against the store schema | done — validates against the store's current schema (`xmllint`, also in CI and in `build/package.sh`) |
 | Licence | done — `LICENSE` (AGPL-3.0-or-later), SPDX header in every source file, `<licence>AGPL-3.0-or-later</licence>` in `info.xml`; four icons in `PulseIcon.vue` come from Feather Icons (MIT), credited with the licence text under "Licence" in the README |
-| `CHANGELOG.md` (the store's release notes) | format done; `[Unreleased]` still has to become the first release's section |
+| `CHANGELOG.md` (the store's release notes) | done — the first release's notes are the section `## [0.19.0] - 2026-10-03` |
 | Release archive without sources/throwaway files | done (`build/package.sh`); signing tested with a throwaway certificate |
-| First release | not yet — no tag, no GitHub release, no signed archive; version 0.19.0 set on 2 Oct 2026 (`info.xml`, `package.json`), its CHANGELOG section follows with the release ([step 6](#6-first-release)) |
+| First release | in progress — version 0.19.0 set on 2 Oct 2026 (`info.xml`, `package.json`), its CHANGELOG section on 3 Oct 2026; no tag, no GitHub release and no store upload yet ([step 6](#6-first-release)) |
 | CI: bundle, tests, translations, schema | workflow in `.github/workflows/ci.yml`, green on the public repository — check it again before tagging |
 | Screenshots for the store page | done — six images in `screenshots/`, linked in `info.xml`; all six URLs answer 200 `image/png` (1 Oct 2026), and the join code on them no longer opens a room |
 | Databases | fresh installations of Nextcloud 34.0.1 and 35.0.1 tested with SQLite, MariaDB 11.8, PostgreSQL 17 and MySQL 8.4 (MySQL after the fix for new questions, see `CHANGELOG.md`) |
@@ -318,10 +318,11 @@ release replaces them with the texts from `info.xml` (name "Pulse").
 
 - **Version:** 0.19.0, set on 2 Oct 2026 in `info.xml` and `package.json`;
   the local instance was upgraded with `occ upgrade` right away (step 1 of
-  [For every release](#for-every-release)). Not 0.18.0: `[Unreleased]` holds
-  everything since 0.18.0 (14 Aug 2026) — the self-paced quiz, a database
-  migration and the fixes of September — and a tag `v0.18.0` with different
-  code exists in the private archive.
+  [For every release](#for-every-release)); the CHANGELOG section
+  `## [0.19.0] - 2026-10-03` (step 2) followed on 3 Oct 2026. Not 0.18.0:
+  the section holds everything since 0.18.0 (14 Aug 2026) — the self-paced
+  quiz, a database migration and the fixes of September — and a tag
+  `v0.18.0` with different code exists in the private archive.
 - **Nextcloud 35:** decided — the release declares 34 and 35
   ([test](#nextcloud-35-test-2-oct-2026)).
 - **CI** green on the public repository.

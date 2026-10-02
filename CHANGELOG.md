@@ -7,7 +7,7 @@ All notable changes to Pulse are documented here. The format follows
 Release notes on the Nextcloud App Store are taken from the topmost sections of
 this file, so every published version needs an entry here.
 
-## [Unreleased]
+## [0.19.0] - 2026-10-03
 
 ### Security
 Found in a security review of the code by AI agents in September 2026 (see
