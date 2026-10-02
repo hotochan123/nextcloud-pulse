@@ -101,24 +101,21 @@ jobs:
   php:
     name: PHPUnit (${{ matrix.server }}, PHP ${{ matrix.php }})
     runs-on: ubuntu-latest
-    # Nextcloud 35 is ahead of the app's max-version (34 in info.xml): a
-    # failure there shows on its job but does not fail the run.
-    continue-on-error: ${{ matrix.experimental }}
     strategy:
       fail-fast: false
       matrix:
-        # Nextcloud 34 with the oldest PHP it supports and with the PHP
-        # production runs; Nextcloud 35 (PHP 8.3 to 8.5) with the latter.
+        # Every server version info.xml declares, with the oldest PHP it
+        # supports and with the PHP production runs: Nextcloud 34 with
+        # PHP 8.2 and 8.5, Nextcloud 35 (PHP 8.3 to 8.5) with 8.3 and 8.5.
         include:
           - server: stable34
             php: '8.2'
-            experimental: false
           - server: stable34
             php: '8.5'
-            experimental: false
+          - server: stable35
+            php: '8.3'
           - server: stable35
             php: '8.5'
-            experimental: true
     steps:
       # The tests don't touch a database, but they do need the server's OCP
       # classes — hence the server checkout, in which the app lives under

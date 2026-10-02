@@ -91,7 +91,7 @@ empfohlen. Die genannten Namen sind Marken ihrer jeweiligen Inhaber.
     <screenshot>https://raw.githubusercontent.com/hotochan123/nextcloud-pulse/main/screenshots/05-moderator.png</screenshot>
     <screenshot>https://raw.githubusercontent.com/hotochan123/nextcloud-pulse/main/screenshots/06-quiz-standings.png</screenshot>
     <dependencies>
-        <nextcloud min-version="34" max-version="34"/>
+        <nextcloud min-version="34" max-version="35"/>
     </dependencies>
     <background-jobs>
         <job>OCA\Pulse\BackgroundJob\CleanupStaleRoomsJob</job>

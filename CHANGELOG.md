@@ -74,16 +74,16 @@ described under "Security notes" and "Known limits" in the README.
   can be changed per instance in the app config — keys and defaults in the
   README under "Limits". Creating or
   copying a room shows the server's reason when it fails.
-- Rooms of deleted accounts no longer pass to a new account with the same
-  user ID. An account deleted while Pulse was disabled — as it is after an
-  update to Nextcloud 35 — left its rooms behind, and whoever later got the
-  same user ID, for example through a login provider, owned them with all
-  answers, nicknames and exports. The daily job now deletes the rooms of every
-  owner that no user backend knows any more and that left no login record
-  behind; the second condition keeps the rooms of real people while their
-  LDAP or OIDC backend is merely switched off. And participants' polling keeps
-  a room alive only until 180 days after its owner last used it, so a phone
-  left open no longer defeats the 30-day retention.
+- Rooms of deleted accounts no longer pass to a new account with the same user
+  ID. An account deleted while Pulse was disabled — as earlier versions were
+  after an update to Nextcloud 35 — left its rooms behind, and whoever later
+  got the same user ID, for example through a login provider, owned them with
+  all answers, nicknames and exports. The daily job now deletes the rooms of
+  every owner that no user backend knows any more and that left no login
+  record behind; the second condition keeps the rooms of real people while
+  their LDAP or OIDC backend is merely switched off. And participants' polling
+  keeps a room alive only until 180 days after its owner last used it, so a
+  phone left open no longer defeats the 30-day retention.
 - The voter cookie can no longer be planted from a sibling subdomain. Another
   service under the same domain could set a `pulse_vt` cookie with a token it
   knew; browsers sent it along to Pulse, and with it that service could read a
@@ -259,6 +259,11 @@ described under "Security notes" and "Known limits" in the README.
   App Store description carries a short version in English and German.
 
 ### Changed
+- Pulse now supports Nextcloud 35 as well as 34 (`max-version` 35). It was
+  tested on Nextcloud 35.0.1 with SQLite, MariaDB, PostgreSQL and MySQL, and
+  through a server update from 34.0.4 to 35.0.1 with existing rooms and votes
+  (PostgreSQL). Earlier versions supported Nextcloud 34 at most, so a server
+  update to 35 switched them off.
 - Documentation and code comments are in English now. The READMEs, the App
   Store guide and the comments in PHP, JavaScript, Vue, CSS, shell and
   configuration files used to be mostly German, and so were the messages of
@@ -273,9 +278,8 @@ described under "Security notes" and "Known limits" in the README.
 - The README was brought up to date for a public audience: installation from
   the repository, a section on security notes, the adaptive polling intervals
   instead of a fixed 2.5 s, the databases Pulse was tested on, and the App
-  Store status (the screenshots exist; the pull request for the signing
-  certificate has not been opened yet). It no longer says that `info.xml`
-  advertises Nextcloud 29 and later — it has declared 34 only since 0.18.0.
+  Store status. It no longer says that `info.xml` advertises Nextcloud 29
+  and later.
 - The add-in manifest is no longer German-only: source locale `en-US` with a
   German override, like the rest of the app. Its `<Version>` now comes from
   `info.xml`, so PowerPoint recognises an updated add-in.

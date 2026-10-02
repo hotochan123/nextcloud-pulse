@@ -220,8 +220,10 @@ Pulse is not in the Nextcloud App Store yet: the signing certificate has been
 issued and the app ID registered, but the first signed release is still to
 come (as of 2 October 2026; steps and status in
 [`docs/APPSTORE.md`](docs/APPSTORE.md)). Until then it is installed from this
-repository. It has only been tested on Nextcloud 34 (34.0.1), with fresh
-installations on SQLite, MariaDB 11.8, PostgreSQL 17 and MySQL 8.4.
+repository. It runs on Nextcloud 34 and 35 and has been tested on 34.0.1 and
+35.0.1 with fresh installations on SQLite, MariaDB 11.8, PostgreSQL 17 and
+MySQL 8.4, and on 34.0.4 with PostgreSQL, including the server update from
+34.0.4 to 35.0.1.
 
 Do not clone the repository into the web root. A checkout carries the
 development tree — tests, the simulation and screenshot harness, sources and,
@@ -592,9 +594,10 @@ respective owners.
   the app ID registered; still to do is the first signed release (as of
   2 October 2026). Checklist in `docs/APPSTORE.md`. Further languages would
   go through Transifex and need Nextcloud's involvement.
-- Tested on Nextcloud 34 only; `info.xml` declares 34 only. Nextcloud 35
-  (September 2026) is not covered yet: updating an instance to 35 disables
-  Pulse, and it stays off until a release declares 35.
+- Nextcloud 34 and 35 only (`min-version="34" max-version="35"`, 35 since
+  2 October 2026; the test is described in `docs/APPSTORE.md`). Copies from
+  before that date carry `max-version="34"`, so Nextcloud 35's updater turns
+  them off.
 - Question type image hotspot (tap on an image instead of choosing an answer).
 - Self-paced quiz: a rejoin code for switching devices, starting from the
   waiting state without a tap, a demo race and store images; plus small engine

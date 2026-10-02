@@ -25,8 +25,8 @@ As of 2 October 2026:
 | First release | not yet — no tag, no GitHub release, no signed archive; version number still to be chosen ([step 6](#6-first-release)) |
 | CI: bundle, tests, translations, schema | workflow in `.github/workflows/ci.yml`, green on the public repository — check it again before tagging |
 | Screenshots for the store page | done — six images in `screenshots/`, linked in `info.xml`; all six URLs answer 200 `image/png` (1 Oct 2026), and the join code on them no longer opens a room |
-| Databases | fresh installations of Nextcloud 34.0.1 tested with SQLite, MariaDB 11.8, PostgreSQL 17 and MySQL 8.4 (MySQL after the fix for new questions, see `CHANGELOG.md`) |
-| Server versions | 34 only, tested on 34.0.1 — **Nextcloud 35 is out (15 Sep 2026), decision open**, see [below](#what-is-still-missing-to-stay-honest) |
+| Databases | fresh installations of Nextcloud 34.0.1 and 35.0.1 tested with SQLite, MariaDB 11.8, PostgreSQL 17 and MySQL 8.4 (MySQL after the fix for new questions, see `CHANGELOG.md`) |
+| Server versions | done — 34 and 35 (`max-version="35"` since 2 Oct 2026), tested on 34.0.1, 34.0.4 and 35.0.1 including the server update from 34.0.4 to 35.0.1, see [the test](#nextcloud-35-test-2-oct-2026) |
 | Public e-mail address | decided: **none**. Commits carry the GitHub no-reply address, the SPDX headers name only `hotochan123`, and `info.xml` gives the GitHub profile as `<author homepage>`; contact goes through the issue tracker. The store's developer guide asks for an address on the GitHub profile with the certificate request, see [step 2](#2-request-the-certificate); the request for `pulse` was merged without one and without a question about it (2 Oct 2026) |
 
 ## Once
@@ -322,8 +322,8 @@ release replaces them with the texts from `info.xml` (name "Pulse").
   archive. The first store release is 0.19.0 (or 1.0.0). On the local instance
   the bump needs an `occ upgrade` (step 1 of
   [For every release](#for-every-release)), so plan the moment.
-- **Nextcloud 35:** decide first whether the release claims it
-  ([below](#what-is-still-missing-to-stay-honest)).
+- **Nextcloud 35:** decided — the release declares 34 and 35
+  ([test](#nextcloud-35-test-2-oct-2026)).
 - **CI** green on the public repository.
 - Then follow [For every release](#for-every-release).
 - Afterwards switch the README's installation section to the store and bring
@@ -456,21 +456,64 @@ release replaces them with the texts from `info.xml` (name "Pulse").
    match, the instance reports "Some files have not passed the integrity
    check".
 
+## Nextcloud 35 test (2 Oct 2026)
+
+Throwaway instances from the official images `nextcloud:35.0.1-apache` and
+`nextcloud:34.0.4-apache` (both PHP 8.5.11), with the app from `main` and
+`max-version` raised to 35:
+
+- **Installation:** fresh 35.0.1 on SQLite, MariaDB 11.8, PostgreSQL 17 and
+  MySQL 8.4. The app installs and all 12 migrations are recorded (a fresh
+  installation applies the final schema in one step, so the data steps that
+  only run when updating from an older Pulse did not run on 35); the
+  PostgreSQL schema of the Pulse tables is identical to the one on 34.0.4, and
+  `db:add-missing-*` and the schema check report nothing for them. The
+  background job is registered and runs, and so does the setup check. Word
+  cloud, number guess and free text questions can be created on every
+  database.
+- **Unit tests** against the instance's own server code: 1609 tests, OK on
+  35.0.1 and on 34.0.4.
+- **HTTP simulation** (`dev/sim`): 1504 ok / 0 failed on all four databases
+  and on 34.0.4. On 35.0.1 with PostgreSQL, Redis as the distributed cache
+  and for locking, and `overwriteprotocol=https`, as in production: 1506 / 0
+  and nothing in the Nextcloud log at warning level or above — the two extra
+  checks need https.
+- **Screenshot harness,** every track except `store`, on 34.0.4 and 35.0.1
+  (PostgreSQL): 333 images each, no findings. Apart from run-to-run noise
+  (random seeded votes, timings), the differences come from the Nextcloud
+  header, which is 44 px high in 35 instead of 50 px. Pulse reads the height
+  from `--header-height`, so its area gains 6 px — scroll offsets shrink by
+  4–6 px, frames and previews grow slightly — and nothing is cut off.
+- **Server update** 34.0.4 → 35.0.1 through the official image, with data
+  (48 rooms, about 5000 votes, PostgreSQL): Pulse stays enabled, every Pulse
+  table is byte for byte the same afterwards, and the simulation passes
+  again. Nextcloud 35's own schema check then lists a missing core table
+  `oc_federated_invites` (a repair step of the update drops it) — core, not
+  Pulse.
+- **App update** 0.18.0 → 0.19.0 on 35.0.1 (version raised in the copy):
+  `occ upgrade` updates the app; until then, and for a moment right after,
+  its routes answer 503, as on 34.
+- **Logs and headers:** no entry from Pulse at warning level or above during
+  web requests, no PHP deprecation from Pulse files, no HTTP 5xx in the
+  simulation and harness runs; the framing headers of `/s`, `/screen` and
+  `/embed` are the same on 34.0.4 and 35.0.1.
+
+Nextcloud 35's updater disables every app that does not ship with the
+server and whose `max-version` is below 35. Copies of Pulse from before
+2 October 2026 carry `max-version="34"` (0.18.0 declared 34 only, earlier
+versions 29 to 34), so the updater turns them off when an instance moves
+to 35.
+
 ## What is still missing, to stay honest
 
-- **Nextcloud 35 — open decision before the first release.** Nextcloud 35.0.0
-  came out on 15 September 2026 (35.0.1 on 24 September). `info.xml`
-  advertises **only 34** (`min-version="34" max-version="34"`), and Pulse has
-  only run on 34.0.1. As long as it stays that way, the store does not offer
-  Pulse to Nextcloud 35, and an instance that updates to 35 disables it. Two
-  honest ways out:
-  - test a fresh Nextcloud 35 installation (and the newest 34.0.x, currently
-    34.0.4) on the databases above, with the HTTP simulation and the
-    screenshot harness, and then raise `max-version` to 35 (the store allows
-    at most the newest server release plus one);
-  - or release for 34 only on purpose and say so in the release notes.
-
-  To open the range downwards honestly later: `nextcloud/ocp` in the
+- **Nextcloud 35, not covered by the test above:** PHP 8.4 entirely and PHP
+  8.3 beyond the syntax check and the unit tests (CI runs both on 35 with PHP
+  8.3 and 8.5), the data steps of the migrations (see "Installation" above),
+  the server update on MariaDB, MySQL and SQLite, the integrity check of a
+  signed archive (install the first signed release once on 34 and once on 35
+  before uploading it) and the PowerPoint add-in in real Office.
+- **Servers older than 34:** to open the range downwards honestly later,
+  `nextcloud/ocp` in the
   respective version as a dev dependency plus Psalm covers the PHP side
   statically (the stubs carry exactly the OCP symbols of that server version),
   plus a real run on the lowest advertised version — that covers the PHP
