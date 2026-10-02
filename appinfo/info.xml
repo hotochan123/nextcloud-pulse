@@ -73,7 +73,7 @@ Pulse ist ein unabhängiges Projekt; es steht in keiner Verbindung zu den Anbiet
 von Kahoot!, Mentimeter oder Slido und wird von ihnen weder unterstützt noch
 empfohlen. Die genannten Namen sind Marken ihrer jeweiligen Inhaber.
     ]]></description>
-    <version>0.18.0</version>
+    <version>0.19.0</version>
     <licence>AGPL-3.0-or-later</licence>
     <author homepage="https://github.com/hotochan123">hotochan123</author>
     <namespace>Pulse</namespace>
