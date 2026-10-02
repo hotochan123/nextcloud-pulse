@@ -343,6 +343,13 @@ release replaces them with the texts from `info.xml` (name "Pulse").
      `## [<version>] - <YYYY-MM-DD>` (a new, empty `[Unreleased]` can go above
      it). The store takes the section whose heading carries exactly the version
      from `info.xml`; without one the release has no notes.
+   - **Indentation:** the store renders the notes on its Releases tab with
+     Python-Markdown, which nests a list or a paragraph inside a list item
+     only when it is indented by 4 spaces. With 2 spaces, as GitHub accepts,
+     sub-items turn into items of the outer list, and an indented paragraph
+     runs together with every item up to the next blank line. So indent nested
+     lists and inner paragraphs by 4 spaces, and end an inner paragraph with a
+     blank line.
    - **Pre-release** (a version with a semver pre-release suffix, such as
      `0.19.0-beta.1`, which the store puts into the beta channel) and nightly:
      the store takes the notes from `## [Unreleased]`, so leave that heading as

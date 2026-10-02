@@ -32,24 +32,25 @@ described under "Security notes" and "Known limits" in the README.
   phone and the projector download the complete results again — at 60,000
   votes 2.4 MB and half a second of server time per poll, on the web server
   all of Nextcloud shares. Now:
-  - phones and the projector get capped results: the top 100 words or
-    free-text groups, at most 500 compass points (a fair sample; the total and
-    the centre stay exact) and the first ten rows of the leaderboard plus your
-    own place and the people around you, each with the full count — the
-    projector says how many more there are. A word cloud with 60,000 words
-    now costs under 4 KB instead of 2.2 MB. The moderator's results, the
-    summary and the CSV export stay complete;
-  - "nothing has changed" is answered without reading any votes (a change
-    marker in Nextcloud's memory cache);
-  - new identities without a cookie are limited to 300 per address and room
-    in ten minutes, and a phone counts as present from its second poll, when
-    its cookie comes back; made-up cookies add at most 600 presence entries
-    per address and room in ten minutes;
-  - a moderated quiz takes at most 600 players (`max_players_per_room` in the
-    app config changes that).
+    - phones and the projector get capped results: the top 100 words or
+      free-text groups, at most 500 compass points (a fair sample; the total and
+      the centre stay exact) and the first ten rows of the leaderboard plus your
+      own place and the people around you, each with the full count — the
+      projector says how many more there are. A word cloud with 60,000 words
+      now costs under 4 KB instead of 2.2 MB. The moderator's results, the
+      summary and the CSV export stay complete;
+    - "nothing has changed" is answered without reading any votes (a change
+      marker in Nextcloud's memory cache);
+    - new identities without a cookie are limited to 300 per address and room
+      in ten minutes, and a phone counts as present from its second poll, when
+      its cookie comes back; made-up cookies add at most 600 presence entries
+      per address and room in ten minutes;
+    - a moderated quiz takes at most 600 players (`max_players_per_room` in the
+      app config changes that).
 
-  Voting again under new identities stays possible; the README's security
-  notes explain what remains.
+    Voting again under new identities stays possible; the README's security
+    notes explain what remains.
+
 - A word-cloud vote carrying a huge list of words no longer ties up the
   server. A 16 MB request kept a PHP worker busy for more than eleven seconds,
   because every entry was cleaned up before the list was cut to the allowed
@@ -214,42 +215,42 @@ described under "Security notes" and "Known limits" in the README.
   can be changed when opening; a practice run always gives the verdict at once
   and never shows a leaderboard. Moderated quizzes work as before, apart from
   the fixes listed below.
-  - While the quiz is open, the presenter follows everyone on a progress page:
-    how far each person got, their answers, points and last activity, the
-    join code with its QR code, a preview of the projector, and one main
-    button that names the next step — close the quiz, check free-text answers,
-    release the results. Free-text answers are marked right or wrong there
-    without the list of accepted answers on screen, and a slip can be undone
-    under "Checked just now". A race can also be stopped without releasing the
-    results, to check answers first. The end can be moved, a closed quiz
-    reopened, joining locked and single players removed; participants and
-    answers download as CSV. With the verdict at the end, points stay hidden on
-    this page until the presenter shows them.
-  - Phones go from name to start card to question to verdict. "Next question"
-    appears once the answer is final — a few seconds, which cost no points —
-    so the verdict is never skipped by accident. Questions without a timer can
-    be skipped, the position and the deadline stay in view, and a phone that
-    is reloaded carries on where it was.
-  - The projector never shows a question. While the quiz is open it shows the
-    race — how many people are on each question and how many have finished —
-    with a large join code for the first two minutes and afterwards, when
-    verdicts come after every question, the top eight of the leaderboard. A
-    closed quiz shows only the count, a released one the final standings.
-  - The question order is frozen when the quiz opens, and the deck stays
-    locked until the room is reset. An answer counts once its correction
-    window is over or it can no longer be changed, and phone, projector,
-    progress page, leaderboard and CSV all count the same answers. Before the
-    release, phones show no solution, distribution or leaderboard. Joining
-    ends when the quiz closes; a room takes at most 300 players who have
-    started and 600 who have joined, and at most 120 new names per address in
-    ten minutes (see Security).
-  - All of it works through the API as well:
-    `POST /api/1.0/rooms/{code}/pace` switches the pace and opens, closes
-    (with `release: false` without releasing the results, whatever the
-    deadline), extends or releases the quiz,
-    `GET /api/1.0/rooms/{code}/progress` follows everyone,
-    `POST /s/{code}/next` moves a phone on, and the CSV export takes
-    `?view=players` and `?view=answers`.
+    - While the quiz is open, the presenter follows everyone on a progress page:
+      how far each person got, their answers, points and last activity, the
+      join code with its QR code, a preview of the projector, and one main
+      button that names the next step — close the quiz, check free-text answers,
+      release the results. Free-text answers are marked right or wrong there
+      without the list of accepted answers on screen, and a slip can be undone
+      under "Checked just now". A race can also be stopped without releasing the
+      results, to check answers first. The end can be moved, a closed quiz
+      reopened, joining locked and single players removed; participants and
+      answers download as CSV. With the verdict at the end, points stay hidden on
+      this page until the presenter shows them.
+    - Phones go from name to start card to question to verdict. "Next question"
+      appears once the answer is final — a few seconds, which cost no points —
+      so the verdict is never skipped by accident. Questions without a timer can
+      be skipped, the position and the deadline stay in view, and a phone that
+      is reloaded carries on where it was.
+    - The projector never shows a question. While the quiz is open it shows the
+      race — how many people are on each question and how many have finished —
+      with a large join code for the first two minutes and afterwards, when
+      verdicts come after every question, the top eight of the leaderboard. A
+      closed quiz shows only the count, a released one the final standings.
+    - The question order is frozen when the quiz opens, and the deck stays
+      locked until the room is reset. An answer counts once its correction
+      window is over or it can no longer be changed, and phone, projector,
+      progress page, leaderboard and CSV all count the same answers. Before the
+      release, phones show no solution, distribution or leaderboard. Joining
+      ends when the quiz closes; a room takes at most 300 players who have
+      started and 600 who have joined, and at most 120 new names per address in
+      ten minutes (see Security).
+    - All of it works through the API as well:
+      `POST /api/1.0/rooms/{code}/pace` switches the pace and opens, closes
+      (with `release: false` without releasing the results, whatever the
+      deadline), extends or releases the quiz,
+      `GET /api/1.0/rooms/{code}/progress` follows everyone,
+      `POST /s/{code}/next` moves a phone on, and the CSV export takes
+      `?view=players` and `?view=answers`.
 - An AI disclosure. Pulse is vibe-coded: its code, tests, development tools,
   documentation and German translation were written by AI coding agents
   (Anthropic's Claude Code), and there has been no independent human code
@@ -352,28 +353,28 @@ described under "Security notes" and "Known limits" in the README.
   for every instance. It now uses the fixed path, which also keeps the result
   identical between `occ setupchecks` and the admin overview.
 - Quiz answers no longer leak before the reveal:
-  - The change marker phones and the projector poll with contained checksums of
-    the answer key and of all votes, which could be tested against candidate
-    answers. It is now a keyed hash that says nothing about the content.
-  - Ranking and matching questions went out in their stored order, which is
-    the solution — on the projector and through the API. Until the reveal they
-    are now shuffled, the same way for everyone and independent of the
-    solution.
-  - "See all results" on the phone listed the whole deck, including questions
-    not shown yet — in a quiz with their answer options. It now lists only
-    questions that have been shown.
-  - Public leaderboards counted questions that were not revealed yet, such as
-    one the moderator skipped without revealing, so a jump in points told a
-    player whether the answer was right. Hidden questions now stay out until
-    the quiz is finished; the final standings count everything and match on
-    phone, projector and moderator screen.
-  - A "Reveal at the end" quiz run a second time without a reset still carried
-    the first run's end, and "See all results" gave away every solution from
-    the first question on. Showing a question now clears the old run's end.
-  - An edited question that had already been revealed stayed revealed, so its
-    new solution showed up in "See all results" at once. A question edited
-    while it is not on screen now counts as not shown yet, unless a finished
-    quiz ended on it.
+    - The change marker phones and the projector poll with contained checksums of
+      the answer key and of all votes, which could be tested against candidate
+      answers. It is now a keyed hash that says nothing about the content.
+    - Ranking and matching questions went out in their stored order, which is
+      the solution — on the projector and through the API. Until the reveal they
+      are now shuffled, the same way for everyone and independent of the
+      solution.
+    - "See all results" on the phone listed the whole deck, including questions
+      not shown yet — in a quiz with their answer options. It now lists only
+      questions that have been shown.
+    - Public leaderboards counted questions that were not revealed yet, such as
+      one the moderator skipped without revealing, so a jump in points told a
+      player whether the answer was right. Hidden questions now stay out until
+      the quiz is finished; the final standings count everything and match on
+      phone, projector and moderator screen.
+    - A "Reveal at the end" quiz run a second time without a reset still carried
+      the first run's end, and "See all results" gave away every solution from
+      the first question on. Showing a question now clears the old run's end.
+    - An edited question that had already been revealed stayed revealed, so its
+      new solution showed up in "See all results" at once. A question edited
+      while it is not on screen now counts as not shown yet, unless a finished
+      quiz ended on it.
 - An answer sent just as the moderator moved on is refused with "This question
   is closed." instead of being counted for the next question, where a number, a
   word or a scale value often fits just as well.
