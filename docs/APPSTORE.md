@@ -10,14 +10,14 @@ development history is in the private archive `hotochan123/pulse`.
 
 ## Status
 
-As of 1 October 2026:
+As of 2 October 2026:
 
 | Requirement | Status |
 |---|---|
 | Public repository | done — `hotochan123/nextcloud-pulse` is public since 1 Oct 2026 (renamed from `hotochan123-nextcloud-pulse`, GitHub redirects the old name), Issues and private vulnerability reporting are on, description and topics set. `info.xml` points there for the website, the issue tracker and the screenshots |
-| App ID `pulse` available | yes — not in the store, no `pulse/` folder in the certificate repository |
-| Signing certificate from Nextcloud | key and `.csr` since 14 Aug 2026; pull request [#1292](https://github.com/nextcloud/app-certificate-requests/pull/1292) opened by the owner on 1 Oct 2026, DCO green, waiting for review |
-| Store account, app ID registered | not yet — needs the certificate |
+| App ID `pulse` | taken for this app — `pulse/` in the certificate repository, registered in the store |
+| Signing certificate from Nextcloud | done — issued on 2 Oct 2026 through pull request [#1292](https://github.com/nextcloud/app-certificate-requests/pull/1292), valid until 7 Jan 2037; saved next to the key and checked: `CN=pulse`, matches the key, chains to Nextcloud's code-signing root, not revoked |
+| Store account, app ID registered | done — registered by the owner on 2 Oct 2026 through the web form; the store page <https://apps.nextcloud.com/apps/pulse> exists and has no release yet. The account's API token ([step 4](#4-store-account)) is not saved yet; the release can also be uploaded through the web form without it |
 | `appinfo/info.xml` valid against the store schema | done — validates against the store's current schema (`xmllint`, also in CI and in `build/package.sh`) |
 | Licence | done — `LICENSE` (AGPL-3.0-or-later), SPDX header in every source file, `<licence>AGPL-3.0-or-later</licence>` in `info.xml`; four icons in `PulseIcon.vue` come from Feather Icons (MIT), credited with the licence text under "Licence" in the README |
 | `CHANGELOG.md` (the store's release notes) | format done; `[Unreleased]` still has to become the first release's section |
@@ -27,7 +27,7 @@ As of 1 October 2026:
 | Screenshots for the store page | done — six images in `screenshots/`, linked in `info.xml`; all six URLs answer 200 `image/png` (1 Oct 2026), and the join code on them no longer opens a room |
 | Databases | fresh installations of Nextcloud 34.0.1 tested with SQLite, MariaDB 11.8, PostgreSQL 17 and MySQL 8.4 (MySQL after the fix for new questions, see `CHANGELOG.md`) |
 | Server versions | 34 only, tested on 34.0.1 — **Nextcloud 35 is out (15 Sep 2026), decision open**, see [below](#what-is-still-missing-to-stay-honest) |
-| Public e-mail address | decided: **none**. Commits carry the GitHub no-reply address, the SPDX headers name only `hotochan123`, and `info.xml` gives the GitHub profile as `<author homepage>`; contact goes through the issue tracker. The store's developer guide asks for an address on the GitHub profile with the certificate request, see [step 2](#2-request-the-certificate) |
+| Public e-mail address | decided: **none**. Commits carry the GitHub no-reply address, the SPDX headers name only `hotochan123`, and `info.xml` gives the GitHub profile as `<author homepage>`; contact goes through the issue tracker. The store's developer guide asks for an address on the GitHub profile with the certificate request, see [step 2](#2-request-the-certificate); the request for `pulse` was merged without one and without a question about it (2 Oct 2026) |
 
 ## Once
 
@@ -95,11 +95,13 @@ as `pulse/pulse.csr`. It is prepared in the fork
 Cross-checked: the uploaded `.csr` is byte for byte the local one, `CN=pulse`,
 and its public key belongs to `pulse.key` (SHA-256 of the public key is the same
 on both sides). The owner opened the pull request on 1 Oct 2026:
-<https://github.com/nextcloud/app-certificate-requests/pull/1292> (one file,
-DCO green, the two Actions checks waiting for a maintainer's approval). A
-request is opened from
+<https://github.com/nextcloud/app-certificate-requests/pull/1292> (one file);
+a maintainer merged it the next day, 2 Oct 2026, and added the certificate as
+`pulse/pulse.crt`. It was opened from
 <https://github.com/nextcloud/app-certificate-requests/compare/master...hotochan123:app-certificate-requests:pulse-cert>
-("Create pull request"); check afterwards that it really exists. Should the
+("Create pull request"). A later request, for example after losing the key,
+needs a new branch in the fork that holds only the new `pulse/pulse.csr`, and
+is opened the same way; check afterwards that it really exists. Should the
 fork ever have to be made again: create it by hand first — the automatic fork
 on "Create new file" does not kick in for this repository.
 
@@ -146,18 +148,21 @@ What the certificate repository checks (as of 1 Oct 2026):
 - The reviewer opens the linked repository and compares `<id>` in `info.xml`
   and the commit authors with the request.
 
-Do **not** press "Update branch" and do not rebase: the branch is far behind
-`master`, but the checks run on the merge ref, and `pulse/` does not exist
-upstream. An update adds a commit without a sign-off, which fails DCO, and the
-reviewer asks for a branch with only the request commit. No title format is
+While a request is open, do **not** press "Update branch" and do not rebase:
+the branch may be far behind `master`, but the checks run on the merge ref. An
+update adds a commit without a sign-off, which fails DCO, and the reviewer
+asks for a branch with only the request commit. No title format is
 prescribed, and the README says not to mention anyone. A short, generic ID has
-been questioned before (one request was asked for a "less generic" ID); if
-that happens to `pulse`, the answer is the owner's decision — a new ID means a
-new key, a new request and a different `<id>`.
+been questioned before (one request was asked for a "less generic" ID).
 
 Recent requests were merged after 18 hours to five days (median about two
 days), in batches. The many old open requests are stalled ones waiting for
 their authors, not a queue.
+
+How it went for `pulse`: merged on 2 Oct 2026, about 27 hours after it was
+opened, without a question about the e-mail address, the ownership, the ID or
+the framing; the maintainer only linked the commit with the certificate. The
+notes above stay for a later request, for example after losing the key.
 
 #### After the merge: save and check the certificate
 
@@ -172,9 +177,23 @@ openssl x509 -in "$PULSE_SECRETS/pulse.crt" -noout -subject     # subject=CN=pul
   "$(openssl pkey -in "$PULSE_SECRETS/pulse.key" -pubout)" ] && echo "certificate matches the key"
 ```
 
-`build/package.sh` repeats both checks before every signing: `occ` signs with
-any certificate, and a wrong one would only show up when an instance refuses
-the release.
+To also see that Nextcloud issued it and has not revoked it, check it against
+the root certificate and revocation list every Nextcloud server checks app
+signatures with (`resources/codesigning/` in the server's source):
+
+```sh
+NC=/path/to/nextcloud    # the server's web root
+openssl verify -crl_check -CAfile "$NC/resources/codesigning/root.crt" \
+  -CRLfile "$NC/resources/codesigning/root.crl" "$PULSE_SECRETS/pulse.crt"   # …: OK
+```
+
+Done on 2 Oct 2026: the saved file is byte for byte the one in the
+certificate repository, and all three checks passed.
+
+`build/package.sh` repeats the first two checks (`CN=pulse`, matches the key)
+before every signing, but not the check against Nextcloud's root: `occ` signs
+with any certificate, and a wrong one would only show up when an instance
+refuses the release.
 
 The private key stays outside the repository (`.gitignore` additionally blocks
 `*.key`/`*.csr`/`*.crt`). If it is lost, every release signed so far becomes
@@ -249,6 +268,10 @@ repository:
 STORE_TOKEN="$(cat "$PULSE_SECRETS/store.token")"    # file 600, never in the repository
 ```
 
+The account exists (the registration in step 5 needed it); the token is not
+saved yet. Uploading a release through the web form
+([For every release](#for-every-release), step 7) works without it.
+
 ### 5. Register the app ID
 
 The registration — not the first upload — binds the ID `pulse` to the account
@@ -279,6 +302,17 @@ node -e 'const fs = require("fs"); process.stdout.write(JSON.stringify({
 changed after the registration. 201 means registered; 400 means the signature
 does not match the certificate, or the certificate is not signed by Nextcloud
 or has been revoked.
+
+Done on 2 Oct 2026 through the web form, whose "Mark app as enterprise-only"
+box is unticked by default. The public app list (`/api/v1/apps.json`) leaves
+out apps without a release and enterprise-only apps, so `pulse` showing up
+there after the first release confirms that the box stayed off.
+
+The store page names the owner by the account's first and last name
+(`hotochan123` since 2 Oct 2026); an account without a name shows as
+"Anonymous". Until the first release the page shows the app ID `pulse` as
+name, summary and description: the registration only knows the ID. The first
+release replaces them with the texts from `info.xml` (name "Pulse").
 
 ### 6. First release
 
@@ -400,6 +434,10 @@ or has been revoked.
          }'
    ```
 
+   The same works without a token in the web form
+   <https://apps.nextcloud.com/developer/apps/releases/new> (download link,
+   signature, nightly box).
+
    An account with a password can use `-u "STORE-ACCOUNT:PASSWORD"` instead of
    the token; one created through GitHub cannot. The store downloads the
    archive, checks the signature against the registered certificate, reads
@@ -440,10 +478,9 @@ or has been revoked.
   see. `occ app:check-code` no longer helps; the command no longer exists in
   34.
 - **Security contact:** `SECURITY.md` asks for reports through GitHub's
-  private vulnerability reporting, which still has to be switched on once the
-  repository is public (in the repository's security settings); until then it
-  asks for an issue without details. The store expects authors to respond to
-  security concerns in time.
+  private vulnerability reporting, which has been on since 1 Oct 2026; should
+  the button ever be missing, `SECURITY.md` asks for an issue without details
+  instead. The store expects authors to respond to security concerns in time.
 - **Translations:** English and German come from the repository. Further
   languages would go through Transifex; for that the app has to be added to
   Nextcloud's Transifex project (a request to Nextcloud), going it alone is not

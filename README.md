@@ -216,9 +216,10 @@ record of the self-paced UI, which is included.
 
 ## Installation
 
-Pulse is not in the Nextcloud App Store yet: the signing certificate it needs
-has been requested but not issued yet (as of 1 October 2026; steps and status
-in [`docs/APPSTORE.md`](docs/APPSTORE.md)). Until then it is installed from this
+Pulse is not in the Nextcloud App Store yet: the signing certificate has been
+issued and the app ID registered, but the first signed release is still to
+come (as of 2 October 2026; steps and status in
+[`docs/APPSTORE.md`](docs/APPSTORE.md)). Until then it is installed from this
 repository. It has only been tested on Nextcloud 34 (34.0.1), with fresh
 installations on SQLite, MariaDB 11.8, PostgreSQL 17 and MySQL 8.4.
 
@@ -587,11 +588,10 @@ respective owners.
 
 ## Known limits and possible extensions
 
-- App Store: not published yet. The repository is public and the pull request
-  for the signing certificate is open; still to do are registering the app ID
-  and the first signed release (as of 1 October 2026). Checklist in
-  `docs/APPSTORE.md`. Further languages would go through Transifex and need
-  Nextcloud's involvement.
+- App Store: not published yet. The signing certificate has been issued and
+  the app ID registered; still to do is the first signed release (as of
+  2 October 2026). Checklist in `docs/APPSTORE.md`. Further languages would
+  go through Transifex and need Nextcloud's involvement.
 - Tested on Nextcloud 34 only; `info.xml` declares 34 only. Nextcloud 35
   (September 2026) is not covered yet: updating an instance to 35 disables
   Pulse, and it stays off until a release declares 35.
