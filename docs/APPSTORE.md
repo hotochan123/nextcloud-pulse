@@ -369,9 +369,12 @@ Published on 3 Oct 2026 as 0.19.0.
   archive SHA-256
   `2d7fb1b8dd1c20a77b2adeff41059019d0d3310cfd9b8589c1b1ac01efc06f3f`, tested
   on 34.0.4 and 35.0.1 as an update from 0.19.0 through the stand-in store
-  (`occ app:update pulse`): the integrity check passed, a changed file showed
-  up as `INVALID_HASH`, and the HTTP simulation passed with 1504 / 0. After
-  the upload the store page showed the new description in English and German.
+  (`occ app:update pulse`): the integrity check passed, the installed files
+  were the same as in the archive, the 12 migrations stayed in place and the
+  log stayed free of warnings. The HTTP simulation did not run again: next to
+  the version, 0.19.1 changes only `info.xml`'s description, `CHANGELOG.md`,
+  `README.md` and `docs/`. After the upload the store page showed the new
+  description in English and German.
 - **Installed from the real store:** on 3 Oct 2026 at about 02:08 UTC,
   throwaway Nextcloud 34.0.4 and 35.0.1 (PostgreSQL, no `appstoreurl` set)
   ran `occ app:install pulse`. 34.0.4 got 0.19.0 and 35.0.1 already got
@@ -525,10 +528,10 @@ Published on 3 Oct 2026 as 0.19.0.
    instance got a list from 00:35 without 0.19.1, a second one a list from
    01:58 with it. Each instance also keeps the list it fetched for up to an
    hour (`Fetcher::INVALIDATE_AFTER_SECONDS`). So a new version reaches
-   instances only gradually, and one answer listing it does not mean every
-   instance sees it yet; do the installation check above only once
-   `https://apps.nextcloud.com/api/v1/apps.json` (following the redirect)
-   lists it.
+   instances only gradually, and one answer listing it says nothing about
+   the copy the next request gets. If the installation check above still
+   gets the previous version, the instance received an older copy: try again
+   some hours later with a fresh instance.
 
    The screenshots are a separate matter. The store page and Nextcloud's app
    management show them through `usercontent.apps.nextcloud.com`, which for
