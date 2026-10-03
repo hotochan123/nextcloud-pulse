@@ -580,11 +580,6 @@ to 35.
   store only ([first release](#6-first-release)); an installation through the
   real store waits until the copy of the app list that instances download
   carries 0.19.0 (step 8 of [For every release](#for-every-release)).
-- **Bundle size:** about half of `js/pulse-main.js`, `js/pulse-public.js` and
-  `js/pulse-styles.js` are inline CSS source maps that carry the Vue sources:
-  `@nextcloud/webpack-vue-config` turns source maps on for production builds,
-  and `build/package.sh` only removes the separate `.map` files. Planned for
-  the next release: switch them off in `webpack.config.js`.
 - **Servers older than 34:** to open the range downwards honestly later,
   `nextcloud/ocp` in the
   respective version as a dev dependency plus Psalm covers the PHP side

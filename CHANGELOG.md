@@ -7,6 +7,14 @@ All notable changes to Pulse are documented here. The format follows
 Release notes on the Nextcloud App Store are taken from the topmost sections of
 this file, so every published version needs an entry here.
 
+## [Unreleased]
+
+### Changed
+- Pulse's JavaScript files are about half as big: 0.6 MB instead of 1.2 MB
+  for the moderator view, 0.5 MB instead of 1.0 MB for the audience page. The
+  build no longer embeds a second copy of every stylesheet, with its source,
+  as a source map; the styles themselves are unchanged.
+
 ## [0.19.1] - 2026-10-03
 
 ### Changed
