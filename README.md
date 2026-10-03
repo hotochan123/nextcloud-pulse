@@ -227,8 +227,9 @@ which is where the store sends every instance to download it.
 Pulse runs on Nextcloud 34 and 35 and has been tested on 34.0.1 and 35.0.1
 with fresh installations on SQLite, MariaDB 11.8, PostgreSQL 17 and MySQL 8.4,
 and on 34.0.4 with PostgreSQL, including the server update from 34.0.4 to
-35.0.1. The signed 0.19.0 archive was installed on 34.0.4 and 35.0.1 through
-the same download and signature checks an installation from the store runs.
+35.0.1. The signed archives of 0.19.0 and 0.19.1 were installed on 34.0.4 and
+35.0.1 through the same download and signature checks an installation from the
+store runs.
 
 To install from the repository instead (for example a state that has not
 been released yet), do not clone it into the web root. A checkout carries the

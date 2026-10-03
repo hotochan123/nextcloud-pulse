@@ -7,6 +7,14 @@ All notable changes to Pulse are documented here. The format follows
 Release notes on the Nextcloud App Store are taken from the topmost sections of
 this file, so every published version needs an entry here.
 
+## [0.19.1] - 2026-10-03
+
+### Changed
+- The App Store description is easier to read: a short introduction, then
+  polls, quizzes, presenting and notes under their own headings, with the
+  features as lists. It now also mentions the self-paced quiz and that rooms
+  nobody has used for 30 days are deleted automatically.
+
 ## [0.19.0] - 2026-10-03
 
 ### Security

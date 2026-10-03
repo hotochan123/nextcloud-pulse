@@ -6,74 +6,92 @@
     <summary>Live polls for presentations — the audience votes with a code</summary>
     <summary lang="de">Live-Umfragen für Präsentationen — Publikum stimmt per Code ab</summary>
     <description><![CDATA[
-Pulse brings live polls, word clouds and quizzes for presentations to Nextcloud.
-It is a self-hosted alternative to services such as Kahoot!, Mentimeter or Slido.
-The presenter opens a room and projects a six-character code; the audience joins
-through a public link without a Nextcloud account and votes from their own phone.
-Results update live.
+**Live polls, word clouds and quizzes for presentations — in your own Nextcloud.**
+Pulse is a self-hosted alternative to services such as Kahoot!, Mentimeter or
+Slido. The presenter opens a room and shows its six-character code on the
+projector; the audience joins through a public link, without a Nextcloud
+account, and votes from their own phone. Results appear live.
 
-Two room modes:
-- Poll (anonymous): multiple choice, word cloud, scale (single slider, spectrum
-  radar, compass 2D field), ranking, matching
-- Quiz (with a nickname): multiple choice, true/false, multiple answers, number
-  guess, free text with grading after the fact, ranking, matching — countdown,
-  speed points, leaderboard
+### Polls
+Anonymous, with multiple choice, word cloud, scale (single slider, spectrum
+radar or compass), ranking and matching.
 
-On top of that: a deck of several questions, a projector/audience view at
-/screen/{code}, QR code and join link, a practice mode, reveal per question or at
-the end, a summary with CSV export and an add-in for embedding into PowerPoint.
+### Quizzes
+With nicknames, points and a leaderboard: multiple choice, true/false,
+multiple answers, number guess, free text graded afterwards, ranking and
+matching.
+- **Moderated:** the presenter shows one question after another and everybody
+  answers at the same time — with a countdown and points for speed.
+- **Self-paced:** everybody works through the quiz alone on their own phone —
+  as a race in the room or as homework with a deadline.
 
-Participants need no account (a public share page, just like share links). An
-anonymous voter token in a cookie discourages double voting without identifying
-anyone; whoever clears their cookies can vote again.
+### For presenting
+- Decks of several questions, an image per question
+- Projector view, QR code and join link
+- Practice runs; reveal after each question or at the end
+- Summary with CSV export
+- Add-in to embed Pulse in PowerPoint slides
 
-How it was built: Pulse is vibe-coded. Its code, tests, documentation and German
-translation were written by AI coding agents (Anthropic's Claude Code); the
-maintainer set the goals, made the product decisions and tried the app out in
-the browser. There has been no independent human code review and no security
-audit, so please evaluate it yourself before relying on it. Details in the
-[README](https://github.com/hotochan123/nextcloud-pulse#how-this-app-was-built-ai-disclosure).
+### Good to know
+- An anonymous token in a cookie discourages voting twice without identifying
+  anyone; whoever clears their cookies can vote again.
+- Rooms that nobody has used for 30 days are deleted automatically.
+- Pulse is vibe-coded: its code, tests, documentation and German translation
+  were written by AI coding agents (Anthropic's Claude Code); the maintainer
+  set the goals, made the product decisions and tried the app out in the
+  browser. There has been no independent human code review and no security
+  audit, so please evaluate it yourself before relying on it. Details in the
+  [README](https://github.com/hotochan123/nextcloud-pulse#how-this-app-was-built-ai-disclosure).
 
 Pulse is an independent project and is not affiliated with or endorsed by the
 providers of Kahoot!, Mentimeter or Slido; these names are trademarks of their
 respective owners.
     ]]></description>
     <description lang="de"><![CDATA[
-Pulse bringt Live-Umfragen, Wortwolken und Quizrunden für Präsentationen nach
-Nextcloud und ist damit eine selbst gehostete Alternative zu Diensten wie Kahoot!,
-Mentimeter oder Slido. Die vortragende Person öffnet einen Raum und projiziert
-einen 6-stelligen Code; das Publikum tritt ohne Nextcloud-Konto über einen
-öffentlichen Link bei und stimmt vom eigenen Handy ab. Ergebnisse aktualisieren
-sich live.
+**Live-Umfragen, Wortwolken und Quizrunden für Präsentationen — in der eigenen Nextcloud.**
+Pulse ist eine selbst gehostete Alternative zu Diensten wie Kahoot!, Mentimeter
+oder Slido. Die vortragende Person öffnet einen Raum und zeigt den 6-stelligen
+Code am Beamer; das Publikum tritt ohne Nextcloud-Konto über einen öffentlichen
+Link bei und stimmt vom eigenen Handy ab. Die Ergebnisse erscheinen live.
 
-Zwei Raum-Modi:
-- Umfrage (anonym): Multiple Choice, Wortwolke, Skala (Einzel-Slider, Spektrum-Radar,
-  Kompass-2D-Feld), Reihenfolge, Zuordnung
-- Quiz (mit Nickname): Multiple Choice, Wahr/Falsch, Mehrfachauswahl, Schätzfrage,
-  Freitext mit nachträglicher Bewertung, Reihenfolge, Zuordnung — Countdown,
-  Tempo-Punkte, Rangliste
+### Umfragen
+Anonym, mit Multiple Choice, Wortwolke, Skala (Einzel-Slider, Spektrum-Radar
+oder Kompass), Reihenfolge und Zuordnung.
 
-Dazu: Deck aus mehreren Fragen, Beamer-/Publikumsansicht unter /screen/{code},
-QR-Code und Beitritts-Link, Probelauf-Modus, Auflösung je Frage oder am Ende,
-Zusammenfassung mit CSV-Export und ein Add-in zum Einbetten in PowerPoint.
+### Quiz
+Mit Nicknames, Punkten und Rangliste: Multiple Choice, Wahr/Falsch,
+Mehrfachauswahl, Schätzfrage, Freitext mit nachträglicher Bewertung,
+Reihenfolge und Zuordnung.
+- **Moderiert:** Die vortragende Person zeigt eine Frage nach der anderen, alle
+  antworten gleichzeitig — mit Countdown und Punkten fürs Tempo.
+- **Im eigenen Tempo:** Alle spielen das Quiz allein am eigenen Handy durch —
+  als Wettrennen im Raum oder als Hausaufgabe mit Frist.
 
-Teilnehmende brauchen keinen Account (öffentliche Freigabe-Seite, wie bei
-Freigabe-Links). Ein anonymes Voter-Token im Cookie erschwert mehrfaches Abstimmen,
-ohne eine Person zu identifizieren; wer die Cookies löscht, kann erneut abstimmen.
+### Zum Präsentieren
+- Decks aus mehreren Fragen, ein Bild je Frage
+- Beamer-Ansicht, QR-Code und Beitritts-Link
+- Probelauf; Auflösung nach jeder Frage oder am Ende
+- Zusammenfassung mit CSV-Export
+- Add-in zum Einbetten in PowerPoint-Folien
 
-Zur Entstehung: Pulse ist „vibe-coded“. Code, Tests, Dokumentation und deutsche
-Übersetzung haben KI-Coding-Agenten geschrieben (Claude Code von Anthropic);
-hotochan123 hat die Ziele gesetzt, die Produktentscheidungen getroffen und die
-App im Browser ausprobiert. Es gab keine unabhängige menschliche Code-Prüfung und kein
-Sicherheitsaudit — bitte vor dem Einsatz selbst prüfen. Details in der
-[README](https://github.com/hotochan123/nextcloud-pulse#how-this-app-was-built-ai-disclosure)
-(englisch).
+### Gut zu wissen
+- Ein anonymes Token im Cookie erschwert mehrfaches Abstimmen, ohne jemanden zu
+  identifizieren; wer die Cookies löscht, kann erneut abstimmen.
+- Räume, die 30 Tage lang niemand genutzt hat, werden automatisch gelöscht.
+- Pulse ist „vibe-coded“: Code, Tests, Dokumentation und deutsche Übersetzung
+  haben KI-Coding-Agenten geschrieben (Claude Code von Anthropic); hotochan123
+  hat die Ziele gesetzt, die Produktentscheidungen getroffen und die App im
+  Browser ausprobiert. Es gab keine unabhängige menschliche Code-Prüfung und
+  kein Sicherheitsaudit — bitte vor dem Einsatz selbst prüfen. Details in der
+  [README](https://github.com/hotochan123/nextcloud-pulse#how-this-app-was-built-ai-disclosure)
+  (englisch).
 
-Pulse ist ein unabhängiges Projekt; es steht in keiner Verbindung zu den Anbietern
-von Kahoot!, Mentimeter oder Slido und wird von ihnen weder unterstützt noch
-empfohlen. Die genannten Namen sind Marken ihrer jeweiligen Inhaber.
+Pulse ist ein unabhängiges Projekt; es steht in keiner Verbindung zu den
+Anbietern von Kahoot!, Mentimeter oder Slido und wird von ihnen weder
+unterstützt noch empfohlen. Die genannten Namen sind Marken ihrer jeweiligen
+Inhaber.
     ]]></description>
-    <version>0.19.0</version>
+    <version>0.19.1</version>
     <licence>AGPL-3.0-or-later</licence>
     <author homepage="https://github.com/hotochan123">hotochan123</author>
     <namespace>Pulse</namespace>
