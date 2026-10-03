@@ -11,9 +11,10 @@ this file, so every published version needs an entry here.
 
 ### Changed
 - Pulse's JavaScript files are about half as big: 0.6 MB instead of 1.2 MB
-  for the moderator view, 0.5 MB instead of 1.0 MB for the audience page. The
-  build no longer embeds a second copy of every stylesheet, with its source,
-  as a source map; the styles themselves are unchanged.
+  for the moderator view, 0.5 MB instead of 1.0 MB for the audience and
+  projector pages. The build no longer embeds a second copy of every
+  stylesheet, with its source, as a source map; the styles themselves are
+  unchanged.
 
 ## [0.19.1] - 2026-10-03
 
