@@ -229,7 +229,8 @@ with fresh installations on SQLite, MariaDB 11.8, PostgreSQL 17 and MySQL 8.4,
 and on 34.0.4 with PostgreSQL, including the server update from 34.0.4 to
 35.0.1. The signed archives of 0.19.0 and 0.19.1 were installed on 34.0.4 and
 35.0.1 through the same download and signature checks an installation from the
-store runs.
+store runs, and both have been installed from the store itself (0.19.0 on
+34.0.4, 0.19.1 on 35.0.1).
 
 To install from the repository instead (for example a state that has not
 been released yet), do not clone it into the web root. A checkout carries the

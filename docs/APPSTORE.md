@@ -22,7 +22,7 @@ As of 3 October 2026:
 | Licence | done — `LICENSE` (AGPL-3.0-or-later), SPDX header in every source file, `<licence>AGPL-3.0-or-later</licence>` in `info.xml`; four icons in `PulseIcon.vue` come from Feather Icons (MIT), credited with the licence text under "Licence" in the README |
 | `CHANGELOG.md` (the store's release notes) | done — the first release's notes are the section `## [0.19.0] - 2026-10-03` |
 | Release archive without sources/throwaway files | done (`build/package.sh`); 0.19.0 was signed with the real certificate and checked file by file against the release commit |
-| First release | done — 0.19.0 published on 3 Oct 2026: tag `v0.19.0` on `260a0ec`, [GitHub release](https://github.com/hotochan123/nextcloud-pulse/releases/tag/v0.19.0) with the signed archive, uploaded through the store's web form. The store page and the store's app lists for Nextcloud 34 and 35 show it; the copy of the app list that instances download did not carry it yet on the day, and the store page shows no screenshots — a fault of the store, see the Screenshots row ([step 6](#6-first-release), [step 8 of every release](#for-every-release)) |
+| First release | done — 0.19.0 published on 3 Oct 2026: tag `v0.19.0` on `260a0ec`, [GitHub release](https://github.com/hotochan123/nextcloud-pulse/releases/tag/v0.19.0) with the signed archive, uploaded through the store's web form. A throwaway instance installed it from the store the same day; 0.19.1 (only a new store description) followed on 3 Oct 2026 as well. The store page shows no screenshots — a fault of the store, see the Screenshots row ([step 6](#6-first-release), [step 8 of every release](#for-every-release)) |
 | CI: bundle, tests, translations, schema | workflow in `.github/workflows/ci.yml`, green on the public repository — check it again before tagging |
 | Screenshots for the store page | six images in `screenshots/`, linked in `info.xml`; all six URLs answer 200 `image/png` (1 and 3 Oct 2026), and the join code on them no longer opens a room. **Open, on the store's side:** the store page shows none of them, because the store's image proxy `usercontent.apps.nextcloud.com` delivers no image for them — as for the screenshots of most apps first published since July 2026 ([nextcloud/appstore#1913](https://github.com/nextcloud/appstore/issues/1913), [#1914](https://github.com/nextcloud/appstore/issues/1914); 3 Oct 2026) |
 | Databases | fresh installations of Nextcloud 34.0.1 and 35.0.1 tested with SQLite, MariaDB 11.8, PostgreSQL 17 and MySQL 8.4 (MySQL after the fix for new questions, see `CHANGELOG.md`) |
@@ -363,6 +363,23 @@ Published on 3 Oct 2026 as 0.19.0.
   the same signature and certificate, and the Releases tab nests the lists as
   GitHub does. The README's installation section points to the store since
   the same day.
+- **0.19.1:** the same day, with only a new store description (an
+  introduction, then headings and lists; it also names the self-paced quiz
+  and the deletion of rooms unused for 30 days). Tag `v0.19.1` on `61b1250`,
+  archive SHA-256
+  `2d7fb1b8dd1c20a77b2adeff41059019d0d3310cfd9b8589c1b1ac01efc06f3f`, tested
+  on 34.0.4 and 35.0.1 as an update from 0.19.0 through the stand-in store
+  (`occ app:update pulse`): the integrity check passed, a changed file showed
+  up as `INVALID_HASH`, and the HTTP simulation passed with 1504 / 0. After
+  the upload the store page showed the new description in English and German.
+- **Installed from the real store:** on 3 Oct 2026 at about 02:08 UTC,
+  throwaway Nextcloud 34.0.4 and 35.0.1 (PostgreSQL, no `appstoreurl` set)
+  ran `occ app:install pulse`. 34.0.4 got 0.19.0 and 35.0.1 already got
+  0.19.1, because the two received copies of the app list of different age
+  (step 8 of [For every release](#for-every-release)). Both installed with
+  all 12 migrations, `occ integrity:check-app pulse` reported nothing, the
+  installed files were the same as in the tested archive, and the log
+  stayed free of warnings.
 
 ## For every release
 
@@ -501,13 +518,17 @@ Published on 3 Oct 2026 as 0.19.0.
    Not everything shows up at once. The store page, the Releases tab and
    `/api/v1/platform/<version>/apps.json` have the release right away (a
    cache in front of the latter can serve an older copy for a few minutes).
-   Nextcloud instances, however, download `/api/v1/apps.json`, which
-   redirects to a static copy on a mirror (such as `garm2.nextcloud.com`)
-   that is renewed only from time to time, and each instance keeps the list it fetched for up to an hour
-   (`Fetcher::INVALIDATE_AFTER_SECONDS`). Until both are renewed, instances
-   do not offer the new version, so do the installation check above only
-   once `https://apps.nextcloud.com/api/v1/apps.json` (following the
-   redirect) lists it.
+   Nextcloud instances, however, download `/api/v1/apps.json`. The store
+   answers that itself or redirects to a static copy on a mirror
+   (`garm2.nextcloud.com` and `garm3.nextcloud.com` seen so far), and these
+   copies are renewed at different times: on 3 Oct 2026 at 02:08 UTC one
+   instance got a list from 00:35 without 0.19.1, a second one a list from
+   01:58 with it. Each instance also keeps the list it fetched for up to an
+   hour (`Fetcher::INVALIDATE_AFTER_SECONDS`). So a new version reaches
+   instances only gradually, and one answer listing it does not mean every
+   instance sees it yet; do the installation check above only once
+   `https://apps.nextcloud.com/api/v1/apps.json` (following the redirect)
+   lists it.
 
    The screenshots are a separate matter. The store page and Nextcloud's app
    management show them through `usercontent.apps.nextcloud.com`, which for
@@ -576,10 +597,6 @@ to 35.
   the server update on MariaDB, MySQL and SQLite, and the PowerPoint add-in in
   real Office. The signed archive itself was installed on 34 and 35 before
   the upload ([first release](#6-first-release)).
-- **Installing from the real store:** the archive went through the stand-in
-  store only ([first release](#6-first-release)); an installation through the
-  real store waits until the copy of the app list that instances download
-  carries 0.19.0 (step 8 of [For every release](#for-every-release)).
 - **Servers older than 34:** to open the range downwards honestly later,
   `nextcloud/ocp` in the
   respective version as a dev dependency plus Psalm covers the PHP side
