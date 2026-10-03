@@ -17,14 +17,14 @@ As of 3 October 2026:
 | Public repository | done — `hotochan123/nextcloud-pulse` is public since 1 Oct 2026 (renamed from `hotochan123-nextcloud-pulse`, GitHub redirects the old name), Issues and private vulnerability reporting are on, description and topics set. `info.xml` points there for the website, the issue tracker and the screenshots |
 | App ID `pulse` | taken for this app — `pulse/` in the certificate repository, registered in the store |
 | Signing certificate from Nextcloud | done — issued on 2 Oct 2026 through pull request [#1292](https://github.com/nextcloud/app-certificate-requests/pull/1292), valid until 7 Jan 2037; saved next to the key and checked: `CN=pulse`, matches the key, chains to Nextcloud's code-signing root, not revoked |
-| Store account, app ID registered | done — registered by the owner on 2 Oct 2026 through the web form; the store page <https://apps.nextcloud.com/apps/pulse> exists and has no release yet. The account's API token ([step 4](#4-store-account)) is not saved yet; the release can also be uploaded through the web form without it |
+| Store account, app ID registered | done — registered by the owner on 2 Oct 2026 through the web form; store page <https://apps.nextcloud.com/apps/pulse>. The account's API token ([step 4](#4-store-account)) is not saved; releases go up through the web form without it |
 | `appinfo/info.xml` valid against the store schema | done — validates against the store's current schema (`xmllint`, also in CI and in `build/package.sh`) |
 | Licence | done — `LICENSE` (AGPL-3.0-or-later), SPDX header in every source file, `<licence>AGPL-3.0-or-later</licence>` in `info.xml`; four icons in `PulseIcon.vue` come from Feather Icons (MIT), credited with the licence text under "Licence" in the README |
 | `CHANGELOG.md` (the store's release notes) | done — the first release's notes are the section `## [0.19.0] - 2026-10-03` |
-| Release archive without sources/throwaway files | done (`build/package.sh`); signing tested with a throwaway certificate |
-| First release | in progress — version 0.19.0 set on 2 Oct 2026 (`info.xml`, `package.json`), its CHANGELOG section on 3 Oct 2026; no tag, no GitHub release and no store upload yet ([step 6](#6-first-release)) |
+| Release archive without sources/throwaway files | done (`build/package.sh`); 0.19.0 was signed with the real certificate and checked file by file against the release commit |
+| First release | done — 0.19.0 published on 3 Oct 2026: tag `v0.19.0` on `260a0ec`, [GitHub release](https://github.com/hotochan123/nextcloud-pulse/releases/tag/v0.19.0) with the signed archive, uploaded through the store's web form. The store page and the store's app lists for Nextcloud 34 and 35 show it; the copy of the app list that instances download did not carry it yet on the day, and the store page shows no screenshots — a fault of the store, see the Screenshots row ([step 6](#6-first-release), [step 8 of every release](#for-every-release)) |
 | CI: bundle, tests, translations, schema | workflow in `.github/workflows/ci.yml`, green on the public repository — check it again before tagging |
-| Screenshots for the store page | done — six images in `screenshots/`, linked in `info.xml`; all six URLs answer 200 `image/png` (1 Oct 2026), and the join code on them no longer opens a room |
+| Screenshots for the store page | six images in `screenshots/`, linked in `info.xml`; all six URLs answer 200 `image/png` (1 and 3 Oct 2026), and the join code on them no longer opens a room. **Open, on the store's side:** the store page shows none of them, because the store's image proxy `usercontent.apps.nextcloud.com` delivers no image for them — as for the screenshots of most apps first published since July 2026 ([nextcloud/appstore#1913](https://github.com/nextcloud/appstore/issues/1913), [#1914](https://github.com/nextcloud/appstore/issues/1914); 3 Oct 2026) |
 | Databases | fresh installations of Nextcloud 34.0.1 and 35.0.1 tested with SQLite, MariaDB 11.8, PostgreSQL 17 and MySQL 8.4 (MySQL after the fix for new questions, see `CHANGELOG.md`) |
 | Server versions | done — 34 and 35 (`max-version="35"` since 2 Oct 2026), tested on 34.0.1, 34.0.4 and 35.0.1 including the server update from 34.0.4 to 35.0.1, see [the test](#nextcloud-35-test-2-oct-2026) |
 | Public e-mail address | decided: **none**. Commits carry the GitHub no-reply address, the SPDX headers name only `hotochan123`, and `info.xml` gives the GitHub profile as `<author homepage>`; contact goes through the issue tracker. The store's developer guide asks for an address on the GitHub profile with the certificate request, see [step 2](#2-request-the-certificate); the request for `pulse` was merged without one and without a question about it (2 Oct 2026) |
@@ -217,7 +217,11 @@ Six images are in `screenshots/` and are listed in `info.xml` after
 **The store fetches these URLs itself.** As long as the files are not on `main`
 of the public repository, or the repository is not publicly visible, the URLs
 lead nowhere and the store page stays without images — so check them (step 1)
-before publishing a release. They do not belong in the release archive;
+before publishing a release. Working URLs are not enough on their own: the
+store shows the images through its proxy `usercontent.apps.nextcloud.com`,
+which delivered none of the six after the upload of 0.19.0 (step 8 of
+[For every release](#for-every-release)). They do not belong in the release
+archive;
 `build/package.sh` only collects the runtime files. The join code on the images
 belongs to a store fixture room from 14 Aug 2026; make sure it no longer opens
 a room, or take the images again.
@@ -269,8 +273,9 @@ STORE_TOKEN="$(cat "$PULSE_SECRETS/store.token")"    # file 600, never in the re
 ```
 
 The account exists (the registration in step 5 needed it); the token is not
-saved yet. Uploading a release through the web form
-([For every release](#for-every-release), step 7) works without it.
+saved. Uploading a release through the web form
+([For every release](#for-every-release), step 7) works without it; 0.19.0
+went up that way.
 
 ### 5. Register the app ID
 
@@ -304,17 +309,20 @@ does not match the certificate, or the certificate is not signed by Nextcloud
 or has been revoked.
 
 Done on 2 Oct 2026 through the web form, whose "Mark app as enterprise-only"
-box is unticked by default. The public app list (`/api/v1/apps.json`) leaves
-out apps without a release and enterprise-only apps, so `pulse` showing up
-there after the first release confirms that the box stayed off.
+box is unticked by default. The store's app lists leave out apps without a
+release and enterprise-only apps; `/api/v1/platform/34.0.4/apps.json` and
+`/api/v1/platform/35.0.1/apps.json` have listed `pulse` since the first
+release (3 Oct 2026), so the box stayed off.
 
 The store page names the owner by the account's first and last name
 (`hotochan123` since 2 Oct 2026); an account without a name shows as
-"Anonymous". Until the first release the page shows the app ID `pulse` as
+"Anonymous". Until the first release the page showed the app ID `pulse` as
 name, summary and description: the registration only knows the ID. The first
-release replaces them with the texts from `info.xml` (name "Pulse").
+release replaced them with the texts from `info.xml` (name "Pulse").
 
 ### 6. First release
+
+Published on 3 Oct 2026 as 0.19.0.
 
 - **Version:** 0.19.0, set on 2 Oct 2026 in `info.xml` and `package.json`;
   the local instance was upgraded with `occ upgrade` right away (step 1 of
@@ -325,10 +333,36 @@ release replaces them with the texts from `info.xml` (name "Pulse").
   `v0.18.0` with different code exists in the private archive.
 - **Nextcloud 35:** decided — the release declares 34 and 35
   ([test](#nextcloud-35-test-2-oct-2026)).
-- **CI** green on the public repository.
-- Then follow [For every release](#for-every-release).
-- Afterwards switch the README's installation section to the store and bring
-  the status table above up to date.
+- **Release notes:** the first build (from `5e8e607`) had sub-lists indented
+  by 2 spaces, which the store would have flattened (step 2 under
+  [For every release](#for-every-release)). `260a0ec` indents them by 4; the
+  notes were rendered with Python-Markdown 3.11, the store's version, before
+  building again.
+- **Archive:** built from `260a0ec` in a clean clone and signed with the real
+  certificate, SHA-256
+  `4d742a5953d3157f47f66eecd313ba0f02fd8a013d0f782efe812d796b948647`. The
+  fresh build reproduced the committed `js/` byte for byte, and every file in
+  the archive is the same as in the commit, `appinfo/signature.json` aside.
+- **Test before the upload:** throwaway Nextcloud 34.0.4 and 35.0.1
+  (PostgreSQL) installed it from a stand-in store — `appstoreurl` pointing at
+  a local `apps.json` with this release, its signature and the certificate,
+  plus `allow_local_remote_servers` — so `occ app:install pulse` ran the same
+  checks as with the real store: certificate chain and revocation list, CN,
+  signature over the archive, exactly one folder whose `appinfo/info.xml`
+  carries the app ID. The app
+  installed with all 12 migrations, `occ integrity:check-app pulse` reported
+  nothing, and a changed file showed up as `INVALID_HASH`. The HTTP
+  simulation passed with 1504 / 0 on both, on the first build, whose files
+  differ only in `CHANGELOG.md` and `appinfo/signature.json`.
+- **Published:** tag `v0.19.0` on `260a0ec` (CI green), GitHub release with
+  the archive as asset (downloaded again and compared byte for byte before
+  the upload), then the store's web form. The store took name, summary,
+  description and screenshot links from `info.xml` (the images themselves
+  do not show, see step 8 of [For every release](#for-every-release)) and the
+  release notes from `CHANGELOG.md`; its app lists for 34.0.4 and 35.0.1 carry 0.19.0 with
+  the same signature and certificate, and the Releases tab nests the lists as
+  GitHub does. The README's installation section points to the store since
+  the same day.
 
 ## For every release
 
@@ -464,6 +498,28 @@ release replaces them with the texts from `info.xml` (name "Pulse").
    match, the instance reports "Some files have not passed the integrity
    check".
 
+   Not everything shows up at once. The store page, the Releases tab and
+   `/api/v1/platform/<version>/apps.json` have the release right away (a
+   cache in front of the latter can serve an older copy for a few minutes).
+   Nextcloud instances, however, download `/api/v1/apps.json`, which
+   redirects to a static copy on a mirror (such as `garm2.nextcloud.com`)
+   that is renewed only from time to time, and each instance keeps the list it fetched for up to an hour
+   (`Fetcher::INVALIDATE_AFTER_SECONDS`). Until both are renewed, instances
+   do not offer the new version, so do the installation check above only
+   once `https://apps.nextcloud.com/api/v1/apps.json` (following the
+   redirect) lists it.
+
+   The screenshots are a separate matter. The store page and Nextcloud's app
+   management show them through `usercontent.apps.nextcloud.com`, which for
+   0.19.0 delivered no image for any of the six — an empty answer or "File
+   not found" with status 200 — although their GitHub URLs answer 200
+   `image/png`. Most apps first published since July 2026 fail there the same
+   way (in a sample on 3 Oct 2026: none of five from September, one of five
+   from August, two of five from July); the store's issues
+   [nextcloud/appstore#1913](https://github.com/nextcloud/appstore/issues/1913),
+   [#1914](https://github.com/nextcloud/appstore/issues/1914) are open
+   (3 Oct 2026). Nothing in the release can change that.
+
 ## Nextcloud 35 test (2 Oct 2026)
 
 Throwaway instances from the official images `nextcloud:35.0.1-apache` and
@@ -517,9 +573,18 @@ to 35.
 - **Nextcloud 35, not covered by the test above:** PHP 8.4 entirely and PHP
   8.3 beyond the syntax check and the unit tests (CI runs both on 35 with PHP
   8.3 and 8.5), the data steps of the migrations (see "Installation" above),
-  the server update on MariaDB, MySQL and SQLite, the integrity check of a
-  signed archive (install the first signed release once on 34 and once on 35
-  before uploading it) and the PowerPoint add-in in real Office.
+  the server update on MariaDB, MySQL and SQLite, and the PowerPoint add-in in
+  real Office. The signed archive itself was installed on 34 and 35 before
+  the upload ([first release](#6-first-release)).
+- **Installing from the real store:** the archive went through the stand-in
+  store only ([first release](#6-first-release)); an installation through the
+  real store waits until the copy of the app list that instances download
+  carries 0.19.0 (step 8 of [For every release](#for-every-release)).
+- **Bundle size:** about half of `js/pulse-main.js`, `js/pulse-public.js` and
+  `js/pulse-styles.js` are inline CSS source maps that carry the Vue sources:
+  `@nextcloud/webpack-vue-config` turns source maps on for production builds,
+  and `build/package.sh` only removes the separate `.map` files. Planned for
+  the next release: switch them off in `webpack.config.js`.
 - **Servers older than 34:** to open the range downwards honestly later,
   `nextcloud/ocp` in the
   respective version as a dev dependency plus Psalm covers the PHP side

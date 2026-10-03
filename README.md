@@ -216,16 +216,22 @@ record of the self-paced UI, which is included.
 
 ## Installation
 
-Pulse is not in the Nextcloud App Store yet: the signing certificate has been
-issued and the app ID registered, but the first signed release is still to
-come (as of 2 October 2026; steps and status in
-[`docs/APPSTORE.md`](docs/APPSTORE.md)). Until then it is installed from this
-repository. It runs on Nextcloud 34 and 35 and has been tested on 34.0.1 and
-35.0.1 with fresh installations on SQLite, MariaDB 11.8, PostgreSQL 17 and
-MySQL 8.4, and on 34.0.4 with PostgreSQL, including the server update from
-34.0.4 to 35.0.1.
+Pulse has been in the [Nextcloud App Store](https://apps.nextcloud.com/apps/pulse)
+since 3 October 2026. As an admin, open Apps in Nextcloud, search for "Pulse"
+and install it, or run `occ app:install pulse`. A new release can take some
+hours to show up there: Nextcloud reads a copy of the store's app list that
+the store renews only from time to time. Every release is signed with the
+app's certificate from Nextcloud and attached to the
+[GitHub releases](https://github.com/hotochan123/nextcloud-pulse/releases),
+which is where the store sends every instance to download it.
+Pulse runs on Nextcloud 34 and 35 and has been tested on 34.0.1 and 35.0.1
+with fresh installations on SQLite, MariaDB 11.8, PostgreSQL 17 and MySQL 8.4,
+and on 34.0.4 with PostgreSQL, including the server update from 34.0.4 to
+35.0.1. The signed 0.19.0 archive was installed on 34.0.4 and 35.0.1 through
+the same download and signature checks an installation from the store runs.
 
-Do not clone the repository into the web root. A checkout carries the
+To install from the repository instead (for example a state that has not
+been released yet), do not clone it into the web root. A checkout carries the
 development tree — tests, the simulation and screenshot harness, sources and,
 after a build, `node_modules/` with demo pages of its packages — and the web
 server hands out static files below `apps/` as they are, so all of it would be
@@ -590,10 +596,8 @@ respective owners.
 
 ## Known limits and possible extensions
 
-- App Store: not published yet. The signing certificate has been issued and
-  the app ID registered; still to do is the first signed release (as of
-  2 October 2026). Checklist in `docs/APPSTORE.md`. Further languages would
-  go through Transifex and need Nextcloud's involvement.
+- Languages: English and German. Further languages would go through
+  Transifex and need Nextcloud's involvement.
 - Nextcloud 34 and 35 only (`min-version="34" max-version="35"`, 35 since
   2 October 2026; the test is described in `docs/APPSTORE.md`). Copies from
   before that date carry `max-version="34"`, so Nextcloud 35's updater turns
