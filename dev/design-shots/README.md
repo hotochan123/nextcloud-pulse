@@ -136,7 +136,7 @@ deliberately write raw):
 By hand, e.g.:
 
 ```sh
-docker exec -u www-data nextcloud-nextcloud-1 php /var/www/html/apps/pulse/dev/design-shots/probe.php open ABC123 259200 0 end
+docker exec -u www-data nextcloud-nextcloud-1 php /var/www/html/custom_apps/pulse/dev/design-shots/probe.php open ABC123 259200 0 end
 ```
 
 ## Long words

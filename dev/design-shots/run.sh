@@ -17,7 +17,7 @@ set -eu
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 CONTAINER="${CONTAINER:-nextcloud-nextcloud-1}"
-APP_IN_CONTAINER="${APP_IN_CONTAINER:-/var/www/html/apps/pulse}"
+APP_IN_CONTAINER="${APP_IN_CONTAINER:-/var/www/html/custom_apps/pulse}"
 UID_SHOTS="${PULSE_SHOTS_UID:-pulse-shots}"
 OUT_ENV="${OUT:-}"
 OUT="${OUT:-$HERE/out}"

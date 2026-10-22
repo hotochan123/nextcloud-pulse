@@ -44,7 +44,7 @@ if (!HOST) {
 	process.exit(1)
 }
 const CONTAINER = process.env.CONTAINER || 'nextcloud-nextcloud-1'
-const APP_IN_CONTAINER = process.env.APP_IN_CONTAINER || '/var/www/html/apps/pulse'
+const APP_IN_CONTAINER = process.env.APP_IN_CONTAINER || '/var/www/html/custom_apps/pulse'
 const UID = process.env.PULSE_SHOTS_UID || 'pulse-shots'
 const LANG = process.env.PULSE_SHOTS_LANG || 'en-US, en'
 const PORT = Number(process.env.PULSE_SHOTS_PORT || 4444)
