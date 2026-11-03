@@ -982,6 +982,10 @@ export default {
    height-bound square charts (radar/compass — .is-wide in ResultsView) inherit a
    defined height. */
 .scr-results :deep(.pulse-results) { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+/* Centred rows that no longer fit (an explanation below takes its share)
+   must overflow DOWNWARDS: overflow above the top is cut off and does not
+   count in scrollHeight, so fitStage() would never shrink the stage. */
+.scr-results :deep(.srows--stretch), .scr-results :deep(.sstacks) { justify-content: safe center; }
 
 /* Free text on the projector: frequency tiles. Everything em -> scales with fitStage. */
 .scr-ftcards { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
