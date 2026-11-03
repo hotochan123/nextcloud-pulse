@@ -7,7 +7,7 @@ All notable changes to Pulse are documented here. The format follows
 Release notes on the Nextcloud App Store are taken from the topmost sections of
 this file, so every published version needs an entry here.
 
-## [Unreleased]
+## [0.20.0] - 2026-11-03
 
 ### Added
 - Quiz questions can carry an optional explanation: a short plain text (up to

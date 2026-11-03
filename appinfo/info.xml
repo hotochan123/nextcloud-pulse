@@ -29,6 +29,7 @@ matching.
 - Decks of several questions, an image per question
 - Projector view, QR code and join link
 - Practice runs; reveal after each question or at the end
+- Optional explanation per question, shown with the correct answer
 - Summary with CSV export
 - Add-in to embed Pulse in PowerPoint slides
 
@@ -71,6 +72,7 @@ Reihenfolge und Zuordnung.
 - Decks aus mehreren Fragen, ein Bild je Frage
 - Beamer-Ansicht, QR-Code und Beitritts-Link
 - Probelauf; Auflösung nach jeder Frage oder am Ende
+- Optionale Erklärung je Frage, erscheint mit der richtigen Antwort
 - Zusammenfassung mit CSV-Export
 - Add-in zum Einbetten in PowerPoint-Folien
 
