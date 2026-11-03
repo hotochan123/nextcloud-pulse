@@ -62,7 +62,11 @@ function toDraft(poll) {
 // fail() message is collected; the composer shows the first one and sends nothing.
 function toBody(draft, isQuiz) {
 	const body = { type: draft.type, question: draft.question.trim() }
-	if (isQuiz) body.timeLimit = draft.timeLimit
+	if (isQuiz) {
+		body.timeLimit = draft.timeLimit
+		const explanation = (draft.explanation || '').trim()
+		if (explanation) body.explanation = explanation
+	}
 	const fails = []
 	const spec = QUESTION_TYPES[draft.type]
 	if (spec) spec.toBody(draft, body, isQuiz, (m) => fails.push(m))
@@ -95,8 +99,17 @@ test('emptyDraft: a multiple-choice draft with the composer defaults', () => {
 		cornerLabels: ['', '', '', ''], heatmapThreshold: 45, minLabel: '', maxLabel: '',
 		imageFile: null, imagePreview: '', imageExisting: '', imageRemove: false,
 		correctIndex: 0, correctIndexes: [], target: '', tolerance: 0, answers: [''],
-		pairs: [{ left: '', right: '' }, { left: '', right: '' }], timeLimit: 30,
+		pairs: [{ left: '', right: '' }, { left: '', right: '' }], timeLimit: 30, explanation: '',
 	})
+})
+
+test('explanation: quiz only, trimmed, left out when empty', () => {
+	const tf = { correctIndex: 1, timeLimit: 30 }
+	sameJson(toBody(draftOf('truefalse', { ...tf, explanation: '  Because.\nReally.  ' }), true).body,
+		{ type: 'truefalse', question: 'Q?', timeLimit: 30, explanation: 'Because.\nReally.', correctIndex: 1 })
+	sameJson(toBody(draftOf('truefalse', { ...tf, explanation: ' \n ' }), true).body,
+		{ type: 'truefalse', question: 'Q?', timeLimit: 30, correctIndex: 1 })
+	assert.equal('explanation' in toBody(draftOf('rank', { options: ['a', 'b'], explanation: 'x' }), false).body, false, 'poll: never sent')
 })
 
 test('emptyDraft: every call returns a new draft that shares nothing', () => {

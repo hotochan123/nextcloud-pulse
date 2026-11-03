@@ -74,7 +74,7 @@ class RoomApiController extends Controller {
     private const POLL_FIELDS = [
         'type', 'question', 'options', 'maxWords', 'scaleMax', 'scaleMode', 'aspects',
         'range', 'axisX', 'axisY', 'cornerLabels', 'heatmapThreshold', 'minLabel', 'maxLabel',
-        'correctIndex', 'correctIndexes', 'target', 'tolerance', 'answers', 'pairs', 'timeLimit',
+        'correctIndex', 'correctIndexes', 'target', 'tolerance', 'answers', 'pairs', 'timeLimit', 'explanation',
     ];
 
     public function __construct(

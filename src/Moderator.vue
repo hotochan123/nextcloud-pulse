@@ -80,7 +80,8 @@
 						<span class="summary-type">{{ typeLabel(item.poll.type) }}</span>
 					</h3>
 					<TextGrading v-if="item.poll.type === 'text'" :results="item.results" @grade="(ans, ok) => gradeSummaryAnswer(item, ans, ok)" />
-					<ResultsView v-else :results="item.results" :correct-id="item.poll.correctOption || ''" :correct-ids="((item.poll.answerKey || {}).correct) || []" :answer-key="item.poll.answerKey || null" />
+					<ResultsView v-else :results="item.results" :correct-id="item.poll.correctOption || ''" :correct-ids="((item.poll.answerKey || {}).correct) || []" :answer-key="item.poll.answerKey || null" :explanation="item.poll.explanation || ''" />
+					<p v-if="item.poll.type === 'text' && item.poll.explanation" class="summary-explain"><span class="summary-explain-lbl">{{ t('pulse', 'Explanation') }}</span> {{ item.poll.explanation }}</p>
 				</div>
 			</div>
 			<p v-else class="deck-empty">{{ t('pulse', 'No questions in the deck yet.') }}</p>
@@ -323,6 +324,15 @@
 						</select>
 					</label>
 
+					<!-- Quiz only: why the answer is correct. Shown with the solution
+					     (projector, phones, summary) — never before the reveal. -->
+					<div v-if="isQuiz" class="explain-field">
+						<label class="explain-lbl" for="pulse-explain">{{ t('pulse', 'Explanation') }} <span class="sgroup-opt">· {{ t('pulse', 'optional') }}</span></label>
+						<textarea id="pulse-explain" v-model="draft.explanation" class="pinput pinput--area" rows="3" :maxlength="explainMax"
+							:placeholder="t('pulse', 'Why is this the correct answer? Shown together with the solution.')" />
+						<span class="explain-count" :class="{ 'is-full': draft.explanation.length >= explainMax }" aria-live="polite">{{ draft.explanation.length }} / {{ explainMax }}</span>
+					</div>
+
 					<div class="composer-actions">
 						<button class="pulse-btn is-primary" :disabled="busy" @click="saveQuestion">{{ busy ? '…' : (editingId ? t('pulse', 'Save') : t('pulse', 'Add to the deck')) }}</button>
 						<button class="pulse-btn is-secondary" @click="cancelComposer">{{ t('pulse', 'Cancel') }}</button>
@@ -539,7 +549,7 @@ import { pulseConfirm } from './util/confirm.js'
 import { formatCode, remainingSecs, paceStateChip, fmtAgo } from './util/format.js'
 import { csvUrl } from './util/csv.js'
 import { isPacedRoom, windowState, progressCounts } from './util/pace.js'
-import { QUESTION_TYPES, emptyDraft, typeOptionsFor, typeTag, scaleModeLabel, typeLabel, answerHint, lossText } from './util/question-types.js'
+import { QUESTION_TYPES, EXPLANATION_MAX, emptyDraft, typeOptionsFor, typeTag, scaleModeLabel, typeLabel, answerHint, lossText } from './util/question-types.js'
 import pollingMixin from './mixins/polling.js'
 import PaceOpenDialog from './components/PaceOpenDialog.vue'
 import PaceDeckStatus from './components/PaceDeckStatus.vue'
@@ -581,6 +591,7 @@ export default {
 			renaming: false,   // deck header: inline rename open?
 			renameDraft: '',
 			draft: emptyDraft(),
+			explainMax: EXPLANATION_MAX,
 			// ── Self-paced quiz ──
 			paceDialog: null,    // null | 'open' — the "open quiz" dialog in the deck
 			paceFocus: false,    // the next run view puts the focus on its title
@@ -1588,6 +1599,7 @@ export default {
 				d.type = poll.type
 				d.question = poll.question
 				d.timeLimit = poll.timeLimit || 30
+				d.explanation = poll.explanation || ''
 				const spec = QUESTION_TYPES[poll.type]
 				if (spec) spec.toDraft(poll, poll.answerKey || {}, d)
 				d.imageExisting = poll.image || ''
@@ -1633,7 +1645,13 @@ export default {
 				showError(t('pulse', 'Please enter a question.'))
 				return
 			}
-			if (this.isQuiz) body.timeLimit = this.draft.timeLimit
+			if (this.isQuiz) {
+				body.timeLimit = this.draft.timeLimit
+				// Left out when empty: the server stores none (and removes an old one
+				// on edit). It trims and caps as well (DeckService::EXPLANATION_MAX).
+				const explanation = (this.draft.explanation || '').trim()
+				if (explanation) body.explanation = explanation
+			}
 			let ok = true
 			const fail = (m) => { showError(m); ok = false }
 			const spec = QUESTION_TYPES[type]
@@ -2218,6 +2236,15 @@ export default {
 /* Quiz composer */
 .quiz-hint { font-size: 13px; color: var(--pulse-text-2); margin: 4px 0 8px; }
 .quiz-time { margin-top: 6px; }
+/* Explanation (quiz): label above, counter below on the right. */
+.explain-field { display: flex; flex-direction: column; gap: 4px; margin-top: 14px; }
+.explain-lbl { font-weight: 700; }
+/* NC styles <textarea> globally (fixed width, min-height): let it fill the column and grow by hand. */
+.pinput--area { height: auto !important; min-height: 5.2em; margin: 0; resize: vertical; line-height: 1.4; font-family: inherit; }
+.explain-count { align-self: flex-end; font-size: 12px; color: var(--pulse-text-2); font-variant-numeric: tabular-nums; }
+.explain-count.is-full { color: var(--pulse-warning); font-weight: 700; }
+.summary-explain { margin: 8px 0 0; white-space: pre-line; overflow-wrap: anywhere; color: var(--pulse-text); }
+.summary-explain-lbl { display: block; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: var(--pulse-text-2); }
 /* .opt-correct is redefined in the second style block (shape+color+text, §4.6). */
 .tf-pick { display: flex; gap: 12px; margin: 8px 0; }
 .tf-pick .pulse-btn { min-width: 96px; }

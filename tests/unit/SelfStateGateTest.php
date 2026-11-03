@@ -52,6 +52,8 @@ class SelfStateGateTest extends PaceStateTestCase {
             $json = json_encode($data);
             $this->assertStringNotContainsString('correctOption', $json, $who);
             $this->assertStringNotContainsString('answerKey', $json, $who);
+            $this->assertStringNotContainsString('explanation', $json, $who);
+            $this->assertStringNotContainsString('Seine-Ufer', $json, $who);
             if ($data['poll'] !== null) {
                 $this->assertArrayNotHasKey('correctOption', $data['poll']);
                 $this->assertArrayNotHasKey('answerKey', $data['poll']);

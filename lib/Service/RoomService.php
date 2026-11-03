@@ -217,6 +217,7 @@ class RoomService {
             $new->setMaxWords($poll->getMaxWords());
             $new->setCorrectOption($poll->getCorrectOption());
             $new->setAnswerKey($poll->getAnswerKey());
+            $new->setExplanation($poll->getExplanation());
             $new->setTimeLimit($poll->getTimeLimit());
             // Fresh: nothing running, nothing revealed, positions without gaps.
             $new->setStatus('active');

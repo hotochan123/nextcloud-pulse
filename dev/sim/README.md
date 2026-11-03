@@ -54,7 +54,8 @@ those passes.
   projector counts the same answers. The poll CSV is only generated (200,
   BOM); the moderated quiz CSV names every question, for free text one row per
   answer group as in the moderator, for a number guess the number.
-- Before revealing, neither the solution (`correctOption`, `answerKey`) nor the
+- Before revealing, neither the solution (`correctOption`, `answerKey`,
+  `explanation`) nor the
   tally nor right/wrong appears in the public state; ranking and matching come
   shuffled (keyed hash, the same for everyone, independent of the solution);
   whether a question is revealed is stated by `poll.revealed`. The public

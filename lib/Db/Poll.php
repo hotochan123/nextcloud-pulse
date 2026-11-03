@@ -28,6 +28,8 @@ use OCP\AppFramework\Db\Entity;
  * @method void setCorrectOption(string $correctOption)
  * @method ?string getAnswerKey()
  * @method void setAnswerKey(?string $answerKey)
+ * @method ?string getExplanation()
+ * @method void setExplanation(?string $explanation)
  * @method ?string getImage()
  * @method void setImage(?string $image)
  * @method int getTimeLimit()
@@ -52,6 +54,9 @@ class Poll extends Entity implements \JsonSerializable {
     //  number  -> {"target":1969,"tolerance":2}
     //  text    -> {"accepted":["paris"],"rejected":["berlin"]}  (grows through moderator grading)
     protected $answerKey = null;
+    // Quiz: why the correct answer is correct (plain text, NULL = none). Like the
+    // solution it reaches participants only with the reveal — never via jsonSerialize().
+    protected $explanation = null;
     // File name of the question image in the AppData area ('' = none), see PollImageService
     protected $image = '';
     protected $timeLimit = 0;      // quiz: seconds (0 = no limit)
@@ -73,6 +78,11 @@ class Poll extends Entity implements \JsonSerializable {
         // of its INSERT and strict MySQL refused it (error 1364). fromRow()
         // clears this mark again, so loaded polls UPDATE only what changed.
         $this->markFieldUpdated('options');
+    }
+
+    /** Explanation as text; '' when there is none (the column is nullable). */
+    public function explanationOrEmpty(): string {
+        return (string)($this->getExplanation() ?? '');
     }
 
     /** Never expose the image file name as NULL (the column is nullable). */
@@ -175,8 +185,9 @@ class Poll extends Entity implements \JsonSerializable {
     }
 
     /**
-     * Note: correctOption is NOT included — the correct answer must not reach
-     * participants before the reveal. Moderator views attach it explicitly
+     * Note: correctOption, answerKey and explanation are NOT included — the
+     * correct answer and why it is correct must not reach participants before
+     * the reveal. Moderator views attach it explicitly
      * via DeckService::ownerPoll().
      */
     public function jsonSerialize(): array {

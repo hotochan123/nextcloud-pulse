@@ -357,7 +357,10 @@ class StateService {
         // votes otherwise changes neither status nor start time nor stamp — the
         // phones would keep the old option IDs, and every vote would fail.
         $flags = ':' . ($this->isRevealed($room, $poll) ? 'r' : 'h') . ':' . $this->roomFlags($room)
-            . ':' . crc32((string)json_encode($poll->jsonSerialize()));
+            . ':' . crc32((string)json_encode($poll->jsonSerialize()))
+            // The explanation is not in jsonSerialize (it waits for the reveal),
+            // but an edit of it on a revealed question must reach the screens.
+            . ':' . crc32((string)$poll->getExplanation());
         return $this->opaque($activeId . ':' . $poll->getStatus() . ':' . $poll->getStartedAt() . ':' . $stamp
             . ':' . crc32((string)$poll->getAnswerKey()) . $flags . $presence);
     }
@@ -538,6 +541,8 @@ class StateService {
             // target number + tolerance / accepted free-text answers).
             $pollData['correctOption'] = $poll->getCorrectOption();
             $pollData['answerKey'] = $poll->getAnswerKeyArray();
+            // Why it is correct — part of the solution, so the same gate.
+            $pollData['explanation'] = $poll->explanationOrEmpty();
         }
         $base['poll'] = $pollData;
         $base['hasVoted'] = $hasVoted;
@@ -650,6 +655,7 @@ class StateService {
             if ($quiz && $revealed) {
                 $pollData['correctOption'] = $poll->getCorrectOption();
                 $pollData['answerKey'] = $poll->getAnswerKeyArray();
+                $pollData['explanation'] = $poll->explanationOrEmpty();
             }
 
             $items[] = [

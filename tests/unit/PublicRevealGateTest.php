@@ -460,6 +460,66 @@ class PublicRevealGateTest extends TestCase {
         }
     }
 
+    // ── Explanation: part of the solution, same gate ──────────────────────
+
+    public function testExplanationWaitsForTheRevealOnTheLiveQuestion(): void {
+        $running = $this->poll(7, 'choice', 'active', 900);
+        $running->setExplanation('Because of the river.');
+
+        $state = $this->stateFor($this->room('quiz', active: 7), $running);
+
+        $this->assertArrayNotHasKey('explanation', $state['poll']);
+        $this->assertStringNotContainsString('river', (string)json_encode($state));
+
+        $this->voteService->method('leaderboardFor')->willReturn([]);
+        $running->setStatus('locked');
+        $state = $this->stateFor($this->room('quiz', active: 7), $running);
+
+        $this->assertTrue($state['poll']['revealed']);
+        $this->assertSame('Because of the river.', $state['poll']['explanation']);
+    }
+
+    public function testExplanationStaysHiddenWhileRevealAtEndHoldsBack(): void {
+        $locked = $this->poll(7, 'choice', 'locked', 900);
+        $locked->setExplanation('Because of the river.');
+
+        $state = $this->stateFor($this->room('quiz', active: 7, revealAtEnd: true), $locked);
+
+        $this->assertFalse($state['poll']['revealed']);
+        $this->assertStringNotContainsString('river', (string)json_encode($state));
+    }
+
+    public function testRevealedQuestionWithoutExplanationSaysSoEmpty(): void {
+        $this->voteService->method('leaderboardFor')->willReturn([]);
+        $state = $this->stateFor($this->room('quiz', active: 7), $this->poll(7, 'choice', 'locked', 900));
+
+        $this->assertSame('', $state['poll']['explanation']);
+    }
+
+    public function testSummaryCarriesTheExplanationOnlyForRevealedQuestions(): void {
+        $this->voteService->method('leaderboardFor')->willReturn([]);
+        $first = $this->poll(1, 'choice', 'locked', 900);
+        $first->setExplanation('Shown one.');
+        $second = $this->poll(2, 'choice', 'active', 950);
+        $second->setExplanation('Running one.');
+        $this->deck($first, $second);
+
+        $summary = $this->service->publicSummary($this->room('quiz', active: 2), 'tok-a');
+
+        $this->assertSame('Shown one.', $summary['items'][0]['poll']['explanation']);
+        $this->assertArrayNotHasKey('explanation', $summary['items'][1]['poll']);
+        $this->assertStringNotContainsString('Running one', (string)json_encode($summary));
+    }
+
+    public function testPollRoomNeverCarriesAnExplanation(): void {
+        $poll = $this->poll(7, 'choice', 'locked', 900);
+        $poll->setExplanation('stale');
+
+        $state = $this->stateFor($this->room('poll', active: 7), $poll);
+
+        $this->assertArrayNotHasKey('explanation', $state['poll']);
+    }
+
     // ── Helpers ────────────────────────────────────────────────────────────
 
     private function deck(Poll ...$polls): void {

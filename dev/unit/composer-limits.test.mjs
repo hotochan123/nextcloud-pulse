@@ -228,5 +228,17 @@ test('the scale\'s number fields offer exactly the range DeckService clamps to',
 	assert.deepEqual(wrong, [])
 })
 
+test('the explanation textarea stops at the length DeckService keeps', () => {
+	// The textarea binds its limit to EXPLANATION_MAX from question-types.js
+	// (data explainMax), which has to match the server's cut.
+	const { len } = pick(cuts('buildExplanation'), 'buildExplanation', '$text', 'mb_substr()')
+	const areas = [...walk(composer[0])].filter((n) => n.tag === 'textarea' && n.attrsMap['v-model'] === 'draft.explanation')
+	assert.equal(areas.length, 1, 'exactly one composer <textarea v-model="draft.explanation">')
+	assert.equal(areas[0].attrsMap[':maxlength'], 'explainMax')
+	assert.match(sfc.script.content, /explainMax: EXPLANATION_MAX\b/)
+	const js = readFileSync(new URL('../../src/util/question-types.js', import.meta.url), 'utf8')
+	assert.equal(Number((js.match(/export const EXPLANATION_MAX = (\d+)/) || [])[1]), len)
+})
+
 console.log(`\n==== composer limits: ${passed} ok / ${failures.length} failed ====`)
 process.exit(failures.length ? 1 : 0)

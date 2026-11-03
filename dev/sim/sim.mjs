@@ -134,7 +134,7 @@ function sameTally(pub, mod) {
 }
 
 // Solution fields must not appear publicly anywhere before the reveal.
-const leakKeys = (poll) => (poll ? ['correctOption', 'answerKey'].filter((k) => k in poll) : [])
+const leakKeys = (poll) => (poll ? ['correctOption', 'answerKey', 'explanation'].filter((k) => k in poll) : [])
 const idsOf = (list) => (list || []).map((x) => x.id)
 const sortedIds = (list) => idsOf(list).slice().sort()
 // Before the reveal the server shuffles via a key hash: the same order for

@@ -109,6 +109,8 @@ class SelfSummaryGateTest extends PaceStateTestCase {
         $this->assertTrue($first['poll']['revealed']);
         $this->assertSame('AA', $first['poll']['correctOption']);
         $this->assertArrayHasKey('answerKey', $first['poll']);
+        $this->assertSame('Seine-Ufer seit 987.', $first['poll']['explanation']);
+        $this->assertSame('', $summary['items'][1]['poll']['explanation'], 'no explanation: empty');
         $this->assertSame(2, $first['results']['total'], 'all votes on the question, including other players');
         $this->assertSame(['JU01', 'SA02', 'NE03'], array_column($summary['items'][1]['poll']['options'], 'id'), 'revealed: stored order');
         $this->assertSame(['order' => ['JU01', 'SA02', 'NE03']], $summary['items'][1]['poll']['answerKey']);
@@ -149,6 +151,8 @@ class SelfSummaryGateTest extends PaceStateTestCase {
         $json = json_encode($summary);
         $this->assertStringNotContainsString('correctOption', $json);
         $this->assertStringNotContainsString('answerKey', $json);
+        $this->assertStringNotContainsString('explanation', $json);
+        $this->assertStringNotContainsString('Seine-Ufer', $json);
         foreach ($summary['items'] as $item) {
             $this->assertFalse($item['revealed']);
             $this->assertNull($item['results']);

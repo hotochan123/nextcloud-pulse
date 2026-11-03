@@ -839,6 +839,8 @@ OC.L10N.register(
         "Your quiz continues.": "Dein Quiz geht weiter.",
         "Your value — you can still move it.": "Dein Wert — jederzeit noch verschiebbar.",
         "Your vote could not be saved.": "Stimme konnte nicht gespeichert werden.",
-        "Your word …": "Dein Wort …"
+        "Your word …": "Dein Wort …",
+        "Explanation": "Erklärung",
+        "Why is this the correct answer? Shown together with the solution.": "Warum ist das die richtige Antwort? Wird zusammen mit der Lösung angezeigt."
     },
 "nplurals=2; plural=(n != 1);");

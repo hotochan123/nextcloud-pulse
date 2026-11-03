@@ -43,6 +43,12 @@ class DeckService {
      * them back — the rest beyond this is dropped.
      */
     public const ACCEPTED_MAX = 50;
+    /**
+     * Characters of a quiz question's explanation (shown with the reveal).
+     * Longer text is cut, like the option labels — the composer stops at the
+     * same length, so only a hand-made request ever loses anything.
+     */
+    public const EXPLANATION_MAX = 500;
     /** Time limit of a quiz question in seconds (lower/upper bound). */
     private const QUIZ_MIN_LIMIT = 5;
     private const QUIZ_MAX_LIMIT = 300;
@@ -183,6 +189,7 @@ class DeckService {
         $poll->setMaxWords(0);
         $poll->setOptions('[]');
         $poll->setTimeLimit(0);
+        $poll->setExplanation(null);
 
         switch ($type) {
             case 'choice':
@@ -254,7 +261,19 @@ class DeckService {
         if ($quiz) {
             $limit = Input::int($data['timeLimit'] ?? null) ?? 30;
             $poll->setTimeLimit(max(self::QUIZ_MIN_LIMIT, min(self::QUIZ_MAX_LIMIT, $limit)));
+            // Only a quiz has a reveal; a poll ignores the field (stays NULL).
+            $poll->setExplanation($this->buildExplanation($data['explanation'] ?? null));
         }
+    }
+
+    /**
+     * Quiz explanation: plain text, line breaks kept (normalised to \n),
+     * trimmed, cut to EXPLANATION_MAX characters. Empty -> null (none).
+     */
+    private function buildExplanation(mixed $raw): ?string {
+        $text = str_replace(["\r\n", "\r"], "\n", Input::str($raw));
+        $text = trim(mb_substr(trim($text), 0, self::EXPLANATION_MAX));
+        return $text === '' ? null : $text;
     }
 
     /**
@@ -506,12 +525,13 @@ class DeckService {
     /**
      * Question including the correct answer — only for owner views (deck editor,
      * presentation, summary). Participants only get correctOption
-     * at the reveal (see publicState).
+     * (and answerKey, explanation) at the reveal (see publicState).
      */
     public function ownerPoll(Poll $poll): array {
         $data = $poll->jsonSerialize();
         $data['correctOption'] = $poll->getCorrectOption();
         $data['answerKey'] = $poll->getAnswerKeyArray();
+        $data['explanation'] = $poll->explanationOrEmpty();
         return $data;
     }
 

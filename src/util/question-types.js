@@ -191,8 +191,11 @@ export const QUESTION_TYPES = {
 	},
 }
 
+// Characters of a quiz explanation — the same cap as DeckService::EXPLANATION_MAX.
+export const EXPLANATION_MAX = 500
+
 export function emptyDraft() {
-	return { type: 'choice', question: '', options: ['', ''], maxWords: 3, scaleMax: 5, scaleMode: 'single', aspects: [{ label: '', poleLow: '', poleHigh: '' }, { label: '', poleLow: '', poleHigh: '' }, { label: '', poleLow: '', poleHigh: '' }], range: 5, axisX: { title: '', poleLow: '', poleHigh: '' }, axisY: { title: '', poleLow: '', poleHigh: '' }, cornerLabels: ['', '', '', ''], heatmapThreshold: HEATMAP_THRESHOLD, minLabel: '', maxLabel: '', imageFile: null, imagePreview: '', imageExisting: '', imageRemove: false, correctIndex: 0, correctIndexes: [], target: '', tolerance: 0, answers: [''], pairs: [{ left: '', right: '' }, { left: '', right: '' }], timeLimit: 30 }
+	return { type: 'choice', question: '', options: ['', ''], maxWords: 3, scaleMax: 5, scaleMode: 'single', aspects: [{ label: '', poleLow: '', poleHigh: '' }, { label: '', poleLow: '', poleHigh: '' }, { label: '', poleLow: '', poleHigh: '' }], range: 5, axisX: { title: '', poleLow: '', poleHigh: '' }, axisY: { title: '', poleLow: '', poleHigh: '' }, cornerLabels: ['', '', '', ''], heatmapThreshold: HEATMAP_THRESHOLD, minLabel: '', maxLabel: '', imageFile: null, imagePreview: '', imageExisting: '', imageRemove: false, correctIndex: 0, correctIndexes: [], target: '', tolerance: 0, answers: [''], pairs: [{ left: '', right: '' }, { left: '', right: '' }], timeLimit: 30, explanation: '' }
 }
 
 // Composer segmented control: question types per mode (§4.3, wrap-safe). The

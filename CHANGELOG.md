@@ -9,6 +9,15 @@ this file, so every published version needs an entry here.
 
 ## [Unreleased]
 
+### Added
+- Quiz questions can carry an optional explanation: a short plain text (up to
+  500 characters, line breaks allowed) saying why the correct answer is
+  correct. The reveal shows it together with the solution on the projector
+  (at most three lines there), on the phones and in the summaries, also in
+  self-paced quizzes once the results are released. Like the solution it never
+  reaches participants before the reveal. Polls have no explanation.
+  Requires a database update (new column, run by the app upgrade).
+
 ### Changed
 - Pulse's JavaScript files are about half as big: 0.6 MB instead of 1.2 MB
   for the moderator view, 0.5 MB instead of 1.0 MB for the audience and

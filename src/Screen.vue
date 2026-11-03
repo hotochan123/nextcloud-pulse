@@ -88,7 +88,7 @@
 				<CountdownRing v-if="showCountdown" class="scr-cd" :remaining="remaining" :total="poll.timeLimit || 0" />
 			</header>
 
-			<main class="scr-stage" ref="stage" :style="stageStyle" :data-image="hasImage ? '' : null">
+			<main class="scr-stage" ref="stage" :style="stageStyle" :data-image="hasImage ? '' : null" :data-explain="showExplanation ? '' : null">
 				<!-- Image question (§7.1): the image IS the content and gets a column of
 				     its own; the head moves to the right column for it, so that question
 				     and result are read together. Before, the image hung in the header with
@@ -165,6 +165,11 @@
 					<IntakeBoard :key="poll.id" :answered="answered" :present="present"
 						:frozen="timeUp || closedHidden" :compact="hasImage || stackOpen" />
 				</div>
+
+				<!-- Quiz explanation with the solution: below the result, at most three
+				     lines (clamped), in stage em — it never pushes the result off the
+				     stage; the shrink loop takes it along. Plain text, never v-html. -->
+				<p v-if="showExplanation" class="scr-explain"><b class="scr-explain-lbl">{{ t('pulse', 'Explanation') }}</b> {{ poll.explanation }}</p>
 			</main>
 
 			<!-- Meta bar: ONE place for secondary things (§2.5). The QR disappears
@@ -369,6 +374,11 @@ export default {
 		},
 		// Revealed, but without a single vote. The word cloud has its
 		// own empty state and is excluded.
+		// Quiz explanation: only once revealed (the server sends it only then
+		// anyway), not over the final standings.
+		showExplanation() {
+			return this.revealed && !this.quizEnded && !!(this.poll && this.poll.explanation)
+		},
 		emptyResult() {
 			return this.revealed && !!this.results && this.results.type !== 'words'
 				&& !this.results.total
@@ -523,7 +533,7 @@ export default {
 			const p = this.poll
 			const labels = (list) => (list || []).map((o) => o.label).join('\u0001')
 			const content = [p.question, p.image, labels(p.options), labels((p.match || {}).items),
-				labels((p.match || {}).targets), JSON.stringify(p.scale || null)].join('\u0002')
+				labels((p.match || {}).targets), JSON.stringify(p.scale || null), p.explanation || ''].join('\u0002')
 			return p.id + ':' + content + ':' + (this.quizEnded
 				? 'final:' + (this.leaderboard || []).length
 				: (this.showResults && r)
@@ -893,7 +903,7 @@ export default {
    ends up in the bottom right cell — no matter which branch is rendering. */
 /* align-self: stretch is mandatory — with the centring align-items the
    content would stay content-sized and run out of the bottom of the kiosk (38 px). */
-.scr-stage[data-image] > *:not(.scr-img-mat):not(.scr-split-q) { grid-column: 2; grid-row: 2; min-height: 0; align-self: stretch; }
+.scr-stage[data-image] > *:not(.scr-img-mat):not(.scr-split-q):not(.scr-explain) { grid-column: 2; grid-row: 2; min-height: 0; align-self: stretch; }
 /* Open image question: answer options on top, intake narrow below — it
    does NOT move into the meta bar, it stays visible (§7.1). */
 .scr-stage[data-image] .scr-open { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) auto; gap: 0.6em; }
@@ -948,6 +958,22 @@ export default {
 .scr-open > .sopen { align-self: stretch; }
 
 .scr-results { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+/* Explanation below the result: fixed height share (three lines at most), so
+   eight match pairs or eight options keep their rows; anything longer is cut
+   with an ellipsis — the phones show the full text. */
+.scr-explain {
+	flex: none; margin: 0.5em 0 0; padding: 0.35em 0.7em;
+	font-size: 0.6em; line-height: 1.3;
+	border-left: 0.22em solid var(--pulse-success); border-radius: 0.2em;
+	background: var(--pulse-bar-track); color: var(--pulse-text);
+	white-space: pre-line; overflow-wrap: anywhere;
+	overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+}
+.scr-explain-lbl { font-weight: 800; color: var(--pulse-success); margin-right: 0.3em; }
+/* Image question: a third row under the result in the right column. */
+.scr-stage[data-image][data-explain] { grid-template-rows: auto minmax(0, 1fr) auto; }
+.scr-stage[data-image][data-explain] > .scr-img-mat { grid-row: 1 / span 3; }
+.scr-stage[data-image] > .scr-explain { grid-column: 2; grid-row: 3; margin-top: 0; }
 /* Many distribution values (scale 1–10) -> two columns, so that the bars stay
    large instead of shrinking to a tiny font. The avg. block stays full width on top. */
 .scr-results--cols :deep(.bars--dist) { columns: 2; column-gap: clamp(28px, 4vw, 72px); }

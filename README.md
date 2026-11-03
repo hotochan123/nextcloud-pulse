@@ -69,7 +69,9 @@ Pulse is licensed under AGPL-3.0-or-later and comes without any warranty.
   leaderboard).
 - Question types — poll: multiple choice · word cloud · scale (single/spectrum/compass) ·
   ranking · **matching**. Quiz: multiple choice · true/false · multiple answers ·
-  number guess · free text (with grading) · ranking · **matching**.
+  number guess · free text (with grading) · ranking · **matching**. A quiz
+  question can carry an optional **explanation** (plain text, up to 500
+  characters) that the reveal shows together with the correct answer.
 - A deck of several questions, an image per question, a projector view, QR code,
   practice run, and a summary with CSV export.
 - **Self-paced** quizzes (the "Self-paced" toggle in a quiz deck's menu): instead
@@ -313,7 +315,7 @@ a hard-wired decimal comma would be a different number in an English interface.
 ## Data model
 
 ```
-Poll  = { id, type, question, options, answerKey, maxWords, timeLimit, image, status }
+Poll  = { id, type, question, options, answerKey, explanation, maxWords, timeLimit, image, status }
 
 # options holds something different per type (JSON in one column):
 choice/multi/rank/truefalse -> [{id,label}, …]
@@ -323,6 +325,9 @@ match                       -> {items:[{id,label}], targets:[{id,label}]} -> get
 # answerKey is the quiz solution (never sent to participants before the reveal):
 multi {correct:[id]} · rank {order:[id]} · match {map:{itemId:targetId}}
 number {target,tolerance} · text {accepted:[],rejected:[]}
+
+# explanation (quiz only, plain text, NULL = none) follows the same gate as
+# answerKey: owner views always, participants and projector only once revealed.
 
 Vote  = { value: "<optionId>" }                  # choice/truefalse
 Vote  = { value: ["word", "word"] }              # words (lower-cased when tallying)

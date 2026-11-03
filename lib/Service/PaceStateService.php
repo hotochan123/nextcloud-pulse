@@ -811,6 +811,7 @@ class PaceStateService {
         if ($revealed) {
             $data['correctOption'] = $poll->getCorrectOption();
             $data['answerKey'] = $poll->getAnswerKeyArray();
+            $data['explanation'] = $poll->explanationOrEmpty();
         }
         return $data;
     }

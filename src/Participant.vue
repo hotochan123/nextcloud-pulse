@@ -31,7 +31,7 @@
 							<span v-else-if="it.mine.verdict === 'saved'" class="pulse-chip is-neutral review-chip"><PulseIcon name="check" size="1em" /> {{ t('pulse', 'Answer saved') }}</span>
 						</p>
 						<p v-else class="muted review-mine is-none">{{ t('pulse', 'Not answered') }}</p>
-						<ResultsView v-if="it.revealed && it.results" :results="it.results" :correct-id="it.poll.correctOption || ''" :correct-ids="(it.poll.answerKey && it.poll.answerKey.correct) || []" :answer-key="it.poll.answerKey || null" />
+						<ResultsView v-if="it.revealed && it.results" :results="it.results" :correct-id="it.poll.correctOption || ''" :correct-ids="(it.poll.answerKey && it.poll.answerKey.correct) || []" :answer-key="it.poll.answerKey || null" :explanation="it.poll.explanation || ''" />
 						<p v-else class="muted review-hidden">{{ t('pulse', 'Not revealed yet.') }}</p>
 					</li>
 				</ol>
@@ -240,7 +240,8 @@
 					<ResultsView :results="results" :mine="voted ? compassMine : null" :mine-aspects="voted ? spectrumMine : null"
 						:correct-id="poll.correctOption || ''"
 						:correct-ids="(poll.answerKey && poll.answerKey.correct) || []"
-						:answer-key="poll.answerKey || null" />
+						:answer-key="poll.answerKey || null"
+						:explanation="poll.explanation || ''" />
 
 					<!-- 3. Leaderboard excerpt: your own place plus two on either side. -->
 					<template v-if="isQuiz && rankContext.length">

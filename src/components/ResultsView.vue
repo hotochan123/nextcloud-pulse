@@ -313,6 +313,13 @@
 
 		<p v-if="!wide && results && results.type !== 'text' && results.type !== 'words'" class="total">{{ n('pulse', '%n vote', '%n votes', total) }}</p>
 		<p v-else-if="!wide && results && results.type === 'words'" class="total">{{ wordsSummary }}</p>
+
+		<!-- Quiz: why the correct answer is correct. Only delivered with the
+		     reveal; plain text, line breaks kept (pre-line) — never v-html. -->
+		<div v-if="explanation" class="explain">
+			<span class="explain-lbl">{{ t('pulse', 'Explanation') }}</span>
+			<p class="explain-txt">{{ explanation }}</p>
+		</div>
 	</div>
 </template>
 
@@ -355,6 +362,8 @@ export default {
 		// a list of bars per target — eight pairs times eight targets would be 64 bars in
 		// a 340 px column, and the order of the question would get lost in them.
 		dense: { type: Boolean, default: false },
+		// Quiz: explanation of the solution ('' = none). The server sends it only with the reveal.
+		explanation: { type: String, default: '' },
 	},
 	computed: {
 		total() {
@@ -818,6 +827,11 @@ export default {
 .matchres.is-dense .mres-head { margin-bottom: 0.25em; }
 .matchres.is-dense .mres-lead { margin-left: auto; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .matchres.is-dense :deep(.sstack) { height: 1.9em; }
+
+/* Explanation below the result: calm box, the text keeps its line breaks. */
+.explain { margin-top: 0.9em; padding: 0.7em 0.9em; border-radius: var(--pulse-r-el, 8px); background: var(--pulse-fill); border-left: 4px solid var(--pulse-success); }
+.explain-lbl { display: block; font-size: 0.75em; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: var(--pulse-text-2); margin-bottom: 0.2em; }
+.explain-txt { margin: 0; white-space: pre-line; overflow-wrap: anywhere; color: var(--pulse-text); line-height: 1.4; }
 
 /* All sizes in em -> the component scales via the container font-size:
    small on the phone, large on the projector (§5.4, the fix for "reveal stays too small"). */

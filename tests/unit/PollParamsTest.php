@@ -54,7 +54,7 @@ class PollParamsTest extends TestCase {
         // Without a floor the guard would pass while checking nothing: if
         // DeckService read its fields through a helper or from a differently
         // named array, the regex would find no keys and the comparisons in the
-        // tests below would pass on an empty list. 21 today.
+        // tests below would pass on an empty list. 22 today.
         $this->assertGreaterThanOrEqual(15, count($fields), 'the regex no longer finds the fields DeckService reads');
         $this->assertSame([], array_values(array_diff(self::KNOWN, $fields)), 'known fields the regex no longer finds');
         return $fields;

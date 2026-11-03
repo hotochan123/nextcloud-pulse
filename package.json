@@ -1,6 +1,6 @@
 {
   "name": "pulse",
-  "version": "0.19.1",
+  "version": "0.20.0",
   "description": "Live polls and quizzes for presentations in Nextcloud",
   "license": "AGPL-3.0-or-later",
   "scripts": {
