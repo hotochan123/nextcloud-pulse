@@ -188,7 +188,7 @@ class PaceStateService {
             $vote = $votes[$poll->getId()] ?? null;
             if ($vote !== null) {
                 $out['hasVoted'] = true;
-                $out['myValue'] = $vote->getValue();
+                $out['myValue'] = $vote->getValueFor($poll->getType());
                 $out['myResult'] = $this->verdict($room, $vote, $open, $now, false);
             }
         }
@@ -361,7 +361,7 @@ class PaceStateService {
                 'revealed' => $released,
                 'results' => $released ? PublicPayload::tally($this->tallyService->tally($poll, $all[$poll->getId()] ?? [])) : null,
                 'mine' => $vote === null ? null
-                    : ['value' => $vote->getValue()] + $this->verdict($room, $vote, $row, $now, $released),
+                    : ['value' => $vote->getValueFor($poll->getType())] + $this->verdict($room, $vote, $row, $now, $released),
             ];
         }
         if ($released && !$room->getPractice()) {

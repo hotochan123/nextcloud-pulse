@@ -22,6 +22,7 @@ use OCA\Pulse\Service\PaceService;
 use OCA\Pulse\Service\RoomService;
 use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\AppFramework\Utility\ITimeFactory;
+use OCP\DB\Exception as DbException;
 use OCP\IDBConnection;
 use OCP\IL10N;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -63,6 +64,9 @@ class PaceNextTest extends TestCase {
     private bool $hasPlayer = true;
     /** Does the locking re-check after start() still find the player? */
     private bool $stillJoined = true;
+    /** @var DbException[] errors the next existsForUpdate() calls throw, in order */
+    private array $existsErrors = [];
+    private int $playerLookups = 0;
 
     protected function setUp(): void {
         $this->deck = [$this->poll(11), $this->poll(12), $this->poll(13)];
@@ -77,9 +81,14 @@ class PaceNextTest extends TestCase {
 
         $this->players = $this->createMock(PlayerMapper::class);
         $this->players->method('findByRoomAndToken')->willReturnCallback(
-            fn (): Player => $this->hasPlayer ? new Player() : throw new DoesNotExistException('no player'),
+            function (): Player {
+                $this->playerLookups++;
+                return $this->hasPlayer ? new Player() : throw new DoesNotExistException('no player');
+            },
         );
-        $this->players->method('existsForUpdate')->willReturnCallback(fn (): bool => $this->stillJoined);
+        $this->players->method('existsForUpdate')->willReturnCallback(
+            fn (): bool => $this->existsErrors !== [] ? throw array_shift($this->existsErrors) : $this->stillJoined,
+        );
         $this->rooms = $this->createMock(RoomMapper::class);
 
         $polls = $this->createMock(PollMapper::class);
@@ -346,7 +355,110 @@ class PaceNextTest extends TestCase {
         $this->service->next($this->room(), self::TOK, 0);
     }
 
+    // ── Deadlock or lock wait timeout (MySQL/MariaDB under parallel requests) ──
+
+    public function testDeadlockOnStartIsRetried(): void {
+        $starts = 0;
+        $this->progress->expects($this->exactly(2))->method('start')->with(5, 11, self::TOK, 0, self::NOW)
+            ->willReturnCallback(function () use (&$starts): bool {
+                return ++$starts === 1 ? throw self::dbError(DbException::REASON_DEADLOCK) : true;
+            });
+        $this->players->expects($this->once())->method('existsForUpdate');
+
+        $this->service->next($this->room(), self::TOK, 0);
+    }
+
+    public function testLockWaitTimeoutOnCloseIsRetried(): void {
+        $this->rows = [$this->row(1, 11, 0, self::NOW - 5)];
+        $this->answered[11] = true;
+        $closes = 0;
+        $this->progress->expects($this->exactly(2))->method('closeIfOpen')->with(1, self::NOW)
+            ->willReturnCallback(function () use (&$closes): bool {
+                return ++$closes === 1 ? throw self::dbError(DbException::REASON_LOCK_WAIT_TIMEOUT) : true;
+            });
+        $this->progress->expects($this->once())->method('start')->with(5, 12, self::TOK, 1, self::NOW)->willReturn(true);
+
+        $this->service->next($this->room(), self::TOK, 11);
+    }
+
+    public function testDeadlockAfterCloseHealsOnTheNextAttempt(): void {
+        // The close went through, the start was broken off: the second attempt
+        // sees no open row and starts the successor via self-healing.
+        $this->rows = [$this->row(1, 11, 0, self::NOW - 5)];
+        $this->answered[11] = true;
+        $this->progress->expects($this->once())->method('closeIfOpen')
+            ->willReturnCallback(function (): bool {
+                $this->rows = [$this->row(1, 11, 0, self::NOW - 5, self::NOW)];
+                return true;
+            });
+        $starts = 0;
+        $this->progress->expects($this->exactly(2))->method('start')->with(5, 12, self::TOK, 1, self::NOW)
+            ->willReturnCallback(function () use (&$starts): bool {
+                return ++$starts === 1 ? throw self::dbError(DbException::REASON_DEADLOCK) : true;
+            });
+
+        $this->service->next($this->room(), self::TOK, 11);
+    }
+
+    public function testDeadlockOnEveryAttemptGoesThrough(): void {
+        $error = self::dbError(DbException::REASON_DEADLOCK);
+        $this->progress->expects($this->exactly(PaceService::NEXT_ATTEMPTS))->method('start')->willThrowException($error);
+        $this->players->expects($this->never())->method('existsForUpdate');
+
+        try {
+            $this->service->next($this->room(), self::TOK, 0);
+            $this->fail('expected the deadlock to go through');
+        } catch (DbException $e) {
+            $this->assertSame($error, $e);
+        }
+        $this->assertSame(3, PaceService::NEXT_ATTEMPTS);
+    }
+
+    public function testOtherDatabaseErrorIsNotRetried(): void {
+        $this->progress->expects($this->once())->method('start')->willThrowException(self::dbError(DbException::REASON_SYNTAX_ERROR));
+
+        $this->expectException(DbException::class);
+        $this->service->next($this->room(), self::TOK, 0);
+    }
+
+    public function testRefusalIsNotRetried(): void {
+        $this->hasPlayer = false;
+        try {
+            $this->service->next($this->room(), self::TOK, 0);
+            $this->fail('expected a refusal');
+        } catch (\InvalidArgumentException $e) {
+            $this->assertSame('Please choose a name first.', $e->getMessage());
+        }
+        $this->assertSame(1, $this->playerLookups);
+    }
+
+    public function testDeadlockInTheRemovalCheckIsRetried(): void {
+        // The row is started, the locking re-check is broken off; its second
+        // attempt finds the person removed and deletes the row again.
+        $this->progress->expects($this->once())->method('start')->willReturn(true);
+        $this->existsErrors = [self::dbError(DbException::REASON_DEADLOCK)];
+        $this->stillJoined = false;
+        $this->allowLock();
+        $this->progress->expects($this->once())->method('deleteByRoomAndToken')->with(5, self::TOK);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Please choose a name first.');
+        $this->service->next($this->room(), self::TOK, 0);
+    }
+
     // ── Helpers ────────────────────────────────────────────────────────────
+
+    private static function dbError(int $reason): DbException {
+        return new class('database error', $reason) extends DbException {
+            public function __construct(string $message, private int $code_) {
+                parent::__construct($message);
+            }
+
+            public function getReason(): ?int {
+                return $this->code_;
+            }
+        };
+    }
 
     /** Only for the cleanup after removal: allow the transaction and the room lock. */
     private function allowLock(): void {

@@ -528,7 +528,7 @@ class StateService {
             try {
                 $myVote = $this->voteMapper->findByPollAndToken($poll->getId(), $voterToken);
                 $hasVoted = true;
-                $myValue = $myVote->getValue();
+                $myValue = $myVote->getValueFor($poll->getType());
             } catch (DoesNotExistException) {
                 // not voted yet
             }
@@ -728,7 +728,7 @@ class StateService {
         }
         $d = json_decode($vote->getPayload(), true) ?: [];
         return [
-            'value' => $vote->getValue(),
+            'value' => $vote->getValueFor($poll->getType()),
             'correct' => ($quiz && $revealed) ? !empty($d['correct']) : null,
             'points' => ($quiz && $revealed) ? (int)($d['points'] ?? 0) : null,
         ];

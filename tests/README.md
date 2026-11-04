@@ -13,6 +13,13 @@ the PHP CLI on the host lacks the `tokenizer` and `xmlwriter` extensions.
 `CONTAINER` overrides the container name (default `nextcloud-nextcloud-1`),
 `APP_DIR` the app path inside the container (default `/var/www/html/apps/pulse`).
 
+Before every merge the development repository runs the suite four times, each
+without network and with `--fail-on-skipped`: on the PHP of the Nextcloud 34
+and 35 images, and on the oldest PHP each version supports — PHP 8.2 with the
+server source of Nextcloud 34, PHP 8.3 with that of Nextcloud 35 (with `intl`
+and `zend.exception_ignore_args=Off`, so neither the Spoofchecker nor the
+trace tests skip).
+
 ## What runs here
 
 Pure unit tests without the Nextcloud bootstrap: `tests/bootstrap.php` loads
@@ -48,6 +55,7 @@ warning fails a test.
 | `unit/ImageStorageTest.php` | Question images and their storage (`PollImageService`): the per-account image budget counts stored (re-encoded) bytes, refuses before the GD run and before writing, frees the replaced image; an upload counts again once its image is referenced and goes back to the previous image when a parallel upload or copy pushed the account over; the `image` column is a compare-and-set, so of two uploads to one question the loser deletes its own file; unreferenced files are swept only after the grace period |
 | `unit/InputTest.php` | Raw client values: lists, 1e999, NAN, broken UTF-8 and NUL become "not sent" instead of a PHP warning; `rawStr` keeps NUL (grading free text); `clip` cuts raw text to a number of characters before the Unicode work, long broken UTF-8 to nothing |
 | `unit/InsertColumnsTest.php` | MySQL has no default for some NOT NULL columns (Doctrine drops the declared default of TEXT columns there), so every INSERT must carry them: the migrations are replayed offline and MySQL 8.4's DBAL platform decides; a new entity marks exactly the columns whose declared default MySQL drops (`pulse_polls.options`); `addPoll` for every question type and `duplicateRoom` carry every column without a MySQL default; a loaded poll still updates only what changed |
+| `unit/LegacyDigitIdTest.php` | Multiple-answer questions from before option IDs always got a letter: an ID made only of digits stored as a number in the answer key or in a vote is read back as a string (`Poll::getAnswerKeyArray`, `Vote::getValueFor`; other question types keep the vote as stored), a new vote and the composer store it as a string, a new vote is graded right against the old key, and the tally counts old votes |
 | `unit/LeaderboardSkipTest.php` | Leaderboard without one question (`VoteService::leaderboardFor`, `$skipPollIds`): the public summary leaves the running, still hidden question out of the scoring |
 | `unit/LivePlayerAdminTest.php` | Moderated (live) quiz: `lockJoins`/`unlockJoins` and `removePlayer` work there too (a poll room is 409); removing takes the player and their votes on every question of the room, progress and presence, also after the final standings; the moderator leaderboard carries `playerId` only on request, public views never |
 | `unit/LiveQuizJoinTest.php` | Moderated (live) join (`VoteService::quizJoin` → `liveJoin`): under the room lock and decided on the locked row, "Lock joining" before the name check, the name is fixed after the first answer or once the quiz has ended (its spelling stays changeable, re-sending it always works), a new token loses left-over votes (and deletes nothing without any: no vote write, so no refetch for everyone per join), at most `max_players_per_room` players (default `PaceService::MAX_JOINED`, the app config raises or lowers it; a known player still gets back in, a locked room says so first), no count per address |
@@ -135,7 +143,13 @@ against the production instance they should deliberately stay throwaway
 scripts.
 
 End-to-end checks against the running instance live elsewhere:
-`dev/sim/` (HTTP simulation of every flow, see `dev/sim/README.md`) and
+`dev/sim/` (HTTP simulation of every flow, see `dev/sim/README.md`; `dev/it/run.sh`
+plays it through on throwaway instances with SQLite, PostgreSQL, MariaDB and
+MySQL, see `dev/it/README.md`), `dev/e2e/` (browser tests with Playwright:
+the moderator composes and runs a poll and a quiz with every question type, phones
+join and answer, a self-paced race, and desk, phone page and projector on a laptop,
+a tablet and a phone, light and dark, checked for content that runs past the screen
+or the 16:9 stage; see `dev/e2e/README.md`) and
 `dev/design-shots/` (screenshots of every view, see
 `dev/design-shots/README.md`). The browser-free frontend logic has its own
 tests in `dev/unit/` (plain Node, no Nextcloud): the rules of the self-paced

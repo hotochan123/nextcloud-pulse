@@ -15,11 +15,43 @@ dev/design-shots/run.sh store    # the six images for the store page
 `store` is the exception: not test cases but promotional images. Its own rooms
 (`probe.php store`, tidied-up content and a leaderboard without duplicate
 names), the public hostname in the join link, double pixel density, output to
-`out-store/`. Why each of these points is needed is explained in
-`docs/APPSTORE.md` §3.
+`out-store/`. Why each of these points is needed is explained under
+[Store images](#store-images).
 
 Result: `dev/design-shots/out/NN-name.png` plus `index.md` with one line per
 capture (size, page, state).
+
+## Store images
+
+The six images in `screenshots/` are listed in `appinfo/info.xml` as
+`<screenshot>` URLs on `main` of the public repository; the store fetches
+them itself, so they work only once they are there, and they do not belong in
+the release archive. The store takes up to ten; the order in `info.xml` is
+the order on the page, the first one is the preview image. The join code on
+the images belongs to a store fixture room: make sure it no longer opens a
+room, or take the images again.
+
+`run.sh store` differs from the rest of the harness in four ways, and each of
+them used to be a trap:
+
+- **Rooms of its own** (`probe.php store`). The demo route hands out a new token
+  for every vote, so it registers new players for every question: the podium
+  showed the same name twice with "shared" next to it. In the store fixture,
+  twelve people with fixed tokens answer every question in a fixed pattern —
+  every question has a distribution, and the leaderboard has distinct places.
+- **Public host name** (`PULSE_HOST` or one line in
+  `dev/design-shots/.store-host`, not in the repository). The join link comes
+  from `window.location.host` and appears on the image both as text and in the
+  QR code. An internal name does not belong on a public store page.
+- **Double pixel density** (`layout.css.devPixelsPerPx`), so 1200 × 675 CSS
+  pixels give a 2400 × 1350 image. The browser chrome is added to the window
+  height, otherwise the image would be 2:1 instead of 16:9.
+- **More people present than answers** (24 of 30). Otherwise every image says
+  "complete", and a running question looks like a finished one.
+
+The English interface comes from the language setting of the throwaway user
+(`occ user:setting pulse-shots core lang en`) and from
+`intl.accept_languages` for the public pages.
 
 ## How it works
 

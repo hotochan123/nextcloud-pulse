@@ -495,7 +495,7 @@ class TallyService {
             $counts[$opt['id']] = 0;
         }
         foreach ($votes as $vote) {
-            $value = $vote->getValue();
+            $value = $vote->getValueFor('multi');
             if (!is_array($value)) {
                 continue;
             }

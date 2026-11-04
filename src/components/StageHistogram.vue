@@ -132,10 +132,12 @@ export default {
 .shist-axis { flex: 0 0 auto; display: grid; gap: 0.5em; border-top: 0.06em solid var(--pulse-border); padding-top: 0.2em; }
 .shist-axis span { text-align: center; font-weight: 700; font-variant-numeric: tabular-nums; padding-block: 0.14em; }
 
-.shist-avg { position: relative; height: 1.5em; flex: 0 0 auto; }
+/* Tall enough for the whole mark: triangle 0.45em + label line 1.2em + padding 0.28em. At 1.5em the
+   label hung below the stage, which clips it, and "Ø 3" was cut in half on the projector. */
+.shist-avg { position: relative; height: 2em; flex: 0 0 auto; }
 .shist-avg-mark { position: absolute; top: 0; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; }
 .shist-tri { width: 0; height: 0; border-inline: 0.35em solid transparent; border-bottom: 0.45em solid var(--pulse-text); }
-.shist-avg-lbl { font-weight: 700; white-space: nowrap; padding-block: 0.14em; font-variant-numeric: tabular-nums; }
+.shist-avg-lbl { font-weight: 700; white-space: nowrap; padding-block: 0.14em; line-height: 1.2; font-variant-numeric: tabular-nums; }
 
 .shist-poles { flex: 0 0 auto; display: flex; justify-content: space-between; gap: 1em; font-weight: 600; color: var(--pulse-meta); }
 .shist-poles span { max-width: 45%; }

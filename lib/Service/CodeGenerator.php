@@ -45,8 +45,21 @@ class CodeGenerator {
         throw new \RuntimeException('Could not generate a free room code.');
     }
 
+    /**
+     * 4-character option ID with at least one letter. A digits-only ID such as "8423" would turn
+     * into an integer wherever PHP uses it as an array key (the answer key of a multiple-answer
+     * question, tallies): the stored solution would then hold a number instead of the ID, and
+     * a client comparing IDs as strings would no longer recognise that option.
+     */
     public function optionId(): string {
-        return $this->secureRandom->generate(4, self::SAFE_ALPHABET);
+        for ($attempt = 0; $attempt < 20; $attempt++) {
+            $id = $this->secureRandom->generate(4, self::SAFE_ALPHABET);
+            if (!ctype_digit($id)) {
+                return $id;
+            }
+        }
+        // With a working random source this never happens (1 in 256 per roll).
+        return 'A' . substr($id, 1);
     }
 
     public function voterToken(): string {

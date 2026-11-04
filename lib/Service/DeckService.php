@@ -295,7 +295,7 @@ class DeckService {
                 $ids[$options[$i]['id']] = true;
             }
         }
-        $ids = array_keys($ids);
+        $ids = array_map('strval', array_keys($ids)); // a digits-only ID would be an int key
         if (count($ids) === 0) {
             throw new \InvalidArgumentException($this->l10n->t('Please mark at least one correct answer.'));
         }

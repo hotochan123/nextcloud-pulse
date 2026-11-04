@@ -2,16 +2,19 @@
 *.log
 .DS_Store
 
-# Build artefacts are shipped (NC apps contain a ready-built js/),
-# but the source maps are not.
-/js/*.map
+# The bundles in js/ are built, not committed: the release build puts them
+# into the release archive, a test instance runs `npm run build`.
+# js/pulse-embed.js is hand-written (not a webpack entry) and stays.
+/js/*
+!/js/pulse-embed.js
 
 # Throwaway test scripts (DB harnesses against the running instance, see tests/README.md)
 /_*.php
 
-# Release build (build/package.sh)
-/build/dist/
+# Release archives of earlier releases, kept in the main checkout
 /build/pulse-*.tar.gz
+
+# Cached App Store schema for the info.xml check
 /build/info.xsd
 
 # Key material for the app signature never belongs in the repository

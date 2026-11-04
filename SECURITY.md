@@ -46,8 +46,8 @@ In scope:
   app generates;
 - the participant pages and API (`/apps/pulse/s/…`, `/screen/…`, `/embed`),
   the moderator API and the background job;
-- the release tooling (`build/package.sh`) and the CI configuration, as far as
-  they affect what gets shipped;
+- the release archive (which files it ships), as far as it affects what
+  gets shipped;
 - a way around a protection or limit that the README describes, for example
   the throttling of wrong room codes, the voter cookie, the caps per account
   or the `.htaccess` that hides the development tree.

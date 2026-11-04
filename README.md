@@ -37,14 +37,18 @@ unit tests for the self-paced rules, an HTTP simulation of complete poll and
 quiz runs and a browser screenshot harness; during development it was also
 fuzzed with throwaway request-fuzzing scripts. All of them were written by the
 same AI agents, so they check the code against the agents' own reading of the
-requirements. Not all of them run automatically: CI
-(`.github/workflows/ci.yml`) only builds the bundle, checks that the committed
-bundles in `js/` are exactly what the sources build to, checks the
-translations and `info.xml` against the App Store schema, packs a test release
-archive, runs the unit tests (`dev/unit`), `php -l` and the PHPUnit suite, and
-checks that the dev scripts parse. The simulation (`dev/sim`) and the
-screenshot harness (`dev/design-shots`) are run by hand — they need a running
-Nextcloud instance — and the fuzzing scripts were one-offs that are not in this
+requirements. Not all of them run automatically: the checks every change has
+to pass before it is merged (run in the private development repository, not
+by GitHub Actions) only build the bundle, check the translations and
+`info.xml` against the App Store schema, pack a test release archive, run the
+unit tests (`dev/unit`), `php -l` and the PHPUnit suite (on Nextcloud 34 and
+35), check that the dev scripts parse, play the simulation (`dev/sim`)
+through on throwaway Nextcloud instances with SQLite, PostgreSQL, MariaDB and
+MySQL, play the load run (`dev/sim/load.mjs`) against another one, and
+drive the moderator desk, the phone page and the projector in a real browser
+(`dev/e2e`, Playwright with Chromium) on a throwaway instance. The
+screenshot harness (`dev/design-shots`) is run by hand — it needs a
+running Nextcloud instance — and the fuzzing scripts were one-offs that are not in this
 repository. There has been no independent human code review and no security
 audit. In September 2026 AI agents of the same kind reviewed the code for
 security problems and fixed what they found (listed under "Security" in
@@ -189,15 +193,13 @@ src/              Moderator.vue (control desk), Participant.vue (phone), Screen.
                   js/pulse-embed.js builds its own),
                   styles.js (token layer without Vue — for the embed shell)
 l10n/             Translations (de.json is maintained, de.js is generated from it)
-build/            l10n-build.js (json -> js), l10n-check.js (coverage),
-                  package.sh (release archive), certificate.sh (signing key)
+build/            l10n-build.js (json -> js), l10n-check.js (coverage)
 tests/            PHPUnit (database-free) + run.sh
 office-addin/     PowerPoint add-in (guide, Traefik example; the instance generates
                   the manifest itself)
 dev/design-shots/ Screenshot harness for design reviews and store images (headless Firefox)
 dev/sim/          HTTP simulation of complete runs against a running instance
-.github/          CI: bundle (and that js/ matches it), PHPUnit, JS unit tests (dev/unit),
-                  script syntax, translations, info.xml schema, test release archive
+dev/e2e/          Browser tests (Playwright, Chromium) of desk, phone and projector on a throwaway instance
 screenshots/      Images for the App Store page
 .htaccess         Hides the development folders when a git checkout sits in the web root (Apache)
 ```
@@ -240,29 +242,30 @@ development tree — tests, the simulation and screenshot harness, sources and,
 after a build, `node_modules/` with demo pages of its packages — and the web
 server hands out static files below `apps/` as they are, so all of it would be
 public on your Nextcloud's own origin. Clone it somewhere else and copy only the
-runtime files into Nextcloud. The built bundles in `js/` are part of the
-repository, so this needs no build step, only Node.js for the translation
-check:
+runtime files into Nextcloud. The bundles in `js/` are not part of the
+repository, so this needs Node.js for the build (see [Building](#building)):
 
 ```
 git clone https://github.com/hotochan123/nextcloud-pulse.git ~/pulse-src
 cd ~/pulse-src
-SKIP_BUILD=1 ALLOW_UNRELEASED=1 sh build/package.sh   # -> build/pulse-<version>.tar.gz
-tar -xzf build/pulse-<version>.tar.gz -C <nextcloud>/apps/
+npm ci && npm run build                  # builds js/
+mkdir <nextcloud>/apps/pulse
+cp -a appinfo css img js l10n lib templates office-addin \
+      README.md LICENSE CHANGELOG.md <nextcloud>/apps/pulse/
+rm -f <nextcloud>/apps/pulse/js/*.map
 occ app:enable pulse
 ```
 
-The archive holds a single folder `pulse/` (the directory has to be named after
-the app ID) with only the runtime folders — `appinfo`, `css`, `img`, `js`,
-`l10n`, `lib`, `templates`, `office-addin` — plus README, licence and changelog.
-Without a key it is not signed, which Nextcloud accepts for an app installed by
-hand. `ALLOW_UNRELEASED=1` is only needed between releases (a checkout of a
-release tag packs without it). Copying those folders yourself, for example with
-`rsync`, works just as well. To update, replace `<nextcloud>/apps/pulse` with
-the new folder; when the version in `appinfo/info.xml` went up, run
+The folder has to be named after the app ID (`pulse`) and needs only the
+runtime folders — `appinfo`, `css`, `img`, `js`, `l10n`, `lib`,
+`templates`, `office-addin` — plus README, licence and changelog; the same
+set a release archive ships. It is not signed, which Nextcloud accepts for an
+app installed by hand. `rsync` with the same list works just as well, and the
+web server user needs read access to the copy. To update, replace
+`<nextcloud>/apps/pulse` with the new folder; when the version in `appinfo/info.xml` went up, run
 `occ upgrade` afterwards (until then Nextcloud does not serve the app).
 
-Running Pulse straight from a git checkout inside `apps/` still works, and the
+Running Pulse straight from a git checkout inside `apps/` still works (after `npm ci` and `npm run build`), and the
 repository ships an `.htaccess` as a safety net for that case: on Apache (with
 `mod_alias` and `AllowOverride` for the app folders, as in Nextcloud's own
 setup) it answers 404 for `node_modules/`, `dev/`, `build/`, `tests/`, `src/`,
@@ -278,11 +281,10 @@ npm ci             # exactly the dependency versions of package-lock.json
 npm run build      # produces js/pulse-main.js, js/pulse-public.js and js/pulse-styles.js
 ```
 
-Use Node.js 22.18.0, the version the committed bundles are built with: with it,
-`npm ci` plus `npm run build` reproduces `js/` byte for byte. CI builds the same
-way and fails when the committed `js/` differs from a fresh build, so after a
-change to `src/` or to the dependencies, commit the rebuilt `js/` along with
-it. `build/package.sh` without `SKIP_BUILD=1` runs the build itself.
+Use Node.js 22.18.0, the version the release bundles are built with: with it,
+`npm ci` plus `npm run build` reproduces the `js/` of a release archive byte for
+byte. The bundles are not committed (only the hand-written `js/pulse-embed.js`
+is).
 
 ## Languages
 
@@ -347,6 +349,9 @@ node dev/unit/routes.test.mjs                  # Vue frontend URLs and their cal
 node dev/unit/composer-limits.test.mjs         # composer maxlength/min/max, checked against what DeckService keeps
 node dev/unit/wordcloud.test.mjs               # projector word-cloud layout (long words fit), phone word length vs. server
 dev/sim/run.sh        # HTTP simulation of complete runs against the running instance (dev/sim/README.md)
+DB=all dev/it/run.sh  # the same simulation on throwaway instances with all four databases (dev/it/README.md)
+dev/sim/load-check.sh # load run (60 phones, self-paced race) on a throwaway Nextcloud; exit 1 on 5xx or p95 /state >= 300 ms
+dev/e2e/run.sh        # browser tests of desk, phone and projector on laptop, tablet and phone, light and dark (dev/e2e/README.md)
 ```
 
 Screenshots of every view (projector, phone, moderator — per question type, open
@@ -551,14 +556,13 @@ network.
 
 ## Release
 
-```
-build/certificate.sh    # once: key + certificate request for the signature
-build/package.sh        # builds, checks, signs and packs build/pulse-<version>.tar.gz
-```
-
-The whole way into the Nextcloud App Store — public repository, certificate,
-app ID registration, version, signature, upload — is described in
-[`docs/APPSTORE.md`](docs/APPSTORE.md).
+Releases are built, signed and uploaded to the Nextcloud App Store with the
+developer's release tooling, outside this repository (`/factory release pulse`): it builds the bundles
+from the release tag, packs the runtime folders listed under
+[Installation](#installation) into `pulse-<version>.tar.gz` with a
+single folder `pulse/`, signs it with the app's certificate and publishes the
+same archive as a GitHub release. The release notes are the version's section
+in [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Licence
 
@@ -606,7 +610,7 @@ respective owners.
 - Languages: English and German. Further languages would go through
   Transifex and need Nextcloud's involvement.
 - Nextcloud 34 and 35 only (`min-version="34" max-version="35"`, 35 since
-  2 October 2026; the test is described in `docs/APPSTORE.md`). Copies from
+  2 October 2026, tested including the server update from 34 to 35). Copies from
   before that date carry `max-version="34"`, so Nextcloud 35's updater turns
   them off.
 - Question type image hotspot (tap on an image instead of choosing an answer).

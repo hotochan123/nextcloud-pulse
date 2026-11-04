@@ -40,6 +40,17 @@ class Vote extends Entity implements \JsonSerializable {
         return is_array($decoded) && array_key_exists('value', $decoded) ? $decoded['value'] : null;
     }
 
+    /**
+     * getValue() for a question of the given type. A multiple-answer vote of an older
+     * question could hold an option ID made only of digits as an integer (PHP had
+     * collected the IDs as array keys); it comes back as a string, like the IDs of the
+     * options, so tallies and phones recognise it.
+     */
+    public function getValueFor(string $type): mixed {
+        $value = $this->getValue();
+        return $type === 'multi' && is_array($value) ? Poll::idList($value) : $value;
+    }
+
     public function jsonSerialize(): array {
         return [
             'id' => $this->getId(),

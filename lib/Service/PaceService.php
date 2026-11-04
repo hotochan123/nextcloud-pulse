@@ -19,8 +19,10 @@ use OCA\Pulse\Db\VoteMapper;
 use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\AppFramework\Db\TTransactional;
 use OCP\AppFramework\Utility\ITimeFactory;
+use OCP\DB\Exception as DbException;
 use OCP\IDBConnection;
 use OCP\IL10N;
+use Psr\Log\LoggerInterface;
 
 /**
  * Self-paced quiz: every person runs alone through the deck that was frozen
@@ -91,6 +93,15 @@ class PaceService {
      */
     public const NEW_PLAYER_LIMIT = 120;
 
+    /**
+     * Attempts of /next's database part when MySQL/MariaDB breaks it off with
+     * a deadlock or a lock wait timeout (retryAfterLockConflict).
+     */
+    public const NEXT_ATTEMPTS = 3;
+
+    /** Optional, so that tests that build the service by reflection need not set it. */
+    private ?LoggerInterface $logger = null;
+
     public function __construct(
         private RoomMapper $roomMapper,
         private PollMapper $pollMapper,
@@ -102,7 +113,9 @@ class PaceService {
         private IDBConnection $db,               // locked()
         private ITimeFactory $timeFactory,
         private IL10N $l10n,
+        ?LoggerInterface $logger = null,
     ) {
+        $this->logger = $logger;
     }
 
     // ── Pure functions ──────────────────────────────────────────────────────
@@ -661,6 +674,27 @@ class PaceService {
         if ($state !== self::STATE_OPEN) {
             throw new \InvalidArgumentException($this->l10n->t('The quiz is closed.'));
         }
+        // Concurrent requests of the same room (other players answering,
+        // removePlayer, grading) can make MySQL/MariaDB break off a statement
+        // here with a deadlock. Every statement runs on its own (autocommit),
+        // so a broken-off one changed nothing, and the part is idempotent:
+        // a close without its start heals on the next attempt via "no open
+        // row, after = the question left last". start() is its last write,
+        // so a started row is never started twice.
+        $started = $this->retryAfterLockConflict(fn (): bool => $this->advance($room, $voterToken, $after, $now));
+        if ($started) {
+            // Separate from advance(): after a started row a repeated advance()
+            // would see a stale $after and skip this check.
+            $this->retryAfterLockConflict(fn () => $this->assertStillJoined($room, $voterToken));
+        }
+    }
+
+    /**
+     * The database part of next(): true if it started a new row.
+     *
+     * @throws \InvalidArgumentException 'Please choose a name first.'
+     */
+    private function advance(Room $room, #[\SensitiveParameter] string $voterToken, int $after, int $now): bool {
         try {
             $this->playerMapper->findByRoomAndToken($room->getId(), $voterToken);
         } catch (DoesNotExistException) {
@@ -677,28 +711,52 @@ class PaceService {
 
         if ($open !== null) {
             if ($open->getPollId() !== $after) {
-                return; // double tap or stale state
+                return false; // double tap or stale state
             }
             $poll = $deck[$after] ?? null;
             if ($poll !== null && $this->previewLocked($room, $poll, $open, $voterToken, $now)) {
-                return;
+                return false;
             }
             if (!$this->progressMapper->closeIfOpen($open->getId(), $now)) {
-                return; // another tab was faster
+                return false; // another tab was faster
             }
         } else {
             // No open row: right at the start (after = 0) or self-healing
             // after a break-off between closing and starting.
             $lastId = self::lastOf($rows)?->getPollId() ?? 0;
             if ($after !== $lastId) {
-                return;
+                return false;
             }
         }
 
         $succ = self::nextAfter($room, $after, array_keys($deck));
         // start() false = unique violation: the question is already running (parallel tab) — fine.
-        if ($succ !== null && $this->progressMapper->start($room->getId(), $succ['pollId'], $voterToken, $succ['seq'], $now)) {
-            $this->assertStillJoined($room, $voterToken);
+        return $succ !== null && $this->progressMapper->start($room->getId(), $succ['pollId'], $voterToken, $succ['seq'], $now);
+    }
+
+    /**
+     * Run $fn again (at most NEXT_ATTEMPTS times in all, 10–50 ms apart) when
+     * the database breaks it off with a deadlock or a lock wait timeout;
+     * every other error, and the last of those, goes through unchanged.
+     * Only for work that runs outside a transaction and may be repeated.
+     *
+     * @template T
+     * @param callable(): T $fn
+     * @return T
+     */
+    private function retryAfterLockConflict(callable $fn): mixed {
+        for ($attempt = 1; ; $attempt++) {
+            try {
+                return $fn();
+            } catch (DbException $e) {
+                $reason = $e->getReason();
+                if ($attempt >= self::NEXT_ATTEMPTS
+                    || ($reason !== DbException::REASON_DEADLOCK && $reason !== DbException::REASON_LOCK_WAIT_TIMEOUT)) {
+                    throw $e;
+                }
+                $this->logger?->warning('Pulse: retrying a self-paced step after a database lock conflict.', ['exception' => $e]);
+                usleep(random_int(10_000, 50_000));
+            }
         }
     }
 

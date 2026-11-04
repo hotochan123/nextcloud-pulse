@@ -96,10 +96,41 @@ class Poll extends Entity implements \JsonSerializable {
         return is_array($decoded) ? $decoded : [];
     }
 
-    /** Type-specific solution as an array (multi/number/text); {} when empty/unset. */
+    /**
+     * Type-specific solution as an array (multi/number/text); {} when empty/unset.
+     *
+     * The option IDs of a multiple-answer key always come back as strings: older
+     * questions could have an ID made only of digits (e.g. "8423"), which PHP turned
+     * into an integer when it collected the IDs as array keys, so the stored key holds
+     * 8423. Clients compare IDs as strings and would not recognise that option.
+     */
     public function getAnswerKeyArray(): array {
         $decoded = json_decode((string)$this->getAnswerKey(), true);
-        return is_array($decoded) ? $decoded : [];
+        if (!is_array($decoded)) {
+            return [];
+        }
+        if (isset($decoded['correct']) && is_array($decoded['correct'])) {
+            $decoded['correct'] = self::idList($decoded['correct']);
+        }
+        return $decoded;
+    }
+
+    /**
+     * A list of option IDs with integers read back as strings (see getAnswerKeyArray);
+     * anything that is neither string nor integer is dropped.
+     *
+     * @return list<string>
+     */
+    public static function idList(array $ids): array {
+        $out = [];
+        foreach ($ids as $id) {
+            if (is_int($id)) {
+                $out[] = (string)$id;
+            } elseif (is_string($id)) {
+                $out[] = $id;
+            }
+        }
+        return $out;
     }
 
     /**

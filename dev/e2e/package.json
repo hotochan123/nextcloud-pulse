@@ -1,0 +1,11 @@
+{
+  "name": "pulse-e2e",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "AGPL-3.0-or-later",
+  "description": "Browser tests of Pulse (dev/e2e/run.sh); playwright-core must match the image mcr.microsoft.com/playwright:v1.49.1-jammy",
+  "dependencies": {
+    "playwright-core": "1.49.1"
+  }
+}

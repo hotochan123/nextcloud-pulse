@@ -16,7 +16,7 @@
  * IDs (R3, D10, …) point to the design notes of the redesign and of the
  * self-paced quiz, which are not in the public repository (see "References in
  * code comments" in the README).
- * Only references that name a file (docs/APPSTORE.md §3) point into this
+ * Only references that name a file (dev/design-shots/README.md) point into this
  * repository.
  */
 
@@ -1248,7 +1248,7 @@ const driver = spawn(join(HERE, '..', '..', 'tools', 'geckodriver'), ['--port', 
 process.on('exit', () => driver.kill())
 
 /*
- * Images for the store page (docs/APPSTORE.md §3). A different job than the
+ * Images for the store page (dev/design-shots/README.md, "Store images"). A different job than the
  * rest of this test rig: not documenting edge cases, but showing in six
  * images what the app does. Hence its own rooms (probe.php store), the English
  * interface and the public hostname: it appears in the join link and in the

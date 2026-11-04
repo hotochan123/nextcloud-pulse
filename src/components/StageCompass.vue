@@ -141,8 +141,9 @@ export default {
 .splot-wrap {
 	display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0;
 	box-sizing: border-box;
-	/* Reserve for the labels outside the square. */
-	padding: 1.4em 5em 0;
+	/* Reserve for the labels outside the square. On top the pole sits 0.2em above the square and is
+	   1.43em tall (line 1.15em + padding): 1.4em let it reach past the stage, which clips it. */
+	padding: 1.7em 5em 0;
 }
 .splot { position: relative; flex: 1 1 auto; min-height: 0; align-self: center; aspect-ratio: 1; margin-bottom: 1.4em; }
 .splot svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }

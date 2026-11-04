@@ -7,6 +7,26 @@ All notable changes to Pulse are documented here. The format follows
 Release notes on the Nextcloud App Store are taken from the topmost sections of
 this file, so every published version needs an entry here.
 
+## [Unreleased]
+
+## [0.20.1] - 2026-11-04
+
+### Fixed
+- Multiple-answer questions: an answer option whose ID was made only of
+  digits (about one option in 256) was not marked as correct after the
+  reveal, did not count its votes and lost its tick in the composer. Existing
+  questions are fixed without saving them again, and new options no longer
+  get such IDs.
+- Self-paced quiz on MySQL or MariaDB: tapping "Next" while other players
+  answered at the same moment could show an error instead of the next
+  question. The server now retries that step itself.
+- On a phone the moderator's deck view no longer scrolls sideways when a
+  question is long.
+- Projector: the mean below a revealed scale is no longer cut off at the
+  bottom, and the top pole of a compass no longer touches the upper edge.
+- The app icon now shows white in the dark header and dark on light
+  backgrounds.
+
 ## [0.20.0] - 2026-11-03
 
 ### Added

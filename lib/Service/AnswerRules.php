@@ -76,7 +76,7 @@ class AnswerRules {
                 $chosen[$v] = true;
             }
         }
-        $chosen = array_keys($chosen);
+        $chosen = array_map('strval', array_keys($chosen)); // a digits-only ID would be an int key
         if (count($chosen) === 0) {
             throw new \InvalidArgumentException($this->l10n->t('Please choose at least one option.'));
         }

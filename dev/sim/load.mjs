@@ -15,9 +15,11 @@
 // have stopped — otherwise every 404 would count towards the brute-force throttle (§6.4).
 //
 // Output (Markdown, for the test bench's index.md): p50/p95 per endpoint,
-// share of status codes, requests per second. Guideline: p95 /state
-// < 300 ms; above that it is an engine follow-up item, not a reason to halt
-// the UI.
+// share of status codes, requests per second, then one line
+// `LOAD: PASS|FAIL …` with the pass mark of dev/sim/load-verdict.mjs: no
+// 5xx/timeout, every phone joined, p95 /state < LOAD_P95_MAX (default 300 ms).
+// Exit 1 below the mark. dev/sim/load-check.sh runs it against a throwaway
+// Nextcloud as the factory check "load".
 //
 // Section references (§…) point to the specification of the self-paced quiz,
 // which is not in the public repository (see "References in code comments" in
@@ -32,10 +34,12 @@
 // Knobs: LOAD_PHONES (default 60, at most 120 — one address may add 120 new
 // players per room in 10 min by default, app config
 // max_new_players_per_address; more would only measure the 429), LOAD_SECS
-// (load phase, default 90), LOAD_TAIL_SECS (final standings, default 30).
+// (load phase, default 90), LOAD_TAIL_SECS (final standings, default 30),
+// LOAD_P95_MAX (pass mark in ms, default 300).
 import http from 'node:http'
 import { performance } from 'node:perf_hooks'
 import { phoneDelay, progressDelay, windowState } from '../../src/util/pace.js'
+import { p95MaxFrom, pct, verdict } from './load-verdict.mjs'
 
 const URL_BASE = (process.env.PULSE_SIM_URL || 'http://127.0.0.1').replace(/\/$/, '')
 const HOST_HEADER = process.env.PULSE_SIM_HOST || 'localhost'
@@ -46,6 +50,7 @@ const AUTH = 'Basic ' + Buffer.from(USER + ':' + PASS).toString('base64')
 const PHONES = Math.max(1, Math.min(120, Number(process.env.LOAD_PHONES || 60)))
 const LOAD_SECS = Math.max(10, Number(process.env.LOAD_SECS || 90))
 const TAIL_SECS = Math.max(0, Number(process.env.LOAD_TAIL_SECS || 30))
+const P95_MAX = p95MaxFrom(process.env.LOAD_P95_MAX)
 const QUESTIONS = 10
 const LIMIT = 20
 
@@ -311,10 +316,6 @@ async function beamerLoop(code) {
 }
 
 // ── Evaluation ─────────────────────────────────────────────────────────────
-function pct(sorted, p) {
-	if (!sorted.length) return NaN
-	return sorted[Math.min(sorted.length - 1, Math.max(0, Math.ceil((p / 100) * sorted.length) - 1))]
-}
 function row(key, list, seconds) {
 	const ms = list.map((x) => x.ms).sort((a, b) => a - b)
 	const codes = {}
@@ -414,19 +415,18 @@ try {
 		row('/pace release', of('release'), 0),
 		'',
 		`Alle Anfragen in der Lastphase: ${samples.filter((x) => x.phase === 'load').length} in ${loadSecs.toFixed(0)} s = ` +
-			`${(samples.filter((x) => x.phase === 'load').length / loadSecs).toFixed(1)} je s. Orientierung p95 /state < 300 ms: ` +
-			`${pct(of('state', 'load').map((x) => x.ms).sort((a, b) => a - b), 95) < 300 ? 'eingehalten' : 'ÜBERSCHRITTEN (Engine-Folgepunkt §7)'}.`,
+			`${(samples.filter((x) => x.phase === 'load').length / loadSecs).toFixed(1)} je s.`,
 	]
 	const errs = phones.filter((p) => p.error).map((p) => p.name + ': ' + p.error)
 	if (errs.length) lines.push('', 'Handys mit Fehler: ' + errs.slice(0, 10).join('; ') + (errs.length > 10 ? ' …' : ''))
-	const bad = samples.filter((x) => typeof x.status !== 'number' || x.status >= 500)
-	if (bad.length) {
-		exitCode = 1
-		lines.push('', `**${bad.length} Anfragen mit 5xx/Zeitüberschreitung/Netzfehler.**`)
-	}
+	const v = verdict({ samples, phones: PHONES, joined, p95Max: P95_MAX })
+	if (v.bad) lines.push('', `**${v.bad} Anfragen mit 5xx/Zeitüberschreitung/Netzfehler.**`)
+	if (!v.pass) exitCode = 1
+	lines.push('', v.line)
 	console.log(lines.join('\n'))
 } catch (e) {
 	console.error('ABBRUCH', e)
+	console.log('LOAD: FAIL aborted: ' + String(e && e.message ? e.message : e).split('\n')[0])
 	exitCode = 1
 } finally {
 	await cleanup()

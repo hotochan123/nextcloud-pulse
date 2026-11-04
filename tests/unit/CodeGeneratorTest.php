@@ -67,6 +67,24 @@ class CodeGeneratorTest extends TestCase {
         $this->assertSame('AB12', (new CodeGenerator($random, $this->createMock(RoomMapper::class)))->optionId());
     }
 
+    public function testDigitsOnlyOptionIdIsRerolled(): void {
+        // "8423" would become the integer 8423 as an array key (multiple-answer key, tallies).
+        $random = $this->createMock(ISecureRandom::class);
+        $random->expects($this->exactly(3))->method('generate')->willReturnOnConsecutiveCalls('8423', '2345', '84K3');
+
+        $this->assertSame('84K3', (new CodeGenerator($random, $this->createMock(RoomMapper::class)))->optionId());
+    }
+
+    public function testOptionIdHasALetterEvenIfTheRandomSourceOnlyGivesDigits(): void {
+        $random = $this->createMock(ISecureRandom::class);
+        $random->expects($this->exactly(20))->method('generate')->willReturn('8423');
+
+        $id = (new CodeGenerator($random, $this->createMock(RoomMapper::class)))->optionId();
+        $this->assertSame(4, strlen($id));
+        $this->assertFalse(ctype_digit($id));
+        $this->assertStringContainsString($id[0], self::SAFE_ALPHABET);
+    }
+
     public function testVoterTokenIsThirtyTwoCharacters(): void {
         // 32 characters is a hard limit: all three token columns are varchar(32).
         $random = $this->createMock(ISecureRandom::class);

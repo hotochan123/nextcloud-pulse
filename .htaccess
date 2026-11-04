@@ -5,8 +5,8 @@
 # "From the repository"): Apache serves static files below apps/pulse/
 # directly, so without this the development tree would be public — the
 # screenshot harness output, node_modules with its demo pages, sources and
-# local test scripts. The release archive (build/package.sh) ships only the
-# runtime folders and does not need this file.
+# local test scripts. The release archive ships only the runtime folders and
+# does not need this file.
 #
 # mod_alias on purpose: a RewriteEngine here would replace Nextcloud's own
 # rewrite rules for every request below apps/pulse/.

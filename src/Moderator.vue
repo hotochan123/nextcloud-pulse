@@ -2175,6 +2175,9 @@ export default {
 }
 @media (max-width: 880px) {
 	.present { flex-direction: column-reverse; }
+	/* As a column with align-items: flex-start the deck took the width of its widest row (a long
+	   question does not wrap), and on a phone the whole desk scrolled sideways. */
+	.present-main { width: 100%; }
 	.present-aside { flex-basis: auto; width: 100%; max-width: 340px; position: static; margin: 0 auto; }
 }
 

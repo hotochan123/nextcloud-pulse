@@ -174,18 +174,49 @@ the fresh key stores the old routes for an hour. No container restart needed.
 join a freshly opened race room, answer and tap "Next question" at the pace the
 phone UI uses, while a moderator polls `/progress` and a projector polls
 `/state?spectate=1`. It prints p50/p95 per endpoint, status code shares and
-requests per second as Markdown. Like the sim it talks directly to the
-container and uses the same throwaway user:
+requests per second as Markdown, then one result line with its pass mark:
+
+```
+LOAD: PASS p95 /state 41 ms (< 300), 5xx 0, joined 60/60, requests 5321
+LOAD: FAIL p95 /state 412 ms (< 300), 5xx 2, joined 60/60, requests 5102; p95 412 ms >= 300, 2 5xx/timeouts
+```
+
+A run passes when no request ended in a 5xx, a timeout or a network error,
+every phone joined, and the p95 of the phones' `/state` requests in the load
+phase is below `LOAD_P95_MAX` (default 300 ms); otherwise it exits 1. An
+aborted run prints `LOAD: FAIL aborted: <reason>`. The pass mark lives in
+`load-verdict.mjs` (unit test `dev/unit/load-verdict.test.mjs`).
+
+`dev/sim/load-check.sh` runs it against its own throwaway Nextcloud — this is
+the factory check `load`:
+
+```sh
+dev/sim/load-check.sh            # ≈ 4–5 min, exit code of load.mjs (2: the stack did not come up)
+KEEP=1 dev/sim/load-check.sh     # keep the containers afterwards
+```
+
+It starts exactly three containers, `pulse-load-<pid>` (Nextcloud, `IMAGE`,
+default `nextcloud:34-apache`), `pulse-load-<pid>-db` (`DB=pgsql`, the default,
+or `mariadb`/`mysql`; none for `sqlite`) and `pulse-load-<pid>-redis`, on the
+default bridge without a published port, mounts the checkout read-only as
+`custom_apps/pulse`, creates the user `alice` with a random password and
+removes the containers on exit, also on Ctrl-C. Missing bundles in `js/` are
+built first.
+
+By hand against another instance, like the sim, directly to the container
+with the throwaway user:
 
 ```sh
 PULSE_SIM_URL=http://<container-ip> PULSE_SIM_PASS="$(cat dev/design-shots/.shots-pass)" \
   node dev/sim/load.mjs
 ```
 
-Settings: `LOAD_PHONES` (default and at most 60 — one address may add 60 new
-players per room in 10 min, more would only measure the 429), `LOAD_SECS`
-(load phase, default 90), `LOAD_TAIL_SECS` (final standings polling, default
-30). On a live instance run it only at a quiet time, and only once.
+Settings: `LOAD_PHONES` (default 60, at most 120 — one address may add 120 new
+players per room in 10 min by default, more would only measure the 429),
+`LOAD_SECS` (load phase, default 90), `LOAD_TAIL_SECS` (final standings
+polling, default 30), `LOAD_P95_MAX` (pass mark in ms, default 300); the
+runner passes them through. On a live instance run it only at a quiet time,
+and only once.
 
 ## Limit
 
