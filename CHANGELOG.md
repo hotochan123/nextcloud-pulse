@@ -9,6 +9,13 @@ this file, so every published version needs an entry here.
 
 ## [Unreleased]
 
+## [0.20.2] - 2026-11-05
+
+### Fixed
+- Pulse showed only an empty page after updating to 0.20.1 from the App
+  Store: the store package carried a damaged script. This version ships the
+  same features with an intact package.
+
 ## [0.20.1] - 2026-11-04
 
 ### Fixed
