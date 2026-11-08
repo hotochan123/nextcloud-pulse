@@ -29,7 +29,7 @@ use OCP\IL10N;
  *
  * Section references (§…) point to the design notes of the redesign and of the
  * self-paced quiz, which are not in the public repository (see "References in
- * code comments" in the README).
+ * code comments" in docs/DEVELOPMENT.md).
  */
 class StateService {
     public function __construct(
@@ -44,7 +44,55 @@ class StateService {
         private IConfig $config,
         // only touched in self-paced mode:
         private PaceStateService $paceState,
+        // filter before the projector (hidden answers, AI check)
+        ?ModerationService $moderation = null,
+        // "Group with AI" (themes on the desk and, once released, on the projector)
+        ?ThemeService $themes = null,
+        // AI grading suggestion (desk only)
+        ?GradingSuggestionService $grading = null,
     ) {
+        $this->moderation = $moderation;
+        $this->themes = $themes;
+        $this->grading = $grading;
+    }
+
+    /** Not promoted: tests build the service without its constructor, then it stays null. */
+    private ?ModerationService $moderation = null;
+    private ?ThemeService $themes = null;
+    private ?GradingSuggestionService $grading = null;
+
+    /** The tally the audience sees: without hidden or held back answers. */
+    private function audienceTally(Poll $poll): array {
+        $votes = $this->voteMapper->findByPoll($poll->getId());
+        return $this->moderation !== null
+            ? $this->moderation->publicTally($this->tallyService, $poll, $votes)
+            : $this->tallyService->tally($poll, $votes);
+    }
+
+    /** The moderator's tally of a moderated question, with the filter block. */
+    private function deskTally(Room $room, Poll $poll): array {
+        $votes = $this->voteMapper->findByPoll($poll->getId());
+        if ($this->moderation === null) {
+            return $this->tallyService->tally($poll, $votes);
+        }
+        $tally = $this->moderation->moderatorTally($this->tallyService, $room, $poll, $votes);
+        if ($this->themes !== null && isset($tally['moderation']) && ThemeService::offered($room)) {
+            $tally['moderation']['groups'] = $this->themes->deskView($poll, $votes);
+        }
+        if ($this->grading !== null) {
+            $tally = $this->grading->decorate($poll, $tally);
+        }
+        return $tally;
+    }
+
+    /** The solution for the reveal, without hidden free-text answers. */
+    private function audienceAnswerKey(Poll $poll): array {
+        return $this->moderation !== null ? $this->moderation->publicAnswerKey($poll) : $poll->getAnswerKeyArray();
+    }
+
+    /** Clock-driven part of the versions (answers waiting for the AI check). */
+    private function moderationVersion(Poll $poll): string {
+        return $poll->getModeration() === [] ? '' : ModerationService::versionPart($poll, $this->timeFactory->getTime());
     }
 
     /**
@@ -57,7 +105,7 @@ class StateService {
         foreach ($this->deckService->deck($room) as $poll) {
             $out[] = [
                 'poll' => $this->deckService->ownerPoll($poll),
-                'results' => $this->tallyService->tally($poll, $this->voteMapper->findByPoll($poll->getId())),
+                'results' => $this->deskTally($room, $poll),
             ];
         }
         return $out;
@@ -82,9 +130,30 @@ class StateService {
         foreach ($this->deckService->deck($room) as $poll) {
             $nr++;
             $tally = $this->tallyService->tally($poll, $this->voteMapper->findByPoll($poll->getId()));
+            // Hidden answers stay in the export, marked.
+            if ($this->moderation !== null) {
+                $tally = $this->moderation->markForCsv($room, $poll, $tally);
+            }
             array_push($rows, ...$this->csvRows($nr, $poll, $tally));
         }
         return CsvFormat::document($rows);
+    }
+
+    /**
+     * Every question of the deck with the tally the audience sees (hidden and
+     * held back answers left out) and its result rows as in the CSV (answer,
+     * votes, share), but as plain text: no formula guard, the caller escapes
+     * for its own format. For the AI summary (AiSummaryService).
+     *
+     * @return list<array{poll: Poll, tally: array, rows: list<array{0:string, 1:int|string, 2:int|string}>}>
+     */
+    public function resultRows(Room $room): array {
+        $out = [];
+        foreach ($this->deckService->deck($room) as $poll) {
+            $tally = $this->audienceTally($poll);
+            $out[] = ['poll' => $poll, 'tally' => $tally, 'rows' => $this->cells($poll, $tally, false)];
+        }
+        return $out;
     }
 
     /**
@@ -97,18 +166,27 @@ class StateService {
      * @return list<list<int|string>>
      */
     private function csvRows(int $nr, Poll $poll, array $tally): array {
+        $lead = [$nr, $poll->getQuestion(), $this->typeLabel($poll->getType())];
+        return array_map(static fn (array $row): array => [...$lead, ...$row], $this->cells($poll, $tally, true));
+    }
+
+    /**
+     * Answer, votes and share per row from the row builder of the question's
+     * type. $csv: audience text goes through the CSV formula guard.
+     *
+     * @return list<array{0:string, 1:int|string, 2:int|string}>
+     */
+    private function cells(Poll $poll, array $tally, bool $csv): array {
         $type = $poll->getType();
-        $lead = [$nr, $poll->getQuestion(), $this->typeLabel($type)];
         $mode = $tally['mode'] ?? 'single';
-        $cells = match (true) {
+        return match (true) {
             $type === 'scale' && $mode === 'spectrum' => $this->spectrumRows($tally),
             $type === 'scale' && $mode === 'compass' => $this->compassRows($tally),
             $type === 'match' => $this->matchRows($tally),
             $type === 'rank' => $this->rankRows($tally),
-            $type === 'text' => $this->textRows($tally),
-            default => $this->defaultRows($type, $tally),
+            $type === 'text' => $this->textRows($tally, $csv),
+            default => $this->defaultRows($type, $tally, $csv),
         };
-        return array_map(static fn (array $row): array => [...$lead, ...$row], $cells);
     }
 
     /**
@@ -201,13 +279,14 @@ class StateService {
      *
      * @return list<array{0:string, 1:int|string, 2:int|string}>
      */
-    private function textRows(array $tally): array {
+    private function textRows(array $tally, bool $csv = true): array {
         $total = (int)$tally['total'];
         $rows = [];
         foreach ($tally['answers'] as $row) {
             $count = (int)$row['count'];
             $share = $total > 0 ? round($count / $total * 100) . '%' : '';
-            $rows[] = [CsvFormat::cell((string)$row['sample']), $count, $share];
+            $sample = (string)$row['sample'];
+            $rows[] = [$csv ? CsvFormat::cell($sample) : $sample, $count, $share];
         }
         if (count($tally['answers']) === 0) {
             $rows[] = [$this->l10n->t('(no answers)'), 0, ''];
@@ -222,13 +301,13 @@ class StateService {
      *
      * @return list<array{0:string, 1:int|string, 2:int|string}>
      */
-    private function defaultRows(string $type, array $tally): array {
+    private function defaultRows(string $type, array $tally, bool $csv = true): array {
         $total = (int)$tally['total'];
         $rows = [];
         foreach ($tally['results'] as $row) {
             $count = (int)$row['count'];
             $share = $total > 0 ? round($count / $total * 100) . '%' : '';
-            $rows[] = [$this->answerLabel($type, $row), $count, $share];
+            $rows[] = [$this->answerLabel($type, $row, $csv), $count, $share];
         }
         if ($type === 'scale') {
             $rows[] = [$this->l10n->t('Average'), $this->num($tally['average']), ''];
@@ -256,9 +335,9 @@ class StateService {
      *
      * @param array $row result row from TallyService
      */
-    private function answerLabel(string $type, array $row): string {
+    private function answerLabel(string $type, array $row, bool $csv = true): string {
         return match ($type) {
-            'words' => CsvFormat::cell((string)($row['word'] ?? '')),
+            'words' => $csv ? CsvFormat::cell((string)($row['word'] ?? '')) : (string)($row['word'] ?? ''),
             'scale' => (string)($row['value'] ?? ''),
             'number' => $this->num($row['value'] ?? 0),
             default => (string)($row['label'] ?? ''),
@@ -271,10 +350,17 @@ class StateService {
      */
     public function results(Room $room, int $pollId): array {
         if (PaceService::isSelf($room)) {
-            return $this->paceState->results($room, $pollId);
+            $data = $this->paceState->results($room, $pollId);
+            // Free text: each answer with its hidden state, as on the results
+            // overview (summary), so grading or hiding there keeps the buttons.
+            $poll = $this->deckService->requirePollInRoom($room, $pollId);
+            if ($this->moderation !== null && ModerationService::hideable($room, $poll)) {
+                $data = array_merge($data, $this->moderation->moderatorTally($this->tallyService, $room, $poll, $this->voteMapper->findByPoll($pollId)));
+            }
+            return $data;
         }
         $poll = $this->deckService->requirePollInRoom($room, $pollId);
-        $tally = $this->tallyService->tally($poll, $this->voteMapper->findByPoll($poll->getId()));
+        $tally = $this->deskTally($room, $poll);
         // Live participant count for the moderator badge, piggybacked on the poll (2.5 s).
         $tally['present'] = $this->roomService->presentCount($room);
         if ($room->getMode() === 'quiz') {
@@ -362,7 +448,7 @@ class StateService {
             // but an edit of it on a revealed question must reach the screens.
             . ':' . crc32((string)$poll->getExplanation());
         return $this->opaque($activeId . ':' . $poll->getStatus() . ':' . $poll->getStartedAt() . ':' . $stamp
-            . ':' . crc32((string)$poll->getAnswerKey()) . $flags . $presence);
+            . ':' . crc32((string)$poll->getAnswerKey()) . $this->moderationVersion($poll) . $flags . $presence);
     }
 
     /**
@@ -398,7 +484,7 @@ class StateService {
         $stamp = $this->voteMapper->changeStamp($pollId);
         $present = $this->roomService->presentCount($room);
         return $pollId . ':' . $poll->getStatus() . ':' . $poll->getStartedAt() . ':' . $stamp . ':' . $present
-            . ':' . crc32((string)$poll->getAnswerKey())
+            . ':' . crc32((string)$poll->getAnswerKey()) . $this->moderationVersion($poll)
             . ':' . (int)$room->getRevealAtEnd() . (int)$room->getPractice();
     }
 
@@ -494,6 +580,8 @@ class StateService {
             // during a running question nobody renders it, and the COUNT would be
             // pure load on the hot voting path.
             'present' => 0,
+            // Switch "AI help": the phone says that free-text answers are evaluated with AI.
+            'aiHelp' => $this->moderation?->aiHelp($room) ?? false,
         ];
         if ($quiz) {
             $base['nickname'] = $this->voteService->playerNickname($room, $voterToken);
@@ -540,9 +628,19 @@ class StateService {
             // via correctOption, the other types via the answerKey (correct set /
             // target number + tolerance / accepted free-text answers).
             $pollData['correctOption'] = $poll->getCorrectOption();
-            $pollData['answerKey'] = $poll->getAnswerKeyArray();
+            $pollData['answerKey'] = $this->audienceAnswerKey($poll);
             // Why it is correct — part of the solution, so the same gate.
             $pollData['explanation'] = $poll->explanationOrEmpty();
+        }
+        // "Group with AI": the themes the moderator released, only in polls
+        // (themes stored in a quiz room earlier are shown nowhere).
+        if ($this->themes !== null && ThemeService::offered($room) && $poll->getModeration() !== []
+            && ModerationService::moderatable($room, $poll)) {
+            $themes = ThemeService::released($poll, $this->timeFactory->getTime())
+                ? $this->themes->publicThemes($poll, $this->voteMapper->findByPoll($poll->getId())) : null;
+            if ($themes !== null) {
+                $pollData['themes'] = $themes;
+            }
         }
         $base['poll'] = $pollData;
         $base['hasVoted'] = $hasVoted;
@@ -561,7 +659,7 @@ class StateService {
             // Live bars only on reveal — before that the distribution would be a spoiler.
             // Public tallies are capped (PublicPayload::tally); the moderator's stay full.
             $base['results'] = $revealed
-                ? PublicPayload::tally($this->tallyService->tally($poll, $this->voteMapper->findByPoll($poll->getId())))
+                ? PublicPayload::tally($this->audienceTally($poll))
                 : null;
             if ($hasVoted) {
                 $d = json_decode($myVote->getPayload(), true) ?: [];
@@ -583,7 +681,7 @@ class StateService {
                 ));
             }
         } else {
-            $base['results'] = PublicPayload::tally($this->tallyService->tally($poll, $this->voteMapper->findByPoll($poll->getId())));
+            $base['results'] = PublicPayload::tally($this->audienceTally($poll));
         }
 
         return $base;
@@ -654,7 +752,7 @@ class StateService {
             $pollData = $this->publicPoll($room, $poll, $revealed);
             if ($quiz && $revealed) {
                 $pollData['correctOption'] = $poll->getCorrectOption();
-                $pollData['answerKey'] = $poll->getAnswerKeyArray();
+                $pollData['answerKey'] = $this->audienceAnswerKey($poll);
                 $pollData['explanation'] = $poll->explanationOrEmpty();
             }
 
@@ -662,7 +760,7 @@ class StateService {
                 'poll' => $pollData,
                 'revealed' => $revealed,
                 'results' => $revealed
-                    ? PublicPayload::tally($this->tallyService->tally($poll, $this->voteMapper->findByPoll($poll->getId())))
+                    ? PublicPayload::tally($this->audienceTally($poll))
                     : null,
                 'mine' => $this->myAnswer($poll, $voterToken, $quiz, $revealed),
             ];

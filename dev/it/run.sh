@@ -136,6 +136,13 @@ install_app() {
 		| docker exec -i "$C" sh -c 'rm -rf /var/www/html/custom_apps/pulse && mkdir -p /var/www/html/custom_apps/pulse \
 			&& tar -xf - -C /var/www/html/custom_apps/pulse && chown -R www-data:www-data /var/www/html/custom_apps/pulse'
 	occ app:enable pulse >"$WORK/app-enable.txt" 2>&1 || { cat "$WORK/app-enable.txt" >&2; exit 2; }
+	# The filter before the projector: a fake text-generation provider (flags "badword") and the worker that
+	# runs its tasks at once, so the simulation can check the hold-back of a flagged answer.
+	tar -C "$APP_SRC/dev/e2e/fakeai" -cf - . \
+		| docker exec -i "$C" sh -c 'rm -rf /var/www/html/custom_apps/pulse_fakeai && mkdir -p /var/www/html/custom_apps/pulse_fakeai \
+			&& tar -xf - -C /var/www/html/custom_apps/pulse_fakeai && chown -R www-data:www-data /var/www/html/custom_apps/pulse_fakeai'
+	occ app:enable --force pulse_fakeai >>"$WORK/app-enable.txt" 2>&1 || { cat "$WORK/app-enable.txt" >&2; exit 2; }
+	docker exec -d -u www-data "$C" php occ taskprocessing:worker --interval=1
 }
 
 setup() {

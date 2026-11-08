@@ -127,6 +127,11 @@ class Beamer extends Phone {
 // are complete. Below the caps the phone shows exactly the moderator's fields.
 function sameTally(pub, mod) {
 	if (!pub || !mod || typeof pub !== 'object') return JSON.stringify(pub) === JSON.stringify(mod)
+	// The desk's own filter fields (moderation block, per-answer state) are not public.
+	if (mod.moderation || (mod.answers || []).some((x) => 'mod' in x)) {
+		const { moderation, ...rest } = mod
+		mod = { ...rest, ...(rest.answers ? { answers: rest.answers.map(({ mod: _m, ...x }) => x) } : {}) }
+	}
 	const picked = Object.fromEntries(Object.keys(mod).map((k) => [k, pub[k]]))
 	const totals = [['resultsTotal', 'results'], ['answersTotal', 'answers'], ['pointsTotal', 'points']]
 		.every(([total, list]) => !(total in pub) || pub[total] === (mod[list] || []).length)
@@ -691,6 +696,211 @@ async function wordKeys() {
 	const mr = await modOk('GET', `/${code}/polls/${p.id}/results`)
 	const map = Object.fromEntries(mr.results.map((r) => [r.word, r.count]))
 	check(map['\u2764\uFE0F'] === 4 && map['guter kaffee'] === 3 && mr.results.length === 2, 'Wörter: Herz mit/ohne Variantenwähler und „guter  Kaffee" je ein Wort, erste Schreibweise angezeigt', map)
+}
+
+// Filter before the projector: an answer hidden on the desk leaves the
+// projector state and the summary, stays in the CSV marked "(hidden)",
+// "show" brings it back; a hidden free-text answer does not come out with
+// the solution after the reveal either. With an AI provider installed (the
+// fake one of dev/e2e/fakeai, which flags "badword"), a flagged answer stays
+// off the projector until the desk lets it through.
+async function answerFilter() {
+	console.log('\n=== Filter vor dem Beamer ===')
+	const moderate = (code, id, answer, action) => modOk('POST', `/${code}/polls/${id}/moderate`, { answer, action })
+	const has = (obj, word) => JSON.stringify(obj).toLowerCase().includes(word)
+	{
+		const { code } = await newRoom('poll', 'SIM Filter')
+		const p = await modOk('POST', '/' + code + '/polls', { type: 'words', question: 'Ein Wort', maxWords: 3 })
+		await modOk('POST', '/' + code + '/current', { pollId: p.id })
+		await new Phone('F1', code).vote(['Geheimwort', 'offen'], false, p.id)
+		await new Phone('F2', code).vote(['offen'], false, p.id)
+		const beamer = new Beamer('FB', code)
+		check(has((await beamer.state()).data.results, 'geheimwort'), 'Filter: Wort vor dem Ausblenden auf dem Beamer')
+		const mr = await moderate(code, p.id, 'GEHEIMWORT', 'hide')
+		const item = (mr.moderation?.items || []).find((i) => i.key === 'geheimwort')
+		check(item?.state === 'hidden' && !has(mr.results, 'geheimwort'), 'Filter: Pult führt das Wort als ausgeblendet, die Wolke am Pult zeigt es nicht', mr.moderation)
+		const st = (await beamer.state()).data
+		check(!has(st.results, 'geheimwort') && has(st.results, 'offen') && st.results.total === 2, 'Filter: ausgeblendetes Wort nicht mehr auf dem Beamer, Zahl der Abstimmenden bleibt', st.results)
+		check(!has((await new Phone('F3', code).summary()).data, 'geheimwort'), 'Filter: auch nicht in der Gesamtübersicht der Handys')
+		const csv = await request(BASE + '/api/1.0/rooms/' + code + '/export', { headers: { Authorization: AUTH, 'OCS-APIRequest': 'true' } })
+		check(csvRows(csv.text).some((r) => r[3] === 'geheimwort (hidden)'), 'Filter: CSV behält das Wort, markiert', csv.text.slice(0, 400))
+		await moderate(code, p.id, 'geheimwort', 'show')
+		check(has((await beamer.state()).data.results, 'geheimwort'), 'Filter: „show" bringt das Wort zurück')
+		const bad = await mod('POST', `/${code}/polls/${p.id}/moderate`, { answer: 'x', action: 'delete' })
+		check(bad.status === 400, 'Filter: unbekannte Aktion → 400', bad.status)
+	}
+	{
+		const { code } = await newRoom('quiz', 'SIM Filter Quiz')
+		const p = await modOk('POST', '/' + code + '/polls', { type: 'text', question: 'Größter Planet?', answers: ['Jupiter'], timeLimit: 60 })
+		await modOk('POST', '/' + code + '/current', { pollId: p.id })
+		const a = new Phone('FA', code)
+		await a.join('Ana')
+		await a.vote('Geheimantwort', false, p.id)
+		// graded correct: then it is in the solution's accepted list, which the projector shows as chips
+		await modOk('POST', `/${code}/polls/${p.id}/grade`, { answer: 'Geheimantwort', correct: true })
+		await moderate(code, p.id, 'geheimantwort', 'hide')
+		await modOk('POST', `/${code}/polls/${p.id}/lock`)
+		const st = (await new Beamer('FQB', code).state()).data
+		check(st.poll?.revealed !== false && !has(st, 'geheimantwort'), 'Filter: ausgeblendete, als richtig bewertete Freitext-Antwort auch nach dem Aufdecken nicht öffentlich (Ergebnis, akzeptierte Antworten, Lösung)', { results: st.results, key: st.poll?.answerKey })
+		// another phone: the writer's own summary keeps its own answer (`mine`)
+		const b = new Phone('FB2', code)
+		await b.join('Bo')
+		check(!has((await b.summary()).data, 'geheimantwort'), 'Filter: auch nicht in der Gesamtübersicht eines anderen Handys')
+		const own = (await a.state()).data
+		check(own.myValue === 'Geheimantwort', 'Filter: das eigene Handy zeigt seine Antwort weiter', own.myValue)
+	}
+	{
+		const { code } = await newRoom('poll', 'SIM Filter KI')
+		const room = await modOk('GET', '/' + code)
+		if (!room.aiAvailable) {
+			const r = await mod('POST', '/' + code + '/ai-help', { on: true })
+			check(r.status === 409, 'Filter: „AI help" ohne Anbieter → 409', r.status)
+			note('kein KI-Anbieter installiert: Zurückhalten nicht geprüft')
+			return
+		}
+		const p = await modOk('POST', '/' + code + '/polls', { type: 'words', question: 'Ein Wort', maxWords: 3 })
+		await modOk('POST', '/' + code + '/current', { pollId: p.id })
+		// The AI notice: confirmed once per account before its first AI use.
+		const aiReq = (method, path) => request(BASE + '/api/1.0/ai' + path, {
+			method,
+			headers: { Authorization: AUTH, 'OCS-APIRequest': 'true', Accept: 'application/json' },
+		})
+		if ((await aiReq('GET', '')).data?.notice !== true) {
+			const r = await mod('POST', '/' + code + '/ai-help', { on: true })
+			check(r.status === 409 && r.data?.notice === true, 'Filter: „AI help" vor dem KI-Hinweis → 409 notice', r.status)
+			const n = await aiReq('POST', '/notice')
+			check(n.status === 200 && n.data?.notice === true, 'Filter: KI-Hinweis bestätigt', n.status)
+		}
+		const on = await modOk('POST', '/' + code + '/ai-help', { on: true })
+		check(on.aiHelp === true, 'Filter: „AI help" eingeschaltet', on.aiHelp)
+		const phone = new Phone('FK', code)
+		check((await phone.state()).data.aiHelp === true, 'Filter: Handy bekommt den KI-Hinweis')
+		await phone.vote(['badword', 'nett'], false, p.id)
+		const beamer = new Beamer('FKB', code)
+		check(!has((await beamer.state()).data.results, 'badword'), 'Filter: neue Antwort wartet auf die Prüfung')
+		let held = null
+		for (let i = 0; i < 16 && !held; i++) {
+			const mr = await modOk('GET', `/${code}/polls/${p.id}/results`)
+			const states = Object.fromEntries((mr.moderation?.items || []).map((x) => [x.key, x.state]))
+			if (states.badword === 'held' && states.nett === 'visible') held = states
+			else await sleep(500)
+		}
+		check(!!held, 'Filter: KI markiert „badword", „nett" geht durch', held)
+		const st = (await beamer.state()).data
+		check(!has(st.results, 'badword') && has(st.results, 'nett'), 'Filter: markierte Antwort bleibt vom Beamer fern', st.results)
+		await moderate(code, p.id, 'badword', 'show')
+		check(has((await beamer.state()).data.results, 'badword'), 'Filter: „show" lässt die markierte Antwort auf den Beamer')
+		const off = await modOk('POST', '/' + code + '/ai-help', { on: false })
+		check(off.aiHelp === false, 'Filter: „AI help" ausgeschaltet', off.aiHelp)
+	}
+}
+
+
+// "Group with AI": with the switch off the desk gets 409 and nothing goes to
+// the provider; with the fake provider (one theme per first letter) the desk
+// sees the themes with counts first, the projector only after "show", and
+// "hide" takes them back. Only polls group (word clouds there); a quiz room
+// refuses the route with 400 and its desk results carry no groups block.
+async function aiGrouping() {
+	console.log('\n=== Gruppieren mit KI ===')
+	const quiz = await newRoom('quiz', 'SIM Gruppieren Quiz')
+	const qp = await modOk('POST', '/' + quiz.code + '/polls', { type: 'text', question: 'Hauptstadt von Australien?', answers: ['Canberra'], timeLimit: 60 })
+	await modOk('POST', '/' + quiz.code + '/current', { pollId: qp.id })
+	for (const [i, a] of ['Canberra', 'Sydney'].entries()) {
+		const ph = new Phone('GQ' + i, quiz.code)
+		await ph.join('Quiz' + i)
+		await ph.vote(a, false, qp.id)
+	}
+	for (const action of ['start', 'show', 'hide']) {
+		const r = await mod('POST', `/${quiz.code}/polls/${qp.id}/group`, { action })
+		check(r.status === 400, `Gruppieren: Quiz-Raum lehnt „${action}" ab → 400`, r.status)
+	}
+	const qr = await modOk('GET', `/${quiz.code}/polls/${qp.id}/results`)
+	check(qr.moderation === undefined || qr.moderation.groups === undefined, 'Gruppieren: Quiz-Pult ohne Gruppen-Block', qr.moderation)
+
+	const { code } = await newRoom('poll', 'SIM Gruppieren')
+	const p = await modOk('POST', '/' + code + '/polls', { type: 'words', question: 'Was trinkst du?', maxWords: 3 })
+	await modOk('POST', '/' + code + '/current', { pollId: p.id })
+	const plan = ['Tee', 'Tee', 'Kaffee', 'Kakao', 'Wasser']
+	for (let i = 0; i < plan.length; i++) {
+		await new Phone('G' + i, code).vote([plan[i]], false, p.id)
+	}
+	const group = (action) => mod('POST', `/${code}/polls/${p.id}/group`, { action })
+	const off = await group('start')
+	check(off.status === 409, 'Gruppieren: Schalter aus → 409', off.status)
+	const room = await modOk('GET', '/' + code)
+	if (!room.aiAvailable) {
+		note('kein KI-Anbieter installiert: Gruppieren nicht geprüft')
+		return
+	}
+	await modOk('POST', '/' + code + '/ai-help', { on: true })
+	const started = await group('start')
+	check(started.status === 200 && ['running', 'ready'].includes(started.data.moderation?.groups?.state), 'Gruppieren: Start nimmt die Aufgabe an', started.status)
+	let groups = null
+	for (let i = 0; i < 40 && !groups; i++) {
+		const mr = await modOk('GET', `/${code}/polls/${p.id}/results`)
+		if (mr.moderation?.groups?.state === 'ready') groups = mr.moderation.groups
+		else if (mr.moderation?.groups?.state === 'failed') break
+		else await sleep(500)
+	}
+	const byTitle = Object.fromEntries((groups?.themes || []).map((t) => [t.title, t]))
+	check(byTitle['Theme T']?.count === 2 && byTitle['Theme K']?.count === 2 && byTitle['Theme W']?.count === 1 && byTitle['Theme T']?.example?.toLowerCase() === 'tee',
+		'Gruppieren: Pult zeigt Themen mit Anzahl und Beispiel', groups)
+	const beamer = new Beamer('GB', code)
+	check(!(await beamer.state()).data.poll?.themes, 'Gruppieren: Beamer zeigt die Themen erst nach der Freigabe')
+	await modOk('POST', `/${code}/polls/${p.id}/group`, { action: 'show' })
+	const shown = (await beamer.state()).data.poll?.themes || []
+	check(shown.length === 3 && shown[0].count === 2, 'Gruppieren: nach „show" hat der Beamer die Themen', shown)
+	await modOk('POST', `/${code}/polls/${p.id}/group`, { action: 'hide' })
+	check(!(await beamer.state()).data.poll?.themes, 'Gruppieren: „hide" nimmt die Themen vom Beamer')
+	await modOk('POST', '/' + code + '/ai-help', { on: false })
+}
+
+// AI grading suggestion: with the switch off the desk gets 409; with the fake
+// provider (correct = starts like an expected answer) the desk gets one
+// proposal per open answer, nothing counts and the public state carries
+// nothing of it until "accept" grades them.
+async function aiGradingSuggestion() {
+	console.log('\n=== KI-Bewertungsvorschlag ===')
+	const { code } = await newRoom('quiz', 'SIM Bewertungsvorschlag')
+	const p = await modOk('POST', '/' + code + '/polls', { type: 'text', question: 'Hauptstadt von Deutschland?', answers: ['Berlin'], timeLimit: 60 })
+	await modOk('POST', '/' + code + '/current', { pollId: p.id })
+	const plan = ['Berlln', 'Paris', 'Berlin']
+	let phone = null
+	for (let i = 0; i < plan.length; i++) {
+		const ph = new Phone('V' + i, code)
+		await ph.join('Rater' + i)
+		await ph.vote(plan[i], false, p.id)
+		phone = phone || ph
+	}
+	const suggest = (action, answer) => mod('POST', `/${code}/polls/${p.id}/grade-ai`, { action, answer })
+	const off = await suggest('start')
+	check(off.status === 409, 'Bewertungsvorschlag: Schalter aus → 409', off.status)
+	const room = await modOk('GET', '/' + code)
+	if (!room.aiAvailable) {
+		note('kein KI-Anbieter installiert: Bewertungsvorschlag nicht geprüft')
+		return
+	}
+	await modOk('POST', '/' + code + '/ai-help', { on: true })
+	const started = await suggest('start')
+	check(started.status === 200 && ['running', 'ready'].includes(started.data.moderation?.grading?.state), 'Bewertungsvorschlag: Start nimmt die Aufgabe an', started.status)
+	let mr = null
+	for (let i = 0; i < 40; i++) {
+		mr = await modOk('GET', `/${code}/polls/${p.id}/results`)
+		if (['ready', 'failed'].includes(mr.moderation?.grading?.state)) break
+		await sleep(500)
+	}
+	const ai = Object.fromEntries((mr.answers || []).filter((a) => 'ai' in a).map((a) => [a.sample, a.ai]))
+	check(mr.moderation?.grading?.state === 'ready' && ai.Berlln === true && ai.Paris === false && !('Berlin' in ai),
+		'Bewertungsvorschlag: Pult zeigt je offener Antwort einen Vorschlag', mr.moderation?.grading)
+	const status = Object.fromEntries((mr.answers || []).map((a) => [a.sample, a.status]))
+	check(status.Berlln === 'pending' && status.Paris === 'pending', 'Bewertungsvorschlag: nichts zählt vor der Übernahme', status)
+	const pub = JSON.stringify((await phone.state()).data)
+	check(!/"ai":|"proposals"|"grading"/.test(pub), 'Bewertungsvorschlag: öffentlicher Zustand ohne Vorschläge')
+	const accepted = await suggest('accept')
+	const after = Object.fromEntries((accepted.data.answers || []).map((a) => [a.sample, a.status]))
+	check(accepted.status === 200 && after.Berlln === 'accepted' && after.Paris === 'rejected', '„Accept all" bewertet die offenen Antworten', after)
+	await modOk('POST', '/' + code + '/ai-help', { on: false })
 }
 
 // Edit a running poll question without votes: status, start time and
@@ -1711,6 +1921,9 @@ try {
 	await revealToggle()
 	await skippedQuestion()
 	await wordKeys()
+	await answerFilter()
+	await aiGrouping()
+	await aiGradingSuggestion()
 	await editRunning()
 	await missingQuestion()
 	await practiceToggle()

@@ -159,6 +159,10 @@
 	   Colour is pure category decoration here — the word carries the information. */
 	--w1: #E23744; --w2: #E86B12; --w3: #C08400; --w4: #0E9E90;
 	--w5: #2D6FE0; --w6: #7C4DD6; --w7: #D6409A; --w8: #1BA25A;
+
+	/* AI violet (Knorke's, #6a4fe8): every AI marking (the composer's AI button). White on it = 5.5:1. */
+	--pulse-ai:     #6a4fe8;
+	--pulse-ai-on:  #ffffff;
 }
 
 /*
@@ -190,6 +194,7 @@
 	/* Word palette dark: lighter variants (contrast on a dark projector) */
 	--w1: #FF6B77; --w2: #FFA24D; --w3: #F4C24A; --w4: #31CEB4;
 	--w5: #5B96FF; --w6: #B48CFF; --w7: #FF74B4; --w8: #4CD888;
+	--pulse-ai: #a594ff; --pulse-ai-on: #15102e;
 }
 
 /* The NC default theme follows the operating system — switch to dark there as well. */
@@ -213,6 +218,7 @@
 		--pulse-bronze: #c98a56; --pulse-bronze-2: #e0aa7e;
 		--pulse-shadow-card: 0 2px 10px rgba(0, 0, 0, .45);
 		--pulse-shadow-pop:  0 10px 34px rgba(0, 0, 0, .6);
+		--pulse-ai: #a594ff; --pulse-ai-on: #15102e;
 		--w1: #FF6B77; --w2: #FFA24D; --w3: #F4C24A; --w4: #31CEB4;
 		--w5: #5B96FF; --w6: #B48CFF; --w7: #FF74B4; --w8: #4CD888;
 	}

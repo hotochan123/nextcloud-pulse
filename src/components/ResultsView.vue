@@ -10,8 +10,8 @@
 		     sit INSIDE the bar (§2.4); the legend is in the meta bar. -->
 		<div v-if="results && (results.type === 'choice' || results.type === 'multi')" class="bars" :class="{ 'bars--stage': wide }">
 			<div v-if="wide" class="srows srows--stretch" :class="{ 'is-tall': tallLabels }">
-				<StageRow v-for="row in choiceRows" :key="row.id" :class="row.pal.cls"
-					:badge="row.pal.letter" :label="row.label" :tall="tallLabels"
+				<StageRow v-for="(row, i) in choiceRows" :key="row.id" :class="row.pal.cls"
+					:badge="row.pal.letter" :label="row.label" :tail="choiceTails[i]" :tall="tallLabels"
 					:value="row.count + ' · ' + percent(row.count) + '%'"
 					:pct="percent(row.count)"
 					:state="choiceState(row)" :flag="choiceFlag(row)" />
@@ -289,15 +289,23 @@
 				:rows="results.results" :average="results.average"
 				:median="scaleMedian" :min-label="results.minLabel" :max-label="results.maxLabel" />
 			<template v-else>
-				<div class="hist-wrap">
-					<div class="hist" :class="{ 'hist--dense': results.results.length > 12 }">
-						<div v-for="row in results.results" :key="row.value" class="hist-col">
-							<span class="hist-cnt">{{ row.count || '' }}</span>
+				<div class="hist-wrap" :class="{ 'has-marks': histMarks.length }">
+					<div ref="hist" class="hist" :class="{ 'hist--dense': results.results.length > 12, 'hist--nocnt': !histFit.counts }">
+						<div v-for="(row, i) in results.results" :key="row.value" class="hist-col" role="img"
+							:data-tip="histTip !== null && String(row.value) === histTip ? '' : null"
+							:aria-label="colLabel(row)"
+							@click="tapCol(row.value)">
+							<span class="hist-cnt" aria-hidden="true">{{ row.count || '' }}</span>
 							<div class="hist-track">
 								<div class="hist-bar" :class="{ 'is-zero': !row.count }" :style="row.count ? { height: scalePercent(row.count) + '%' } : null" />
 							</div>
-							<span class="hist-lab">{{ row.value }}</span>
+							<span class="hist-lab" aria-hidden="true"
+								:data-off="histFit.shown && !histFit.shown.has(Number(row.value)) ? '' : null"
+								:data-edge="histFit.wide ? (i === 0 ? 'start' : (i === results.results.length - 1 ? 'end' : null)) : null">{{ row.value }}</span>
 						</div>
+						<!-- Counts left out (they do not fit): a tapped column shows its value and votes here. Screen readers
+						     read the same from the column's label, so this one is hidden from them. -->
+						<span v-if="histTipRow" ref="histTip" class="hist-tip" aria-hidden="true" :style="histTipStyle">{{ colLabel(histTipRow) }}</span>
 					</div>
 					<div v-for="m in histMarks" :key="m.key" class="hmark" :class="'hmark--' + m.key" :style="{ left: m.pct + '%' }">
 						<span class="hmark-flag">{{ m.label }}</span>
@@ -327,9 +335,11 @@
 /*
  * Section references (§…) point to the design notes of the redesign and of the
  * self-paced quiz, which are not in the public repository (see "References in
- * code comments" in the README).
+ * code comments" in docs/DEVELOPMENT.md).
  */
 import { fmtNum, hasTallLabel, HEATMAP_THRESHOLD, wrapLabel } from '../util/format.js'
+import { labelTails } from '../util/stage-labels.js'
+import { axisStep, countsFit, shownAxisValues, tipLeft, tipPlace } from '../util/hist-axis.js'
 import { option, rampStep, withPalette } from '../util/palette.js'
 import PulseIcon from './ui/PulseIcon.vue'
 import StageCompass from './StageCompass.vue'
@@ -365,7 +375,35 @@ export default {
 		// Quiz: explanation of the solution ('' = none). The server sends it only with the reveal.
 		explanation: { type: String, default: '' },
 	},
+	data() {
+		return {
+			// Narrow scale histogram: which axis numbers show and whether the counts fit (measured, see measureHist).
+			histFit: { shown: null, wide: false, counts: true },
+			// Narrow scale histogram with its counts left out: the value of the tapped column (as text) or null, and the
+			// measured left edge of its label in px (null until measured, see placeTip).
+			histTip: null,
+			histTipX: null,
+		}
+	},
 	computed: {
+		// The row of the tapped column, while its label shows (only when the counts are left out).
+		histTipRow() {
+			if (this.histTip === null || this.histFit.counts || !this.results || this.results.type !== 'scale') return null
+			return (this.results.results || []).find((r) => String(r.value) === this.histTip) || null
+		},
+		histTipStyle() {
+			const rows = (this.results && this.results.results) || []
+			const i = rows.findIndex((r) => String(r.value) === this.histTip)
+			if (this.histTipX !== null) return { left: this.histTipX + 'px', transform: 'none' }
+			const { pct, edge } = tipPlace(i, rows.length)
+			if (edge === 'start') return { left: '0', transform: 'none' }
+			if (edge === 'end') return { left: '100%', transform: 'translateX(-100%)' }
+			return { left: pct + '%', transform: 'translateX(-50%)' }
+		},
+		// The values of the scale: another list means another question, and an open label closes.
+		histValues() {
+			return this.results && this.results.type === 'scale' ? (this.results.results || []).map((r) => r.value).join(',') : ''
+		},
 		total() {
 			return this.results ? this.results.total : 0
 		},
@@ -396,6 +434,10 @@ export default {
 		// the same mapping as the live tile (projector) and the phone (util/palette.js).
 		choiceRows() {
 			return withPalette(this.results && this.results.results)
+		},
+		// The distinguishing ends of the choice labels (projector one-line rows keep them whole).
+		choiceTails() {
+			return labelTails(this.choiceRows.map((r) => r.label || ''))
 		},
 		// Is there a "correct answer" at all (quiz) -> green instead of the winner mark.
 		hasCorrect() {
@@ -656,7 +698,117 @@ export default {
 			}
 		},
 	},
+	watch: {
+		histValues() {
+			this.histTip = null
+		},
+		'histFit.counts'(fit) {
+			if (fit) this.histTip = null
+		},
+		histTip(v) {
+			this.histTipX = null
+			if (v === null) this.tipListen(false)
+			else this.tipListen(true)
+		},
+	},
+	mounted() {
+		this.watchHist()
+	},
+	updated() {
+		this.watchHist()
+		this.placeTip()
+	},
+	beforeDestroy() {
+		this.tipListen(false)
+		if (this.histObs) this.histObs.disconnect()
+		this.histObs = null
+		this.histEl = null
+	},
 	methods: {
+		// What a column says about itself: its value and its votes ("7: 12 votes").
+		colLabel(row) {
+			return this.t('pulse', '{value}: {votes}', { value: row.value, votes: this.n('pulse', '%n vote', '%n votes', row.count || 0) })
+		},
+		// A tap on a column while the counts are left out: show its label, move it from another column, or close it
+		// on the same column. While the counts fit, a tap does nothing.
+		tapCol(value) {
+			if (this.histFit.counts) return
+			const v = String(value)
+			this.histTip = this.histTip === v ? null : v
+		},
+		// Closing from outside: a tap anywhere but this chart, or Escape. Listens only while a label shows.
+		tipListen(on) {
+			if (on && !this.tipOff) {
+				const down = (e) => {
+					const el = this.$refs.hist
+					if (!el || !el.contains(e.target)) this.histTip = null
+				}
+				const key = (e) => {
+					if (e.key === 'Escape') this.histTip = null
+				}
+				document.addEventListener('pointerdown', down, true)
+				document.addEventListener('keydown', key)
+				this.tipOff = () => {
+					document.removeEventListener('pointerdown', down, true)
+					document.removeEventListener('keydown', key)
+				}
+			} else if (!on && this.tipOff) {
+				this.tipOff()
+				this.tipOff = null
+			}
+		},
+		// Keep the label inside the chart: centred over its column where there is room, else pushed in from the edge.
+		placeTip() {
+			const tip = this.$refs.histTip
+			const el = this.histEl
+			const rows = (this.results && this.results.results) || []
+			if (!tip || !el || !rows.length) return
+			const i = rows.findIndex((r) => String(r.value) === this.histTip)
+			const W = el.clientWidth
+			const centre = (tipPlace(i, rows.length).pct / 100) * W
+			const x = Math.round(tipLeft(centre, tip.offsetWidth, W))
+			if (this.histTipX === null || Math.abs(x - this.histTipX) > 0.5) this.histTipX = x
+		},
+		// The narrow histogram comes and goes with the results (v-if): observe whichever .hist is there now.
+		watchHist() {
+			const el = this.$refs.hist || null
+			if (el === this.histEl) {
+				if (el) this.measureHist()
+				return
+			}
+			if (this.histObs) this.histObs.disconnect()
+			this.histEl = el
+			this.histObs = null
+			if (!el) return
+			if (typeof ResizeObserver === 'function') {
+				this.histObs = new ResizeObserver(() => this.measureHist())
+				this.histObs.observe(el)
+			}
+			this.measureHist()
+		},
+		// Fit by measurement, not by screen size: columns narrower than their widest number thin the axis to every
+		// 2nd, 5th, 10th … value (the first and the last always), and counts wider than their column hide as a row
+		// (each count is data, it cannot be thinned). Hidden numbers keep their box (visibility), so hiding changes
+		// no width and cannot feed back into the measurement.
+		measureHist() {
+			const el = this.histEl
+			const rows = (this.results && this.results.results) || []
+			if (!el || !rows.length) return
+			const colW = el.clientWidth / rows.length
+			const widest = (sel) => Array.from(el.querySelectorAll(sel)).reduce((m, s) => Math.max(m, s.getBoundingClientRect().width), 0)
+			const lab = el.querySelector('.hist-lab')
+			const gap = lab ? 0.3 * (parseFloat(getComputedStyle(lab).fontSize) || 0) : 0
+			const labW = widest('.hist-lab')
+			const { d, step } = axisStep(labW, colW, gap)
+			const next = {
+				shown: d > 1 ? shownAxisValues(rows.map((r) => r.value), d, step) : null,
+				wide: colW > 0 && labW > colW,
+				counts: countsFit(widest('.hist-cnt'), colW, gap),
+			}
+			const key = (f) => (f.shown ? [...f.shown].join(',') : '*') + '|' + f.wide + '|' + f.counts
+			if (key(next) !== key(this.histFit)) this.histFit = next
+			this.placeTip()
+		},
 		// Uniform figure format: 1 decimal place in the language of the
 		// UI, tabular digits (number guess + scale share it, §7 grammar).
 		num(v) {
@@ -816,11 +968,11 @@ export default {
 /* Matching: per item a small block with bars below it. */
 .matchres { display: flex; flex-direction: column; gap: 1em; }
 .mres-head { display: flex; align-items: center; gap: 0.6em; flex-wrap: wrap; margin-bottom: 0.35em; }
-.mres-item { font-weight: 700; }
+.mres-item { font-weight: 700; min-width: 0; overflow-wrap: anywhere; }
 .bars--match { gap: 0.45em; }
 /* Projector: two columns from five rows on, so eight pairs fit in the height.
    align-content:start — the rows should sit at the top, not be stretched. */
-.matchres.is-cols { display: grid; grid-template-columns: 1fr 1fr; align-content: start; gap: 0.9em clamp(1.5em, 4vw, 3em); }
+.matchres.is-cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; gap: 0.9em clamp(1.5em, 4vw, 3em); }
 /* Preview panel: one row per pair, head above it. The value sits in the head,
    not next to the bar — in 340 px a value column of its own would take a fifth. */
 .matchres.is-dense { gap: 0.7em; }
@@ -847,12 +999,14 @@ export default {
    remaining height, so that four pairs fill the screen and eight still fit. */
 .sstacks { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; justify-content: center; gap: 0.5em; }
 /* Like the row stage (§2.4) the rows share the remaining height, but stay
-   capped — otherwise four rows would turn into bands. */
-.sstacks > * { flex: 1 1 2.4em; min-height: 2.2em; max-height: 3.4em; }
+   capped — otherwise four rows would turn into bands. Never smaller than their
+   head (two lines): rows that do not fit run past the bottom, where the
+   projector's shrink loop sees them. */
+.sstacks > * { flex: 1 0 auto; min-height: 2.2em; max-height: 3.4em; }
 /* Long row heads: wider column, two lines, no ellipsis. */
 .sstacks.is-longhead :deep(.sstack-head) {
 	flex-basis: 12em; width: 12em;
-	white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+	white-space: normal; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
 }
 .sstacks :deep(.sstack) { height: 100%; max-height: 3.2em; }
 
@@ -873,13 +1027,15 @@ export default {
 	font-size: 1em;
 }
 .bar-label { display: inline-flex; align-items: center; gap: 0.5em; min-width: 0; font-weight: 600; }
-.bar-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.bar-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; overflow-wrap: anywhere; }
 .bar-badge {
 	/* Letter badge in the option colour (palette bridge). */
 	flex: 0 0 auto; font-size: 0.85em;
 	background: var(--opt-fill, var(--pulse-fill)); color: var(--opt-ink, var(--pulse-text));
 }
 .bar-flag { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 0.2em; font-weight: 800; font-size: 0.8em; }
+/* The solution of a match row names a target: a long one breaks instead of widening the list. */
+.mres-head > .bar-flag { flex: 0 1 auto; min-width: 0; overflow-wrap: anywhere; }
 .bar-flag.is-correct { color: var(--pulse-success); }
 .bar-flag.is-winner { color: var(--pulse-warning); }
 .is-correct .bar-text, .is-winner .bar-text { font-weight: 800; }
@@ -914,8 +1070,9 @@ export default {
 
 /* Distribution figures (avg., target number) */
 .dist-metrics { display: flex; flex-wrap: wrap; gap: 1.5em; justify-content: center; margin-bottom: 1.3em; }
-.metric { text-align: center; }
-.metric-val { display: block; font-size: 3.4em; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; color: var(--pulse-primary); }
+/* A long number (123456789.123) breaks instead of running past a phone's edge. */
+.metric { text-align: center; min-width: 0; max-width: 100%; }
+.metric-val { display: block; font-size: 3.4em; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; color: var(--pulse-primary); overflow-wrap: anywhere; }
 .metric--target .metric-val { color: var(--pulse-success); }
 .metric-val--sub { font-size: 2.4em; }
 .metric-label { font-size: 0.85em; color: var(--pulse-text-2); }
@@ -953,15 +1110,36 @@ export default {
 .hmark--med .hmark-flag { background: var(--pulse-text); top: 1.5em; }
 .hist-lab { font-size: 0.85em; font-weight: 700; line-height: 1; color: var(--pulse-text); font-variant-numeric: tabular-nums; }
 .hist-ends { display: flex; justify-content: space-between; gap: 1em; margin-top: 0.3em; font-size: 0.8em; color: var(--pulse-text-2); }
+.hist-ends span { max-width: 45%; min-width: 0; overflow-wrap: anywhere; }
+.hist-ends span:last-child { text-align: right; }
+/* The avg./median flags sit above the columns: room for them, so they never cover a column's count. */
+.hist-wrap.has-marks { padding-top: 2.5em; }
 .hist-ends span { max-width: 45%; }
 .hist-ends span:last-child { text-align: right; }
 .hist--dense .hist-lab { font-size: 0.68em; }
 .hist--dense .hist-cnt { font-size: 0.6em; }
+/* Thinned axis and counts that do not fit (measureHist): hidden but keeping their box, so the columns stay put. */
+.hist-lab[data-off], .hist--nocnt .hist-cnt { visibility: hidden; }
+/* A number wider than its column at either end of the axis lines up with the chart's edge instead of passing it. */
+.hist-lab[data-edge="start"] { align-self: flex-start; }
+.hist-lab[data-edge="end"] { align-self: flex-end; }
+/* Counts left out: a tap on a column shows its value and votes in a small label at the height of the counts. */
+.hist { position: relative; }
+.hist--nocnt .hist-col { cursor: pointer; }
+.hist-tip {
+	position: absolute; top: 0; z-index: 2; pointer-events: none; white-space: nowrap;
+	padding: 0.2em 0.45em; border-radius: 0.35em; border: 1px solid var(--pulse-border-strong);
+	background: var(--pulse-bg); color: var(--pulse-text); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
+	font-size: 0.72em; font-weight: 700; line-height: 1.2; font-variant-numeric: tabular-nums;
+}
+.hist-col[data-tip] .hist-bar { outline: 2px solid var(--pulse-text); outline-offset: 1px; }
 
 /* Scale · spectrum radar (handoff §4; design notes, not in the public
    repository) — SVG viewBox scales phone→projector. */
 .spectrum-radar { display: flex; flex-direction: column; align-items: stretch; }
 .radar-main { display: flex; flex-direction: column; align-items: center; gap: 0.6em; }
+/* Centred, but never wider than the column: long aspect names end in "…". */
+.radar-main > * { max-width: 100%; }
 .radar-wrap { width: 100%; }
 .radar-wrap svg { width: 100%; max-width: 42em; height: auto; display: block; margin: 0 auto; }
 /* Number discs at the spoke end — replace the text at the edge (no clipping). */

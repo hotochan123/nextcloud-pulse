@@ -95,6 +95,7 @@ class ModeratorPlayerIdsTest extends TestCase {
             $this->createMock(ITimeFactory::class),
             $this->createMock(ILimiter::class),
             new Limits($this->createMock(IAppConfig::class)),
+            $this->createMock(\OCA\Pulse\Service\FilesExportService::class),
         );
     }
 }

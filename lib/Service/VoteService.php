@@ -39,8 +39,7 @@ use OCP\Security\RateLimiting\IRateLimitExceededException;
  * player caps of joining come from Limits (instance-wide app config).
  *
  * Section references (§…) point to the design notes of the redesign, which are
- * not in the public repository (see "References in code comments" in the
- * README).
+ * not in the public repository (see "References in code comments" in docs/DEVELOPMENT.md).
  */
 class VoteService {
     /**
@@ -74,8 +73,14 @@ class VoteService {
         private ILimiter $limiter,
         // joining: the player caps
         private Limits $limits,
+        // filter before the projector: AI check of new answers
+        ?ModerationService $moderation = null,
     ) {
+        $this->moderation = $moderation;
     }
+
+    /** Not promoted: tests build the service without its constructor, then it stays null. */
+    private ?ModerationService $moderation = null;
 
     /**
      * Record a vote. Upsert on (poll_id, voter_token): voting again changes
@@ -112,6 +117,7 @@ class VoteService {
 
         if ($room->getMode() === 'quiz') {
             $this->recordQuizVote($room, $poll, $voterToken, $value, $keyboard);
+            $this->moderation?->afterVote($room, $poll, $this->answers->normalizeValue($poll, $value));
             return;
         }
 
@@ -151,6 +157,7 @@ class VoteService {
                 $this->voteMapper->update($existing);
             }
         }
+        $this->moderation?->afterVote($room, $poll, $this->answers->normalizeValue($poll, $value));
     }
 
     // ── Quiz ────────────────────────────────────────────────────────────────
@@ -576,7 +583,7 @@ class VoteService {
             return;
         }
         // Removed in the middle of the request? Then the vote is gone again (400).
-        $this->paceService->assertStillJoined($room, $voterToken);
+        $this->paceService->assertStillJoinedAfterWrite($room, $voterToken);
         if ($poll->getType() === 'text') {
             $this->settleText($room, $pollId, $voterToken, $data);
         }
@@ -686,53 +693,97 @@ class VoteService {
      * @throws RoomGoneException         self-paced: room deleted in the meantime
      */
     public function gradeTextAnswer(Room $room, int $pollId, #[\SensitiveParameter] string $answer, bool $correct): void {
-        if (PaceService::isSelf($room)) {
-            $this->paceService->locked($room, fn (Room $r) => $this->gradeText($r, $pollId, $answer, $correct));
-            return;
-        }
-        $this->gradeText($room, $pollId, $answer, $correct);
+        // Moderated rooms run under the room lock as well: the AI check writes the
+        // moderation state into the same column (ModerationService), and the
+        // grading must not write an older copy of it back.
+        $this->paceService->locked($room, fn (Room $r) => $this->gradeText($r, $pollId, $answer, $correct));
+    }
+
+    /**
+     * Grade several free-text answers in one write, under the room lock
+     * ("Accept all" of the AI grading suggestion). $choose gets the freshly
+     * read question and returns the grades as [[answer, correct], …]; it may
+     * also change the question's moderation state, which is saved with them.
+     *
+     * @param callable(Poll): list<array{0:string, 1:bool}> $choose
+     * @throws \InvalidArgumentException|RoomGoneException
+     */
+    public function gradeTextAnswers(Room $room, int $pollId, callable $choose): void {
+        $this->paceService->locked($room, function (Room $r) use ($pollId, $choose): void {
+            $poll = $this->requireTextPoll($r, $pollId);
+            $this->applyGrades($poll, $choose($poll));
+        });
     }
 
     /** Body of gradeTextAnswer (self-paced under the room lock). */
     private function gradeText(Room $room, int $pollId, #[\SensitiveParameter] string $answer, bool $correct): void {
+        $poll = $this->requireTextPoll($room, $pollId);
+        if (TallyService::normalizeText($answer) === '') {
+            throw new \InvalidArgumentException($this->l10n->t('Empty answer.'));
+        }
+        $this->applyGrades($poll, [[$answer, $correct]]);
+    }
+
+    /** @throws \InvalidArgumentException */
+    private function requireTextPoll(Room $room, int $pollId): Poll {
         $poll = $this->deckService->requirePollInRoom($room, $pollId);
         if ($poll->getType() !== 'text') {
             throw new \InvalidArgumentException($this->l10n->t('Grading only exists for free-text questions.'));
         }
-        $norm = TallyService::normalizeText($answer);
-        if ($norm === '') {
-            throw new \InvalidArgumentException($this->l10n->t('Empty answer.'));
-        }
+        return $poll;
+    }
+
+    /**
+     * Write grades into the answer key (each normalised form is removed from
+     * both lists, then sorted in again) and re-grade the votes of each graded
+     * form. Empty answers are skipped.
+     *
+     * @param list<array{0:string, 1:bool}> $grades
+     */
+    private function applyGrades(Poll $poll, array $grades): void {
         $key = $poll->getAnswerKeyArray();
-        // Remove the same normalised form from both lists, then sort it in again.
-        $strip = static fn (array $list): array => array_values(array_filter(
-            $list,
-            static fn ($a): bool => TallyService::normalizeText((string)$a) !== $norm,
-        ));
-        $accepted = $strip(array_values($key['accepted'] ?? []));
-        $rejected = $strip(array_values($key['rejected'] ?? []));
-        $sample = mb_substr(trim($answer), 0, DeckService::TEXT_MAX);
-        if ($correct) {
-            $accepted[] = $sample;
-        } else {
-            $rejected[] = $sample;
+        $accepted = array_values($key['accepted'] ?? []);
+        $rejected = array_values($key['rejected'] ?? []);
+        $byNorm = [];
+        foreach ($grades as [$answer, $correct]) {
+            $norm = TallyService::normalizeText((string)$answer);
+            if ($norm === '') {
+                continue;
+            }
+            $strip = static fn (array $list): array => array_values(array_filter(
+                $list,
+                static fn ($a): bool => TallyService::normalizeText((string)$a) !== $norm,
+            ));
+            $accepted = $strip($accepted);
+            $rejected = $strip($rejected);
+            $sample = mb_substr(trim((string)$answer), 0, DeckService::TEXT_MAX);
+            if ($correct) {
+                $accepted[] = $sample;
+            } else {
+                $rejected[] = $sample;
+            }
+            $byNorm[$norm] = (bool)$correct;
         }
-        $poll->setAnswerKey(json_encode(['accepted' => $accepted, 'rejected' => $rejected]));
+        $poll->setSolutionKeepingModeration(json_encode(['accepted' => $accepted, 'rejected' => $rejected]));
         $this->pollMapper->update($poll);
+        if ($byNorm === []) {
+            return;
+        }
 
         // Re-grade the affected votes (same normalised form). Self-paced with
         // the limit that applied when answering (0 without a timer -> flat points);
         // moderated votes have none and take the question's as before.
         $limit = $poll->getTimeLimit();
-        foreach ($this->voteMapper->findByPoll($pollId) as $vote) {
+        foreach ($this->voteMapper->findByPoll($poll->getId()) as $vote) {
             $d = json_decode($vote->getPayload(), true);
             if (!is_array($d)) {
                 continue;
             }
-            $voteNorm = $d['norm'] ?? TallyService::normalizeText((string)($d['value'] ?? ''));
-            if ($voteNorm !== $norm) {
+            $voteNorm = (string)($d['norm'] ?? TallyService::normalizeText((string)($d['value'] ?? '')));
+            if (!array_key_exists($voteNorm, $byNorm)) {
                 continue;
             }
+            $correct = $byNorm[$voteNorm];
             $d['correct'] = $correct;
             $d['points'] = $correct ? $this->quizService->points((int)($d['elapsed'] ?? 0), (int)($d['limit'] ?? $limit)) : 0;
             // Graded = no longer "Being checked". Moderated payloads never

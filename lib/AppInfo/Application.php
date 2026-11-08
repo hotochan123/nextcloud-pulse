@@ -7,12 +7,15 @@ declare(strict_types=1);
 
 namespace OCA\Pulse\AppInfo;
 
+use OCA\Pulse\Listener\ModerationTaskListener;
 use OCA\Pulse\Listener\UserDeletedListener;
 use OCA\Pulse\SetupCheck\EmbedFraming;
 use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IBootstrap;
 use OCP\AppFramework\Bootstrap\IRegistrationContext;
+use OCP\TaskProcessing\Events\TaskFailedEvent;
+use OCP\TaskProcessing\Events\TaskSuccessfulEvent;
 use OCP\User\Events\UserDeletedEvent;
 
 class Application extends App implements IBootstrap {
@@ -42,6 +45,9 @@ class Application extends App implements IBootstrap {
         $context->registerSetupCheck(EmbedFraming::class);
         // A deleted account takes its rooms with it.
         $context->registerEventListener(UserDeletedEvent::class, UserDeletedListener::class);
+        // Results of the AI check of answers (filter before the projector).
+        $context->registerEventListener(TaskSuccessfulEvent::class, ModerationTaskListener::class);
+        $context->registerEventListener(TaskFailedEvent::class, ModerationTaskListener::class);
     }
 
     public function boot(IBootContext $context): void {

@@ -15,8 +15,10 @@
 				<span>{{ t('pulse', 'Scan the code and type your word.') }}</span>
 			</div>
 
-			<!-- Honest hint at capped top-N words (no silent dropping) -->
-			<div v-if="overflowN > 0" class="pl-cloud-overflow">{{ t('pulse', '+{count} more', { count: overflowN }) }}</div>
+			<!-- Honest hint at capped top-N words (no silent dropping). It lies over the cloud's
+			     bottom right corner, which the layout keeps free of words (reserveTile); v-show, so
+			     its style can be read before it shows. -->
+			<div v-show="overflowN > 0" ref="tile" class="pl-cloud-overflow">{{ t('pulse', '+{count} more', { count: overflowN }) }}</div>
 		</div>
 
 		<!-- Counter row: words · mentions · here (moved out on the projector) -->
@@ -34,8 +36,7 @@
 <script>
 /*
  * Section references (§…) point to the design notes of the redesign, which are
- * not in the public repository (see "References in code comments" in the
- * README).
+ * not in the public repository (see "References in code comments" in docs/DEVELOPMENT.md).
  */
 import { t } from '../util/l10n.js'
 import { fitCloud } from '../util/wordcloud.js'
@@ -49,6 +50,12 @@ const PALETTE_VARS = ['--w1', '--w2', '--w3', '--w4', '--w5', '--w6', '--w7', '-
 // canvas measures wrong. We use the same system stack as the .word rule below
 // (no external font -> CSP-safe, and the measurement is right).
 const FONT_FAMILY = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
+
+// How many words show as "+{count} more": beyond the top-N cap, left over by the fit loop,
+// and left out by the server (`cut`).
+function overflowOf(fit, cut) {
+	return fit.hidden + Math.max(0, fit.attempted - fit.placed) + cut
+}
 
 // ── Demo/test mode (client-side, no server) ───────────────────────────────
 // Generates a living cloud locally so that look/animation can be checked
@@ -215,6 +222,27 @@ export default {
 			return this._measurer.measureText(text).width
 		},
 
+		// The rectangle of the "+{count} more" tile in the cloud area (px, origin top left), for
+		// the widest label it can get: `most` is an upper bound of the count, so the box never
+		// grows after the layout kept it free. Read from the tile's computed style (v-show keeps
+		// it in the DOM), measured with its own font; null when it cannot be measured.
+		reserveTile(most) {
+			const tile = this.$refs.tile
+			if (!tile) return null
+			const cs = getComputedStyle(tile)
+			const px = (v) => parseFloat(v) || 0
+			const fs = px(cs.fontSize)
+			if (!fs) return null
+			this._measurer.font = (cs.fontWeight || '600') + ' ' + fs + 'px ' + (cs.fontFamily || FONT_FAMILY)
+			const textW = this._measurer.measureText(t('pulse', '+{count} more', { count: most })).width
+			const lineH = Number.isFinite(parseFloat(cs.lineHeight)) ? px(cs.lineHeight) : fs * 1.3
+			const w = textW + px(cs.paddingLeft) + px(cs.paddingRight) + px(cs.borderLeftWidth) + px(cs.borderRightWidth) + 2
+			const h = lineH + px(cs.paddingTop) + px(cs.paddingBottom) + px(cs.borderTopWidth) + px(cs.borderBottomWidth) + 2
+			const right = this._W - px(cs.right)
+			const bottom = this._H - px(cs.bottom)
+			return { left: right - w, top: bottom - h, right, bottom }
+		},
+
 		// ── Rendering & animation ──────────────────────────────────────────────
 		render(pulseWord) {
 			if (!this.$refs.cloud || !this.$refs.wrap) return
@@ -229,7 +257,15 @@ export default {
 
 			const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 			// Spiral placement plus fit loop (util/wordcloud.js).
-			const fit = fitCloud(this._words, { W: this._W, H: this._H, minSize: this.minSize, measure: this.measure })
+			const cut = this._demo ? 0 : Math.max(0, this.distinct - this._words.size)
+			const box = { W: this._W, H: this._H, minSize: this.minSize, measure: this.measure }
+			let fit = fitCloud(this._words, box)
+			// Words left over: the "+{count} more" tile shows in the bottom right corner, so lay out
+			// once more with that corner kept free (the tile's box does not depend on this second pass).
+			if (!this._demo && overflowOf(fit, cut) > 0) {
+				const reserve = this.reserveTile(this._words.size + cut)
+				if (reserve) fit = fitCloud(this._words, { ...box, reserve })
+			}
 			const layout = fit.layout
 			const cloud = this.$refs.cloud
 
@@ -291,8 +327,7 @@ export default {
 			// Declarative state -> Vue renders empty/overflow/counters/SR region.
 			this.isEmpty = this._words.size === 0
 			// Words the server left out count as "+N more" as well.
-			const cut = this._demo ? 0 : Math.max(0, this.distinct - this._words.size)
-			this.overflowN = fit.hidden + Math.max(0, fit.attempted - fit.placed) + cut
+			this.overflowN = overflowOf(fit, cut)
 			this.cWords = this._words.size + cut
 			this.cVotes = Math.max(this._demo ? 0 : this.mentions, [...this._words.values()].reduce((a, b) => a + b, 0))
 			this.cPeople = this._demo ? this._demoPeople : (this.total || 0)

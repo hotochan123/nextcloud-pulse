@@ -17,8 +17,7 @@ use PHPUnit\Framework\TestCase;
  * Tallying for all question types. Takes Poll + Vote[], no DB.
  *
  * Section references (§…) point to the design notes of the redesign, which are
- * not in the public repository (see "References in code comments" in the
- * README).
+ * not in the public repository (see "References in code comments" in docs/DEVELOPMENT.md).
  */
 #[CoversClass(TallyService::class)]
 class TallyServiceTest extends TestCase {

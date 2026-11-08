@@ -57,7 +57,7 @@ const routes = await import('../../src/util/routes.js')
 const { csvUrl } = await import('../../src/util/csv.js')
 const { serverMessage } = await import('../../src/toast.js')
 const {
-	MOD_TIMEOUT, PHONE_TIMEOUT, roomsApi, roomApi, publicApi, pollImage,
+	MOD_TIMEOUT, PHONE_TIMEOUT, aiApi, aiNoticeApi, adminAiApi, roomsApi, roomApi, publicApi, pollImage,
 	participantPage, joinPage, screenPage, roomPage, home, addinManifest, openProjector,
 } = routes
 
@@ -92,6 +92,17 @@ const GOLDEN = () => [
 	['Moderator api(code) load/refresh', 'GET', roomApi(CODE), '/index.php/apps/pulse/api/1.0/rooms/Ab3dE9'],
 	['Moderator api(code) delete', 'DELETE', roomApi(CODE), '/index.php/apps/pulse/api/1.0/rooms/Ab3dE9'],
 	['Moderator duplicate', 'POST', roomApi(CODE, '/duplicate'), '/index.php/apps/pulse/api/1.0/rooms/Ab3dE9/duplicate'],
+	['Moderator save CSV in Files', 'POST', roomApi(CODE, '/export/files'), '/index.php/apps/pulse/api/1.0/rooms/Ab3dE9/export/files'],
+	['Moderator AI available', 'GET', aiApi(), '/index.php/apps/pulse/api/1.0/ai'],
+	['AiNoticeDialog confirm', 'POST', aiNoticeApi(), '/index.php/apps/pulse/api/1.0/ai/notice'],
+	['AdminSettings save', 'POST', adminAiApi(), '/index.php/apps/pulse/api/1.0/admin/ai'],
+	['AiDraftDialog start', 'POST', roomApi(CODE, '/ai/draft'), '/index.php/apps/pulse/api/1.0/rooms/Ab3dE9/ai/draft'],
+	['AiDraftDialog status', 'GET', roomApi(CODE, '/ai/draft/7'), '/index.php/apps/pulse/api/1.0/rooms/Ab3dE9/ai/draft/7'],
+	['AiDraftDialog cancel', 'DELETE', roomApi(CODE, '/ai/draft/7'), '/index.php/apps/pulse/api/1.0/rooms/Ab3dE9/ai/draft/7'],
+	['AiSummaryPanel start', 'POST', roomApi(CODE, '/ai/summary'), '/index.php/apps/pulse/api/1.0/rooms/Ab3dE9/ai/summary'],
+	['AiSummaryPanel status', 'GET', roomApi(CODE, '/ai/summary/7'), '/index.php/apps/pulse/api/1.0/rooms/Ab3dE9/ai/summary/7'],
+	['AiSummaryPanel cancel', 'DELETE', roomApi(CODE, '/ai/summary/7'), '/index.php/apps/pulse/api/1.0/rooms/Ab3dE9/ai/summary/7'],
+	['AiSummaryPanel save in Files', 'POST', roomApi(CODE, '/summary/files'), '/index.php/apps/pulse/api/1.0/rooms/Ab3dE9/summary/files'],
 	['Moderator rename', 'POST', roomApi(CODE, '/title'), '/index.php/apps/pulse/api/1.0/rooms/Ab3dE9/title'],
 	['Moderator reset room', 'POST', roomApi(CODE, '/reset'), '/index.php/apps/pulse/api/1.0/rooms/Ab3dE9/reset'],
 	['Moderator reveal at the end', 'POST', roomApi(CODE, '/reveal'), '/index.php/apps/pulse/api/1.0/rooms/Ab3dE9/reveal'],
@@ -111,6 +122,10 @@ const GOLDEN = () => [
 	['Moderator reset question', 'POST', roomApi(CODE, '/polls/' + 42 + '/reset'), '/index.php/apps/pulse/api/1.0/rooms/Ab3dE9/polls/42/reset'],
 	['Moderator results', 'GET', roomApi(CODE, '/polls/' + 42 + '/results'), '/index.php/apps/pulse/api/1.0/rooms/Ab3dE9/polls/42/results'],
 	['Moderator grade', 'POST', roomApi(CODE, '/polls/' + 42 + '/grade'), '/index.php/apps/pulse/api/1.0/rooms/Ab3dE9/polls/42/grade'],
+	['Moderator hide/show answer', 'POST', roomApi(CODE, '/polls/' + 42 + '/moderate'), '/index.php/apps/pulse/api/1.0/rooms/Ab3dE9/polls/42/moderate'],
+	['Moderator AI help', 'POST', roomApi(CODE, '/ai-help'), '/index.php/apps/pulse/api/1.0/rooms/Ab3dE9/ai-help'],
+	['Moderator group with AI', 'POST', roomApi(CODE, '/polls/' + 42 + '/group'), '/index.php/apps/pulse/api/1.0/rooms/Ab3dE9/polls/42/group'],
+	['Moderator AI grading suggestion', 'POST', roomApi(CODE, '/polls/' + 42 + '/grade-ai'), '/index.php/apps/pulse/api/1.0/rooms/Ab3dE9/polls/42/grade-ai'],
 	['Moderator demo votes', 'POST', roomApi(CODE, '/demo'), '/index.php/apps/pulse/api/1.0/rooms/Ab3dE9/demo'],
 	['Moderator remove demo votes', 'DELETE', roomApi(CODE, '/demo'), '/index.php/apps/pulse/api/1.0/rooms/Ab3dE9/demo'],
 	['Moderator upload image', 'POST', roomApi(CODE, '/polls/' + 42 + '/image'), '/index.php/apps/pulse/api/1.0/rooms/Ab3dE9/polls/42/image'],
@@ -174,7 +189,7 @@ const ROUTES = (() => {
 
 // Controllers of routes.php: the JSON APIs (what axios may call), and what
 // the public bundle (no account) may reach.
-const API = new Set(['roomApi', 'publicVote'])
+const API = new Set(['roomApi', 'aiDraft', 'aiSummary', 'publicVote', 'admin'])
 const PUBLIC = new Set(['public', 'publicVote'])
 
 function routeOf(url, prefix, verb) {
@@ -182,10 +197,10 @@ function routeOf(url, prefix, verb) {
 	return ROUTES.find((r) => r.verb === verb && r.re.test(path))
 }
 
-test('routes.php: all 43 url entries parsed, each with a verb and a controller', () => {
-	assert.equal(ROUTES.length, 43)
+test('routes.php: all 58 url entries parsed, each with a verb and a controller', () => {
+	assert.equal(ROUTES.length, 58)
 	for (const r of ROUTES) assert.match(r.verb, /^(GET|POST|PUT|DELETE)$/, r.url)
-	assert.deepEqual([...new Set(ROUTES.map((r) => r.controller))].sort(), ['addin', 'page', 'public', 'publicVote', 'roomApi'])
+	assert.deepEqual([...new Set(ROUTES.map((r) => r.controller))].sort(), ['addin', 'admin', 'aiDraft', 'aiSummary', 'page', 'public', 'publicVote', 'roomApi'])
 	// the parser picked up the requirements: a 6-character code only
 	const show = ROUTES.find((r) => r.url === '/s/{code}')
 	assert.ok(show.re.test('/apps/pulse/s/Ab3dE9'))
@@ -225,6 +240,10 @@ for (const scenario of [
 		assert.deepEqual(opened, [[expected('https://cloud.example.com:8443/index.php/apps/pulse/screen/Ab3dE9'), 'pulse-beamer-Ab3dE9']])
 		const path = opened[0][0].slice(globalThis.location.origin.length)
 		assert.ok(routeOf(path, scenario.prefix, 'GET'), path)
+	})
+
+	test(`filesLink (${scenario.label}): the core route /f/{fileId}, not a Pulse route`, () => {
+		assert.equal(routes.filesLink(42), scenario.prefix + '/f/42')
 	})
 }
 setup({ webroot: '', rewrite: false })
@@ -376,6 +395,9 @@ function imageOptions(expr) {
 // are the views' own wrappers of roomApi()/publicApi() (checked below).
 const BUILDERS = {
 	roomsApi: { paths: () => [roomsApi()] },
+	aiApi: { paths: () => [aiApi()] },
+	aiNoticeApi: { paths: () => [aiNoticeApi()] },
+	adminAiApi: { paths: () => [adminAiApi()] },
 	roomApi: { code: true, paths: (a, ops) => pathValues(a[1], ops).map((s) => roomApi(CODE, s)) },
 	'this.api': { code: true, paths: (a, ops) => pathValues(a[1], ops).map((s) => roomApi(CODE, s)) },
 	publicApi: { code: true, paths: (a, ops) => pathValues(a[1], ops).map((s) => publicApi(CODE, s)) },

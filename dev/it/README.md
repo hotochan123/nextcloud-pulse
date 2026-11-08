@@ -29,7 +29,8 @@ With `DB=all` each database runs as a child of the script with the prefix
 Steps per database: start the database and Redis, install Nextcloud (cron
 background jobs, no app store, language English), copy the app as the release
 archive would ship it (without `src/`, `dev/`, `tests/`, source maps) and
-enable it, add the user `alice`, run `sim.mjs` as `alice`, and count the
+enable it, install the test-only fake AI provider (`dev/e2e/fakeai`) with
+Nextcloud's task processing worker, add the user `alice`, run `sim.mjs` as `alice`, and count the
 warnings and errors the simulation's requests (user agent `pulse-sim`) wrote to
 the Nextcloud log — reported on stderr, not counted as a failure. Without built
 bundles in `js/` the script runs `npm run build` first.

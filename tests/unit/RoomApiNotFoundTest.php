@@ -58,6 +58,8 @@ class RoomApiNotFoundTest extends TestCase {
     private ILimiter&MockObject $limiter;
     private RoomService&MockObject $rooms;
     private bool $loggedIn = true;
+    /** Request parameters of the next controller call. */
+    private array $params = [];
     /** What duplicateRoom throws, if anything. */
     private ?\Throwable $duplicateFails = null;
 
@@ -125,6 +127,7 @@ class RoomApiNotFoundTest extends TestCase {
             'addPoll' => ['addPoll', ['ABCDEF'], 'pulse-add_poll', 120],
             'uploadImage' => ['uploadImage', ['ABCDEF', 7], 'pulse-upload_image', 30],
             'demoSeed' => ['demoSeed', ['ABCDEF'], 'pulse-demo', 30],
+            'saveCsvToFiles' => ['saveCsvToFiles', ['ABCDEF'], 'pulse-save_file', 30],
         ];
     }
 
@@ -165,6 +168,32 @@ class RoomApiNotFoundTest extends TestCase {
         $this->assertInstanceOf(Response::class, $response);
     }
 
+    public function testStartingTheAiGradingSuggestionCountsPerAccount(): void {
+        $this->params = ['action' => 'start'];
+        $this->limiter->expects($this->once())->method('registerUserRequest')
+            ->with('pulse-ai_grade', 10, 60, $this->isInstanceOf(IUser::class));
+        $this->controller()->gradeSuggestion('ABCDEF', 7);
+    }
+
+    public function testAiGradingSuggestionOverTheLimitIs429(): void {
+        $this->params = ['action' => 'start'];
+        $this->limiter->method('registerUserRequest')->willThrowException(
+            new class('') extends \Exception implements IRateLimitExceededException {
+            },
+        );
+        $this->rooms->expects($this->never())->method('getOwnedRoom');
+        $response = $this->controller()->gradeSuggestion('ABCDEF', 7);
+        $this->assertSame(Http::STATUS_TOO_MANY_REQUESTS, $response->getStatus());
+    }
+
+    public function testFlippingOrAcceptingTheAiSuggestionIsNotCounted(): void {
+        $this->limiter->expects($this->never())->method('registerUserRequest');
+        foreach (['flip', 'accept'] as $action) {
+            $this->params = ['action' => $action, 'answer' => 'x'];
+            $this->controller()->gradeSuggestion('ABCDEF', 7);
+        }
+    }
+
     public function testWithoutASessionNothingIsCounted(): void {
         $this->loggedIn = false;
         $this->limiter->expects($this->never())->method('registerUserRequest');
@@ -196,7 +225,7 @@ class RoomApiNotFoundTest extends TestCase {
 
     private function controller(): RoomApiController {
         $request = $this->createMock(IRequest::class);
-        $request->method('getParam')->willReturnCallback(fn (string $key, mixed $default = null): mixed => $default);
+        $request->method('getParam')->willReturnCallback(fn (string $key, mixed $default = null): mixed => $this->params[$key] ?? $default);
 
         $l10n = $this->createMock(IL10N::class);
         $l10n->method('t')->willReturnArgument(0);
@@ -230,6 +259,10 @@ class RoomApiNotFoundTest extends TestCase {
             $this->createMock(ITimeFactory::class),
             $this->limiter,
             new Limits($this->createMock(IAppConfig::class)),
+            $this->createMock(\OCA\Pulse\Service\FilesExportService::class),
+            $this->createMock(\OCA\Pulse\Service\ModerationService::class),
+            $this->createMock(\OCA\Pulse\Service\ThemeService::class),
+            $this->createMock(\OCA\Pulse\Service\GradingSuggestionService::class),
         );
     }
 

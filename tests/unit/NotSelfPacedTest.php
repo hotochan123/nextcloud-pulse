@@ -172,6 +172,7 @@ class NotSelfPacedTest extends TestCase {
             $this->time,
             $this->createMock(ILimiter::class),
             new Limits($this->createMock(IAppConfig::class)),
+            $this->createMock(\OCA\Pulse\Service\FilesExportService::class),
         );
     }
 

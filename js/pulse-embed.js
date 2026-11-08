@@ -34,7 +34,8 @@
     var settingsApi = null; // Office.context.document.settings, once available
 
     function screenUrl(code) {
-        return ORIGIN + '/apps/pulse/screen/' + encodeURIComponent(code);
+        // ?embed=1: the projector page shows no note about its size here
+        return ORIGIN + '/apps/pulse/screen/' + encodeURIComponent(code) + '?embed=1';
     }
 
     function persist(code) {

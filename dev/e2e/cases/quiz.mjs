@@ -6,8 +6,10 @@
 // wrong except the free text, which it misspells and the moderator approves on the desk. After each reveal the
 // phones show their verdict; then the final standings on desk, projector and phones, and the CSV export with
 // the expected counts. (The moderated export has no player names; "paced" checks the name in its players CSV.)
+// "Save in Files" puts the same CSV into the folder "Pulse" of the user's files and links it; a second save gets a
+// new name with a number instead of overwriting the first.
 
-import { APP, csvRows, downloadText, expectNoFormula, until } from '../lib/harness.mjs'
+import { APP, csvRows, dav, downloadText, expect, expectNoFormula, until } from '../lib/harness.mjs'
 import { QUIZ_QS, answer, closeJoinPanel, expectEqual, menu, pickName, primary, waitQuestion } from '../lib/flows.mjs'
 
 const NAME1 = '=1+1'
@@ -85,4 +87,27 @@ export async function quiz(world, shared) {
 	expectEqual(['Jupiter', TEXT2].map((a) => line('Largest planet?', a)), ['1;50%', '1;50%'], 'CSV: the free text')
 	expectEqual(new Set(rows.slice(1).filter((r) => r.length > 1).map((r) => r[1])).size, QUIZ_QS.length, 'CSV: one block per question')
 	expectNoFormula(rows, 'CSV')
+
+	// Save in Files: the link opens the file in Files, the file holds the download's rows.
+	const saved = []
+	try {
+		for (const round of [1, 2]) {
+			const before = await desk.locator('.files-open-link').getAttribute('title').catch(() => null)
+			await desk.locator('.files-save-btn').click()
+			await until(async () => {
+				const name = await desk.locator('.files-open-link').getAttribute('title').catch(() => null)
+				return name && name !== before ? name : false
+			}, `save ${round}: "Open in Files" appears for the new file`)
+			const link = desk.locator('.files-open-link')
+			const name = await link.getAttribute('title')
+			saved.push(name)
+			expect(/\/f\/\d+$/.test(await link.getAttribute('href')), `save ${round}: the link opens the file in Files`, await link.getAttribute('href'))
+			expect((await link.innerText()).trim() === 'Open in Files', `save ${round}: the link says "Open in Files"`)
+			expect(/ – Results \d{4}-\d{2}-\d{2}( \(\d+\))?\.csv$/.test(name), `save ${round}: the file name`, name)
+			expectEqual(csvRows(await dav('GET', '/Pulse/' + name)), rows, `save ${round}: the file in Files holds the same CSV as the download`)
+		}
+		expect(saved[0] !== saved[1] && / \(\d+\)\.csv$/.test(saved[1]), 'the second save gets a new name with a number', saved)
+	} finally {
+		for (const name of saved) await dav('DELETE', '/Pulse/' + name).catch(() => {})
+	}
 }

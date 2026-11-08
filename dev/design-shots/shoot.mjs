@@ -15,7 +15,7 @@
  * Section references (§…), acceptance criteria ("acceptance #7") and review
  * IDs (R3, D10, …) point to the design notes of the redesign and of the
  * self-paced quiz, which are not in the public repository (see "References in
- * code comments" in the README).
+ * code comments" in docs/DEVELOPMENT.md).
  * Only references that name a file (dev/design-shots/README.md) point into this
  * repository.
  */

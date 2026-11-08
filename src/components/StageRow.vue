@@ -11,7 +11,8 @@
 			<span class="srow-text srow-text--fill" aria-hidden="true">
 				<span v-if="badge !== ''" class="srow-badge">{{ badge }}</span>
 				<PulseIcon v-if="state === 'correct'" name="check" size="1.2em" class="srow-mark" />
-				<span class="srow-label">{{ label }}</span>
+				<span v-if="tailSplit" class="srow-label srow-label--split" dir="auto"><span class="srow-head">{{ head }}</span><span class="srow-tail">{{ tail }}</span></span>
+				<span v-else class="srow-label">{{ label }}</span>
 				<span v-if="flag" class="srow-flag">{{ flag }}</span>
 				<span v-if="value !== ''" class="srow-val">{{ value }}</span>
 			</span>
@@ -19,7 +20,8 @@
 		<span class="srow-text srow-text--track">
 			<span v-if="badge !== ''" class="srow-badge">{{ badge }}</span>
 			<PulseIcon v-if="state === 'correct'" name="check" size="1.2em" class="srow-mark" />
-			<span class="srow-label">{{ label }}</span>
+			<span v-if="tailSplit" class="srow-label srow-label--split" dir="auto"><span class="srow-head">{{ head }}</span><span class="srow-tail">{{ tail }}</span></span>
+			<span v-else class="srow-label">{{ label }}</span>
 			<span v-if="flag" class="srow-flag">{{ flag }}</span>
 			<span v-if="value !== ''" class="srow-val">{{ value }}</span>
 		</span>
@@ -62,8 +64,17 @@ export default {
 		flag: { type: String, default: '' },
 		// Two-line label: all rows of the stage grow together (§2.6).
 		tall: { type: Boolean, default: false },
+		// The end that tells this label apart from the others (util/stage-labels.js labelTails): it stays whole
+		// when the projector cuts the label to one line, only the start before it ends in "…".
+		tail: { type: String, default: '' },
 	},
 	computed: {
+		tailSplit() {
+			return this.tail !== '' && this.tail !== this.label && this.label.endsWith(this.tail)
+		},
+		head() {
+			return this.label.slice(0, this.label.length - this.tail.length)
+		},
 		style() {
 			return this.outline ? {} : { '--p': Math.max(0, Math.min(100, this.pct)) + '%' }
 		},

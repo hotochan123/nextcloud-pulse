@@ -33,7 +33,7 @@ declare(strict_types=1);
  *
  * Section references (§…) point to the design notes of the redesign and of the
  * self-paced quiz, which are not in the public repository (see "References in
- * code comments" in the README).
+ * code comments" in docs/DEVELOPMENT.md).
  */
 
 // Command line only: in a git checkout inside the web root, the web server

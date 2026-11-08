@@ -72,7 +72,7 @@
 /*
  * Section references (§…) and review IDs (B1) point to the design notes of the
  * redesign and of the self-paced quiz, which are not in the public repository
- * (see "References in code comments" in the README).
+ * (see "References in code comments" in docs/DEVELOPMENT.md).
  */
 import StageRow from './StageRow.vue'
 
@@ -259,8 +259,9 @@ export default {
 @keyframes pulse-glow { from { opacity: 0; } 40% { opacity: 1; } to { opacity: 0.65; } }
 
 .lb-list { list-style: none; margin: 0; padding: 0; }
+/* Wraps only on a very narrow screen (a phone at 200 % zoom): "N correct" and the score move below the name. */
 .lb-row {
-	display: flex; align-items: center; gap: 0.75em;
+	display: flex; flex-wrap: wrap; align-items: center; gap: 0.75em;
 	padding: 0.6em 0.9em; margin-bottom: 0.4em;
 	background: var(--pulse-hover);
 	border: 2px solid transparent;
@@ -269,7 +270,7 @@ export default {
 /* One's own row in the "You" colour (§6: "You" is the same colour everywhere). */
 .lb-row.is-me { border-color: var(--pulse-self); background: var(--pulse-self-soft); }
 .lb-rank { font-weight: 800; color: var(--pulse-text-2); min-width: 1.5em; font-variant-numeric: tabular-nums; text-align: right; }
-.lb-name { flex: 1; min-width: 0; display: inline-flex; align-items: center; gap: 0.5em; font-weight: 600; }
+.lb-name { flex: 1; min-width: 4em; display: inline-flex; align-items: center; gap: 0.5em; font-weight: 600; }
 .lb-name-txt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lb-correct { color: var(--pulse-text-2); font-size: 0.85em; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .lb-score { font-weight: 800; font-variant-numeric: tabular-nums; min-width: 3em; text-align: right; color: var(--pulse-primary); }
@@ -279,7 +280,8 @@ export default {
 
 /* "shared" chip on a points tie (ex aequo) — neutral, carries the message
    in addition to the same medal number/height (colour is never the only carrier). */
-.lb-tie { flex: 0 0 auto; font-size: 0.7em; font-weight: 700; padding: 0.1em 0.5em; border-radius: var(--pulse-r-pill); background: var(--pulse-fill); color: var(--pulse-text); white-space: nowrap; }
+/* Narrow (a phone at 200 % zoom): the chip shrinks with an ellipsis instead of running over the next column. */
+.lb-tie { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 0.7em; font-weight: 700; padding: 0.1em 0.5em; border-radius: var(--pulse-r-pill); background: var(--pulse-fill); color: var(--pulse-text); white-space: nowrap; }
 
 @media (prefers-reduced-motion: reduce) {
 	.is-animating .podium-col,

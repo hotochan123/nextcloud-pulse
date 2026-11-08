@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace OCA\Pulse\Service;
 
+use OCA\Pulse\AppInfo\Application;
 use OCA\Pulse\Db\Poll;
 use OCA\Pulse\Db\PollMapper;
 use OCA\Pulse\Db\PlayerMapper;
@@ -18,6 +19,7 @@ use OCA\Pulse\Db\VoteMapper;
 use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\AppFramework\Db\TTransactional;
 use OCP\AppFramework\Utility\ITimeFactory;
+use OCP\IConfig;
 use OCP\IDBConnection;
 use OCP\IL10N;
 use Psr\Log\LoggerInterface;
@@ -58,8 +60,14 @@ class RoomService {
         private IDBConnection $db,
         private Limits $limits,
         private LoggerInterface $logger,
+        // the room's switch "AI help" (an owner preference) goes with the room
+        ?IConfig $config = null,
     ) {
+        $this->config = $config;
     }
+
+    /** Not promoted: tests build the service without its constructor, then it stays null. */
+    private ?IConfig $config = null;
 
     // ── Rooms ───────────────────────────────────────────────────────────────
 
@@ -217,6 +225,8 @@ class RoomService {
             $new->setMaxWords($poll->getMaxWords());
             $new->setCorrectOption($poll->getCorrectOption());
             $new->setAnswerKey($poll->getAnswerKey());
+            // The copy is a fresh room: hidden answers belong to the old run.
+            $new->setModeration([]);
             $new->setExplanation($poll->getExplanation());
             $new->setTimeLimit($poll->getTimeLimit());
             // Fresh: nothing running, nothing revealed, positions without gaps.
@@ -282,6 +292,7 @@ class RoomService {
         foreach ($polls as $poll) {
             $this->imageService->discard($poll);
         }
+        $this->config?->deleteUserValue($room->getOwnerUid(), Application::APP_ID, ModerationService::PREF . $room->getId());
     }
 
     /**
@@ -300,9 +311,12 @@ class RoomService {
     public function resetRoom(Room $room): void {
         foreach ($this->pollMapper->findByRoom($room->getId()) as $poll) {
             $this->voteMapper->deleteByPoll($poll->getId());
-            if ($poll->getStartedAt() !== 0 || $poll->getStatus() !== 'active') {
+            $mod = $poll->getModeration() !== [];
+            if ($poll->getStartedAt() !== 0 || $poll->getStatus() !== 'active' || $mod) {
                 $poll->setStartedAt(0);
                 $poll->setStatus('active');
+                // Hidden answers and AI checks belong to the run that is gone.
+                $poll->setModeration([]);
                 $this->pollMapper->update($poll);
             }
         }

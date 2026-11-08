@@ -64,6 +64,7 @@ class OwnerActivityTest extends TestCase {
         return [
             'summary' => ['summary', $c],
             'exportCsv' => ['exportCsv', $c],
+            'saveCsvToFiles' => ['saveCsvToFiles', $c],
             'duplicate' => ['duplicate', $c],
             'rename' => ['rename', $c],
             'leaderboard' => ['leaderboard', $c],
@@ -88,6 +89,10 @@ class OwnerActivityTest extends TestCase {
             'showImage' => ['showImage', $p],
             'lockPoll' => ['lockPoll', $p],
             'unlockPoll' => ['unlockPoll', $p],
+            'moderateAnswer' => ['moderateAnswer', $p],
+            'aiHelp' => ['aiHelp', $c],
+            'groupAnswers' => ['groupAnswers', $p],
+            'gradeSuggestion' => ['gradeSuggestion', $p],
             'demoSeed' => ['demoSeed', $c],
             'demoClear' => ['demoClear', $c],
         ];
@@ -250,6 +255,10 @@ class OwnerActivityTest extends TestCase {
             $time,
             $this->createMock(\OCP\Security\RateLimiting\ILimiter::class),
             new \OCA\Pulse\Service\Limits($this->createMock(\OCP\IAppConfig::class)),
+            $this->createMock(\OCA\Pulse\Service\FilesExportService::class),
+            $this->createMock(\OCA\Pulse\Service\ModerationService::class),
+            $this->createMock(\OCA\Pulse\Service\ThemeService::class),
+            $this->createMock(\OCA\Pulse\Service\GradingSuggestionService::class),
         );
     }
 

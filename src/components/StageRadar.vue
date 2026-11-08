@@ -3,7 +3,8 @@
   - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<div class="splot-wrap">
+	<div class="splot-wrap" :class="{ 'is-list': listMode }">
+		<div class="splot-main">
 		<div class="splot" :class="{ 'is-two-line': twoLine }">
 			<svg viewBox="0 0 100 100" role="img" :aria-label="ariaLabel" preserveAspectRatio="xMidYMid meet">
 				<polygon v-for="(ring, i) in rings" :key="'r' + i" :points="ring" fill="none" stroke="var(--pulse-border)" stroke-width=".25" />
@@ -16,9 +17,23 @@
 			</svg>
 			<!-- Name AND value at the spoke: the detour via number badges and
 			     a list at the other edge of the stage is gone (§7.3). -->
-			<span v-for="sp in labels" :key="sp.id" class="splot-spoke" :style="sp.style">
-				{{ sp.label }} <i>{{ sp.value }}</i>
-			</span>
+			<template v-if="!listMode">
+				<span v-for="sp in labels" :key="sp.id" class="splot-spoke" :style="sp.style">
+					{{ sp.label }} <i>{{ sp.value }}</i>
+				</span>
+			</template>
+			<!-- Names too long for the spokes: a number at the spoke, the names in a list beside the chart. -->
+			<template v-else>
+				<span v-for="sp in nums" :key="sp.id" class="splot-num" :style="sp.style">{{ sp.n }}</span>
+			</template>
+		</div>
+		<ol v-if="listMode" class="splot-list">
+			<li v-for="sp in nums" :key="sp.id" class="splot-item">
+				<span class="splot-item-num">{{ sp.n }}</span>
+				<span class="splot-item-label">{{ sp.label }}</span>
+				<i>{{ sp.value }}</i>
+			</li>
+		</ol>
 		</div>
 		<div class="splot-legend">
 			<span><i class="splot-sw" style="background: var(--pulse-primary)" />{{ t('pulse', 'Average') }}</span>
@@ -40,6 +55,7 @@
  * an area. The parent view then shows rows (§7.3).
  */
 import { fmtNum } from '../util/format.js'
+import { labelsCollide } from '../util/stage-labels.js'
 
 // Radius of the data area and of the labels in the 100-unit viewBox. With seven
 // or eight aspects the names move further out: the arc between
@@ -58,10 +74,33 @@ export default {
 		max: { type: Number, default: 5 },
 		ariaLabel: { type: String, default: '' },
 	},
+	data() {
+		return {
+			// Names at the spokes cover each other or leave the chart's area (measured, see checkLabels): list instead.
+			listMode: false,
+		}
+	},
 	computed: {
-		// From seven aspects on, the names may wrap onto two lines (§7.3).
+		labelKey() {
+			return this.rows.map((r) => r.label || '').join('\u0001')
+		},
+		// List mode: number discs at the outer end of the spokes, centred there.
+		nums() {
+			return this.rows.map((row, i) => {
+				const [x, y] = this.pt(i, LR)
+				return {
+					id: row.id,
+					n: i + 1,
+					label: row.label,
+					value: fmtNum(row.average),
+					style: { left: x + '%', top: y + '%' },
+				}
+			})
+		},
+		// From seven aspects on, the names may wrap onto two lines (§7.3), and
+		// so may a name too long for one line beside the radar.
 		twoLine() {
-			return this.rows.length >= 7
+			return this.rows.length >= 7 || this.rows.some((r) => (r.label || '').length > 12)
 		},
 		neutralLabel() {
 			return fmtNum(this.max / 2)
@@ -109,7 +148,41 @@ export default {
 			return this.max || 1
 		},
 	},
+	watch: {
+		labelKey() {
+			this.relayout()
+		},
+	},
+	mounted() {
+		// A window of another size starts again with the names at the spokes. Only the window: the list mode itself and
+		// the projector's font fit change the chart's size, and reacting to those would flip between the two modes.
+		this._onResize = () => this.relayout()
+		window.addEventListener('resize', this._onResize)
+		this.relayout()
+	},
+	beforeDestroy() {
+		window.removeEventListener('resize', this._onResize)
+		this._gen = (this._gen || 0) + 1
+	},
 	methods: {
+		relayout() {
+			this.listMode = false
+			const gen = this._gen = (this._gen || 0) + 1
+			this.$nextTick(() => requestAnimationFrame(() => {
+				if (gen === this._gen) this.checkLabels()
+			}))
+		},
+		// Measured at the size the stage starts with, before the projector shrinks its font: the names only get
+		// smaller against the chart from there, so names that fit here keep fitting.
+		checkLabels() {
+			if (this.listMode || !this.$el || !this.$el.querySelectorAll) return
+			const spokes = [...this.$el.querySelectorAll('.splot-spoke')].map((e) => e.getBoundingClientRect())
+			if (spokes.length && labelsCollide(spokes, this.$el.getBoundingClientRect())) {
+				this.listMode = true
+				// The stage refits around the new layout (Screen.vue listens).
+				this.$nextTick(() => this.$el.dispatchEvent(new CustomEvent('pulse-relayout', { bubbles: true })))
+			}
+		},
 		pt(i, r) {
 			const a = (-90 + i * 360 / this.rows.length) * Math.PI / 180
 			const r1 = (v) => Math.round(v * 100) / 100
@@ -135,13 +208,33 @@ export default {
 /* Square, height from the remaining space, width via aspect-ratio. align-self
    prevents stretching in the cross axis — otherwise the width would come from the
    stage and aspect-ratio would blow up the height. */
-.splot { position: relative; flex: 1 1 auto; min-height: 0; align-self: center; aspect-ratio: 1; }
+/* The chart is the largest square the space holds (container units): with a list beside it the width is shared. */
+.splot-main { flex: 1 1 auto; min-height: 0; container-type: size; display: flex; align-items: center; justify-content: center; gap: 1.2em; }
+.splot { position: relative; flex: 0 0 auto; width: min(100cqh, 100cqw); height: min(100cqh, 100cqw); }
+.splot-wrap.is-list { padding: 0; }
+.is-list .splot { width: min(100cqh, 50cqw); height: min(100cqh, 50cqw); }
+.splot-num {
+	position: absolute; transform: translate(-50%, -50%);
+	width: 1.5em; height: 1.5em; border-radius: 50%; display: grid; place-items: center;
+	background: var(--pulse-primary); color: var(--pulse-on-primary); font-weight: 800; font-size: 0.7em; line-height: 1;
+}
+.splot-list {
+	flex: 1 1 0; min-width: 0; max-height: 100%; list-style: none; margin: 0; padding: 0;
+	display: flex; flex-direction: column; justify-content: center; gap: 0.35em; font-size: 0.7em;
+}
+.splot-item { display: flex; align-items: baseline; gap: 0.5em; min-width: 0; }
+.splot-item-num {
+	flex: 0 0 auto; align-self: center; width: 1.5em; height: 1.5em; border-radius: 50%; display: grid; place-items: center;
+	background: var(--pulse-primary); color: var(--pulse-on-primary); font-weight: 800; font-size: 0.85em; line-height: 1;
+}
+.splot-item-label { flex: 1 1 auto; min-width: 0; font-weight: 700; line-height: 1.15; padding-block: 0.14em; overflow-wrap: anywhere; color: var(--pulse-text); }
+.splot-item i { flex: 0 0 auto; font-style: normal; font-weight: 800; color: var(--pulse-primary); font-variant-numeric: tabular-nums; }
 .splot svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
 .splot-spoke {
 	position: absolute; font-weight: 700; white-space: nowrap; line-height: 1.15;
 	padding-block: 0.14em; color: var(--pulse-text);
 }
-.splot.is-two-line .splot-spoke { white-space: normal; max-width: 4.6em; }
+.splot.is-two-line .splot-spoke { white-space: normal; max-width: 4.6em; overflow-wrap: anywhere; }
 .splot-spoke i { font-style: normal; color: var(--pulse-primary); font-variant-numeric: tabular-nums; }
 /* Legend directly below the radar, class C — not at the edge of the stage. */
 .splot-legend { flex: 0 0 auto; display: flex; flex-wrap: wrap; justify-content: center; gap: 1.2em; padding-top: 0.3em; font-size: 0.55em; color: var(--pulse-meta); }

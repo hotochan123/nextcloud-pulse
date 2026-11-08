@@ -29,7 +29,8 @@ use ReflectionProperty;
  * means: no longer "Being checked", `pending` is dropped. Moderated payloads
  * know neither `limit` nor `pending` and come out byte-identical to the previous
  * result. In self-paced mode grading happens while people are answering:
- * there grading runs as one transaction under the room lock.
+ * there grading runs as one transaction under the room lock, and so it does
+ * in moderated rooms (the moderation state shares the answer_key column).
  */
 #[CoversClass(VoteService::class)]
 class SelfGradeTest extends TestCase {
@@ -65,8 +66,14 @@ class SelfGradeTest extends TestCase {
         $l10n = $this->createMock(IL10N::class);
         $l10n->method('t')->willReturnArgument(0);
 
+        // Grading runs under the room lock in both modes (the moderation state
+        // shares the column); this lock just runs the body with the same room.
+        $pace = $this->createMock(PaceService::class);
+        $pace->method('locked')->willReturnCallback(fn (Room $r, callable $fn): mixed => $fn($r));
+
         $this->service = (new \ReflectionClass(VoteService::class))->newInstanceWithoutConstructor();
         foreach ([
+            'paceService' => $pace,
             'deckService' => $deck,
             'pollMapper' => $polls,
             'voteMapper' => $voteMapper,
@@ -189,9 +196,12 @@ class SelfGradeTest extends TestCase {
         $this->assertTrue(json_decode($this->saved[1], true)['correct']);
     }
 
-    public function testModeratedWithoutRoomLock(): void {
+    public function testModeratedGradesUnderTheRoomLock(): void {
+        // Moderated too: the AI check writes the moderation state into the same
+        // answer_key column, so grading must read and write it under the lock.
         $pace = $this->createMock(PaceService::class);
-        $pace->expects($this->never())->method($this->anything());
+        $pace->expects($this->once())->method('locked')
+            ->willReturnCallback(fn (Room $r, callable $fn): mixed => $fn($r));
         (new ReflectionProperty(VoteService::class, 'paceService'))->setValue($this->service, $pace);
         $this->votes = [$this->vote(1, ['value' => 'Saturn', 'points' => 0, 'correct' => false, 'elapsed' => 5, 'norm' => 'saturn'])];
 

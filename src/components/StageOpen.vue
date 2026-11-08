@@ -9,8 +9,8 @@
 		<!-- Options, items, aspects: the same row as the reveal,
 		     but as an outline and without any value. -->
 		<div v-if="rows.length" class="srows srows--stretch" :class="{ 'is-tall': tall }">
-			<StageRow v-for="r in rows" :key="r.id" :class="r.cls"
-				:badge="r.badge" :label="r.label" :tall="tall" outline />
+			<StageRow v-for="(r, i) in rows" :key="r.id" :class="r.cls"
+				:badge="r.badge" :label="r.label" :tail="tails[i]" :tall="tall" outline />
 		</div>
 
 		<!-- Single scale: the axis with both poles — shows what to do on the
@@ -59,6 +59,7 @@
  * screen anticipating the result (E1/E4).
  */
 import { hasTallLabel } from '../util/format.js'
+import { labelTails } from '../util/stage-labels.js'
 import { withPalette } from '../util/palette.js'
 import StageRow from './StageRow.vue'
 
@@ -107,6 +108,9 @@ export default {
 		tall() {
 			return hasTallLabel(this.rows)
 		},
+		tails() {
+			return labelTails(this.rows.map((r) => r.label))
+		},
 		matchItems() {
 			return (this.poll.match && this.poll.match.items) || []
 		},
@@ -138,6 +142,17 @@ export default {
    both, and that is exactly what it did (the hint lay in the first box, the
    chips in the second to last). Here the height comes from the flex layout. */
 .sopen > .srows, .sopen-match > .srows { height: auto; }
+/* …and it does not shrink below its rows (min-height 1.9em each): squeezed
+   further, the centred rows ran out of the list at both ends onto the hint
+   and onto whatever follows the stage content. */
+.sopen > .srows { min-height: auto; }
+/* A row has no height of its own (its text is laid absolutely), so the list
+   could not see a label that wraps: the row clipped the second line while the
+   stage counted as fitting. Here the rows are outlines with one text layer,
+   which can sit in the flow: a row is as tall as its text (at least 1.9em,
+   growing up to its maximum when there is room) and never shrinks below it. */
+.sopen > .srows > .srow { display: flex; flex: 1 0 auto; }
+.sopen > .srows > .srow :deep(.srow-text) { position: relative; inset: auto; flex: 1 1 auto; }
 .sopen-hint { flex: 0 0 auto; margin: 0; color: var(--pulse-meta); font-weight: 600; font-size: 0.6em; }
 
 /* Single scale: axis with values and both poles. */
@@ -149,7 +164,7 @@ export default {
 }
 .sopen-tick { font-weight: 700; font-variant-numeric: tabular-nums; }
 .sopen-poles { display: flex; justify-content: space-between; gap: 1em; color: var(--pulse-meta); font-weight: 600; }
-.sopen-poles span { max-width: 45%; }
+.sopen-poles span { max-width: 45%; min-width: 0; overflow-wrap: anywhere; }
 .sopen-poles span:last-child { text-align: right; }
 
 /* Compass: axis cross without a single dot. */
@@ -159,7 +174,8 @@ export default {
 	grid-template-rows: auto 1fr auto;
 	gap: 0.3em;
 }
-.cp-pole { color: var(--pulse-text); font-weight: 700; text-align: center; }
+/* A long pole (40 characters, words of 30 letters) wraps in its column instead of running past the stage. */
+.cp-pole { color: var(--pulse-text); font-weight: 700; text-align: center; max-width: 8em; overflow-wrap: anywhere; }
 .cp-top { grid-column: 2; grid-row: 1; }
 .cp-left { grid-column: 1; grid-row: 2; }
 .cp-right { grid-column: 3; grid-row: 2; }
@@ -175,7 +191,7 @@ export default {
 
 /* Matching: rows, with the targets below as loose chips. */
 .sopen-match { display: flex; flex-direction: column; gap: 0.6em; }
-.sopen-match > .srows { flex: 1 1 auto; min-height: 0; }
+.sopen-match > .srows { flex: 1 1 auto; min-height: auto; }
 /* Two columns from six pairs on — the same threshold as in the reveal. Keeping
    eight full stage widths for one word each ("DNS") and shrinking the font
    for it gets the priorities backwards. The columns run from top to
@@ -183,14 +199,17 @@ export default {
 .sopen-match > .srows.is-cols {
 	display: grid; grid-auto-flow: column;
 	grid-template-columns: 1fr 1fr;
-	grid-template-rows: repeat(var(--rows, 4), minmax(0, 1fr));
+	grid-template-rows: repeat(var(--rows, 4), minmax(auto, 1fr));
 	gap: 0.4em 1.4em;
 }
 /* In the grid the tracks share the height among themselves. The row's minimum
    height comes from the single-column stage (1.9 em) and is too much here: four
    tracks plus chips plus the intake overflowed the stage, and the rows ran
    into their gaps. */
-.sopen-match > .srows.is-cols > .srow { min-height: 0; max-height: none; }
-.sopen-chips { flex: 0 0 auto; list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.35em; }
-.sopen-chip { background: var(--pulse-bar-track); color: var(--pulse-text); border-radius: 999px; padding: 0.2em 0.7em; font-weight: 700; font-size: 0.8em; }
+/* …but never below their text: a squeezed track let a long label run onto
+   the row below. */
+.sopen-match > .srows.is-cols > .srow { min-height: auto; max-height: none; }
+.sopen-chips { flex: 0 0 auto; list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.35em; min-width: 0; }
+/* A long target breaks inside its chip instead of running past the column. */
+.sopen-chip { background: var(--pulse-bar-track); color: var(--pulse-text); border-radius: 999px; padding: 0.2em 0.7em; font-weight: 700; font-size: 0.8em; max-width: 100%; box-sizing: border-box; overflow-wrap: anywhere; }
 </style>

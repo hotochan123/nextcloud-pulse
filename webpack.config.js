@@ -5,13 +5,15 @@
 const path = require('path')
 const webpackConfig = require('@nextcloud/webpack-vue-config')
 
-// Three entry points: main = moderator, public = participant, styles = only the
-// token layer + design system for pages without Vue (the embed shell).
+// Four entry points: main = moderator, public = participant, admin = the admin
+// section "Pulse", styles = only the token layer + design system for pages
+// without Vue (the embed shell).
 // webpack-vue-config prefixes the app name -> js/pulse-main.js, js/pulse-public.js
 webpackConfig.entry = {
 	main: { import: path.join(__dirname, 'src', 'main.js') },
 	public: { import: path.join(__dirname, 'src', 'public.js') },
 	styles: { import: path.join(__dirname, 'src', 'styles.js') },
+	admin: { import: path.join(__dirname, 'src', 'admin.js') },
 }
 
 // clean:true (from the NC config) empties js/ before every build and would take the

@@ -37,12 +37,17 @@ matching.
 - An anonymous token in a cookie discourages voting twice without identifying
   anyone; whoever clears their cookies can vote again.
 - Rooms that nobody has used for 30 days are deleted automatically.
+- AI results depend on your model. Pulse only sends prompts to the AI provider
+  set up in your Nextcloud; how good drafts, filters, themes and summaries are
+  depends strongly on that model. Pulse is tested with Mistral Small 4 (via
+  Infomaniak); smaller or local models may give weaker results. The prompts
+  keep being improved.
 - Pulse is vibe-coded: its code, tests, documentation and German translation
   were written by AI coding agents (Anthropic's Claude Code); the maintainer
   set the goals, made the product decisions and tried the app out in the
   browser. There has been no independent human code review and no security
   audit, so please evaluate it yourself before relying on it. Details in the
-  [README](https://github.com/hotochan123/nextcloud-pulse#how-this-app-was-built-ai-disclosure).
+  [README](https://github.com/hotochan123/nextcloud-pulse#how-this-app-is-built-ai-disclosure).
 
 Pulse is an independent project and is not affiliated with or endorsed by the
 providers of Kahoot!, Mentimeter or Slido; these names are trademarks of their
@@ -80,12 +85,18 @@ Reihenfolge und Zuordnung.
 - Ein anonymes Token im Cookie erschwert mehrfaches Abstimmen, ohne jemanden zu
   identifizieren; wer die Cookies löscht, kann erneut abstimmen.
 - Räume, die 30 Tage lang niemand genutzt hat, werden automatisch gelöscht.
+- KI-Ergebnisse hängen von deinem Modell ab. Pulse schickt Prompts nur an den
+  KI-Anbieter, der in deiner Nextcloud eingerichtet ist; wie gut Entwürfe,
+  Filter, Themen und Zusammenfassungen werden, hängt stark von diesem Modell ab.
+  Pulse ist mit Mistral Small 4 (über Infomaniak) getestet; kleinere oder lokale
+  Modelle liefern womöglich schwächere Ergebnisse. Die Prompts werden laufend
+  verbessert.
 - Pulse ist „vibe-coded“: Code, Tests, Dokumentation und deutsche Übersetzung
   haben KI-Coding-Agenten geschrieben (Claude Code von Anthropic); hotochan123
   hat die Ziele gesetzt, die Produktentscheidungen getroffen und die App im
   Browser ausprobiert. Es gab keine unabhängige menschliche Code-Prüfung und
   kein Sicherheitsaudit — bitte vor dem Einsatz selbst prüfen. Details in der
-  [README](https://github.com/hotochan123/nextcloud-pulse#how-this-app-was-built-ai-disclosure)
+  [README](https://github.com/hotochan123/nextcloud-pulse#how-this-app-is-built-ai-disclosure)
   (englisch).
 
 Pulse ist ein unabhängiges Projekt; es steht in keiner Verbindung zu den
@@ -93,7 +104,7 @@ Anbietern von Kahoot!, Mentimeter oder Slido und wird von ihnen weder
 unterstützt noch empfohlen. Die genannten Namen sind Marken ihrer jeweiligen
 Inhaber.
     ]]></description>
-    <version>0.20.2</version>
+    <version>0.21.1</version>
     <licence>AGPL-3.0-or-later</licence>
     <author homepage="https://github.com/hotochan123">hotochan123</author>
     <namespace>Pulse</namespace>
@@ -116,6 +127,10 @@ Inhaber.
     <background-jobs>
         <job>OCA\Pulse\BackgroundJob\CleanupStaleRoomsJob</job>
     </background-jobs>
+    <settings>
+        <admin>OCA\Pulse\Settings\Admin</admin>
+        <admin-section>OCA\Pulse\Settings\AdminSection</admin-section>
+    </settings>
     <navigations>
         <navigation>
             <name>Pulse</name>

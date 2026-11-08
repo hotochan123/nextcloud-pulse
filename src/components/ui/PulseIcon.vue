@@ -28,7 +28,7 @@
  *
  * Section references (§…) point to the design notes of the redesign and of the
  * self-paced quiz, which are not in the public repository (see "References in
- * code comments" in the README).
+ * code comments" in docs/DEVELOPMENT.md).
  */
 
 // Inner SVG content per name (viewBox 0 0 24 24, stroke icons). copy, more,
@@ -67,6 +67,7 @@ const ICONS = {
 	flag: '<path d="M5 21V4"/><path d="M5 4h12l-2.5 4.5L17 13H5"/>',
 	users: '<circle cx="9" cy="8" r="3.5"/><path d="M3 20a6 6 0 0 1 12 0"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8"/><path d="M18 14.6A6 6 0 0 1 21 20"/>',
 	download: '<line x1="12" y1="4" x2="12" y2="15"/><polyline points="7 10 12 15 17 10"/><path d="M5 20h14"/>',
+	sparkle: '<path d="M12 3C12.6 8.4 15.6 11.4 21 12C15.6 12.6 12.6 15.6 12 21C11.4 15.6 8.4 12.6 3 12C8.4 11.4 11.4 8.4 12 3Z"/>',
 }
 
 export default {

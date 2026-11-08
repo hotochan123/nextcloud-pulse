@@ -13,7 +13,7 @@
  *
  * Section references (§…) point to the design notes of the redesign and of the
  * self-paced quiz, which are not in the public repository (see "References in
- * code comments" in the README).
+ * code comments" in docs/DEVELOPMENT.md).
  */
 
 /* ══ Buttons — ONE hierarchy ════════════════════════════════════════════════ */
@@ -174,9 +174,14 @@
    fixed row height is the default and stretching is the special case. */
 .srows > .srow { flex: 0 0 auto; height: 2.4em; }
 /* Stage: the rows share the height between minimum and maximum. With two
-   options nothing grows to giant size (3.2 em cap); the block is centred. */
-.srows--stretch { height: 100%; justify-content: center; }
-.srows--stretch > .srow { flex: 1 1 2.4em; height: auto; min-height: 1.9em; max-height: 3.2em; }
+   options nothing grows to giant size (3.2 em cap); the block is centred.
+   A stretched row is never smaller than its text: the track layer is in the
+   flow there, so a two-line label makes the row taller instead of running out
+   of it, and rows that no longer fit run past the bottom (safe), where the
+   projector's shrink loop sees them. */
+.srows--stretch { height: 100%; justify-content: safe center; }
+.srows--stretch > .srow { display: flex; flex: 1 0 auto; height: auto; min-height: 1.9em; max-height: 3.2em; }
+.srows--stretch > .srow > .srow-text--track { position: relative; inset: auto; flex: 1 1 auto; }
 .srows--stretch.is-tall > .srow { max-height: 3.4em; }
 
 .srow {
@@ -220,10 +225,20 @@
 	font-weight: 600; line-height: 1.15;
 	/* Descender reserve: 1.15 is below the natural text height (≈1.36 em),
 	   and the row clips — without a reserve g, p, ü, ß lose their descenders. */
-	padding-block: .14em;
+	padding-block: var(--srow-label-pad, .14em);
 	overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.srow--tall .srow-label { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.srow--tall .srow-label { white-space: normal; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+/* A label with a distinguishing end (StageRow `tail`): on one line only the start before it ends in "…", the end
+   stays whole. On two lines the start clamps to two lines and the end stands at the end of the second one. */
+.srow .srow-label--split { display: flex; align-items: flex-end; column-gap: .3em; -webkit-line-clamp: none; }
+.srow-label--split > .srow-head { min-width: 0; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; }
+.srow--tall .srow-label--split > .srow-head { white-space: normal; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+/* The head clips: it takes the label's descender reserve into its own box (no change to the row height). */
+.srow-label--split > .srow-head, .srow-label--split > .srow-tail { padding-block: var(--srow-label-pad, .14em); margin-block: calc(-1 * var(--srow-label-pad, .14em)); }
+.srow:not(.srow--tall) .srow-head { white-space: nowrap; }
+/* Backstop: the end never takes more than half the row (the start stays readable); past that it ends in "…". */
+.srow-label--split > .srow-tail { flex: 0 0 auto; max-width: 50%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .srow-val {
 	flex: 0 0 auto; margin-left: auto; min-width: 5.5em; text-align: right;
 	font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap;

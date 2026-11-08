@@ -16,7 +16,7 @@
  *
  * Section references (§…) point to the specification of the self-paced quiz,
  * which is not in the public repository (see "References in code comments" in
- * the README).
+ * docs/DEVELOPMENT.md).
  */
 import { t, n } from './l10n.js'
 import { HEATMAP_THRESHOLD } from './format.js'

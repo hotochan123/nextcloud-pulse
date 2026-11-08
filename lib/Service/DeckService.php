@@ -62,8 +62,14 @@ class DeckService {
         private ITimeFactory $timeFactory,
         private IL10N $l10n,
         private Limits $limits,
+        // the switch "AI help" in the room view
+        ?ModerationService $moderation = null,
     ) {
+        $this->moderation = $moderation;
     }
+
+    /** Not promoted: tests build the service without its constructor, then it stays null. */
+    private ?ModerationService $moderation = null;
 
     // ── Polls ─────────────────────────────────────────────────────────────────
 
@@ -109,7 +115,14 @@ class DeckService {
      */
     public function updatePoll(Room $room, int $pollId, array $data): Poll {
         $poll = $this->requirePollInRoom($room, $pollId);
+        // Hidden answers stay hidden when the question is only reworded; a new
+        // type has other answers, so its state starts empty.
+        $oldType = $poll->getType();
+        $mod = $poll->getModeration();
         $this->applyPollData($poll, $data, $room->getMode() === 'quiz');
+        if ($mod !== [] && $poll->getType() === $oldType) {
+            $poll->setModeration($mod);
+        }
         // New content, votes gone — then the old progress state no longer
         // applies either. If 'locked'/startedAt stayed, the edited question
         // and its solution would show up as "revealed" in the overall summary at once.
@@ -550,12 +563,21 @@ class DeckService {
             fn (Poll $p) => $this->ownerPoll($p),
             $polls,
         );
-        return $data;
+        // Switch "AI help": its menu item only shows with a provider set up.
+        return $data + [
+            'aiHelp' => $this->moderation?->aiHelp($room) ?? false,
+            'aiAvailable' => $this->moderation?->aiAvailable($room->getOwnerUid()) ?? false,
+        ];
     }
 
     public function resetPoll(Room $room, int $pollId): void {
         $poll = $this->requirePollInRoom($room, $pollId);
         $this->voteMapper->deleteByPoll($poll->getId());
+        // A fresh start of the question: nothing hidden, nothing held back.
+        if ($poll->getModeration() !== []) {
+            $poll->setModeration([]);
+            $this->pollMapper->update($poll);
+        }
     }
 
     /** Pause voting (no new votes), results are kept. */

@@ -156,6 +156,7 @@ class ControllerInputTest extends TestCase {
             'index' => ['index', [], false],
             'summary' => ['summary', $c, false],
             'exportCsv' => ['exportCsv', $c, false],
+            'saveCsvToFiles' => ['saveCsvToFiles', $c, false],
             'create' => ['create', [], false],
             'duplicate' => ['duplicate', $c, false],
             'rename' => ['rename', $c, false],
@@ -181,6 +182,10 @@ class ControllerInputTest extends TestCase {
             'showImage' => ['showImage', $p, false],
             'lockPoll' => ['lockPoll', $p, false],
             'unlockPoll' => ['unlockPoll', $p, false],
+            'moderateAnswer' => ['moderateAnswer', $p, false],
+            'aiHelp' => ['aiHelp', $c, false],
+            'groupAnswers' => ['groupAnswers', $p, false],
+            'gradeSuggestion' => ['gradeSuggestion', $p, false],
             'demoSeed' => ['demoSeed', $c, false],
             'demoClear' => ['demoClear', $c, false],
         ];
@@ -572,6 +577,10 @@ class ControllerInputTest extends TestCase {
             $this->time,
             $this->createMock(ILimiter::class),
             new \OCA\Pulse\Service\Limits($this->createMock(\OCP\IAppConfig::class)),
+            $this->createMock(\OCA\Pulse\Service\FilesExportService::class),
+            $this->createMock(\OCA\Pulse\Service\ModerationService::class),
+            $this->createMock(\OCA\Pulse\Service\ThemeService::class),
+            $this->createMock(\OCA\Pulse\Service\GradingSuggestionService::class),
         );
     }
 

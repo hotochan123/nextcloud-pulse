@@ -150,8 +150,12 @@ export default {
 .splot-spoke { position: absolute; font-weight: 700; white-space: nowrap; line-height: 1.15; padding-block: 0.14em; color: var(--pulse-text); }
 .splot-pole--top { left: 50%; top: -0.2em; transform: translate(-50%, -100%); }
 .splot-pole--bottom { left: 50%; bottom: -0.2em; transform: translate(-50%, 100%); }
-.splot-pole--left { left: -0.4em; top: 50%; transform: translate(-100%, -50%); }
+.splot-pole--left { left: -0.4em; top: 50%; transform: translate(-100%, -50%); text-align: right; }
 .splot-pole--right { right: -0.4em; top: 50%; transform: translate(100%, -50%); }
+/* Long poles: left and right wrap inside the 5em reserve beside the square,
+   top and bottom keep one line within the square and its reserve ("…"). */
+.splot-pole--left, .splot-pole--right { white-space: normal; max-width: 4.6em; overflow-wrap: anywhere; }
+.splot-pole--top, .splot-pole--bottom { max-width: calc(100% + 9em); overflow: hidden; text-overflow: ellipsis; }
 /* A corner label names its quadrant and stays in it: at most half the field
    minus the inset and the same gap again before the axis, two lines, then
    "…". The server keeps 40 characters (DeckService::buildCorners); on one

@@ -15,8 +15,7 @@ use OCA\Pulse\Db\Vote;
  * no DB access (it is handed Poll + Vote[]), so that it is easy to test.
  *
  * Section references (§…) point to the design notes of the redesign, which are
- * not in the public repository (see "References in code comments" in the
- * README).
+ * not in the public repository (see "References in code comments" in docs/DEVELOPMENT.md).
  */
 class TallyService {
 

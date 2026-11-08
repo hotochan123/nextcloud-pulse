@@ -385,7 +385,7 @@ class SelfVoteTest extends TestCase {
         $this->existing = $this->vote11(['value' => 'Saturn', 'points' => 0, 'correct' => false, 'elapsed' => 5, 'norm' => 'saturn', 'pending' => true, 'limit' => 20, 'fw' => 3], self::NOW);
         $this->existing->setPollId(13);
         $this->keyAfterRead = json_encode(['accepted' => ['Jupiter', 'Venus'], 'rejected' => ['Mars']]);
-        $this->pace->expects($this->never())->method('assertStillJoined');
+        $this->pace->expects($this->never())->method('assertStillJoinedAfterWrite');
 
         $this->vote('Venus', pollId: 13);
 
@@ -442,7 +442,7 @@ class SelfVoteTest extends TestCase {
 
     public function testAfterSavingThePlayerIsCheckedAgain(): void {
         $this->open = $this->row(11, self::NOW - 5);
-        $this->pace->expects($this->once())->method('assertStillJoined')
+        $this->pace->expects($this->once())->method('assertStillJoinedAfterWrite')
             ->with($this->isInstanceOf(Room::class), self::TOK);
 
         $this->vote('BB');
@@ -452,7 +452,7 @@ class SelfVoteTest extends TestCase {
         // assertStillJoined has cleaned up and reports the same as a removal
         // milliseconds earlier.
         $this->open = $this->row(11, self::NOW - 5);
-        $this->pace->method('assertStillJoined')
+        $this->pace->method('assertStillJoinedAfterWrite')
             ->willThrowException(new \InvalidArgumentException('Please choose a name first.'));
 
         $this->expectException(\InvalidArgumentException::class);

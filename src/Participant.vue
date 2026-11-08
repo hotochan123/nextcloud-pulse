@@ -5,6 +5,11 @@
 <template>
 	<div class="pulse-part">
 		<div class="sheet">
+			<!-- Switch "AI help" of the room: said before anyone answers (only the
+			     answer texts go to the AI, never names). Above every screen of the room. -->
+			<p v-if="aiHelp && roomExists && !review" class="ai-notice" role="note">
+				<PulseIcon name="flag" size="1em" /> {{ t('pulse', 'Free-text answers are evaluated with AI') }}
+			</p>
 			<!-- Join: enter the 6-character code (§4.6 — its own step, unchanged here) -->
 			<!-- Overall summary: all questions with the result + your own answer.
 			     Sits deliberately BEFORE the live branches and lies on top of them; as soon as the
@@ -524,7 +529,7 @@
 /*
  * The participant view (phone). Section references (§…) point to the design
  * notes of the redesign and of the self-paced quiz, which are not in the public
- * repository (see "References in code comments" in the README).
+ * repository (see "References in code comments" in docs/DEVELOPMENT.md).
  */
 import axios from '@nextcloud/axios'
 import { PHONE_TIMEOUT, publicApi, pollImage, participantPage, joinPage } from './util/routes.js'
@@ -555,6 +560,7 @@ export default {
 			reviewBusy: false,
 			reviewAt: 0,        // question ID when opened — if it changes, we close
 			practice: false,
+			aiHelp: false,
 			poll: null,
 			results: null,
 			voted: false,
@@ -1101,6 +1107,7 @@ export default {
 				this.roomTitle = data.room.title || ''
 			}
 			if ('practice' in data) this.practice = !!data.practice
+			this.aiHelp = !!data.aiHelp
 			this.serverSkew = (data.serverNow || Math.floor(Date.now() / 1000)) - Math.floor(Date.now() / 1000)
 			// Quiz extras (keys only present in quiz mode)
 			if ('nickname' in data) this.nickname = data.nickname
@@ -1649,10 +1656,11 @@ export default {
 	50% { transform: scale(1.3); opacity: 1; }
 }
 
-.q { font-size: var(--t-h2); line-height: 1.25; margin: 0 0 24px; }
+.q { font-size: var(--t-h2); line-height: 1.25; margin: 0 0 24px; overflow-wrap: anywhere; }
 
 /* Practice-run chip (replaces .practice-tag) */
 .practice-chip { margin: 0 0 14px; }
+.ai-notice { display: flex; align-items: center; gap: 0.4em; margin: 0 0 12px; padding: 6px 10px; border-radius: var(--pulse-r-el); background: var(--pulse-primary-soft); color: var(--pulse-text); font-size: 0.85em; }
 
 /* Countdown */
 .timer { display: flex; align-items: center; gap: 12px; margin-bottom: 22px; }
@@ -1708,7 +1716,8 @@ export default {
 .choice-badge { flex: 0 0 32px; width: 32px; height: 32px; border-radius: 8px; font-size: 15px; }
 .choice.is-quiz .choice-badge { background: var(--opt-ink, var(--pulse-on-primary)); color: var(--opt-fill, var(--pulse-primary)); }
 .choice-tick { margin-left: auto; flex: 0 0 auto; }
-.choice-label { flex: 1; min-width: 0; }
+/* A word without break points (a URL, 24 capitals) breaks anywhere instead of widening the card past the screen. */
+.choice-label { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .choice:hover:not(:disabled) { border-color: var(--pulse-primary); }
 .choice:active:not(:disabled) { transform: translateY(2px); }
 /* NC dims native buttons globally with `opacity: .5` — that would take the
@@ -1729,6 +1738,8 @@ export default {
 	background: var(--pulse-bg); color: var(--pulse-text);
 	font-size: var(--t-body); font-weight: 600;
 	padding: 16px 18px; width: 100%; box-sizing: border-box;
+	/* Nextcloud's own input rule adds a 3 px margin on the right: at full width the field stuck out of its column. */
+	margin: 0;
 }
 .pulse-input.is-lg { font-size: var(--t-lead); text-align: center; }
 .pulse-input:focus { outline: none; border-color: var(--pulse-primary); }
@@ -1791,7 +1802,7 @@ export default {
 .scale-range.is-self { --thumb: var(--pulse-self); }
 
 .scale-ends { display: flex; justify-content: space-between; font-size: var(--t-cap); color: var(--pulse-text-2); gap: 12px; }
-.scale-ends span { max-width: 45%; }
+.scale-ends span { max-width: 45%; min-width: 0; overflow-wrap: anywhere; }
 .scale-ends span:last-child { text-align: right; }
 
 /* Spectrum: BIPOLAR sliders — fill from the neutral mark to the thumb (§3.1).
@@ -1799,8 +1810,8 @@ export default {
 .spectrum-field { display: flex; flex-direction: column; gap: 18px; }
 .aspect { display: flex; flex-direction: column; gap: 6px; }
 .aspect-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
-.aspect-name { font-weight: 700; font-size: var(--t-body); }
-.aspect-val { font-family: var(--pulse-mono); font-weight: 800; color: var(--pulse-text); font-variant-numeric: tabular-nums; font-size: var(--t-body); }
+.aspect-name { min-width: 0; overflow-wrap: anywhere; font-weight: 700; font-size: var(--t-body); }
+.aspect-val { flex: 0 0 auto; font-family: var(--pulse-mono); font-weight: 800; color: var(--pulse-text); font-variant-numeric: tabular-nums; font-size: var(--t-body); }
 .aspect-val.is-neutral { color: var(--pulse-text-2); }
 .track-wrap { position: relative; }
 /* The tick sits BELOW the slider: the opaque thumb covers it, the
@@ -1833,12 +1844,12 @@ export default {
 .pad-wrap { display: flex; flex-direction: column; align-items: center; gap: 6px; }
 /* All four pole labels horizontal (§8.4): top and bottom outside, left and
    right inside at the edge. Rotated in tiny type they were unreadable. */
-.pad-pole { font-size: var(--t-sm); font-weight: 600; color: var(--pulse-meta); text-align: center; max-width: 18ch; }
-.pad-side { position: absolute; top: 50%; transform: translateY(-50%); font-size: var(--t-cap); font-weight: 600; color: var(--pulse-meta); max-width: 8ch; }
+.pad-pole { font-size: var(--t-sm); font-weight: 600; color: var(--pulse-meta); text-align: center; max-width: 18ch; overflow-wrap: anywhere; }
+.pad-side { position: absolute; top: 50%; transform: translateY(-50%); font-size: var(--t-cap); font-weight: 600; color: var(--pulse-meta); max-width: 8ch; overflow-wrap: anywhere; }
 .pad-side-l { left: 6px; }
 .pad-side-r { right: 6px; text-align: right; }
 .axwords { display: flex; flex-direction: column; gap: 2px; }
-.axwords p { margin: 0; font-size: var(--t-body); font-weight: 600; }
+.axwords p { margin: 0; font-size: var(--t-body); font-weight: 600; overflow-wrap: anywhere; }
 .axwords-k { color: var(--pulse-meta); }
 .pad { position: relative; width: 100%; max-width: 220px; aspect-ratio: 1 / 1; border: 1.5px solid var(--pulse-border-strong); border-radius: 12px; background: var(--pulse-fill); touch-action: none; cursor: crosshair; }
 .pad-axis { position: absolute; background: var(--pulse-border-strong); }
@@ -1847,7 +1858,7 @@ export default {
 .pad-thumb { position: absolute; width: 34px; height: 34px; border-radius: 50%; background: var(--pulse-self); border: 3px solid var(--pulse-bg); box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35); transform: translate(-50%, -50%); }
 .pad:focus-within { outline: 2px solid var(--pulse-primary); outline-offset: 3px; }
 .axrow { display: flex; flex-direction: column; gap: 2px; }
-.axrow-name { font-weight: 700; font-size: var(--t-sm); color: var(--pulse-text); }
+.axrow-name { font-weight: 700; font-size: var(--t-sm); color: var(--pulse-text); overflow-wrap: anywhere; }
 
 /* Submit button (voting) + join submit */
 .submit-btn { width: 100%; margin-top: 4px; }
@@ -1912,9 +1923,10 @@ export default {
 	background: var(--pulse-bg); color: var(--pulse-text);
 	font-size: var(--t-body); font-weight: 600; text-align: left; cursor: pointer;
 }
-.mrow-cat { min-width: 0; padding-block: 0.14em; }
+/* A long item or target without spaces breaks; the chip may shrink to half the row. */
+.mrow-cat { min-width: 0; padding-block: 0.14em; overflow-wrap: anywhere; }
 .mrow-chip {
-	margin-left: auto; flex: 0 0 auto; min-height: 40px;
+	margin-left: auto; flex: 0 1 auto; min-width: 0; max-width: 50%; overflow-wrap: anywhere; min-height: 40px;
 	display: inline-flex; align-items: center; padding: 8px 14px;
 	border-radius: var(--pulse-r-pill); font-weight: 700;
 	background: var(--pulse-fill); color: var(--pulse-text-2);

@@ -65,6 +65,10 @@ class Limits {
     public const RATE_ADD_POLL = 'add_poll';
     public const RATE_UPLOAD_IMAGE = 'upload_image';
     public const RATE_DEMO = 'demo';
+    public const RATE_SAVE_FILE = 'save_file';
+    public const RATE_AI_DRAFT = 'ai_draft';
+    public const RATE_AI_SUMMARY = 'ai_summary';
+    public const RATE_AI_GRADE = 'ai_grade';
 
     private const DEFAULTS = [
         self::IMAGE_BYTES_PER_OWNER => 200 * 1024 * 1024,
@@ -89,6 +93,11 @@ class Limits {
         self::RATE_ADD_POLL => 120,
         self::RATE_UPLOAD_IMAGE => 30,
         self::RATE_DEMO => 30,
+        self::RATE_SAVE_FILE => 30,
+        // each one is a call to the AI provider the admin pays for
+        self::RATE_AI_DRAFT => 10,
+        self::RATE_AI_SUMMARY => 10,
+        self::RATE_AI_GRADE => 10,
     ];
 
     public function __construct(

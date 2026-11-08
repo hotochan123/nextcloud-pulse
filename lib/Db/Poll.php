@@ -112,7 +112,50 @@ class Poll extends Entity implements \JsonSerializable {
         if (isset($decoded['correct']) && is_array($decoded['correct'])) {
             $decoded['correct'] = self::idList($decoded['correct']);
         }
+        // The moderation state (hidden answers, AI check) lives in the same
+        // column but is never part of the solution: every public view reads
+        // the key through here, so hidden answer texts cannot leak with it.
+        unset($decoded[self::MOD_KEY]);
         return $decoded;
+    }
+
+    /** Sub-key of answer_key that holds the moderation state (ModerationService). */
+    public const MOD_KEY = 'mod';
+
+    /**
+     * Moderation state of the answers (hidden, held back, AI check), see
+     * ModerationService; [] when there is none.
+     */
+    public function getModeration(): array {
+        $decoded = json_decode((string)$this->getAnswerKey(), true);
+        $mod = is_array($decoded) ? ($decoded[self::MOD_KEY] ?? null) : null;
+        return is_array($mod) ? $mod : [];
+    }
+
+    /** Replace the moderation state, keeping the solution; [] removes it. */
+    public function setModeration(array $mod): void {
+        $decoded = json_decode((string)$this->getAnswerKey(), true);
+        if (!is_array($decoded)) {
+            $decoded = [];
+        }
+        if ($mod === []) {
+            unset($decoded[self::MOD_KEY]);
+        } else {
+            $decoded[self::MOD_KEY] = $mod;
+        }
+        $this->setAnswerKey($decoded === [] ? null : (string)json_encode($decoded, JSON_UNESCAPED_UNICODE));
+    }
+
+    /**
+     * Set the solution (JSON object or null) and keep the moderation state:
+     * grading and editing a question rewrite the key, the hidden answers stay hidden.
+     */
+    public function setSolutionKeepingModeration(?string $answerKey): void {
+        $mod = $this->getModeration();
+        $this->setAnswerKey($answerKey);
+        if ($mod !== []) {
+            $this->setModeration($mod);
+        }
     }
 
     /**

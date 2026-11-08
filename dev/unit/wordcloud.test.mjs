@@ -15,6 +15,9 @@
 // - Clouds whose words already fit are laid out exactly as before the width
 //   cap: `before()` is the algorithm as it was, and both have to give the same
 //   positions and sizes, to the last bit.
+// - A corner kept free (`reserve`, where WordCloud.vue lays its "+N more"
+//   tile) gets no word, GAP around it included, in every area, also with 300
+//   words (stress case S7.5); without it the layout stays bit for bit the same.
 // - The phone's word field (src/Participant.vue) takes as many characters as
 //   the server keeps, and its counter says so.
 //
@@ -255,6 +258,81 @@ test('an empty cloud and an area without size place nothing', () => {
 	assert.equal(fitCloud(new Map([['Kaffee', 1]]), box(0, 0)).placed, 0)
 })
 
+// ── The corner of the "+N more" tile stays free ─────────────────────────────
+
+// 300 distinct words, one mention each (S7.5), and the crowd with mixed counts.
+const S75 = new Map(Array.from({ length: 300 }, (_, i) => ['Wort' + String(i + 1).padStart(3, '0'), 1]))
+// Projector stage at 1920 × 1080 less its header, the 1280 × 720 minimum, a 4K
+// stage, and the phone's result card.
+const TILE_AREAS = [[1860, 860], [1240, 560], [3780, 1800], [390, 300]]
+// The tile as WordCloud.vue measures it: "+300 more" at 18 px with padding, 8 px from the corner.
+const tileOf = (W, H, w = 120, h = 34) => ({ left: W - 8 - w, top: H - 8 - h, right: W - 8, bottom: H - 8 })
+
+function assertClear(words, res, r, where) {
+	for (const word of res.layout.keys()) {
+		const b = boxOf(words, res, word)
+		const hits = b.right + GAP > r.left && b.left - GAP < r.right && b.bottom + GAP > r.top && b.top - GAP < r.bottom
+		assert.ok(!hits, `${where}: ${word} at ${b.left.toFixed(0)}…${b.right.toFixed(0)} × ${b.top.toFixed(0)}…${b.bottom.toFixed(0)} covers the tile`)
+	}
+}
+function assertApart(words, res, where) {
+	const boxes = [...res.layout.keys()].map((w) => [w, boxOf(words, res, w)])
+	for (let i = 0; i < boxes.length; i++) {
+		for (let j = i + 1; j < boxes.length; j++) {
+			const [a, A] = boxes[i], [b, B] = boxes[j]
+			const hits = A.right > B.left + EPS && A.left < B.right - EPS && A.bottom > B.top + EPS && A.top < B.bottom - EPS
+			assert.ok(!hits, `${where}: ${a} and ${b} overlap`)
+		}
+	}
+}
+
+test('no word covers the reserved tile corner, with 300 words and with a crowd, in every area', () => {
+	for (const words of [S75, CROWD]) {
+		for (const [W, H] of TILE_AREAS) {
+			const where = `${words.size} words at ${W}×${H}`
+			const reserve = tileOf(W, H)
+			const res = fitCloud(words, { ...box(W, H), reserve })
+			assert.ok(res.placed > 0, `${where}: words are placed`)
+			assertClear(words, res, reserve, where)
+			assertApart(words, res, where)
+			assertInside(words, res, { W, H })
+		}
+	}
+})
+
+test('without the corner kept free a full cloud does put words there (the bug the reserve fixes)', () => {
+	const [W, H] = TILE_AREAS[0]
+	const reserve = tileOf(W, H)
+	const res = fitCloud(CROWD, box(W, H))
+	assert.throws(() => assertClear(CROWD, res, reserve, 'free'))
+})
+
+test('a tile as wide as a four-digit count still keeps its corner free at the 1280 × 720 minimum', () => {
+	const [W, H] = TILE_AREAS[1]
+	const reserve = tileOf(W, H, 160, 34)
+	const res = fitCloud(S75, { ...box(W, H), reserve })
+	assertClear(S75, res, reserve, 'four digits')
+})
+
+test('reserve null or missing gives the layout of before, bit for bit', () => {
+	for (const words of [FIXTURE, DEMO, CROWD, S75]) {
+		for (const [W, H] of [...AREAS, ...TILE_AREAS]) {
+			const b = box(W, H)
+			const res = fitCloud(words, b)
+			assert.equal(plain(fitCloud(words, { ...b, reserve: null })), plain(res), `${W}×${H}`)
+			assert.equal(plain(res), plain(before(words, b)), `${words.size} words at ${W}×${H}`)
+		}
+	}
+})
+
+test('300 words with the corner kept free lay out in a few milliseconds', () => {
+	const [W, H] = TILE_AREAS[0]
+	const t0 = performance.now()
+	for (let i = 0; i < 5; i++) fitCloud(S75, { ...box(W, H), reserve: tileOf(W, H) })
+	const ms = (performance.now() - t0) / 5
+	assert.ok(ms < 100, `${ms.toFixed(1)} ms per layout`)
+})
+
 // ── The phone takes what the server keeps ─────────────────────────────────
 
 test('the phone word field and its counter match the server word length', () => {
@@ -272,7 +350,9 @@ test('the phone word field and its counter match the server word length', () => 
 test('WordCloud.vue lays out through util/wordcloud.js and keeps no copy of the spiral', () => {
 	const src = readFileSync(join(APP, 'src/components/WordCloud.vue'), 'utf8')
 	assert.match(src, /import \{ fitCloud \} from '\.\.\/util\/wordcloud\.js'/)
-	assert.match(src, /fitCloud\(this\._words, \{ W: this\._W, H: this\._H, minSize: this\.minSize, measure: this\.measure \}\)/)
+	assert.match(src, /const box = \{ W: this\._W, H: this\._H, minSize: this\.minSize, measure: this\.measure \}/)
+	assert.match(src, /fitCloud\(this\._words, box\)/)
+	assert.match(src, /fitCloud\(this\._words, \{ \.\.\.box, reserve \}\)/)
 	assert.doesNotMatch(src, /computeLayout|radius \+= 0\.9/)
 })
 

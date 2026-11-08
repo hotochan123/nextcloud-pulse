@@ -10,17 +10,22 @@
 		</div>
 		<p v-if="!readonly" class="tg-hint">{{ t('pulse', 'Approve (tick) or reject (cross) answers that are not obvious — identical spellings count along automatically.') }}</p>
 		<ul v-if="results.answers.length" class="tg-list">
-			<li v-for="a in results.answers" :key="a.norm" class="tg-row" :class="'is-' + a.status">
+			<li v-for="a in results.answers" :key="a.norm" class="tg-row" :class="['is-' + a.status, a.mod ? 'mod-' + a.mod : '']">
 				<span class="tg-count">{{ a.count }}×</span>
 				<span class="tg-text">{{ a.sample }}</span>
 
+				<!-- AI grading suggestion: a proposal only, flipped with one tap; it counts
+				     once the moderator accepts it (GradingSuggestion) -->
+				<button v-if="!readonly && aiSuggest && typeof a.ai === 'boolean'" type="button" class="tg-ai" :class="a.ai ? 'is-right' : 'is-wrong'" :disabled="busy" :title="t('pulse', 'Flip AI suggestion')" :aria-label="(a.ai ? t('pulse', 'AI: correct') : t('pulse', 'AI: wrong')) + ' – ' + t('pulse', 'Flip AI suggestion')" @click="$emit('flip', a.sample)"><PulseIcon :name="a.ai ? 'check' : 'close'" size="1em" /> {{ a.ai ? t('pulse', 'AI: correct') : t('pulse', 'AI: wrong') }}</button>
 				<!-- interactive: grade (correct/wrong), 44 px, shape+colour+text -->
 				<span v-if="!readonly" class="tg-actions">
 					<button class="tg-btn tg-ok" :class="{ 'is-on': a.status === 'accepted' }" :disabled="busy" :title="t('pulse', 'Mark as correct')" :aria-label="t('pulse', 'Mark as correct')" @click="$emit('grade', a.sample, true)"><PulseIcon name="check" size="1.15em" /></button>
 					<button class="tg-btn tg-no" :class="{ 'is-on': a.status === 'rejected' }" :disabled="busy" :title="t('pulse', 'Mark as wrong')" :aria-label="t('pulse', 'Mark as wrong')" @click="$emit('grade', a.sample, false)"><PulseIcon name="close" size="1.15em" /></button>
 				</span>
+				<!-- filter before the projector (moderated rooms; the server sends a.mod) -->
+				<ModerationControls v-if="moderatable && a.mod" :state="a.mod" :label="a.sample" :busy="busy" @moderate="(act) => $emit('moderate', a.sample, act)" />
 				<!-- read-only: status as a badge (shape+colour+text), openly visible -->
-				<span v-else class="tg-status" :class="'is-' + a.status">
+				<span v-if="readonly" class="tg-status" :class="'is-' + a.status">
 					<template v-if="a.status === 'accepted'"><PulseIcon name="check" size="1em" /> {{ t('pulse', 'correct') }}</template>
 					<template v-else-if="a.status === 'rejected'"><PulseIcon name="close" size="1em" /> {{ t('pulse', 'wrong') }}</template>
 					<template v-else>{{ t('pulse', 'open') }}</template>
@@ -37,13 +42,14 @@
 /*
  * Section references (§…) point to the design notes of the redesign and of the
  * self-paced quiz, which are not in the public repository (see "References in
- * code comments" in the README).
+ * code comments" in docs/DEVELOPMENT.md).
  */
 import PulseIcon from './ui/PulseIcon.vue'
+import ModerationControls from './ModerationControls.vue'
 
 export default {
 	name: 'TextGrading',
-	components: { PulseIcon },
+	components: { PulseIcon, ModerationControls },
 	props: {
 		results: { type: Object, required: true },
 		// read-only: same look, but without the grading buttons — this way
@@ -55,6 +61,10 @@ export default {
 		keyless: { type: Boolean, default: false },
 		// A grading request is running: both buttons off, no double tap.
 		busy: { type: Boolean, default: false },
+		// Hide/show buttons per answer (desk of a moderated room).
+		moderatable: { type: Boolean, default: false },
+		// Show the AI grading suggestion of each open answer (a.ai, desk only).
+		aiSuggest: { type: Boolean, default: false },
 	},
 	computed: {
 		acceptedList() {
@@ -86,6 +96,19 @@ export default {
 .tg-text { flex: 1; font-weight: 600; word-break: break-word; }
 .tg-row.is-accepted .tg-text { color: var(--pulse-success); }
 .tg-row.is-rejected .tg-text { text-decoration: line-through; opacity: 0.6; }
+.tg-row { flex-wrap: wrap; }
+.tg-text { flex-basis: 8em; min-width: 6em; }
+.tg-row.mod-hidden .tg-text { opacity: 0.55; font-style: italic; }
+.tg-row.mod-held { background: var(--pulse-warning-soft); }
+.tg-ai {
+	appearance: none; flex: 0 0 auto; display: inline-flex; align-items: center; gap: 0.3em;
+	min-height: 44px; padding: 0 0.7em; border-radius: var(--pulse-r-el); cursor: pointer;
+	font-size: 0.85em; font-weight: 700; border: 2px dashed currentColor; background: var(--pulse-bg);
+}
+.tg-ai.is-right { color: var(--pulse-success); }
+.tg-ai.is-wrong { color: var(--pulse-error); }
+.tg-ai:focus-visible { outline: 2px solid var(--pulse-primary); outline-offset: 2px; }
+.tg-ai:disabled { opacity: 0.55; cursor: default; }
 .tg-actions { flex: 0 0 auto; display: flex; gap: 0.4em; }
 .tg-btn {
 	appearance: none; width: 2.75em; min-width: 44px; height: 2.75em; min-height: 44px; border-radius: var(--pulse-r-el);

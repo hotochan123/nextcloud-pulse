@@ -2,7 +2,7 @@
 
 > Like the rest of Pulse, this handover was written by AI coding agents — the
 > app is vibe-coded (see
-> [How this app was built](../../README.md#how-this-app-was-built-ai-disclosure)
+> [How this app is built](../../README.md#how-this-app-is-built-ai-disclosure)
 > in the README). It is the working record of how stage 4 was built and
 > verified, kept for the next agent session and for any human reviewer.
 

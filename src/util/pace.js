@@ -15,7 +15,7 @@
  *
  * Section references (§…) point to the specification of the self-paced quiz,
  * which is not in the public repository (see "References in code comments" in
- * the README).
+ * docs/DEVELOPMENT.md).
  */
 
 // Deadline bounds as on the server (PaceService::MIN_LEAD / MAX_LEAD): [now+60 s, now+30 days].

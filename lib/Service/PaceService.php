@@ -685,7 +685,7 @@ class PaceService {
         if ($started) {
             // Separate from advance(): after a started row a repeated advance()
             // would see a stale $after and skip this check.
-            $this->retryAfterLockConflict(fn () => $this->assertStillJoined($room, $voterToken));
+            $this->assertStillJoinedAfterWrite($room, $voterToken);
         }
     }
 
@@ -777,6 +777,21 @@ class PaceService {
      * @throws \InvalidArgumentException 'Please choose a name first.'
      * @throws RoomGoneException          the room was deleted in the meantime
      */
+    /**
+     * assertStillJoined after a write outside the room lock (/vote, /next).
+     * Its locking read of the player can lose a deadlock against a removal at
+     * the same moment on MySQL/MariaDB: the read locks the (room_id,
+     * voter_token) index entry first and then the row, removePlayer's delete
+     * by id the row first and then the index entry. The read runs outside a
+     * transaction and may be repeated, like the other self-paced steps.
+     *
+     * @throws \InvalidArgumentException 'Please choose a name first.'
+     * @throws RoomGoneException          the room was deleted in the meantime
+     */
+    public function assertStillJoinedAfterWrite(Room $room, #[\SensitiveParameter] string $voterToken): void {
+        $this->retryAfterLockConflict(fn () => $this->assertStillJoined($room, $voterToken));
+    }
+
     public function assertStillJoined(Room $room, #[\SensitiveParameter] string $voterToken): void {
         if ($this->playerMapper->existsForUpdate($room->getId(), $voterToken)) {
             return;
@@ -812,7 +827,7 @@ class PaceService {
      * answer's verdict shows immediately — k-1 throwaway cookies find the
      * right option of a k-option question. Only the number of cookies is
      * bounded (join limits, caps, "Lock joining"). Holding answered questions
-     * until the limit would break the race; the README's security notes
+     * until the limit would break the race; the security notes in docs/ADMIN.md
      * recommend feedback 'end' and identifiable participants for graded use.
      */
     private function previewLocked(Room $room, Poll $poll, Progress $open, #[\SensitiveParameter] string $voterToken, int $now): bool {

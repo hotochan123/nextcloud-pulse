@@ -9,6 +9,64 @@ this file, so every published version needs an entry here.
 
 ## [Unreleased]
 
+## [0.21.1] - 2026-11-08
+
+Includes everything of 0.21.0, which was not published in the App Store.
+
+### Added
+- AI features, using the AI provider your Nextcloud admin set up (only shown
+  when there is one). Only question and answer texts, the topic or the chosen
+  file's text go to the AI, never names:
+  - Quiz composer: the "AI" button drafts 5–10 single- and multiple-choice
+    questions from a topic or a file in your Nextcloud; you pick which ones
+    to keep.
+  - Room switch "AI help" (off by default): the AI checks new free-text and
+    word-cloud answers before they reach the projector; "Suggest grading
+    with AI" proposes right or wrong for open free-text quiz answers, nothing
+    counts until you accept.
+  - "Group with AI" in polls sorts free-text and word-cloud answers into 2–6
+    themes you can show on the projector. The titles come in the language you
+    use Nextcloud in and name what the answers have in common.
+  - "Summary with AI" on the results overview writes an editable Markdown
+    summary of a round and saves it in your files.
+  - Admin section "Pulse": switch all AI features off at once ("Allow AI in
+    Pulse", on by default) and limit AI requests per account and day
+    (default 30). Before an account's first AI use a short notice explains
+    each AI feature and what it sends to the AI provider.
+  - How good the AI results are depends on the model set up in Nextcloud.
+    Pulse is tested with Mistral Small 4 (via Infomaniak); smaller or local
+    models may give weaker results, and the prompts keep being improved.
+- Hide answers before the projector: one tap on the desk hides a free-text or
+  word-cloud answer (and every equal one) from projector and phones; "Show"
+  brings it back, the CSV keeps it marked "(hidden)". Self-paced quizzes can
+  hide free-text answers on the results overview too.
+- "Save in Files": the results CSV goes into the folder "Pulse" of your
+  Nextcloud files, never over an existing file.
+- Projector in a window smaller than 1280×720: a slim band says the window is
+  too small; it leaves by itself once the window is large enough.
+- Scale results on phones and in the desk's narrow preview: when the vote
+  counts above the histogram columns do not fit, tapping a column shows its
+  value and votes.
+
+### Changed
+- The projector page is made for windows of 1280×720 and larger; smaller
+  windows such as the PowerPoint embed still work as well as the space
+  allows.
+
+### Fixed
+- Projector: long questions always show whole (smaller text instead of "…");
+  long or two-line answer options, explanations, words without spaces and
+  many free-text answers no longer run over each other or off the stage in
+  any window from 1280×720 up; an empty multiple-answer reveal fits; the
+  word cloud's "+N more" no longer covers a word; spectrum names that do not
+  fit are listed beside the chart.
+- Phone: long words, web addresses and numbers break instead of running past
+  the screen (also at 200 % zoom); long compass axis names wrap; scale
+  histograms with many values fit the width; "shared" in the final standings
+  no longer covers "N correct".
+- Desk: the question list and the self-paced progress view wrap long
+  questions instead of cutting them.
+
 ## [0.20.2] - 2026-11-05
 
 ### Fixed

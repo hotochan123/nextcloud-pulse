@@ -5,7 +5,7 @@
 // moderator's primary action, join and answer on a phone. Selectors are roles, texts and the components' own
 // classes; the app has no test-only attributes.
 
-import { APP, CheckError, expect, until } from './harness.mjs'
+import { APP, CheckError, appApi, expect, until } from './harness.mjs'
 
 // Every question type, the poll's five (scale in its three modes) and the quiz's seven. `right` and `wrong`
 // say how a phone answers in the quiz; the poll answers are in POLL_ANSWERS.
@@ -283,4 +283,12 @@ export async function answer(page, q, answerSpec, { quiz = false, paced = false 
 
 export function expectEqual(actual, wanted, label) {
 	expect(JSON.stringify(actual) === JSON.stringify(wanted), label, { actual, wanted })
+}
+
+/**
+ * The test account confirms the AI notice over the API, so a case about an AI feature is not stopped by it
+ * (the case admin shows the notice itself, with a fresh account).
+ */
+export async function confirmAiNotice() {
+	await appApi('POST', '/api/1.0/ai/notice')
 }

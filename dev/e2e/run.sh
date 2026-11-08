@@ -22,7 +22,7 @@
 # `npm ci` on the first run (needs the registry once), offline afterwards.
 #
 # Env: IMAGE (nextcloud:34-apache), KEEP=1, PULSE_E2E_URL / _USER / _PASS, and the knobs of e2e.mjs
-# (PULSE_E2E_ONLY, PULSE_E2E_REPEAT, PULSE_E2E_TIMEOUT, PULSE_E2E_SELFTEST), passed through.
+# (PULSE_E2E_ONLY, PULSE_E2E_REPEAT, PULSE_E2E_TIMEOUT, PULSE_E2E_SELFTEST, PULSE_E2E_SEED, PULSE_E2E_SWEEP, PULSE_E2E_COLLECT, PULSE_E2E_CATALOG), passed through.
 # Output: one line per case (ok <case> / FAIL <case>: <message>), last line E2E <ok>/<failed>; the report and a
 # screenshot per red case go to a fresh directory named on stderr.
 # Exit: 0 all green, 1 a case failed, 2 the stack or the browser did not come up.
@@ -80,6 +80,7 @@ else
 	docker run -d --name "$C-redis" redis:7-alpine redis-server --requirepass "$REDIS_PASS" >/dev/null \
 		|| fail "redis did not start"
 	docker run -d --name "$C" --link "$C-redis:redis" -v "$APP:/var/www/html/custom_apps/pulse:ro" \
+		-v "$APP/dev/e2e/fakeai:/var/www/html/custom_apps/pulse_fakeai:ro" \
 		-e NEXTCLOUD_ADMIN_USER=admin -e NEXTCLOUD_ADMIN_PASSWORD="$ADMIN_PASS" -e NEXTCLOUD_TRUSTED_DOMAINS=localhost \
 		-e SQLITE_DATABASE=nextcloud -e REDIS_HOST=redis -e REDIS_HOST_PASSWORD="$REDIS_PASS" "$IMAGE" >/dev/null \
 		|| fail "Nextcloud container did not start"
@@ -97,9 +98,14 @@ else
 	# the welcome dialog of a fresh account would lie over the desk
 	occ app:disable firstrunwizard >/dev/null 2>&1 || true
 	out="$(occ app:enable pulse 2>&1)" || fail "occ app:enable pulse failed: $out"
+	# cases filter, ai and summary: a fake text-generation provider and the worker that runs its tasks at once
+	out="$(occ app:enable --force pulse_fakeai 2>&1)" || fail "occ app:enable pulse_fakeai failed: $out"
+	docker exec -d -u 33 "$C" php occ taskprocessing:worker --interval=1 || fail "the task processing worker did not start"
 	docker exec -u 33 -e OC_PASS="$USER_PASS" "$C" php occ user:add --password-from-env --display-name=Alice alice >/dev/null \
 		|| fail "user alice could not be added"
 	occ user:setting alice core lang en >/dev/null
+	# case admin: the test account opens the admin section "Pulse" and adds a throwaway account
+	occ group:adduser admin alice >/dev/null || fail "alice could not be made an admin"
 	# Right after app:enable the web server may still answer 404 on Pulse's routes. Probe with another Host
 	# header (localhost:1) so the route cache of "localhost", which the browser uses, is not filled without Pulse.
 	ready=""
@@ -119,7 +125,7 @@ set +e
 docker run --rm --init --name "$C-browser" "${NET[@]}" --shm-size=1g \
 	-v "$APP/dev/e2e:/work:ro" -v "$PW_VOLUME:/deps:ro" -v "$OUT:/out" \
 	-e PULSE_E2E_URL="$URL" -e PULSE_E2E_USER="$USER_NAME" -e PULSE_E2E_PASS="$USER_PASS" \
-	-e PULSE_E2E_ONLY -e PULSE_E2E_REPEAT -e PULSE_E2E_TIMEOUT -e PULSE_E2E_SELFTEST -e PULSE_E2E_SHOTS \
+	-e PULSE_E2E_ONLY -e PULSE_E2E_REPEAT -e PULSE_E2E_TIMEOUT -e PULSE_E2E_SELFTEST -e PULSE_E2E_SHOTS -e PULSE_E2E_SEED -e PULSE_E2E_SWEEP -e PULSE_E2E_COLLECT -e PULSE_E2E_CATALOG -e PULSE_E2E_TRACE \
 	-e PULSE_E2E_PW=/deps/node_modules/playwright-core/index.mjs -e PULSE_E2E_OUT=/out \
 	-w /work "$PW_IMAGE" node /work/e2e.mjs
 rc=$?

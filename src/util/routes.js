@@ -40,6 +40,30 @@ export function roomsApi() {
 }
 
 /**
+ * Whether the AI quiz draft is available (a text-generation provider is set up).
+ * @return {string} URL
+ */
+export function aiApi() {
+	return generateUrl('/apps/pulse/api/1.0/ai')
+}
+
+/**
+ * The account confirms the AI notice (POST).
+ * @return {string} URL
+ */
+export function aiNoticeApi() {
+	return generateUrl('/apps/pulse/api/1.0/ai/notice')
+}
+
+/**
+ * Admin section: allow AI, daily limit (POST, admins only).
+ * @return {string} URL
+ */
+export function adminAiApi() {
+	return generateUrl('/apps/pulse/api/1.0/admin/ai')
+}
+
+/**
  * Moderator API of one room.
  * @param {string} code room code
  * @param {string} [suffix] path below the room, e.g. '/pace' or '/polls/12/grade'
@@ -132,4 +156,14 @@ export function addinManifest() {
  */
 export function openProjector(code) {
 	window.open(window.location.origin + screenPage(code), 'pulse-beamer-' + code)
+}
+
+/**
+ * A file in the user's Nextcloud files: the core route /f/{fileId} opens it
+ * in the Files app (not a Pulse route).
+ * @param {number} fileId file id from the server
+ * @return {string} URL
+ */
+export function filesLink(fileId) {
+	return generateUrl('/f/{fileId}', { fileId })
 }

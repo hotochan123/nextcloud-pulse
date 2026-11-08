@@ -10,8 +10,7 @@
  * without a DOM, so dev/unit/wordcloud.test.mjs runs it in plain Node.
  *
  * Section references (§…) point to the design notes of the redesign, which are
- * not in the public repository (see "References in code comments" in the
- * README).
+ * not in the public repository (see "References in code comments" in docs/DEVELOPMENT.md).
  */
 
 export const GAP = 9 // minimum gap between word boxes (px)
@@ -38,12 +37,14 @@ export function sizeScale(W, H) {
  * Collision-free spiral placement. `shrink` scales the size range down
  * globally (fit loop).
  * @param {Map<string, number>} words display word -> frequency
- * @param {{W:number, H:number, minSize:number, measure:function(string, number):number}} box
- *   area size, lower bound of the word size, and the width in px of a text set bold at a size in px
+ * @param {{W:number, H:number, minSize:number, measure:function(string, number):number, reserve:?{left:number, top:number, right:number, bottom:number}}} box
+ *   area size, lower bound of the word size, the width in px of a text set bold at a size in px, and
+ *   optionally a rectangle (px, origin at the top left of the area) that no word may cover, GAP around it
+ *   included: the corner where the component lays its "+{count} more" tile over the cloud
  * @param {number} shrink factor on the size range (1 … 0.5)
  * @return {{layout:Map<string, {x:number, y:number, size:number}>, placed:number, attempted:number, hidden:number}}
  */
-export function layoutCloud(words, { W, H, minSize, measure }, shrink) {
+export function layoutCloud(words, { W, H, minSize, measure, reserve }, shrink) {
 	const res = { layout: new Map(), placed: 0, attempted: 0, hidden: 0 }
 	if (!words.size || W < 2 || H < 2) return res
 	let entries = [...words.entries()].sort((a, b) => b[1] - a[1]) // most frequent first
@@ -86,8 +87,9 @@ export function layoutCloud(words, { W, H, minSize, measure }, shrink) {
 			x = cx0 + radius * Math.cos(angle)
 			y = cy0 + radius * Math.sin(angle) * 0.82 // ellipse: a bit wider than tall, but fills the area
 			if (x - w / 2 >= MARGIN && x + w / 2 <= W - MARGIN && y - h / 2 >= MARGIN && y + h / 2 <= H - MARGIN) {
-				let hit = false
-				for (const p of placed) {
+				let hit = !!reserve && x + w / 2 + GAP > reserve.left && x - w / 2 - GAP < reserve.right &&
+					y + h / 2 + GAP > reserve.top && y - h / 2 - GAP < reserve.bottom
+				if (!hit) for (const p of placed) {
 					if (Math.abs(x - p.x) < (w + p.w) / 2 + GAP && Math.abs(y - p.y) < (h + p.h) / 2 + GAP) { hit = true; break }
 				}
 				if (!hit) { ok = true; break }

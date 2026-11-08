@@ -11,11 +11,16 @@ use OCA\Pulse\AppInfo\Application;
 use OCA\Pulse\Db\Poll;
 use OCA\Pulse\Db\Room;
 use OCA\Pulse\Db\RoomMapper;
+use OCA\Pulse\Service\AiDraftException;
 use OCA\Pulse\Service\ConflictException;
 use OCA\Pulse\Service\DeckService;
 use OCA\Pulse\Service\DemoService;
+use OCA\Pulse\Service\FilesExportException;
+use OCA\Pulse\Service\FilesExportService;
 use OCA\Pulse\Service\Input;
+use OCA\Pulse\Service\GradingSuggestionService;
 use OCA\Pulse\Service\Limits;
+use OCA\Pulse\Service\ModerationService;
 use OCA\Pulse\Service\NotOwnerException;
 use OCA\Pulse\Service\PaceService;
 use OCA\Pulse\Service\PaceStateService;
@@ -24,6 +29,7 @@ use OCA\Pulse\Service\PollNotFoundException;
 use OCA\Pulse\Service\RoomGoneException;
 use OCA\Pulse\Service\RoomService;
 use OCA\Pulse\Service\StateService;
+use OCA\Pulse\Service\ThemeService;
 use OCA\Pulse\Service\VoteService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Db\DoesNotExistException;
@@ -94,6 +100,13 @@ class RoomApiController extends Controller {
         private ITimeFactory $timeFactory,
         private ILimiter $limiter,
         private Limits $limits,
+        private FilesExportService $filesExport,
+        // filter before the projector; null only in tests that do not reach it
+        private ?ModerationService $moderation = null,
+        // "Group with AI"; null only in tests that do not reach it
+        private ?ThemeService $themes = null,
+        // AI grading suggestion; null only in tests that do not reach it
+        private ?GradingSuggestionService $grading = null,
     ) {
         parent::__construct(Application::APP_ID, $request);
     }
@@ -139,6 +152,26 @@ class RoomApiController extends Controller {
                 'pulse-' . $room->getCode() . '-' . $this->l10n->t('results') . '.csv',
                 'text/csv; charset=utf-8',
             );
+        });
+    }
+
+    /**
+     * The summary's results CSV (the same content as exportCsv without a
+     * view) saved into the moderator's Files, folder "Pulse". 201 with the
+     * new file's id and name; a Files problem is a 409 with its message.
+     * Rate-limited: every call writes a new file.
+     */
+    #[NoAdminRequired]
+    public function saveCsvToFiles(string $code): JSONResponse {
+        if ($limited = $this->rateLimited(Limits::RATE_SAVE_FILE)) {
+            return $limited;
+        }
+        return $this->withRoom($code, function ($room) {
+            try {
+                return new JSONResponse($this->filesExport->saveResults($room, $this->uid()), Http::STATUS_CREATED);
+            } catch (FilesExportException $e) {
+                return new JSONResponse(['message' => $e->getMessage()], Http::STATUS_CONFLICT);
+            }
         });
     }
 
@@ -503,6 +536,91 @@ class RoomApiController extends Controller {
             $this->liveControl($room, fn (Room $r) => $this->deckService->unlockPoll($r, $pollId));
             return new JSONResponse([]);
         }, Http::STATUS_NOT_FOUND);
+    }
+
+    /**
+     * Hide a free-text or word-cloud answer from the projector, or show it
+     * again (also lets an answer the AI held back through).
+     * Body: { answer: string, action: 'hide'|'show' }. Answers with the
+     * fresh moderator results of the question.
+     */
+    #[NoAdminRequired]
+    public function moderateAnswer(string $code, int $pollId): JSONResponse {
+        return $this->withRoom($code, function ($room) use ($pollId) {
+            $answer = Input::rawStr($this->request->getParam('answer'));
+            $action = Input::str($this->request->getParam('action'));
+            $this->moderationService()->moderate($room, $pollId, $answer, $action);
+            return new JSONResponse($this->stateService->results($room, $pollId));
+        }, Http::STATUS_BAD_REQUEST);
+    }
+
+    /**
+     * The room's switch "AI help". Body: { on: bool }. 409 without a provider or before the AI notice is confirmed (notice: true).
+     * Answers with the room view.
+     */
+    #[NoAdminRequired]
+    public function aiHelp(string $code): JSONResponse {
+        return $this->withRoom($code, function ($room) {
+            $on = Input::flag($this->request->getParam('on')) ?? throw new \InvalidArgumentException($this->l10n->t('Invalid request.'));
+            try {
+                $this->moderationService()->setAiHelp($room, $on);
+            } catch (AiDraftException $e) {
+                return new JSONResponse(['message' => $e->getMessage()] + $e->data(), $e->status());
+            }
+            return new JSONResponse($this->deckService->roomView($room));
+        }, Http::STATUS_BAD_REQUEST);
+    }
+
+    /**
+     * "Group with AI" for a free-text or word-cloud question. Body:
+     * { action: 'start'|'show'|'hide' } – start the grouping, release the
+     * themes to the projector, take them back. 409 while "AI help" is off,
+     * without a provider, before the AI notice is confirmed (notice: true) or
+     * while a grouping runs, 429 at the daily AI limit. Answers with the fresh
+     * moderator results of the question.
+     */
+    #[NoAdminRequired]
+    public function groupAnswers(string $code, int $pollId): JSONResponse {
+        return $this->withRoom($code, function ($room) use ($pollId) {
+            $action = Input::str($this->request->getParam('action'));
+            try {
+                ($this->themes ?? throw new \LogicException('ThemeService missing'))->act($room, $pollId, $action);
+            } catch (AiDraftException $e) {
+                return new JSONResponse(['message' => $e->getMessage()] + $e->data(), $e->status());
+            }
+            return new JSONResponse($this->stateService->results($room, $pollId));
+        }, Http::STATUS_BAD_REQUEST);
+    }
+
+    /**
+     * AI grading suggestion for a free-text question of a live quiz. Body:
+     * { action: 'start'|'flip'|'accept', answer?: string } – ask the AI for a
+     * proposal per open answer, flip one proposal, grade every open answer
+     * with its proposal. 409 while "AI help" is off, without a provider, before
+     * the AI notice is confirmed (notice: true), while a suggestion runs or when
+     * there is nothing to flip or accept, 429 at the daily AI limit. Answers
+     * with the fresh moderator results of the question.
+     */
+    #[NoAdminRequired]
+    public function gradeSuggestion(string $code, int $pollId): JSONResponse {
+        $action = Input::str($this->request->getParam('action'));
+        // each start is a call to the AI provider the admin pays for
+        if ($action === 'start' && ($limited = $this->rateLimited(Limits::RATE_AI_GRADE))) {
+            return $limited;
+        }
+        return $this->withRoom($code, function ($room) use ($pollId, $action) {
+            $answer = Input::rawStr($this->request->getParam('answer'));
+            try {
+                ($this->grading ?? throw new \LogicException('GradingSuggestionService missing'))->act($room, $pollId, $action, $answer);
+            } catch (AiDraftException $e) {
+                return new JSONResponse(['message' => $e->getMessage()] + $e->data(), $e->status());
+            }
+            return new JSONResponse($this->stateService->results($room, $pollId));
+        }, Http::STATUS_BAD_REQUEST);
+    }
+
+    private function moderationService(): ModerationService {
+        return $this->moderation ?? throw new \LogicException('ModerationService missing');
     }
 
     /**

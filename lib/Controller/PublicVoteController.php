@@ -78,8 +78,7 @@ use OCP\Security\RateLimiting\IRateLimitExceededException;
  *    are limited per address and room as well (NEW_PRESENCE_LIMIT).
  *
  * Section references (§…) point to the design notes of the redesign, which are
- * not in the public repository (see "References in code comments" in the
- * README).
+ * not in the public repository (see "References in code comments" in docs/DEVELOPMENT.md).
  */
 class PublicVoteController extends Controller {
     /** Brute-force action for unknown room codes (IThrottler). */

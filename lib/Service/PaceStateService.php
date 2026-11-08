@@ -359,7 +359,7 @@ class PaceStateService {
             $out['items'][] = [
                 'poll' => $this->selfPoll($room, $poll, $row, $released),
                 'revealed' => $released,
-                'results' => $released ? PublicPayload::tally($this->tallyService->tally($poll, $all[$poll->getId()] ?? [])) : null,
+                'results' => $released ? PublicPayload::tally($this->releasedTally($poll, $all[$poll->getId()] ?? [], $now)) : null,
                 'mine' => $vote === null ? null
                     : ['value' => $vote->getValueFor($poll->getType())] + $this->verdict($room, $vote, $row, $now, $released),
             ];
@@ -675,7 +675,7 @@ class PaceStateService {
                 $k,
                 $poll->getQuestion(),
                 CsvFormat::typeLabel($poll->getType(), $this->l10n),
-                $this->answerText($poll, $d['value'] ?? null),
+                $this->answerText($poll, $d['value'] ?? null) . $this->hiddenMark($poll, $d['value'] ?? null, $now),
                 $result,
                 $final ? (int)($d['points'] ?? 0) : '',
                 (int)($d['limit'] ?? 0) > 0 ? max(0, (int)($d['elapsed'] ?? 0)) : '',
@@ -699,6 +699,15 @@ class PaceStateService {
             $lines[] = $entry[2];
         }
         return $lines;
+    }
+
+    /** " (hidden)" behind a free-text answer the moderator hid, as in the results CSV. */
+    private function hiddenMark(Poll $poll, #[\SensitiveParameter] mixed $value, int $now): string {
+        if ($poll->getType() !== 'text' || !is_string($value) || $poll->getModeration() === []) {
+            return '';
+        }
+        $state = ModerationService::state($poll->getModeration(), ModerationService::keyOf('text', $value), $now);
+        return $state === 'hidden' ? ' ' . $this->l10n->t('(hidden)') : '';
     }
 
     /** Answer in readable form: option texts instead of IDs, number in the export's language. */
@@ -810,10 +819,22 @@ class PaceStateService {
         $data['revealed'] = $revealed;
         if ($revealed) {
             $data['correctOption'] = $poll->getCorrectOption();
-            $data['answerKey'] = $poll->getAnswerKeyArray();
+            // Without the free-text answers the moderator hid (ModerationService).
+            $data['answerKey'] = ModerationService::filterAnswerKey($poll, $this->timeFactory->getTime());
             $data['explanation'] = $poll->explanationOrEmpty();
         }
         return $data;
+    }
+
+    /**
+     * Tally of a question for the end view after the release: answers the
+     * moderator hid are left out (also from the accepted chips), `total`
+     * stays the number of people who answered.
+     *
+     * @param Vote[] $votes
+     */
+    private function releasedTally(Poll $poll, array $votes, int $now): array {
+        return ModerationService::audienceTally($this->tallyService, $poll, $votes, $now);
     }
 
     /** Window for state and summary; the deck size is only needed in draft. */

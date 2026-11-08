@@ -19,6 +19,7 @@ use OCA\Pulse\Service\RoomGoneException;
 use OCA\Pulse\Service\RoomService;
 use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\AppFramework\Utility\ITimeFactory;
+use OCP\DB\Exception as DbException;
 use OCP\IDBConnection;
 use OCP\IL10N;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -48,14 +49,17 @@ class PaceStillJoinedTest extends TestCase {
     private array $calls = [];
     /** @var list<string> Transaction sequence */
     private array $tx = [];
-    /** @var list<bool> Answers from existsForUpdate, in order */
+    /** @var list<bool|DbException> Answers from existsForUpdate, in order (an exception is thrown) */
     private array $joined = [];
 
     protected function setUp(): void {
         $this->rooms = $this->createMock(RoomMapper::class);
 
         $this->players = $this->createMock(PlayerMapper::class);
-        $this->players->method('existsForUpdate')->willReturnCallback(fn (): bool => array_shift($this->joined) ?? false);
+        $this->players->method('existsForUpdate')->willReturnCallback(function (): bool {
+            $next = array_shift($this->joined) ?? false;
+            return $next instanceof DbException ? throw $next : $next;
+        });
 
         $polls = $this->createMock(PollMapper::class);
         $polls->method('findByRoom')->willReturn([]);
@@ -194,6 +198,66 @@ class PaceStillJoinedTest extends TestCase {
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────
+
+    // ── assertStillJoinedAfterWrite (/vote, /next) ─────────────────────────
+
+    public function testDeadlockAgainstARemovalIsRetried(): void {
+        // MySQL/MariaDB: the locking read loses a deadlock against removePlayer
+        // at the same moment; the second read sees the player.
+        $this->joined = [self::dbError(DbException::REASON_DEADLOCK), true];
+
+        $this->service->assertStillJoinedAfterWrite($this->room(), self::TOK);
+
+        $this->assertSame([], $this->joined, 'read twice');
+        $this->assertSame([], $this->calls);
+    }
+
+    public function testDeadlockThenRemovedCleansUpAndRejects(): void {
+        // The removal won the deadlock and committed: the repeat sees no player.
+        $this->joined = [self::dbError(DbException::REASON_LOCK_WAIT_TIMEOUT), false, false];
+        $this->rooms->method('lockForUpdate')->willReturnCallback(fn (): Room => $this->room());
+
+        try {
+            $this->service->assertStillJoinedAfterWrite($this->room(), self::TOK);
+            $this->fail('InvalidArgumentException expected');
+        } catch (\InvalidArgumentException $e) {
+            $this->assertSame('Please choose a name first.', $e->getMessage());
+        }
+        $this->assertSame(['votes:11,12,13:' . self::TOK, 'progress:5:' . self::TOK], $this->calls);
+    }
+
+    public function testOtherDatabaseErrorsAndTheLastDeadlockGoThrough(): void {
+        $other = self::dbError(DbException::REASON_SYNTAX_ERROR);
+        $this->joined = [$other];
+        try {
+            $this->service->assertStillJoinedAfterWrite($this->room(), self::TOK);
+            $this->fail('DbException expected');
+        } catch (DbException $e) {
+            $this->assertSame($other, $e);
+        }
+
+        $deadlocks = array_map(fn () => self::dbError(DbException::REASON_DEADLOCK), range(1, PaceService::NEXT_ATTEMPTS));
+        $this->joined = [...$deadlocks, true];
+        try {
+            $this->service->assertStillJoinedAfterWrite($this->room(), self::TOK);
+            $this->fail('DbException expected');
+        } catch (DbException $e) {
+            $this->assertSame(end($deadlocks), $e);
+        }
+        $this->assertSame([true], $this->joined, 'no attempt after the last one');
+    }
+
+    private static function dbError(int $reason): DbException {
+        return new class('database error', $reason) extends DbException {
+            public function __construct(string $message, private int $code_) {
+                parent::__construct($message);
+            }
+
+            public function getReason(): ?int {
+                return $this->code_;
+            }
+        };
+    }
 
     private function assertRejected(): void {
         try {

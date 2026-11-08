@@ -10,7 +10,7 @@
  *
  * Section references (§…) point to the specification of the self-paced quiz,
  * which is not in the public repository (see "References in code comments" in
- * the README).
+ * docs/DEVELOPMENT.md).
  */
 import { getCanonicalLocale } from '@nextcloud/l10n'
 import { t, n } from './l10n.js'

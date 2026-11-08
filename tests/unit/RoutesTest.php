@@ -14,7 +14,7 @@ use PHPUnit\Framework\TestCase;
  * appinfo/routes.php, straight from the file as Nextcloud includes it.
  *
  * The room code requirement is the URL-shape and brute-force guard of every
- * public endpoint, and routes.php repeats it by hand on 37 routes; a new
+ * public endpoint, and routes.php repeats it by hand on 40 routes; a new
  * route must not silently lose it. The route table itself is pinned as a
  * whole: a changed or new route also has to get past the APCu route cache
  * (a 404 until the container restarts), so it is never a side effect.
@@ -26,6 +26,7 @@ class RoutesTest extends TestCase {
     private const REQUIREMENTS = [
         'code' => '[A-Za-z0-9]{6}',
         'pollId' => '\d+',
+        'task' => '\d+',
     ];
 
     /** Every route as [name, url, verb], in file order. */
@@ -37,6 +38,7 @@ class RoutesTest extends TestCase {
         ['roomApi#summary', '/api/1.0/rooms/{code}/summary', 'GET'],
         ['roomApi#leaderboard', '/api/1.0/rooms/{code}/leaderboard', 'GET'],
         ['roomApi#exportCsv', '/api/1.0/rooms/{code}/export', 'GET'],
+        ['roomApi#saveCsvToFiles', '/api/1.0/rooms/{code}/export/files', 'POST'],
         ['roomApi#show', '/api/1.0/rooms/{code}', 'GET'],
         ['roomApi#destroy', '/api/1.0/rooms/{code}', 'DELETE'],
         ['roomApi#rename', '/api/1.0/rooms/{code}/title', 'POST'],
@@ -58,8 +60,22 @@ class RoutesTest extends TestCase {
         ['roomApi#gradeAnswer', '/api/1.0/rooms/{code}/polls/{pollId}/grade', 'POST'],
         ['roomApi#lockPoll', '/api/1.0/rooms/{code}/polls/{pollId}/lock', 'POST'],
         ['roomApi#unlockPoll', '/api/1.0/rooms/{code}/polls/{pollId}/unlock', 'POST'],
+        ['roomApi#moderateAnswer', '/api/1.0/rooms/{code}/polls/{pollId}/moderate', 'POST'],
+        ['roomApi#aiHelp', '/api/1.0/rooms/{code}/ai-help', 'POST'],
+        ['roomApi#groupAnswers', '/api/1.0/rooms/{code}/polls/{pollId}/group', 'POST'],
+        ['roomApi#gradeSuggestion', '/api/1.0/rooms/{code}/polls/{pollId}/grade-ai', 'POST'],
         ['roomApi#demoSeed', '/api/1.0/rooms/{code}/demo', 'POST'],
         ['roomApi#demoClear', '/api/1.0/rooms/{code}/demo', 'DELETE'],
+        ['aiDraft#available', '/api/1.0/ai', 'GET'],
+        ['aiDraft#notice', '/api/1.0/ai/notice', 'POST'],
+        ['admin#saveAi', '/api/1.0/admin/ai', 'POST'],
+        ['aiDraft#start', '/api/1.0/rooms/{code}/ai/draft', 'POST'],
+        ['aiDraft#status', '/api/1.0/rooms/{code}/ai/draft/{task}', 'GET'],
+        ['aiDraft#cancel', '/api/1.0/rooms/{code}/ai/draft/{task}', 'DELETE'],
+        ['aiSummary#start', '/api/1.0/rooms/{code}/ai/summary', 'POST'],
+        ['aiSummary#status', '/api/1.0/rooms/{code}/ai/summary/{task}', 'GET'],
+        ['aiSummary#cancel', '/api/1.0/rooms/{code}/ai/summary/{task}', 'DELETE'],
+        ['aiSummary#save', '/api/1.0/rooms/{code}/summary/files', 'POST'],
         ['roomApi#pace', '/api/1.0/rooms/{code}/pace', 'POST'],
         ['roomApi#progress', '/api/1.0/rooms/{code}/progress', 'GET'],
         ['public#join', '/join', 'GET'],
@@ -103,8 +119,8 @@ class RoutesTest extends TestCase {
             $withCode += isset($expected['code']) ? 1 : 0;
             $withPollId += isset($expected['pollId']) ? 1 : 0;
         }
-        $this->assertSame(37, $withCode, 'routes with {code}');
-        $this->assertSame(11, $withPollId, 'routes with {pollId}');
+        $this->assertSame(49, $withCode, 'routes with {code}');
+        $this->assertSame(14, $withPollId, 'routes with {pollId}');
     }
 
     public function testRouteTableIsUnchanged(): void {

@@ -19,6 +19,8 @@ return [
         ['name' => 'roomApi#summary',    'url' => '/api/1.0/rooms/{code}/summary',        'verb' => 'GET', 'requirements' => ['code' => '[A-Za-z0-9]{6}']],
         ['name' => 'roomApi#leaderboard', 'url' => '/api/1.0/rooms/{code}/leaderboard',   'verb' => 'GET', 'requirements' => ['code' => '[A-Za-z0-9]{6}']],
         ['name' => 'roomApi#exportCsv',  'url' => '/api/1.0/rooms/{code}/export',         'verb' => 'GET', 'requirements' => ['code' => '[A-Za-z0-9]{6}']],
+        // Save the results CSV into the moderator's Files (folder "Pulse")
+        ['name' => 'roomApi#saveCsvToFiles', 'url' => '/api/1.0/rooms/{code}/export/files', 'verb' => 'POST', 'requirements' => ['code' => '[A-Za-z0-9]{6}']],
         ['name' => 'roomApi#show',       'url' => '/api/1.0/rooms/{code}',                'verb' => 'GET',    'requirements' => ['code' => '[A-Za-z0-9]{6}']],
         ['name' => 'roomApi#destroy',    'url' => '/api/1.0/rooms/{code}',                'verb' => 'DELETE', 'requirements' => ['code' => '[A-Za-z0-9]{6}']],
         ['name' => 'roomApi#rename',     'url' => '/api/1.0/rooms/{code}/title',          'verb' => 'POST',   'requirements' => ['code' => '[A-Za-z0-9]{6}']],
@@ -44,9 +46,28 @@ return [
         ['name' => 'roomApi#gradeAnswer','url' => '/api/1.0/rooms/{code}/polls/{pollId}/grade',   'verb' => 'POST', 'requirements' => ['code' => '[A-Za-z0-9]{6}', 'pollId' => '\d+']],
         ['name' => 'roomApi#lockPoll',  'url' => '/api/1.0/rooms/{code}/polls/{pollId}/lock',   'verb' => 'POST', 'requirements' => ['code' => '[A-Za-z0-9]{6}', 'pollId' => '\d+']],
         ['name' => 'roomApi#unlockPoll','url' => '/api/1.0/rooms/{code}/polls/{pollId}/unlock', 'verb' => 'POST', 'requirements' => ['code' => '[A-Za-z0-9]{6}', 'pollId' => '\d+']],
+        // Filter before the projector: hide/show an answer, the room's switch "AI help"
+        ['name' => 'roomApi#moderateAnswer', 'url' => '/api/1.0/rooms/{code}/polls/{pollId}/moderate', 'verb' => 'POST', 'requirements' => ['code' => '[A-Za-z0-9]{6}', 'pollId' => '\d+']],
+        ['name' => 'roomApi#aiHelp',     'url' => '/api/1.0/rooms/{code}/ai-help',        'verb' => 'POST', 'requirements' => ['code' => '[A-Za-z0-9]{6}']],
+        ['name' => 'roomApi#groupAnswers', 'url' => '/api/1.0/rooms/{code}/polls/{pollId}/group', 'verb' => 'POST', 'requirements' => ['code' => '[A-Za-z0-9]{6}', 'pollId' => '\d+']],
+        ['name' => 'roomApi#gradeSuggestion', 'url' => '/api/1.0/rooms/{code}/polls/{pollId}/grade-ai', 'verb' => 'POST', 'requirements' => ['code' => '[A-Za-z0-9]{6}', 'pollId' => '\d+']],
         // Demo/test mode: fill the active question with synthetic votes / empty it again
         ['name' => 'roomApi#demoSeed',  'url' => '/api/1.0/rooms/{code}/demo', 'verb' => 'POST',   'requirements' => ['code' => '[A-Za-z0-9]{6}']],
         ['name' => 'roomApi#demoClear', 'url' => '/api/1.0/rooms/{code}/demo', 'verb' => 'DELETE', 'requirements' => ['code' => '[A-Za-z0-9]{6}']],
+        // AI quiz draft in the composer: is a provider set up, start a draft, read it, cancel it
+        ['name' => 'aiDraft#available', 'url' => '/api/1.0/ai', 'verb' => 'GET'],
+        // the account confirms the AI notice (once, before its first AI use)
+        ['name' => 'aiDraft#notice', 'url' => '/api/1.0/ai/notice', 'verb' => 'POST'],
+        // admin section "Pulse": allow AI, daily limit (admins only)
+        ['name' => 'admin#saveAi', 'url' => '/api/1.0/admin/ai', 'verb' => 'POST'],
+        ['name' => 'aiDraft#start',  'url' => '/api/1.0/rooms/{code}/ai/draft',        'verb' => 'POST',   'requirements' => ['code' => '[A-Za-z0-9]{6}']],
+        ['name' => 'aiDraft#status', 'url' => '/api/1.0/rooms/{code}/ai/draft/{task}', 'verb' => 'GET',    'requirements' => ['code' => '[A-Za-z0-9]{6}', 'task' => '\d+']],
+        ['name' => 'aiDraft#cancel', 'url' => '/api/1.0/rooms/{code}/ai/draft/{task}', 'verb' => 'DELETE', 'requirements' => ['code' => '[A-Za-z0-9]{6}', 'task' => '\d+']],
+        // AI summary on the results overview: start, read, cancel; save the edited text into Files
+        ['name' => 'aiSummary#start',  'url' => '/api/1.0/rooms/{code}/ai/summary',        'verb' => 'POST',   'requirements' => ['code' => '[A-Za-z0-9]{6}']],
+        ['name' => 'aiSummary#status', 'url' => '/api/1.0/rooms/{code}/ai/summary/{task}', 'verb' => 'GET',    'requirements' => ['code' => '[A-Za-z0-9]{6}', 'task' => '\d+']],
+        ['name' => 'aiSummary#cancel', 'url' => '/api/1.0/rooms/{code}/ai/summary/{task}', 'verb' => 'DELETE', 'requirements' => ['code' => '[A-Za-z0-9]{6}', 'task' => '\d+']],
+        ['name' => 'aiSummary#save',   'url' => '/api/1.0/rooms/{code}/summary/files',     'verb' => 'POST',   'requirements' => ['code' => '[A-Za-z0-9]{6}']],
         // Self-paced quiz: switch the pace, open/close/extend/release the window,
         // lock joining, remove a person
         ['name' => 'roomApi#pace',      'url' => '/api/1.0/rooms/{code}/pace',     'verb' => 'POST', 'requirements' => ['code' => '[A-Za-z0-9]{6}']],

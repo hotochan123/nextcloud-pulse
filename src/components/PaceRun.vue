@@ -827,7 +827,8 @@ export default {
 .pace-grade-q + .pace-grade-q { margin-block-start: 14px; }
 .pace-grade-qhead { display: flex; gap: 6px; min-width: 0; margin: 0 0 6px; font-size: var(--t-sm); }
 .pace-grade-k { flex: 0 0 auto; font-weight: 800; }
-.pace-grade-qtext { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--pulse-text-2); }
+/* The whole question, wrapped: never cut with an ellipsis. */
+.pace-grade-qtext { min-width: 0; overflow-wrap: anywhere; color: var(--pulse-text-2); }
 /* In the narrow box: the usage hint only once, the total line not at all
    (the heading already counts). */
 .pace-grading :deep(.tg-total) { display: none; }
@@ -846,7 +847,7 @@ export default {
 .pace-q:first-child { padding-block-start: 0; }
 .pace-qk { flex: 0 0 auto; min-width: 1.6em; font-weight: 800; color: var(--pulse-text-2); font-variant-numeric: tabular-nums; }
 .pace-qbody { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.pace-qtext { font-size: var(--t-sm); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pace-qtext { font-size: var(--t-sm); font-weight: 600; overflow-wrap: anywhere; }
 .pace-qstats { font-size: var(--t-cap); color: var(--pulse-text-2); font-variant-numeric: tabular-nums; }
 .pace-qstats b { color: var(--pulse-text); }
 .pace-qstat { white-space: nowrap; }

@@ -68,10 +68,16 @@
 					<!-- Self-paced: next to "Participants/Answers as CSV" (run view)
 					     this is the third CSV — hence the unambiguous name. -->
 					<a class="pulse-btn is-primary is-sm export-btn" :href="exportUrl" download>{{ isPaced ? t('pulse', 'Results per question (CSV)') : t('pulse', 'Export CSV') }}</a>
+					<!-- The same CSV, saved into the moderator's Files (folder "Pulse"). -->
+					<button class="pulse-btn is-secondary is-sm files-save-btn" :disabled="filesBusy" @click="saveToFiles"><PulseIcon name="download" size="1em" /> {{ t('pulse', 'Save in Files') }}</button>
+					<a v-if="savedFile" class="pulse-btn is-secondary is-sm files-open-link" :href="savedFile.url" target="_blank" rel="noopener" :title="savedFile.name">{{ t('pulse', 'Open in Files') }}</a>
+					<!-- AI summary: only while the room's switch "AI help" is on. -->
+					<button v-if="room && room.aiAvailable && room.aiHelp" class="pulse-btn is-secondary is-sm ai-summary-btn" :disabled="aiSummary" @click="withAiNotice(openAiSummary)"><PulseIcon name="sparkle" size="1em" /> {{ t('pulse', 'Summary with AI') }}</button>
 				</div>
 			</div>
 			<!-- While the quiz is open, this page shows the solutions — do not mirror it. -->
 			<p v-if="isPaced && paceState === 'open'" class="pulse-notice is-warn summary-warn"><PulseIcon name="lock" size="1.1em" class="pulse-notice-ico" /><span><b class="summary-warn-head">{{ t('pulse', 'Only for you') }}</b> {{ t('pulse', 'This page shows the solutions — do not mirror it while the quiz is open.') }}</span></p>
+			<AiSummaryPanel v-if="aiSummary && room" :key="room.code" :code="room.code" @notice="onAiNoticeMissing(openAiSummary)" @close="aiSummary = false" />
 			<div v-if="summary.length" class="summary-list">
 				<div v-for="(item, i) in summary" :key="item.poll.id" class="summary-item">
 					<h3 class="summary-q">
@@ -79,7 +85,8 @@
 						<span class="summary-qtext">{{ item.poll.question }}</span>
 						<span class="summary-type">{{ typeLabel(item.poll.type) }}</span>
 					</h3>
-					<TextGrading v-if="item.poll.type === 'text'" :results="item.results" @grade="(ans, ok) => gradeSummaryAnswer(item, ans, ok)" />
+					<!-- Self-paced: hide an answer from the end view, the AI summary (and back) -->
+					<TextGrading v-if="item.poll.type === 'text'" :results="item.results" :moderatable="isPaced && !!item.results.moderation" :busy="moderating" @grade="(ans, ok) => gradeSummaryAnswer(item, ans, ok)" @moderate="(ans, act) => moderateSummaryAnswer(item, ans, act)" />
 					<ResultsView v-else :results="item.results" :correct-id="item.poll.correctOption || ''" :correct-ids="((item.poll.answerKey || {}).correct) || []" :answer-key="item.poll.answerKey || null" :explanation="item.poll.explanation || ''" />
 					<p v-if="item.poll.type === 'text' && item.poll.explanation" class="summary-explain"><span class="summary-explain-lbl">{{ t('pulse', 'Explanation') }}</span> {{ item.poll.explanation }}</p>
 				</div>
@@ -142,7 +149,14 @@
 				<!-- Composer -->
 				<div v-if="showComposer && !deckLocked" ref="composer" class="composer">
 					<p v-if="editingId" class="pulse-notice is-warn edit-note"><PulseIcon name="warning" size="1.1em" class="pulse-notice-ico" /><span>{{ t('pulse', 'Editing resets the votes cast for this question so far.') }}</span></p>
-					<PulseSegmented v-model="draft.type" :options="typeOptions" :label="t('pulse', 'Question type')" class="composer-seg" />
+					<div class="composer-head">
+						<PulseSegmented v-model="draft.type" :options="typeOptions" :label="t('pulse', 'Question type')" class="composer-seg" />
+						<!-- AI quiz draft: only in a quiz, only when the admin set up a
+						     text-generation provider, only for new questions. -->
+						<button v-if="aiAvailable && isQuiz && !editingId" type="button" class="composer-ai" :title="t('pulse', 'Draft questions with AI')" :aria-label="t('pulse', 'Draft questions with AI')" @click="withAiNotice(openAiDialog)">
+							<PulseIcon name="sparkle" size="1.15em" /><span class="composer-ai-txt" aria-hidden="true">AI</span>
+						</button>
+					</div>
 
 					<input ref="qInput" v-model="draft.question" class="pinput pinput--q" type="text" :placeholder="t('pulse', 'Your question …')" @keyup.enter="focusFirstOption">
 
@@ -375,6 +389,13 @@
 				@conflict="onPaceConflict"
 				@end-practice="endPracticeThenOpen"
 				@cancel="paceDialog = null" />
+			<AiDraftDialog v-if="aiDialog && room"
+				:code="room.code"
+				@added="onAiAdded"
+				@done="onAiDone"
+				@conflict="onAiConflict"
+				@notice="onAiNoticeMissing(openAiDialog)"
+				@cancel="aiDialog = false" />
 		</section>
 
 		<!-- Self-paced from opening on: progress per person and ONE
@@ -457,8 +478,12 @@
 						<h2 class="mod-private-head"><PulseIcon name="lock" size="1.05em" /> {{ t('pulse', 'Only for you') }}</h2>
 						<p class="mod-private-sub">{{ t('pulse', 'Live distribution — this panel never goes on the projector.') }}</p>
 						<div v-if="currentPoll" class="mod-private-body">
-							<TextGrading v-if="currentPoll.type === 'text'" :results="results" @grade="gradeAnswer" />
+							<p v-if="results && results.moderation && results.moderation.unavailable" class="pulse-notice is-warn mod-ai-down" role="status"><PulseIcon name="warning" size="1.1em" class="pulse-notice-ico" /><span>{{ t('pulse', 'AI check not available right now') }}</span></p>
+							<ThemeGroups v-if="results && results.moderation && results.moderation.groups && (results.moderation.aiHelp || results.moderation.groups.shown)" :groups="results.moderation.groups" :busy="moderating" @group="groupAnswers" />
+							<GradingSuggestion v-if="currentPoll.type === 'text' && aiSuggest" :grading="results.moderation.grading" :busy="moderating" @suggest="(action) => startGradingSuggestion(action)" />
+							<TextGrading v-if="currentPoll.type === 'text'" :results="results" :moderatable="!!(results && results.moderation)" :busy="moderating" :ai-suggest="aiSuggest" @grade="gradeAnswer" @moderate="moderateAnswer" @flip="(ans) => suggestGrading('flip', ans)" />
 							<ResultsView v-else dense :results="results" :correct-id="currentPoll.correctOption || ''" :correct-ids="((currentPoll.answerKey || {}).correct) || []" :answer-key="currentPoll.answerKey || null" />
+							<AnswerFilter v-if="currentPoll.type === 'words' && results && results.moderation" :items="results.moderation.items" :busy="moderating" @moderate="moderateAnswer" />
 						</div>
 						<p v-else class="mod-private-empty">{{ t('pulse', 'No question yet — the room shows the code and waits.') }}</p>
 						<Leaderboard v-if="isQuiz && leaderboard.length" class="mod-private-lb" :rows="leaderboard" :limit="5" />
@@ -521,6 +546,10 @@
 				</aside>
 			</div>
 		</section>
+		<!-- The AI notice, once per account before its first AI use (any phase). -->
+		<AiNoticeDialog v-if="aiNoticeAsk"
+			@confirmed="onAiNoticeConfirmed"
+			@cancel="aiNoticeAsk = null" />
 	</div>
 </template>
 
@@ -528,10 +557,10 @@
 /*
  * Section references (§…) and review IDs (B1, R3, …) point to the design notes
  * of the redesign and of the self-paced quiz, which are not in the public
- * repository (see "References in code comments" in the README).
+ * repository (see "References in code comments" in docs/DEVELOPMENT.md).
  */
 import axios from '@nextcloud/axios'
-import { MOD_TIMEOUT, roomsApi, roomApi, pollImage, participantPage, joinPage, screenPage, roomPage, home, addinManifest, openProjector } from './util/routes.js'
+import { MOD_TIMEOUT, aiApi, roomsApi, roomApi, pollImage, participantPage, joinPage, screenPage, roomPage, home, addinManifest, openProjector, filesLink } from './util/routes.js'
 import { t, n } from './util/l10n.js'
 import { showError, showSuccess, serverMessage } from './toast.js'
 import draggable from 'vuedraggable'
@@ -540,6 +569,9 @@ import QrCode from './components/QrCode.vue'
 import Leaderboard from './components/Leaderboard.vue'
 import LivePlayers from './components/LivePlayers.vue'
 import TextGrading from './components/TextGrading.vue'
+import AnswerFilter from './components/AnswerFilter.vue'
+import ThemeGroups from './components/ThemeGroups.vue'
+import GradingSuggestion from './components/GradingSuggestion.vue'
 import PulseIcon from './components/ui/PulseIcon.vue'
 import PulseSegmented from './components/ui/PulseSegmented.vue'
 import PulseMenu from './components/ui/PulseMenu.vue'
@@ -554,11 +586,14 @@ import pollingMixin from './mixins/polling.js'
 import PaceOpenDialog from './components/PaceOpenDialog.vue'
 import PaceDeckStatus from './components/PaceDeckStatus.vue'
 import PaceRun from './components/PaceRun.vue'
+import AiDraftDialog from './components/AiDraftDialog.vue'
+import AiSummaryPanel from './components/AiSummaryPanel.vue'
+import AiNoticeDialog from './components/AiNoticeDialog.vue'
 
 export default {
 	name: 'Moderator',
 	mixins: [pollingMixin],
-	components: { ResultsView, QrCode, Leaderboard, LivePlayers, TextGrading, PulseIcon, PulseSegmented, PulseMenu, CountdownRing, IntakeBoard, draggable, PaceOpenDialog, PaceDeckStatus, PaceRun },
+	components: { ResultsView, QrCode, Leaderboard, LivePlayers, TextGrading, AnswerFilter, ThemeGroups, GradingSuggestion, PulseIcon, PulseSegmented, PulseMenu, CountdownRing, IntakeBoard, draggable, PaceOpenDialog, PaceDeckStatus, PaceRun, AiDraftDialog, AiSummaryPanel, AiNoticeDialog },
 	data() {
 		return {
 			phase: 'start', // 'start' | 'deck' | 'present' | 'summary' | 'leaderboard' | 'pace' (run view, self-paced)
@@ -576,8 +611,12 @@ export default {
 			demoMode: /(?:\?|&)demo=/.test(window.location.search),
 			demoCount: 25,
 			demoBusy: false,
+			moderating: false,
 			online: true,
 			busy: false,
+			filesBusy: false,  // summary: saving the CSV into Files
+			savedFile: null,   // summary: { name, url } of the file just saved
+			aiSummary: false,  // summary: the AI summary panel is open
 			isFullscreen: false,
 			joinOpen: false,   // join panel — a state, not a column (§9.4)
 			frameScale: 0.5,   // scale of the canvas preview (1280×720 -> box)
@@ -593,6 +632,11 @@ export default {
 			draft: emptyDraft(),
 			explainMax: EXPLANATION_MAX,
 			// ── Self-paced quiz ──
+			// ── AI quiz draft (AiDraftDialog) ──
+			aiAvailable: false,  // the admin allows AI and a text-generation provider is set up (GET /api/1.0/ai)
+			aiNoticeOk: false,  // this account confirmed the AI notice (GET /api/1.0/ai)
+			aiNoticeAsk: null,  // AiNoticeDialog is open; the AI action to run after "Understood"
+			aiDialog: false,     // the draft dialog is open
 			paceDialog: null,    // null | 'open' — the "open quiz" dialog in the deck
 			paceFocus: false,    // the next run view puts the focus on its title
 			paceCounts: null,    // last counts from PaceDeckStatus (confirmation texts)
@@ -602,6 +646,11 @@ export default {
 		}
 	},
 	computed: {
+		// AI grading suggestion on the desk: free text of a live quiz, while "AI help" is on.
+		aiSuggest() {
+			const m = this.results && this.results.moderation
+			return !!(m && m.aiHelp && m.grading)
+		},
 		// Freely chosen room name; empty = the UI falls back to "Your deck/quiz".
 		roomTitle() {
 			return (this.room && this.room.title) || ''
@@ -840,6 +889,12 @@ export default {
 			if (this.isQuiz && (!paced || this.paceState !== 'released')) {
 				items.push({ key: 'lock', label: t('pulse', 'Lock joining'), checked: !!this.room.joinsLocked, act: this.toggleJoinsLocked })
 			}
+			// Only offered when the admin set up an AI provider. In a self-paced quiz
+			// it only enables the AI summary (the filter before the projector is for
+			// moderated rounds).
+			if (this.room && this.room.aiAvailable) {
+				items.push({ key: 'aihelp', label: t('pulse', 'AI help'), icon: 'flag', checked: !!this.room.aiHelp, act: this.toggleAiHelp })
+			}
 			if (this.deck.length) {
 				items.push({ key: 'reset', label: paced ? t('pulse', 'Reset quiz') : t('pulse', 'Reset votes'), icon: 'reset', act: this.resetRoom, danger: true, ...this.paceLock(false) })
 			}
@@ -887,6 +942,9 @@ export default {
 			// Once everyone is in, new names stay out; whoever is playing gets back in.
 			if (this.isQuiz && this.room) {
 				items.push({ key: 'lock', label: t('pulse', 'Lock joining'), checked: !!this.room.joinsLocked, act: this.toggleJoinsLocked })
+			}
+			if (this.room && this.room.aiAvailable) {
+				items.push({ key: 'aihelp', label: t('pulse', 'AI help'), icon: 'flag', checked: !!this.room.aiHelp, act: this.toggleAiHelp })
 			}
 			items.push({ key: 'fs', label: this.isFullscreen ? t('pulse', 'Exit full screen') : t('pulse', 'Full screen'), icon: 'fullscreen', act: this.toggleFullscreen })
 			items.push({ key: 'beamer', label: t('pulse', 'Projector'), icon: 'beamer', act: this.openBeamer })
@@ -958,6 +1016,7 @@ export default {
 		document.addEventListener('keydown', this.onEscape)
 		window.addEventListener('resize', this.fitFrame)
 		this.observeCanvas()
+		this.fetchAiAvailable()
 		this.tickTimer = setInterval(() => { this.nowSec = Math.floor(Date.now() / 1000) }, 500)
 		const m = window.location.pathname.match(/\/room\/([A-Za-z0-9]{6})$/)
 		if (m) {
@@ -1426,6 +1485,57 @@ export default {
 			else if (p === 'summary') this.openSummary('pace')
 			else if (p === 'home') this.goHome()
 		},
+		// ── AI quiz draft ───────────────────────────────────────────────────
+		// Once per page: is a text-generation provider set up? Any error = no AI button.
+		async fetchAiAvailable() {
+			try {
+				const { data } = await axios.get(aiApi(), { timeout: MOD_TIMEOUT })
+				this.aiAvailable = data?.available === true
+				this.aiNoticeOk = data?.notice === true
+			} catch (e) {
+				this.aiAvailable = false
+			}
+		},
+		// ── The AI notice (AiNoticeDialog) ──────────────────────────────────
+		// Run an AI action; before the account confirmed the notice, ask first.
+		withAiNotice(action) {
+			if (this.aiNoticeOk) action()
+			else this.aiNoticeAsk = action
+		},
+		// The server says the notice is missing (confirmed nowhere yet, or a
+		// stale page): close what asked and offer the notice again.
+		onAiNoticeMissing(action) {
+			this.aiNoticeOk = false
+			this.aiDialog = false
+			this.aiSummary = false
+			this.aiNoticeAsk = action
+		},
+		onAiNoticeConfirmed() {
+			const action = this.aiNoticeAsk
+			this.aiNoticeOk = true
+			this.aiNoticeAsk = null
+			if (action) action()
+		},
+		openAiDialog() {
+			this.aiDialog = true
+		},
+		openAiSummary() {
+			this.aiSummary = true
+		},
+		// One drafted question got into the deck (the dialog adds them one by one).
+		onAiAdded(poll) {
+			this.deck.push(poll)
+		},
+		onAiDone(count) {
+			this.aiDialog = false
+			this.cancelComposer()
+			showSuccess(n('pulse', '%n question added', '%n questions added', count))
+		},
+		onAiConflict(message) {
+			showError(message)
+			this.aiDialog = false
+			this.refreshRoom(true)
+		},
 		// 409 from the dialog: someone else was faster (second tab, add-in).
 		onPaceConflict(message) {
 			showError(message)
@@ -1890,7 +2000,26 @@ export default {
 		},
 		openSummary(from) {
 			this.summaryFrom = from === 'pace' ? 'pace' : 'deck'
+			this.savedFile = null
+			this.aiSummary = false
 			return this.loadPhase('/summary', 'summary', t('pulse', 'Could not load the summary.'))
+		},
+		// Save the summary's CSV into the moderator's Files; the server picks a
+		// free name ("… (2).csv") and answers a Files problem with a message.
+		async saveToFiles() {
+			if (!this.room || this.filesBusy) return
+			this.filesBusy = true
+			const code = this.room.code
+			try {
+				const { data } = await axios.post(this.api(code, '/export/files'), null, { timeout: MOD_TIMEOUT })
+				if (this.phase !== 'summary' || !this.room || this.room.code !== code) return
+				this.savedFile = { name: data.name, url: filesLink(data.fileId) }
+				showSuccess(t('pulse', 'Saved in Files: {name}', { name: data.path }))
+			} catch (e) {
+				showError(serverMessage(e, t('pulse', 'Could not save the file in your Files.')))
+			} finally {
+				this.filesBusy = false
+			}
 		},
 		// Back to where the summary came from. If the room has meanwhile become a
 		// draft again (reset in a second tab), it belongs in the deck.
@@ -2020,6 +2149,90 @@ export default {
 				showError(serverMessage(e, t('pulse', 'Could not grade.')))
 			}
 		},
+		// Filter before the projector: hide an answer (and every equal one) or
+		// show it again; the server answers with fresh results.
+		async moderateAnswer(answer, action) {
+			if (this.moderating) return
+			this.moderating = true
+			try {
+				const { data } = await axios.post(this.api(this.room.code, '/polls/' + this.currentId + '/moderate'), { answer, action })
+				this.results = data
+				this.resVersion = ''
+			} catch (e) {
+				showError(serverMessage(e, t('pulse', 'Could not change the answer.')))
+			} finally {
+				this.moderating = false
+			}
+		},
+		// "Group with AI": start, show the themes on the projector, or take them back.
+		// Starting is an AI use: the notice comes first.
+		groupAnswers(action) {
+			if (action === 'start') this.withAiNotice(() => this.sendGroup(action))
+			else this.sendGroup(action)
+		},
+		async sendGroup(action) {
+			if (this.moderating) return
+			this.moderating = true
+			try {
+				const { data } = await axios.post(this.api(this.room.code, '/polls/' + this.currentId + '/group'), { action })
+				this.results = data
+				this.resVersion = ''
+			} catch (e) {
+				if (e?.response?.data?.notice === true) {
+					this.onAiNoticeMissing(() => this.sendGroup(action))
+					return
+				}
+				showError(serverMessage(e, t('pulse', 'Could not group the answers.')))
+				this.resVersion = ''
+			} finally {
+				this.moderating = false
+			}
+		},
+		// AI grading suggestion: starting is an AI use, the notice comes first.
+		startGradingSuggestion(action) {
+			if (action === 'start') this.withAiNotice(() => this.suggestGrading(action))
+			else this.suggestGrading(action)
+		},
+		// AI grading suggestion: start, flip one proposal, accept all (grades, so
+		// the leaderboard comes back as with a tick or cross).
+		async suggestGrading(action, answer = '') {
+			if (this.moderating) return
+			this.moderating = true
+			try {
+				const { data } = await axios.post(this.api(this.room.code, '/polls/' + this.currentId + '/grade-ai'), { action, answer })
+				this.results = data
+				if (data.leaderboard) this.leaderboard = data.leaderboard
+				this.resVersion = ''
+			} catch (e) {
+				if (e?.response?.data?.notice === true) {
+					this.onAiNoticeMissing(() => this.suggestGrading(action, answer))
+					return
+				}
+				showError(serverMessage(e, t('pulse', 'Could not apply the AI suggestion.')))
+				this.resVersion = ''
+			} finally {
+				this.moderating = false
+			}
+		},
+		// The room's switch "AI help" (only offered with a provider set up).
+		// Switching it on is an AI use: the notice comes first.
+		toggleAiHelp() {
+			if (this.room.aiHelp) this.setAiHelp(false)
+			else this.withAiNotice(() => this.setAiHelp(true))
+		},
+		async setAiHelp(on) {
+			try {
+				const { data } = await axios.post(this.api(this.room.code, '/ai-help'), { on })
+				this.applyRoom(data)
+				this.resVersion = ''
+			} catch (e) {
+				if (e?.response?.data?.notice === true) {
+					this.onAiNoticeMissing(() => this.setAiHelp(true))
+					return
+				}
+				this.failWrite(e, t('pulse', 'Could not switch the AI help.'))
+			}
+		},
 		// Grade free text from the summary (updates only this question).
 		async gradeSummaryAnswer(item, answer, correct) {
 			try {
@@ -2027,6 +2240,21 @@ export default {
 				this.$set(item, 'results', data)
 			} catch (e) {
 				showError(serverMessage(e, t('pulse', 'Could not grade.')))
+			}
+		},
+
+		// Self-paced results overview: hide a free-text answer (and every equal
+		// one) from the end view and the AI summary, or show it again.
+		async moderateSummaryAnswer(item, answer, action) {
+			if (this.moderating) return
+			this.moderating = true
+			try {
+				const { data } = await axios.post(this.api(this.room.code, '/polls/' + item.poll.id + '/moderate'), { answer, action })
+				this.$set(item, 'results', data)
+			} catch (e) {
+				showError(serverMessage(e, t('pulse', 'Could not change the answer.')))
+			} finally {
+				this.moderating = false
 			}
 		},
 
@@ -2263,7 +2491,7 @@ export default {
 .summary-item:last-child { border-bottom: none; }
 .summary-q { font-size: 20px; margin: 0 0 20px; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 .summary-num { font-weight: 800; color: var(--pulse-text-2); font-variant-numeric: tabular-nums; }
-.summary-qtext { flex: 1; min-width: 0; }
+.summary-qtext { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .summary-type { font-size: 12px; font-weight: 400; color: var(--pulse-text-2); }
 
 /* Presentation — status/chips/notice now come from the DS (2nd block).
@@ -2424,7 +2652,7 @@ export default {
 .deck-head-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-inline-start: auto; }
 .btn-group { display: inline-flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .btn-group + .btn-group { margin-left: 6px; padding-left: 12px; border-left: 1px solid var(--pulse-border); }
-.export-btn { text-decoration: none; }
+.export-btn, .files-open-link { text-decoration: none; }
 
 /* Deck editor */
 .deck-item { border-radius: var(--pulse-r-card); border-color: var(--pulse-border); background: var(--pulse-hover); }
@@ -2456,9 +2684,9 @@ export default {
 	font-weight: 600 !important;
 	text-align: start;
 	cursor: pointer;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
+	/* The whole question, wrapped: never cut with an ellipsis. */
+	white-space: normal;
+	overflow-wrap: anywhere;
 }
 .deck-q:hover { text-decoration: underline; text-underline-offset: 3px; }
 .deck-q:focus-visible { outline: 2px solid var(--pulse-primary); outline-offset: 2px; border-radius: 4px; }
@@ -2506,6 +2734,13 @@ export default {
 /* Composer */
 .composer { border-radius: var(--pulse-r-card); border-color: var(--pulse-border); background: var(--pulse-hover); }
 .composer-seg { margin: 4px 0 18px; }
+/* The type switch and, in a quiz with an AI provider, the AI button at its right */
+.composer-head { display: flex; align-items: flex-start; gap: 12px; }
+.composer-head .composer-seg { flex: 1 1 auto; min-width: 0; }
+.composer-ai { flex: 0 0 auto; display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; min-width: 48px; min-height: 48px; margin: 4px 0 0 !important; padding: 4px 8px !important; border: 2px solid var(--pulse-ai) !important; border-radius: var(--pulse-r-el) !important; background: transparent !important; color: var(--pulse-ai) !important; cursor: pointer; }
+.composer-ai:hover { background: color-mix(in srgb, var(--pulse-ai) 12%, transparent) !important; }
+.composer-ai:focus-visible { outline: 2px solid var(--pulse-ai); outline-offset: 2px; }
+.composer-ai-txt { font-size: 11px; font-weight: 800; letter-spacing: .04em; line-height: 1; }
 /* Correct marker (§4.6): shape (box) + color (green) + text ("correct") */
 .opt-correct {
 	appearance: none !important; -webkit-appearance: none;

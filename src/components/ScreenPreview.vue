@@ -27,7 +27,7 @@
  *
  * Section references (§…) point to the specification of the self-paced quiz,
  * which is not in the public repository (see "References in code comments" in
- * the README).
+ * docs/DEVELOPMENT.md).
  */
 const W = 1280
 const H = 720

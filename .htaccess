@@ -1,8 +1,8 @@
 # SPDX-FileCopyrightText: 2026 hotochan123
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# For installs that run from a git checkout inside the web root (README,
-# "From the repository"): Apache serves static files below apps/pulse/
+# For installs that run from a git checkout inside the web root (docs/ADMIN.md,
+# "Installing from the repository"): Apache serves static files below apps/pulse/
 # directly, so without this the development tree would be public — the
 # screenshot harness output, node_modules with its demo pages, sources and
 # local test scripts. The release archive ships only the runtime folders and

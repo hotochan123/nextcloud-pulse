@@ -1,576 +1,198 @@
-# Pulse — live polls for Nextcloud
-
-> **Vibe-coded:** Pulse was written by AI coding agents (Anthropic's Claude Code),
-> not by hand. The maintainer set the goals, made the product decisions and tried
+<!--
+  - SPDX-FileCopyrightText: 2026 hotochan123
+  - SPDX-License-Identifier: AGPL-3.0-or-later
+-->
+# Pulse – live polls and quizzes for Nextcloud
+<!-- factory:ai-banner -->
+> **Vibe-coded:** Pulse is written by AI coding agents (Anthropic's Claude Code),
+> not by hand. The maintainer sets the goals, makes the product decisions and tries
 > the app out in the browser; there has been no independent human code review and
-> no security audit. Details: [How this app was built](#how-this-app-was-built-ai-disclosure).
+> no security audit. Details: [How this app is built](#how-this-app-is-built-ai-disclosure).
+<!-- /factory:ai-banner -->
 
-Live polls, word clouds and quizzes for presentations as a native Nextcloud app —
-a self-hosted alternative to services such as Kahoot!, Mentimeter or Slido. The
-presenter opens a room and projects a six-character code; the audience joins
-through a public link without a Nextcloud account and votes from their phones.
-Results update live through polling.
+Pulse brings live polls, word clouds and quizzes for presentations into your
+own Nextcloud, as a self-hosted alternative to services such as Kahoot!,
+Mentimeter or Slido. The presenter opens a room and projects a six-character
+code; the audience joins through a public link, without a Nextcloud account,
+and votes from their phones. Results appear live on the projector.
 
-## How this app was built (AI disclosure)
+![The projector view of a live poll](screenshots/01-projector-live.png)
 
-Pulse is vibe-coded. The maintainer ([hotochan123](https://github.com/hotochan123))
-did not write the code by hand. They set the goals, made the product decisions
-and tried the app out in the browser. Everything else was written by AI coding
-agents:
+**Status:** version 0.20.2 is in the
+[Nextcloud App Store](https://apps.nextcloud.com/apps/pulse). What changed in
+each version is in the [changelog](CHANGELOG.md).
 
-- all code — PHP, JavaScript/Vue, CSS and the database migrations;
-- the tests, the development tools (HTTP simulation, screenshot harness) and the
-  throwaway scripts used for request fuzzing;
-- the documentation, including this README, and the German translation.
+- [Features](#features)
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Known limits](#known-limits)
+- [Development](#development)
+- [How this app is built (AI disclosure)](#how-this-app-is-built-ai-disclosure)
+- [Licence](#licence)
 
-**Tool and models.** The agents ran in Anthropic's Claude Code. The private
-development history has 87 commits, from 16 July to 29 September 2026. Every one
-of them carries a `Co-Authored-By` trailer naming the model: Claude Opus 4.8
-(37 commits), Claude Opus 5 (44) and Claude Opus 5.5 (6). Commits in this public
-repository carry the same trailers.
-
-**Design.** The UI design explorations (mockups, design briefs) were also
-produced with AI tools. They are not part of this repository.
-
-**Verification.** The app is checked by a PHPUnit suite (over 1,300 tests),
-unit tests for the self-paced rules, an HTTP simulation of complete poll and
-quiz runs and a browser screenshot harness; during development it was also
-fuzzed with throwaway request-fuzzing scripts. All of them were written by the
-same AI agents, so they check the code against the agents' own reading of the
-requirements. Not all of them run automatically: the checks every change has
-to pass before it is merged (run in the private development repository, not
-by GitHub Actions) only build the bundle, check the translations and
-`info.xml` against the App Store schema, pack a test release archive, run the
-unit tests (`dev/unit`), `php -l` and the PHPUnit suite (on Nextcloud 34 and
-35), check that the dev scripts parse, play the simulation (`dev/sim`)
-through on throwaway Nextcloud instances with SQLite, PostgreSQL, MariaDB and
-MySQL, play the load run (`dev/sim/load.mjs`) against another one, and
-drive the moderator desk, the phone page and the projector in a real browser
-(`dev/e2e`, Playwright with Chromium) on a throwaway instance. The
-screenshot harness (`dev/design-shots`) is run by hand — it needs a
-running Nextcloud instance — and the fuzzing scripts were one-offs that are not in this
-repository. There has been no independent human code review and no security
-audit. In September 2026 AI agents of the same kind reviewed the code for
-security problems and fixed what they found (listed under "Security" in
-[`CHANGELOG.md`](CHANGELOG.md)); what remains is described under
-[Security notes](#security-notes). That review is no substitute for an
-independent audit. How to report a problem: [`SECURITY.md`](SECURITY.md).
-
-**History.** This public repository starts with one squashed commit. The earlier
-history is kept private because early screenshots in it showed an internal host
-name; the code is the same.
-
-**What this means for you.** Evaluate Pulse yourself before you rely on it,
-especially for anything sensitive. Issues and reviews are welcome
-([issue tracker](https://github.com/hotochan123/nextcloud-pulse/issues)).
-Pulse is licensed under AGPL-3.0-or-later and comes without any warranty.
+Every feature in detail, including the self-paced quiz step by step:
+[`docs/FEATURES.md`](docs/FEATURES.md). Installation from the repository,
+limits and their settings, embedding in PowerPoint, security notes and all
+known limits for administrators: [`docs/ADMIN.md`](docs/ADMIN.md).
+Architecture, data model, tests and releases:
+[`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
 
 ## Features
 
-- Two roles: **moderator** (signed in to Nextcloud) and **participant** (public,
-  no account).
-- Two room modes: **poll** (anonymous) and **quiz** (nickname, countdown,
-  leaderboard).
-- Question types — poll: multiple choice · word cloud · scale (single/spectrum/compass) ·
-  ranking · **matching**. Quiz: multiple choice · true/false · multiple answers ·
-  number guess · free text (with grading) · ranking · **matching**. A quiz
-  question can carry an optional **explanation** (plain text, up to 500
-  characters) that the reveal shows together with the correct answer.
-- A deck of several questions, an image per question, a projector view, QR code,
-  practice run, and a summary with CSV export.
-- **Self-paced** quizzes (the "Self-paced" toggle in a quiz deck's menu): instead
-  of one question for everybody, each person works through the deck on their own
-  phone — as a race in the room or as homework with a deadline. The moderator
-  follows each person's progress, grades free-text answers and releases the
-  results; the projector shows the race, never the questions. See below.
-- An anonymous voter cookie (no link to a person) discourages double voting;
-  whoever clears their cookies can vote again (see
-  [Security notes](#security-notes)).
-- A daily background job deletes rooms after 30 days without any activity:
-  no participant was there, and the owner did nothing with the room — did not
-  open it, edit the deck, present or look at the results. A deck prepared
-  weeks ahead therefore stays. Participants alone keep a room alive only while
-  its owner has used it within the last 180 days, so a room whose code keeps
-  being polled still goes about 180 days after its owner last used it.
-  Deleting a Nextcloud account deletes that account's rooms, with their
-  questions, votes, players and images. The same daily job also deletes the
-  rooms of accounts that no longer exist — for example ones deleted while
-  Pulse was disabled, which would otherwise pass to a new account with the same
-  user ID — and question images that no question refers to any more.
+- **Two roles:** the moderator signs in to Nextcloud; participants join with
+  the room code or a QR code, without an account.
+- **Polls** (anonymous): multiple choice, word cloud, scale (single slider,
+  spectrum or compass), ranking and matching.
+- **Quizzes** with nicknames, points and a leaderboard: multiple choice,
+  true/false, multiple answers, number guess, free text (graded afterwards),
+  ranking and matching, each with an optional explanation shown with the
+  answer.
+- **Moderated or self-paced:** everybody answers the same question with a
+  countdown, or everybody works through the quiz alone on their phone – as a
+  race in the room or as homework with a deadline.
+- **Presenting:** decks of several questions, an image per question, a
+  projector view, practice runs, and a PowerPoint add-in that puts the
+  projector view on a slide.
+- **Filter before the projector:** hide any free-text or word-cloud answer
+  with one tap; optionally the AI set up in your Nextcloud checks new answers
+  first.
+- **AI quiz draft:** 5–10 questions with answers from a topic or a file in
+  your Nextcloud, when an administrator has set up an AI provider.
+- **Group with AI:** sort the free-text or word-cloud answers into a few
+  themes, check them on the desk and show them on the projector.
+- **Summary with AI:** key points of the free-text answers and every result
+  in numbers as a Markdown file in your Nextcloud.
+- **AI quality:** AI results depend on your model. Pulse only sends prompts
+  to the AI provider set up in your Nextcloud; how good drafts, filters,
+  themes and summaries are depends strongly on that model. Pulse is tested
+  with Mistral Small 4 (via Infomaniak); smaller or local models may give
+  weaker results. The prompts keep being improved.
+- **Results:** a summary with CSV export, downloaded or saved into your
+  Nextcloud files.
+- **Tidy by itself:** rooms nobody has used for 30 days are deleted
+  automatically.
+- **Languages:** English and German.
 
-## Self-paced quiz
+## Requirements
 
-1. **Switch:** in the quiz room, deck menu → tick "Self-paced". This clears
-   participants, answers and leaderboard (after asking, once somebody has
-   joined); the questions stay. The header shows "Quiz · self-paced".
-2. **Open:** "Open quiz …" instead of "Start presenting". In the dialog, choose
-   how it ends:
-   - "When I close it" = **race**: by default with a timer and feedback after
-     every question; closing releases the results at once (or use "Stop without
-     releasing" to check free-text answers first).
-   - "At a set time" = **homework**, deadline 1 minute to 30 days: by default
-     without a timer, results only with the release; the deadline closes the
-     quiz by itself, even with no tab open.
-
-   Timer and feedback can be changed in the dialog; a practice run always gives
-   feedback at once and never shows a leaderboard. Once the quiz is open, the
-   questions are locked until the room is reset.
-3. **Progress view** ("Show progress"): for each person the question, answers,
-   points and last activity; next to it the join code with QR, a projector
-   preview and free-text grading (without the list of accepted answers; slips
-   can be undone under "Checked just now"). At the bottom exactly one main
-   action: "Close quiz" → check open free-text answers → "Release results". In
-   the menu: lock joining, change the end or reopen, show points (with feedback
-   at the end), participants and answers as CSV, reset the quiz; people can be
-   removed one by one. The page is private — what you project is the projector
-   window.
-4. **Phone:** name → start card → questions. "Next question" appears once the
-   answer is final (a few seconds, costs no points); questions without a timer
-   can be skipped. Reloading continues at the same place — but only in the same
-   browser: switching devices starts over with a new name at question 1.
-5. **Projector:** while open, the race (how many people are on which question,
-   how many have finished), with a large join block for the first two minutes,
-   then — with feedback after every question — the top eight; once closed, only
-   the count; once released, the final standings.
-
-Limits: at most 300 people per room who have started and 600 who have joined,
-and 120 new names per address and room within ten minutes; an instance can
-change the last two (all limits: [Limits](#limits)). Lock joining once the
-class is in. Implementation notes with
-test paths and open points:
-[`docs/pace-2026-09/UI.md`](docs/pace-2026-09/UI.md).
-
-## Architecture
-
-- **Public access** without login through `#[PublicPage]` + `#[NoCSRFRequired]` —
-  the same mechanism as share links. The room code is the share token:
-  `/apps/pulse/s/{code}`. Because that switches Nextcloud's CSRF check off, the
-  participant API checks for itself that a vote comes from its own page (see
-  [Security notes](#security-notes)).
-- **Core decision on vote counting:** one database row per `(poll_id, voter_token)`
-  (`UNIQUE` index), counted with `COUNT`/aggregates — no shared counter. A
-  re-vote is an upsert (last write wins per person). Carried over from the
-  original prototype so that simultaneous votes are not lost.
-- **Realtime:** adaptive JSON polling. Moderated rooms poll every 1.2 to 2.5 s
-  depending on view and phase, backing off to 4–5 s while nothing changes; in a
-  self-paced quiz, phones poll every 0.7–10 s, the progress view every 2–10 s
-  (`phoneDelay`/`progressDelay` in `src/util/pace.js`) and the deck status
-  every 5–10 s. Polling pauses in hidden tabs, and an unchanged state is
-  answered with an empty 204. In moderated rooms that check reads no votes: it
-  compares a per-question change marker kept in Nextcloud's memory cache (the
-  distributed one, such as Redis, where configured). Without any memory cache
-  it falls back to reading the votes of the question. No High Performance
-  Back-end needed.
-- **Public views are capped:** phones and the projector get the top 100 words
-  or free-text groups, at most 500 compass points and the first ten leaderboard
-  rows plus the viewer's own row and neighbours, each with the full count. The
-  moderator's results, the summary and the CSV export stay complete.
-
-## Structure
-
-```
-lib/Controller/   PageController (moderator SPA), RoomApiController (moderator API),
-                  PublicController (participant pages), PublicVoteController (public API),
-                  AddinController (PowerPoint add-in manifest)
-lib/Db/           Room, Poll, Vote, Player, Presence, Progress + QBMapper
-lib/Service/      RoomService (rooms), DeckService (questions), VoteService (votes),
-                  StateService (read views + CSV), TallyService (tallying),
-                  AnswerRules (per-type answer checks + grading), QuizService (points),
-                  PollImageService (images), DemoService, CodeGenerator,
-                  PaceService + PaceStateService (self-paced quiz: window, read views),
-                  PublicPayload (capped public views), Limits (caps per account)
-lib/SetupCheck/   EmbedFraming (setup check for the PowerPoint embed)
-lib/BackgroundJob/ CleanupStaleRoomsJob (deletes rooms unused for 30 days, rooms of deleted
-                  accounts and question images nothing refers to)
-lib/Listener/     UserDeletedListener (a deleted account takes its rooms with it)
-lib/Migration/    Schema (pulse_rooms, pulse_polls, pulse_votes, … pulse_progress)
-src/              Moderator.vue (control desk), Participant.vue (phone), Screen.vue (projector),
-                  components/StageRow.vue (stage row model), ResultsView.vue,
-                  self-paced: components/Pace*.vue (moderator), StageRace.vue (projector),
-                  mixins/pace-phone.js (phone), util/pace.js (pure rules, no browser),
-                  util/question-types.js (composer contract per question type, no browser),
-                  util/routes.js (every URL and request time limit of the Vue frontend;
-                  js/pulse-embed.js builds its own),
-                  styles.js (token layer without Vue — for the embed shell)
-l10n/             Translations (de.json is maintained, de.js is generated from it)
-build/            l10n-build.js (json -> js), l10n-check.js (coverage)
-tests/            PHPUnit (database-free) + run.sh
-office-addin/     PowerPoint add-in (guide, Traefik example; the instance generates
-                  the manifest itself)
-dev/design-shots/ Screenshot harness for design reviews and store images (headless Firefox)
-dev/sim/          HTTP simulation of complete runs against a running instance
-dev/e2e/          Browser tests (Playwright, Chromium) of desk, phone and projector on a throwaway instance
-screenshots/      Images for the App Store page
-.htaccess         Hides the development folders when a git checkout sits in the web root (Apache)
-```
-
-## References in code comments
-
-Many code comments cite section numbers ("§2.4", "specification §1.6"),
-acceptance criteria ("acceptance #7"), steps and gates of the build plan
-("step 4.6", "gate 4.4b") or review IDs ("B1", "R2", "E1", "D6"). They point to
-the working documents the AI agents worked from: the design briefs, handoffs,
-review notes and screenshots of the July 2026 design rounds, and the
-specification of the self-paced quiz from September 2026. None of these
-documents is part of the public repository, so such a reference cannot be
-looked up; read it as "this rule comes from the design notes". Files that cite
-them say so in a note. The one exception is
-[`docs/pace-2026-09/UI.md`](docs/pace-2026-09/UI.md), the implementation
-record of the self-paced UI, which is included.
+Nextcloud 34 or 35 and the PHP version it needs (the tests run on PHP 8.2 and
+newer), with SQLite, MySQL/MariaDB or PostgreSQL. A memory cache (Redis or
+APCu) is recommended: without one, Pulse reads more from the database while
+phones wait for changes. No High Performance Back-end is needed. The AI
+features appear only when an administrator has set up a text-generation
+provider in Nextcloud's AI settings.
 
 ## Installation
 
-Pulse has been in the [Nextcloud App Store](https://apps.nextcloud.com/apps/pulse)
-since 3 October 2026. As an admin, open Apps in Nextcloud, search for "Pulse"
-and install it, or run `occ app:install pulse`. A new release can take some
-hours to show up there: Nextcloud reads a copy of the store's app list that
-the store renews only from time to time. Every release is signed with the
-app's certificate from Nextcloud and attached to the
-[GitHub releases](https://github.com/hotochan123/nextcloud-pulse/releases),
-which is where the store sends every instance to download it.
-Pulse runs on Nextcloud 34 and 35 and has been tested on 34.0.1 and 35.0.1
-with fresh installations on SQLite, MariaDB 11.8, PostgreSQL 17 and MySQL 8.4,
-and on 34.0.4 with PostgreSQL, including the server update from 34.0.4 to
-35.0.1. The signed archives of 0.19.0 and 0.19.1 were installed on 34.0.4 and
-35.0.1 through the same download and signature checks an installation from the
-store runs, and both have been installed from the store itself (0.19.0 on
-34.0.4, 0.19.1 on 35.0.1).
+An administrator installs Pulse from the Nextcloud App Store: on the Apps page
+of Nextcloud, search for "Pulse", or run `occ app:install pulse`. A new
+release can take some hours to show up there.
 
-To install from the repository instead (for example a state that has not
-been released yet), do not clone it into the web root. A checkout carries the
-development tree — tests, the simulation and screenshot harness, sources and,
-after a build, `node_modules/` with demo pages of its packages — and the web
-server hands out static files below `apps/` as they are, so all of it would be
-public on your Nextcloud's own origin. Clone it somewhere else and copy only the
-runtime files into Nextcloud. The bundles in `js/` are not part of the
-repository, so this needs Node.js for the build (see [Building](#building)):
+For the PowerPoint add-in the web server must allow the projector view to be
+framed; the setup check "Pulse: embedding in PowerPoint" under Administration
+→ Overview says whether that works. Installing from the repository (never
+straight into the web root), embedding, and the limits you can change with
+`occ` are described in [`docs/ADMIN.md`](docs/ADMIN.md).
 
-```
-git clone https://github.com/hotochan123/nextcloud-pulse.git ~/pulse-src
-cd ~/pulse-src
-npm ci && npm run build                  # builds js/
-mkdir <nextcloud>/apps/pulse
-cp -a appinfo css img js l10n lib templates office-addin \
-      README.md LICENSE CHANGELOG.md <nextcloud>/apps/pulse/
-rm -f <nextcloud>/apps/pulse/js/*.map
-occ app:enable pulse
-```
+## Known limits
 
-The folder has to be named after the app ID (`pulse`) and needs only the
-runtime folders — `appinfo`, `css`, `img`, `js`, `l10n`, `lib`,
-`templates`, `office-addin` — plus README, licence and changelog; the same
-set a release archive ships. It is not signed, which Nextcloud accepts for an
-app installed by hand. `rsync` with the same list works just as well, and the
-web server user needs read access to the copy. To update, replace
-`<nextcloud>/apps/pulse` with the new folder; when the version in `appinfo/info.xml` went up, run
-`occ upgrade` afterwards (until then Nextcloud does not serve the app).
+The most important ones; the full list is in
+[`docs/ADMIN.md`](docs/ADMIN.md#known-limits-and-possible-extensions).
 
-Running Pulse straight from a git checkout inside `apps/` still works (after `npm ci` and `npm run build`), and the
-repository ships an `.htaccess` as a safety net for that case: on Apache (with
-`mod_alias` and `AllowOverride` for the app folders, as in Nextcloud's own
-setup) it answers 404 for `node_modules/`, `dev/`, `build/`, `tests/`, `src/`,
-`tools/`, `docs/`, `.git/`, local `_*.php` scripts and the package files. nginx
-ignores `.htaccess`; there, deploy the runtime files as above.
+- **One vote per person is not guaranteed.** Without an account, a cookie
+  only discourages voting twice; another browser or a script can vote again
+  and again. Treat the result of an anonymous poll as an impression, not a
+  head count.
+- **Self-paced quizzes can be scouted** with a second identity. For anything
+  graded, give feedback "At the end", lock joining once the class is in and
+  check the names.
+- **Many people behind one network address** (a lecture hall on one NAT)
+  share the limits on new names; raise them with `occ` when needed.
+- **Polling, not push:** phones ask the server for changes every second or
+  two.
+- **Not yet:** an image hotspot question type, a rejoin code for switching
+  devices in a self-paced quiz, and languages other than English and German.
 
-## Building
-
-Build outside the web root as well, then deploy as above:
+## Development
 
 ```
-npm ci             # exactly the dependency versions of package-lock.json
-npm run build      # produces js/pulse-main.js, js/pulse-public.js and js/pulse-styles.js
+npm ci && npm run build     # the bundles in js/ (Node.js 22.18)
+npm run l10n:check          # translations complete
+tests/run.sh                # PHPUnit inside a Nextcloud container
+for f in dev/unit/*.test.mjs; do TZ=Europe/Berlin node "$f"; done   # JavaScript unit tests
 ```
 
-Use Node.js 22.18.0, the version the release bundles are built with: with it,
-`npm ci` plus `npm run build` reproduces the `js/` of a release archive byte for
-byte. The bundles are not committed (only the hand-written `js/pulse-embed.js`
-is).
+The HTTP simulation, the integration and load runs, the browser tests, the
+screenshot harness, the architecture, the data model and the release steps
+are described in [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
 
-## Languages
+## How this app is built (AI disclosure)
+<!-- factory:ai-about -->
+Pulse is vibe-coded. The maintainer ([hotochan123](https://github.com/hotochan123))
+does not write the code by hand. They set the goals, make the product decisions
+and try the app out in the browser. Everything else is written by AI coding
+agents:
 
-The source language is **English** — the code contains the English text, and
-translations come from `l10n/`. That way the app does not suddenly show German
-buttons outside German-speaking countries, and further languages need no code
-change.
+- all code – PHP, JavaScript/Vue, CSS and the database migrations;
+- the tests and the development tools;
+- the documentation, including this README, and the translations.
 
-```
-PHP:  $this->l10n->t('Room not found.')          // IL10N in the constructor
-      $this->l10n->n('%n vote', '%n votes', $x)
-Vue:  {{ t('pulse', 'Save') }}                    // Vue.prototype.t/n from main.js
-      {{ n('pulse', 'answer', 'answers', total) }}
-      t('pulse', 'Hello {name}', { name })        // placeholders in curly braces
-```
+**Tool and models.** The agents run in Anthropic's Claude Code. The private
+development history up to this release has 152 commits (merges not
+counted), from 29 September 2026 to 8 November 2026. Each commit written by an agent carries a
+`Co-Authored-By` trailer naming the model: Claude Opus 5.5 (150 commits). 2 commits without such a trailer came from people by hand (contributions through the public repository). Before this repository, Pulse was developed in an earlier private repository: 87 commits from 16 July to 29 September 2026, with Claude Opus 4.8 (37), Claude Opus 5 (44) and Claude Opus 5.5 (6).
 
-Only `l10n/de.json` is maintained by hand; `l10n/de.js` (the file Nextcloud
-loads in front of the bundle) is generated from it:
+**How a change is made.** The maintainer decides what goes in, in question
+rounds with an agent. Each change then runs as one job of an automated
+pipeline: an agent writes a short specification with acceptance criteria,
+builds the change with tests, runs the checks and reviews its own change; a
+second agent that has not seen the work reviews it again for correctness,
+security and usability, and only then is it merged. The maintainer tries the
+result in the browser before a release.
+<!-- /factory:ai-about -->
 
-```
-npm run l10n         # de.json -> de.js
-npm run l10n:check   # reports missing and orphaned translations, exit 1 on gaps
-```
+**Verification.** Pulse is checked by a database-free PHPUnit suite, JavaScript
+unit tests for the browser-free rules (self-paced timing, question types,
+routes, word-cloud layout and more), an HTTP simulation of complete poll and
+quiz runs, a load run with 60 phones in a self-paced race and browser tests
+with Playwright (Chromium) that drive the moderator desk, the phone page and
+the projector. Every change has to pass these checks before it is merged; they
+run in the private development repository, not on GitHub. They build the
+bundle, check the translations and `info.xml` against the App Store schema,
+pack a test release archive, run the JavaScript unit tests, check the syntax
+of every PHP file and development script, run PHPUnit four times (on the PHP
+of the Nextcloud 34 and 35 images and on PHP 8.2 and 8.3), play the simulation
+through on throwaway Nextcloud instances with SQLite, PostgreSQL, MariaDB and
+MySQL, and run the load and browser tests on throwaway instances. The
+screenshot harness (`dev/design-shots`) needs a running Nextcloud and is run
+by hand; during development the app was also fuzzed with one-off scripts that
+are not in this repository. In September 2026 AI agents of the same kind
+reviewed the code for security problems; the fixes are listed under
+"Security" in the [changelog](CHANGELOG.md), and what remains is described in
+the [security notes](docs/ADMIN.md#security-notes).
 
-Plurals live under the combined key `_singular_::_plural_` with an array as the
-value — the same rule in PHP and JS. Numbers are formatted in the language of
-the interface (`fmtNum()` in the frontend, `NumberFormatter` in the CSV export);
-a hard-wired decimal comma would be a different number in an English interface.
+<!-- factory:ai-outro -->
+**History.** This public repository gets one commit per release, exported from
+the private development repository; the development history, with the job
+files of the pipeline, stays private. The code is the same.
 
-## Data model
-
-```
-Poll  = { id, type, question, options, answerKey, explanation, maxWords, timeLimit, image, status }
-
-# options holds something different per type (JSON in one column):
-choice/multi/rank/truefalse -> [{id,label}, …]
-scale                       -> {mode, min, max, aspects|axisX/axisY, …}   -> getScaleConfig()
-match                       -> {items:[{id,label}], targets:[{id,label}]} -> getMatchConfig()
-
-# answerKey is the quiz solution (never sent to participants before the reveal):
-multi {correct:[id]} · rank {order:[id]} · match {map:{itemId:targetId}}
-number {target,tolerance} · text {accepted:[],rejected:[]}
-
-# explanation (quiz only, plain text, NULL = none) follows the same gate as
-# answerKey: owner views always, participants and projector only once revealed.
-
-Vote  = { value: "<optionId>" }                  # choice/truefalse
-Vote  = { value: ["word", "word"] }              # words (lower-cased when tallying)
-Vote  = { value: ["id","id"] }                   # rank (complete permutation)
-Vote  = { value: {"<itemId>": "<targetId>"} }    # match (every row assigned)
-```
-
-## Tests
-
-```
-tests/run.sh          # PHPUnit inside the Nextcloud container (see tests/README.md)
-npm run l10n:check    # translation coverage, exit 1 on gaps
-TZ=Europe/Berlin node dev/unit/pace.test.mjs   # self-paced rules (deadlines, phone cards, polling rate)
-node dev/unit/format.test.mjs                  # shared formatting helpers (tall labels, "x min ago")
-node dev/unit/question-types.test.mjs          # composer contract per question type, deck labels, loss texts
-node dev/unit/routes.test.mjs                  # Vue frontend URLs and their call sites, checked against appinfo/routes.php
-node dev/unit/composer-limits.test.mjs         # composer maxlength/min/max, checked against what DeckService keeps
-node dev/unit/wordcloud.test.mjs               # projector word-cloud layout (long words fit), phone word length vs. server
-dev/sim/run.sh        # HTTP simulation of complete runs against the running instance (dev/sim/README.md)
-DB=all dev/it/run.sh  # the same simulation on throwaway instances with all four databases (dev/it/README.md)
-dev/sim/load-check.sh # load run (60 phones, self-paced race) on a throwaway Nextcloud; exit 1 on 5xx or p95 /state >= 300 ms
-dev/e2e/run.sh        # browser tests of desk, phone and projector on laptop, tablet and phone, light and dark (dev/e2e/README.md)
-```
-
-Screenshots of every view (projector, phone, moderator — per question type, open
-and revealed, light and dark) are taken automatically by `dev/design-shots/run.sh`;
-see `dev/design-shots/README.md`. The run also measures every projector stage and
-reports when content runs past the clipped kiosk — on a still image you only
-notice that if you look for it.
-
-Handoffs, implementation status and images of the July 2026 design rounds are
-not part of the public repository; see
-[References in code comments](#references-in-code-comments).
-
-The unit suite stays database-free (grading, tallying, text normalisation,
-parameter pass-through). Paths that really touch the database are exercised by
-the HTTP simulation and by throwaway scripts against a running instance, which
-are not part of the repository — see `tests/README.md`.
-
-## Embedding in PowerPoint
-
-A custom content add-in (sideloaded, not from the Office Store). Each instance
-serves the Office manifest itself — `/apps/pulse/addin/manifest.xml`, and
-"PowerPoint add-in" in the deck menu. It carries the address it was downloaded
-from; an Office manifest has no variables, so a shipped file would need a hand
-edit on every installation. Guide: `office-addin/README.md`.
-
-**Note:** Nextcloud sends `X-Frame-Options: SAMEORIGIN` from `.htaccess` and
-`lib/base.php` — an app cannot override that. For `/apps/pulse/screen/` and
-`/apps/pulse/embed` the header has to be removed in the web server or reverse
-proxy; snippets for Apache, nginx and Traefik are in `office-addin/README.md`.
-Whether it is still there is reported by the setup check "Pulse: embedding in
-PowerPoint" under Administration → Overview, separately for each address.
-
-## Limits
-
-**Per account and quiz room.** No user quota counts what Pulse stores — question
-images live in Nextcloud's app data, rooms and questions in the database — and
-anonymous participants can add players to a quiz, so Pulse keeps its own caps.
-Each can be changed per instance, for example
-`occ config:app:set pulse max_rooms_per_owner --value 500`. Only a positive
-whole number overrides the default (anything else keeps it, so a typo never
-means "unlimited"), and a change takes effect within a few seconds.
-
-| App config key | Default | Limits |
-|---|---|---|
-| `max_rooms_per_owner` | 200 | rooms of one account |
-| `max_polls_per_room` | 100 | questions in one room |
-| `max_question_length` | 1000 | characters of a question text |
-| `max_image_bytes_per_owner` | 209715200 (200 MB) | question images of all rooms of one account, counted as stored — Pulse re-encodes every upload as PNG or JPEG, which can be several times the size of the upload |
-| `max_players_per_room` | 600 | players who have joined one quiz: every player of a moderated quiz, started or not in a self-paced one (the self-paced cap of 300 who have started is fixed); the flood guard on joining grows with it |
-| `max_new_players_per_address` | 120 | new names per address and self-paced quiz within ten minutes — raise it when a larger class or a lecture hall joins from behind one address |
-| `rate_limit_create` | 30 | new rooms per account and minute |
-| `rate_limit_duplicate` | 10 | room copies per account and minute |
-| `rate_limit_add_poll` | 120 | new questions per account and minute |
-| `rate_limit_upload_image` | 30 | image uploads per account and minute |
-| `rate_limit_demo` | 30 | batches of demo votes per account and minute |
-
-A cap answers with a message (400), a rate limit with "Too many attempts. Please
-wait a moment." (429). Copying a room checks its questions and images against
-the caps before it writes anything. Requests that arrive at the same moment
-all check against what was stored before any of them wrote, so the image
-budget and the caps on rooms and questions count once more after writing, and
-a request that finds the account over takes its own room, question, copy or
-image back — parallel requests may then all be refused, but they no longer get
-past a cap together. The per-minute rate limits come from Nextcloud's rate
-limiter, which is approximate under parallel requests: a burst can get a few
-more through. Answer options are cut to 200 characters,
-and a free-text question keeps at most 50 accepted answers.
-
-**Per room and address.** Fixed in the code where no app config key is named;
-"an address" is what Nextcloud counts as one — an IPv4 address or an IPv6 /56
-network.
-
-- Wrong room codes: after ten from one address within 30 minutes, further
-  unknown codes get 429. While an address is blocked its misses are not
-  counted, so the block ends 30 minutes after the last miss that counted, even
-  if a phone keeps polling a deleted room. Existing rooms keep working.
-- New anonymous identities (a vote or a join without the voter cookie): 300 per
-  address and room within ten minutes.
-- Presence ("N here", a player's last activity): 600 new entries per address
-  and room within ten minutes. Beyond that a phone works as usual; it is
-  counted as present once the window has moved on.
-- Joining a quiz: 2,400 requests per address and room within ten minutes (four
-  per possible player, more with a higher `max_players_per_room`), in both
-  modes — only a guard against floods.
-- Moderated quiz: at most 600 players (`max_players_per_room`).
-- Self-paced quiz: at most 300 players who have started and 600 who have
-  joined (`max_players_per_room`); at that ceiling, while the quiz is open,
-  players who joined more than ten minutes ago and never started make room. At
-  most 120 new names per address and room within ten minutes
-  (`max_new_players_per_address`).
-- Word cloud: a vote with more than twice the allowed number of words (at least
-  20) is refused; long words and texts are cut before they are processed.
-
-## Security notes
-
-- **Anonymous participants.** A random voter token in a cookie discourages
-  double voting without identifying anyone; whoever clears their cookies can
-  vote again. In a quiz, participants only give a nickname.
-- **Voter cookie.** On https with Nextcloud at the root of its domain the cookie
-  is called `__Host-pulse_vt` (Secure, `Path=/`, no `Domain`, `HttpOnly`,
-  `SameSite=Lax`). Browsers accept such a cookie only from this very origin, so
-  another service on a sibling subdomain can neither plant a token it knows —
-  and then read a participant's answers with it — nor overwrite it. Under http
-  or a sub-path it stays `pulse_vt` without that protection. A `pulse_vt` from
-  before the update is taken over for 60 days after the first request under the
-  new name and ignored after that; the start is kept in the app config key
-  `voter_cookie_host_since`, and setting it to 1
-  (`occ config:app:set pulse voter_cookie_host_since --value=1 --type=integer`)
-  ends the takeover at once. A request that sends a cookie name twice counts as
-  having no cookie. A name that PHP only turns into `__Host-pulse_vt` —
-  `_.Host-pulse_vt`, which any sibling subdomain may set — is ignored, as PHP
-  itself ignores it.
-- **Votes only from the page itself.** Joining, voting and moving on in a
-  self-paced quiz (`POST /s/{code}/join`, `/vote`, `/next`) need
-  `X-Requested-With: XMLHttpRequest`, which the page's own script sends, or
-  `Sec-Fetch-Site: same-origin`; anything else gets 403 and no cookie. A form
-  on another site, a sibling subdomain included, can therefore neither vote or
-  rename in a participant's name nor replace their cookie. Reading (`/state`,
-  `/summary`, images) needs only the code.
-- **Room codes** have six characters out of 32, about 10^9 codes. A wrong code
-  counts towards Nextcloud's brute-force protection (action `pulseRoomCode`):
-  after ten misses from one address within 30 minutes, further unknown codes
-  get 429. Only misses ever count, and an existing room always opens — a typo
-  in the join form, a web page that embeds made-up codes or a room deleted
-  under 30 polling phones cannot lock a school or a venue out of its own room.
-  Requests from a blocked address are not counted, so phones still polling a
-  deleted room neither prolong the block nor grow the list of attempts that
-  Nextcloud reads for that address on every check, its login included.
-  The price: an address can still tell existing from unknown codes, even while
-  it is blocked; only a rate limit in front of Nextcloud (in the reverse
-  proxy, for `/apps/pulse/s/` and `/apps/pulse/screen/`) bounds how fast. An
-  admin lifts a block with `occ security:bruteforce:reset <address>`. The
-  moderator API answers someone else's room exactly like an unknown code (404
-  "Room not found."), so a logged-in account learns no more there.
-- **Ballot stuffing.** Without an account, anyone with the code can vote again
-  and again under new identities — another browser, a private window, or a
-  script. Voter tokens are random values the server does not sign, so a script
-  can make up its own; the limit on new identities (see [Limits](#limits))
-  only slows down scripts that send no cookie at all. Pulse cannot prevent
-  this: the result of an anonymous poll is an impression, not a head count.
-  What is bounded is the cost for everybody else: public views are capped (see
-  [Architecture](#architecture)), an unchanged state costs no vote reads, a
-  request without the cookie writes no presence row, and made-up cookies add
-  at most 600 presence rows per address and room in ten minutes. Every
-  accepted vote still makes each open phone and the projector fetch the state once more, and the
-  server builds it from all votes of the question — a few hundred milliseconds
-  per viewer at tens of thousands of votes. The owner's only remedy is
-  resetting the room, which deletes the real results as well.
-- **Names on the podium.** Anyone with the code can join a quiz under any free
-  name and reach the projector's podium. The host can lock joining ("Lock
-  joining" in the menus) and remove players — in a moderated quiz from the
-  "Participants" list in the "Only for you" panel and under the standings, in
-  a self-paced one from the progress view. A removed player's answers are
-  deleted; they can join again from zero points unless joining is locked. In a
-  moderated quiz a name is frozen once its player has answered or a question
-  has ended. Names are compared without case, invisible characters (every
-  character Unicode reserves as "default ignorable", unassigned ones included)
-  and lookalike letters (fullwidth forms, Greek or Cyrillic letters that look
-  Latin; with PHP's `intl` extension also pairs such as "PauI" and "Paul"), so
-  nobody can pass as a player already in the room — not even by re-spelling
-  their own name: "paui" may become "PAUI", but not "PauI" next to a "Paul". That occasionally refuses a
-  genuine name close to a taken one ("Ian" next to "lan"); adding a letter
-  helps.
-- **Quiz solutions** (`answerKey`) are not sent to phones or the projector
-  before the reveal. A self-paced quiz can still be scouted: a second identity
-  that answers anything moves on at once (only an unanswered timed question
-  holds it until the time is up), so it sees the whole timed deck before the
-  main identity's clock starts, and the main identity still earns full speed
-  points. With feedback "After each question" — the race default — leaving a
-  question makes its answer final at once and shows whether it was right, so a
-  few throwaway identities find the right option of every choice question. For
-  anything graded, open the quiz with feedback "At the end", lock joining once
-  the class is in and check the names against your class list. Pulse cannot
-  tie an identity to a person; where that matters, use a tool with a sign-in
-  for every participant.
-- **Framing.** `/apps/pulse/screen/{code}` (the projector view) and
-  `/apps/pulse/embed` (the add-in shell) may be framed by any site —
-  `frame-ancestors *`, and the web server drops `X-Frame-Options` for exactly
-  these paths (see [Embedding in PowerPoint](#embedding-in-powerpoint)). That
-  is what the PowerPoint add-in needs. Both are read-only; the projector view
-  shows what anyone with the code sees anyway. The voting page `/s/{code}` and
-  the rest of Nextcloud keep `SAMEORIGIN`.
-- **office.js in your origin.** The add-in shell loads Microsoft's `office.js`
-  from Microsoft's CDN into your Nextcloud's origin. Inside PowerPoint there
-  is no Nextcloud session, but opened in a browser where you are logged in to
-  Nextcloud, that third-party script has the reach of your session. Test the
-  add-in address in a private window (see `office-addin/README.md`). The add-in
-  manifest asks PowerPoint only for the `Restricted` permission — the document
-  settings in which the room code travels with the `.pptx` — so script inside
-  the add-in cannot read or change the presentation. A manifest downloaded
-  before that change asked for more; download it again.
-- **Development files** do not belong in the web root; see
-  [Installation](#installation).
-- **Logs.** Voter tokens, nicknames and answers are marked as sensitive
-  parameters, so they do not end up in exception traces in `nextcloud.log`.
-- **Retention.** Rooms, with their answers and nicknames, are deleted by the
-  daily job as described under [Features](#features).
-- As described [above](#how-this-app-was-built-ai-disclosure), the code has not
-  had an independent human review or a security audit; the AI agents' own
-  security review is summarised in the changelog. Reporting a problem:
-  [`SECURITY.md`](SECURITY.md).
-
-## Release
-
-Releases are built, signed and uploaded to the Nextcloud App Store with the
-developer's release tooling, outside this repository (`/factory release pulse`): it builds the bundles
-from the release tag, packs the runtime folders listed under
-[Installation](#installation) into `pulse-<version>.tar.gz` with a
-single folder `pulse/`, signs it with the app's certificate and publishes the
-same archive as a GitHub release. The release notes are the version's section
-in [`CHANGELOG.md`](CHANGELOG.md).
+**What this means for you.** All tests and reviews above were written or done
+by AI agents of the same kind, so they check the code against the agents' own
+reading of the requirements. There has been **no independent human code review
+and no security audit.** Evaluate Pulse yourself before you rely on it,
+especially for anything sensitive or open to the internet. Issues and reviews
+are welcome ([issue tracker](https://github.com/hotochan123/nextcloud-pulse/issues)); how to report a
+security problem: [`SECURITY.md`](SECURITY.md).
+<!-- /factory:ai-outro -->
 
 ## Licence
 
-AGPL-3.0-or-later, see [`LICENSE`](LICENSE). Every source file carries the
-matching SPDX header. The one exception inside a file: the `copy`, `more`,
-`plus` and `close` icons in `src/components/ui/PulseIcon.vue` are taken from
-or adapted from [Feather Icons](https://github.com/feathericons/feather)
-(`copy` with a slightly smaller front square), under the MIT License:
+AGPL-3.0-or-later, see [`LICENSE`](LICENSE). Pulse comes without any warranty.
+Every source file carries the matching SPDX header. The one exception inside a
+file: the `copy`, `more`, `plus` and `close` icons in
+`src/components/ui/PulseIcon.vue` are taken from or adapted from
+[Feather Icons](https://github.com/feathericons/feather) (`copy` with a
+slightly smaller front square), under the MIT License:
 
 <details>
 <summary>Feather Icons licence text</summary>
@@ -604,35 +226,3 @@ SOFTWARE.
 Pulse is an independent project and is not affiliated with or endorsed by the
 providers of Kahoot!, Mentimeter or Slido; these names are trademarks of their
 respective owners.
-
-## Known limits and possible extensions
-
-- Languages: English and German. Further languages would go through
-  Transifex and need Nextcloud's involvement.
-- Nextcloud 34 and 35 only (`min-version="34" max-version="35"`, 35 since
-  2 October 2026, tested including the server update from 34 to 35). Copies from
-  before that date carry `max-version="34"`, so Nextcloud 35's updater turns
-  them off.
-- Question type image hotspot (tap on an image instead of choosing an answer).
-- Self-paced quiz: a rejoin code for switching devices, starting from the
-  waiting state without a tap, a demo race and store images; plus small engine
-  follow-ups (list in `docs/pace-2026-09/UI.md`).
-- Real push instead of polling — would need a WebSocket service of its own;
-  `notify_push` is not an option because participants are anonymous and not
-  signed in.
-- Ballot stuffing: without an account, the voter cookie only discourages voting
-  twice — a documented limit, not fixable without a login. Its cost for other
-  viewers is bounded, but every accepted vote still has each open page rebuild
-  the state from all votes of the question; a shared cache of the capped public
-  results per change would make that one computation for all viewers. Number
-  guesses still send one row per distinct value to phones and the projector.
-- Self-paced quizzes are open to scouting with a second identity, and with
-  feedback after each question to finding the right answers that way (see
-  [Security notes](#security-notes)). Holding answered timed questions until
-  their time is up, withholding verdicts until the end, or a question order per
-  person would each narrow it.
-- More than 60 people behind one address (a lecture hall on one NAT) who join
-  the same self-paced quiz within ten minutes: the rest get "Too many attempts.
-  Please wait a moment." until the window slides on.
-- The add-in shell loads `office.js` even when it is opened outside Office;
-  loading it only inside an Office host is still to do.

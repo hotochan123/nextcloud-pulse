@@ -3,7 +3,16 @@
   - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<div class="scr" :class="{ 'is-live': isLive, 'is-race': raceView }" :data-image="hasImage ? '' : null">
+	<div class="scr" :class="{ 'is-live': isLive, 'is-race': raceView }" :style="qStyle" :data-image="hasImage ? '' : null" :data-small="showSmallNote ? '' : null">
+		<!-- Below the minimum size (1280×720) a slim band at the bottom edge says so; the page
+		     gives up the band's height, so it covers nothing. Never in a frame (desk preview,
+		     PowerPoint embed) nor with ?embed=1. -->
+		<div v-if="showSmallNote" class="scr-small-note" role="status" aria-live="polite">
+			<span class="scr-small-text" :title="smallNoteText">{{ smallNoteText }}</span>
+			<button type="button" class="scr-small-close" :aria-label="t('pulse', 'Hide note')" :title="t('pulse', 'Hide note')" @click="hideSmallNote">
+				<span aria-hidden="true">✕</span>
+			</button>
+		</div>
 		<!-- Unknown room (§4.11) — branded, a clear message -->
 		<div v-if="!roomExists" class="scr-center">
 			<p class="scr-eyebrow">Pulse</p>
@@ -88,7 +97,7 @@
 				<CountdownRing v-if="showCountdown" class="scr-cd" :remaining="remaining" :total="poll.timeLimit || 0" />
 			</header>
 
-			<main class="scr-stage" ref="stage" :style="stageStyle" :data-image="hasImage ? '' : null" :data-explain="showExplanation ? '' : null">
+			<main class="scr-stage" ref="stage" :style="stageStyle" @pulse-relayout="fitStage(true)" :data-tight="openTight ? '' : null" :data-one-line="oneLine ? '' : null" :data-image="hasImage ? '' : null" :data-explain="showExplanation ? '' : null">
 				<!-- Image question (§7.1): the image IS the content and gets a column of
 				     its own; the head moves to the right column for it, so that question
 				     and result are read together. Before, the image hung in the header with
@@ -111,6 +120,12 @@
 				<div v-if="quizEnded" class="scr-final">
 					<p class="scr-final-title">{{ t('pulse', 'Final standings') }}</p>
 					<Leaderboard class="scr-final-lb" :rows="leaderboard" :total="leaderboardTotal" :podium="true" :limit="5" split />
+				</div>
+
+				<!-- "Group with AI": the themes the moderator released, in place of the
+				     cloud or the answer tiles (the server sends them only when released). -->
+				<div v-else-if="themes" class="scr-themes">
+					<StageThemes :themes="themes" />
 				</div>
 
 				<!-- Word cloud: its own live engine (spiral layout) across the full stage.
@@ -140,6 +155,7 @@
 							<span class="scr-ft-txt">{{ a.sample }}</span>
 							<span class="scr-ft-mult">{{ a.count }}×</span>
 						</span>
+						<span v-if="textMore" class="scr-ft-card scr-ft-more">{{ t('pulse', '+{count} more', { count: textMore }) }}</span>
 					</div>
 					<p v-else class="scr-ft-empty">{{ t('pulse', 'No answers yet.') }}</p>
 				</div>
@@ -199,7 +215,7 @@
 /*
  * Section references (§…) and review IDs (B1, R3, …) point to the design notes
  * of the redesign and of the self-paced quiz, which are not in the public
- * repository (see "References in code comments" in the README).
+ * repository (see "References in code comments" in docs/DEVELOPMENT.md).
  */
 import axios from '@nextcloud/axios'
 import { PHONE_TIMEOUT, publicApi, pollImage, participantPage } from './util/routes.js'
@@ -207,12 +223,14 @@ import { loadState } from '@nextcloud/initial-state'
 import { formatCode, remainingSecs, fmtDeadline } from './util/format.js'
 import { windowState, trimRaceBoard, fitRaceRows, RACE_BOARD_ROWS } from './util/pace.js'
 import { reloadOnProtocolMismatch } from './util/protocol.js'
+import { nextQuestionK, questionTooTall } from './util/question-fit.js'
 import pollingMixin from './mixins/polling.js'
 import PulseIcon from './components/ui/PulseIcon.vue'
 import ResultsView from './components/ResultsView.vue'
 import CountdownRing from './components/CountdownRing.vue'
 import IntakeBoard from './components/IntakeBoard.vue'
 import StageOpen from './components/StageOpen.vue'
+import StageThemes from './components/StageThemes.vue'
 import Leaderboard from './components/Leaderboard.vue'
 import WordCloud from './components/WordCloud.vue'
 import QrCode from './components/QrCode.vue'
@@ -225,7 +243,7 @@ const FIT_FLOOR_PX = 24
 export default {
 	name: 'Screen',
 	mixins: [pollingMixin],
-	components: { PulseIcon, ResultsView, CountdownRing, IntakeBoard, StageOpen, Leaderboard, WordCloud, QrCode, StageRace },
+	components: { PulseIcon, ResultsView, CountdownRing, IntakeBoard, StageOpen, StageThemes, Leaderboard, WordCloud, QrCode, StageRace },
 	data() {
 		return {
 			code: loadState('pulse', 'code', ''),
@@ -236,6 +254,9 @@ export default {
 			results: null,
 			cloudStats: null,
 			stageFs: null,   // set by fitStage() when it has to shrink
+			// Factor on the question's base size (--scr-q-k): the question always shows whole,
+			// so a long one shrinks itself (fitQuestion, shrinkQuestion). 1 = base size.
+			qK: 1,
 			metaFs: 23,      // measured class C — lower bound of the word cloud (§7.7)
 			answered: 0,
 			present: 0,
@@ -255,12 +276,25 @@ export default {
 			// Tight race rows: fitPass sets it when the race does not fit at the
 			// shrink limit (small kiosk, embed frame).
 			raceTight: false,
+			// Answer rows (open, empty and revealed stage): closer rows when even the
+			// floor of the shrink loop is not enough (fitTight), e.g. in the embed frame.
+			openTight: false,
+			// …and when that is not enough either: two-line labels keep one line,
+			// cut with an ellipsis (eight long options in a 1280×720 window).
+			oneLine: false,
+			// Free-text tiles: how many fit at the floor (fitTight); the rest is
+			// one tile "+N more". 0 = all.
+			textLimit: 0,
 			// Leaderboard rows beside the race: fitTight takes rows away when
 			// tight rows are not enough either (embed frame).
 			raceBoardRows: RACE_BOARD_ROWS,
 			// … and question rows per column (0 = no limit) when fewer leaders
 			// are not enough either.
 			raceMaxRows: 0,
+			// Window below the minimum size of the projector (1280×720), and the note about it
+			// dismissed with its ✕ (until the next reload).
+			tooSmall: false,
+			smallNoteHidden: false,
 		}
 	},
 	computed: {
@@ -343,6 +377,21 @@ export default {
 			const closesAt = (this.paceState === 'open' && this.paceWindow && this.paceWindow.closesAt) || 0
 			return closesAt > 0 ? this.t('pulse', 'Open until {time}', { time: fmtDeadline(closesAt) }) : ''
 		},
+		// No note in a frame (the desk's previews, the PowerPoint embed) or in the embed URL.
+		framed() {
+			if (/(?:\?|&)embed=/.test(window.location.search)) return true
+			try {
+				return window.self !== window.top
+			} catch (e) {
+				return true
+			}
+		},
+		showSmallNote() {
+			return this.tooSmall && !this.smallNoteHidden && !this.framed
+		},
+		smallNoteText() {
+			return this.t('pulse', 'Window too small – everything shows cleanly from 1280×720')
+		},
 		isLive() {
 			return this.roomExists && !!this.poll
 		},
@@ -378,6 +427,11 @@ export default {
 		// anyway), not over the final standings.
 		showExplanation() {
 			return this.revealed && !this.quizEnded && !!(this.poll && this.poll.explanation)
+		},
+		// Released themes of "Group with AI" (public state, poll.themes).
+		themes() {
+			const list = this.poll && this.poll.themes
+			return Array.isArray(list) && list.length ? list : null
 		},
 		emptyResult() {
 			return this.revealed && !!this.results && this.results.type !== 'words'
@@ -539,9 +593,13 @@ export default {
 				: (this.showResults && r)
 					? r.type + ':' + (Array.isArray(r.results) ? r.results.length : 0)
 					: 'open:' + this.poll.type + ':' + this.openRows)
+				+ (this.openTight ? ':ot' : '') + (this.oneLine ? ':ol' : '') + (this.textLimit ? ':tl' + this.textLimit : '')
 		},
 		stageStyle() {
 			return this.stageFs ? { '--scr-stage-fs': this.stageFs + 'px' } : {}
+		},
+		qStyle() {
+			return this.qK !== 1 ? { '--scr-q-k': String(this.qK) } : {}
 		},
 		// Distributions with many values (scale 1–10) otherwise run out at the bottom; from >6
 		// rows on, two columns (5+5) -> bars stay large instead of shrinking to a
@@ -566,11 +624,17 @@ export default {
 			return this.n('pulse', '%n mention', '%n mentions', total) + ' · ' + this.t('pulse', '{count} different', { count: distinct })
 		},
 		// Frequency tiles: sorted by count descending, size ∝ frequency (em).
+		// Free-text answers the stage leaves out (textLimit): one tile "+N more".
+		textMore() {
+			const all = ((this.results && this.results.answers) || []).length
+			return this.textLimit ? Math.max(0, all - this.textLimit) : 0
+		},
 		textCards() {
 			const rows = (this.results && this.results.answers) || []
 			if (!rows.length) return []
 			const max = Math.max.apply(null, rows.map((r) => r.count || 0)) || 1
-			return rows.slice().sort((a, b) => (b.count || 0) - (a.count || 0)).map((a) => ({
+			const sorted = rows.slice().sort((a, b) => (b.count || 0) - (a.count || 0))
+			return (this.textLimit ? sorted.slice(0, this.textLimit) : sorted).map((a) => ({
 				norm: a.norm, sample: a.sample, count: a.count, status: a.status || 'open',
 				em: Math.round((1 + (a.count / max) * 1.4) * 100) / 100,
 			}))
@@ -586,6 +650,10 @@ export default {
 		revealed() {
 			this.fitStage(true)
 		},
+		// The band takes height from the page: fit the stage into what is left.
+		showSmallNote() {
+			this.$nextTick(() => this.fitStage(true))
+		},
 	},
 	mounted() {
 		// Projector = full-screen kiosk: hide the NC chrome. The body class gates the
@@ -593,6 +661,8 @@ export default {
 		document.body.classList.add('pulse-beamer')
 		window.addEventListener('resize', this.fitStage)
 		window.addEventListener('resize', this.measureMeta)
+		window.addEventListener('resize', this.measureSize)
+		this.measureSize()
 		this.measureMeta()
 		// Web fonts load after the first paint; without this second pass
 		// the loop measures against the fallback font.
@@ -610,11 +680,18 @@ export default {
 		document.body.classList.remove('pulse-beamer')
 		window.removeEventListener('resize', this.fitStage)
 		window.removeEventListener('resize', this.measureMeta)
+		window.removeEventListener('resize', this.measureSize)
 		this.pollClear()
 		if (this.tickTimer) clearInterval(this.tickTimer)
 		document.removeEventListener('visibilitychange', this.onPollVisibility)
 	},
 	methods: {
+		measureSize() {
+			this.tooSmall = window.innerWidth < 1280 || window.innerHeight < 720
+		},
+		hideSmallNote() {
+			this.smallNoteHidden = true
+		},
 		base(suffix = '') {
 			return publicApi(this.code, suffix)
 		},
@@ -668,7 +745,11 @@ export default {
 			// race key depends on raceTight: a moderated question after it (room
 			// reset and switched) fits itself in THIS call —
 			// otherwise the shrunken race font would stay until the reveal.
-			const shape = key.replace(/:t\d+\.\d+$/, '')
+			const shape = key.replace(/:t\d+\.\d+$/, '').replace(/(:ot)?(:ol)?(:tl\d+)?$/, '')
+			// The question starts at its base size again for another question or a resize; the
+			// tight steps of the same question (openTight, oneLine, textLimit) keep its size.
+			if (force || shape !== this._qShape) this.qK = 1
+			this._qShape = shape
 			if (this.raceTight && (force || shape !== this._raceShape)) {
 				this.raceTight = false
 				this.raceBoardRows = RACE_BOARD_ROWS
@@ -676,6 +757,15 @@ export default {
 				if (this.raceView) return
 			}
 			if (this.raceView) this._raceShape = shape
+			// The same for the tight answer rows of a moderated question: a resize
+			// or another question starts airy again.
+			if ((this.openTight || this.textLimit) && (force || shape !== this._openShape)) {
+				this.openTight = false
+				this.oneLine = false
+				this.textLimit = 0
+				return
+			}
+			if (!this.raceView) this._openShape = shape
 			// Resize calls with the event object as argument -> force = truthy.
 			this.measureMeta()
 			if (!force && key === this._fitKey) return
@@ -686,7 +776,7 @@ export default {
 			// smaller value for the floor and call fitTight at 29 px instead of
 			// 24 — rows tight too early, the leaderboard trimmed too far.
 			const gen = this._fitGen = (this._fitGen || 0) + 1
-			this.$nextTick(() => requestAnimationFrame(() => this.fitPass(0, gen)))
+			this.$nextTick(() => requestAnimationFrame(() => this.fitQuestion(gen)))
 		},
 		// Measure class C on the real element instead of rebuilding the clamp() formula
 		// in JavaScript — the lower bound of the word cloud is exactly the
@@ -695,13 +785,66 @@ export default {
 			const el = this.$el && this.$el.querySelector ? this.$el.querySelector('.scr-meta') : null
 			if (el) this.metaFs = Math.round(parseFloat(getComputedStyle(el).fontSize)) || 23
 		},
+		// The questions on the page (head, beside the image, head of the race).
+		questionEls() {
+			return this.$el && this.$el.querySelectorAll ? [...this.$el.querySelectorAll('.scr-q')] : []
+		},
+		// Base size of a question in px (its size at qK = 1).
+		questionBase(q) {
+			return (parseFloat(getComputedStyle(q).fontSize) || 0) / (this.qK || 1)
+		},
+		// First step of a fit: a question taller than its share of its frame (the page for
+		// the head, the stage beside an image) shrinks in steps before the stage is fitted,
+		// so that a long question does not take the whole page and leave the answers 24 px.
+		fitQuestion(gen) {
+			if (gen !== this._fitGen) return
+			const stage = this.$refs.stage
+			const q = this.questionEls().find((el) => {
+				let frame
+				if (stage && stage.contains(el)) frame = stage.clientHeight
+				else {
+					const cs = getComputedStyle(this.$el)
+					frame = this.$el.clientHeight - (parseFloat(cs.paddingTop) || 0) - (parseFloat(cs.paddingBottom) || 0)
+				}
+				return questionTooTall(el.getBoundingClientRect().height, frame)
+			})
+			const next = q ? nextQuestionK(this.qK, this.questionBase(q)) : null
+			if (next === null) {
+				this.fitPass(0, gen)
+				return
+			}
+			this.qK = next
+			this.$nextTick(() => requestAnimationFrame(() => this.fitQuestion(gen)))
+		},
+		// Last step of a fit: the stage is at its floor, nothing on it can get tighter, and it
+		// still runs over: the question shrinks further (to its floor) before anything is cut.
+		// A step that frees no room (a question of one line keeps its height) is taken back
+		// and ends it: a smaller question would then only be harder to read.
+		shrinkQuestion(gen, before = null) {
+			const el = this.$refs.stage
+			if (!el || gen !== this._fitGen) return
+			const over = el.scrollHeight - el.clientHeight
+			if (over <= 0) return
+			if (before && over >= before.over) {
+				this.qK = before.k
+				return
+			}
+			const q = this.questionEls()[0]
+			const next = q ? nextQuestionK(this.qK, this.questionBase(q)) : null
+			if (next === null) return
+			const k = this.qK
+			this.qK = next
+			this.$nextTick(() => requestAnimationFrame(() => this.shrinkQuestion(gen, { over, k })))
+		},
 		fitPass(iter, gen) {
 			const el = this.$refs.stage
 			if (!el || gen !== this._fitGen) return
 			// The start value is the computed clamp() value — on the first pass
 			// there is no inline override on the stage any more.
 			if (iter === 0) this._fitBase = parseFloat(getComputedStyle(el).fontSize) || 46
-			if (el.scrollHeight <= el.clientHeight + 1) return
+			// Strict: the stage rounds its height down, and content 1.4 px too tall
+			// passed with a tolerance of 1 px while its last pixel row was cut.
+			if (el.scrollHeight <= el.clientHeight) return
 			if (iter >= 12) {
 				// Twelve steps of 4 % end at 28 px — the floor of 24 px named in §2.3
 				// could never be reached that way. One last jump there, then
@@ -710,14 +853,14 @@ export default {
 				if (this.stageFs !== FIT_FLOOR_PX) {
 					this.stageFs = FIT_FLOOR_PX
 					this.$nextTick(() => requestAnimationFrame(() => this.fitPass(iter + 1, gen)))
-				} else {
-					this.fitTight()
+				} else if (!this.fitTight()) {
+					this.shrinkQuestion(gen)
 				}
 				return
 			}
 			const next = Math.max(FIT_FLOOR_PX, Math.round(this._fitBase * Math.pow(0.96, iter + 1)))
 			if (this.stageFs !== null && next >= this.stageFs) { // floor reached
-				this.fitTight()
+				if (!this.fitTight()) this.shrinkQuestion(gen)
 				return
 			}
 			this.stageFs = next
@@ -734,25 +877,57 @@ export default {
 		// frame holds eight tight rows, so ten questions plus "Not started" and
 		// "Finished" lost their bottom rows, "Finished" included. They move on
 		// to two columns or larger groups (fitRaceRows -> raceRows).
+		// Returns whether it changed something (false: nothing left to tighten).
 		fitTight() {
-			if (!this.raceView || this.paceState !== 'open') return
+			// Moderated question with answer rows (open, empty or revealed): first
+			// the rows move closer together, then two-line labels keep one line;
+			// each step changes the key and the watcher refits. Without them five
+			// long options did not fit the embed frame (1264×576) even at the
+			// floor, and eight long ones not a 1280×720 window.
+			if (!this.raceView) {
+				const st = this.$refs.stage
+				// Free-text tiles: keep the ones that lie on the stage, less one for
+				// the tile "+N more"; each step refits.
+				const cloud = st && st.querySelector('.scr-ft-cloud')
+				if (cloud) {
+					const bottom = st.getBoundingClientRect().bottom
+					const cards = [...cloud.querySelectorAll('.scr-ft-card:not(.scr-ft-more)')]
+					const keep = Math.max(1, cards.filter((c) => c.getBoundingClientRect().bottom <= bottom).length - 1)
+					if (keep >= cards.length) return false
+					this.textLimit = keep
+					return true
+				}
+				if (!st || !st.querySelector('.srows--stretch > .srow, .sstacks > *')) return false
+				if (!this.openTight) {
+					this.openTight = true
+					return true
+				}
+				if (!this.oneLine && st.querySelector('.srow--tall, .sopen-chip, .sstacks.is-longhead')) {
+					this.oneLine = true
+					return true
+				}
+				return false
+			}
+			if (this.paceState !== 'open') return false
 			if (!this.raceTight) {
 				this.raceTight = true
-				return
+				return true
 			}
 			// The overflow trimRaceBoard works from is the one at the floor.
 			const el = this.$refs.stage
 			const race = this.$refs.race
-			if (!el || !race || this.stageFs !== FIT_FLOOR_PX) return
+			if (!el || !race || this.stageFs !== FIT_FLOOR_PX) return false
 			const m = race.measure()
 			const overflow = el.scrollHeight - el.clientHeight
 			const rows = trimRaceBoard({ shown: m.shown, overflow, excess: m.excess, pitch: m.pitch })
 			if (rows < m.shown) {
 				this.raceBoardRows = rows
-				return
+				return true
 			}
 			const perCol = fitRaceRows({ perCol: m.perCol, overflow, excess: m.excess, pitch: m.barPitch })
-			if (perCol < m.perCol) this.raceMaxRows = perCol
+			if (perCol >= m.perCol) return false
+			this.raceMaxRows = perCol
+			return true
 		},
 		// Single-flight in self-paced mode (mixins/polling.js): every fetch has a
 		// timeout there; a returning tab would otherwise start a second chain.
@@ -819,6 +994,26 @@ export default {
 	font-family: var(--font-face, system-ui, -apple-system, sans-serif);
 }
 .scr.is-live, .scr.is-race { grid-template-rows: auto 1fr auto; }
+/* Below the minimum size: the page ends above the band. */
+.scr { --scr-small-h: 46px; }
+.scr[data-small] { bottom: var(--scr-small-h); }
+.scr-small-note {
+	position: fixed; left: 0; right: 0; bottom: 0; z-index: 2;
+	height: var(--scr-small-h); box-sizing: border-box;
+	display: flex; align-items: center; gap: 8px; padding: 0 0 0 16px;
+	background: var(--pulse-screen-bg); color: var(--pulse-text);
+	background-image: linear-gradient(var(--pulse-warning-soft), var(--pulse-warning-soft));
+	border-top: 2px solid var(--pulse-warning);
+	font-size: 15px; line-height: 20px; font-weight: 600;
+}
+.scr-small-text { flex: 1 1 auto; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.scr-small-close {
+	flex: 0 0 auto; box-sizing: border-box; width: 44px; height: 44px; min-width: 44px; min-height: 44px; max-height: none; margin: 0; padding: 0;
+	display: grid; place-items: center; border: 0; border-radius: 0;
+	background: transparent; color: var(--pulse-text); font-size: 18px; line-height: 1; cursor: pointer;
+}
+.scr-small-close:hover { background: var(--pulse-hover); }
+.scr-small-close:focus-visible { outline: 3px solid var(--pulse-primary); outline-offset: -3px; }
 .scr-head { grid-row: 1; }
 .scr-stage { grid-row: 2; }
 .scr-meta { grid-row: 3; }
@@ -877,13 +1072,11 @@ export default {
 }
 
 /* ── Head (class A) ────────────────────────────────────────────── */
+/* As tall as the question: it always shows whole (no line clamp); a long one shrinks
+   itself (fitQuestion, shrinkQuestion), and the stage gets the rest of the page. */
 .scr-head {
 	display: flex; align-items: center; gap: 1em;
-	max-height: 26vh; overflow: hidden;
 	margin-bottom: clamp(12px, 1.6vw, 28px);
-	/* Descender reserve: the line clips, 1.08 is below the natural
-	   text height — without a reserve "g" loses its descender (§2.6). */
-	padding-bottom: 0.16em;
 }
 /* ── Image question (§7.1/§7.8) ────────────────────────────────── */
 /* Two columns: image on the left across the full stage height, question and content on the right.
@@ -910,7 +1103,7 @@ export default {
 /* Question and ring compute in the stage size as soon as they sit IN the stage —
    otherwise the shrink loop would not take them along (§2.3). */
 .scr-split-q { display: flex; align-items: center; gap: 0.6em; min-width: 0; }
-.scr-split-q .scr-q { font-size: 1.5em; -webkit-line-clamp: 2; }
+.scr-split-q .scr-q { font-size: calc(1.5em * var(--scr-q-k, 1)); }
 .scr-split-q .scr-cd { font-size: 1.5em; }
 .scr-img-mat {
 	display: grid; place-items: center; min-width: 0; min-height: 0;
@@ -928,14 +1121,18 @@ export default {
 .scr-img { display: block; max-width: 44vw; max-height: 68vh; object-fit: contain; filter: var(--pulse-image-filter); }
 
 /* Revealed without votes (§7.9) */
-.scr-empty { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; justify-content: center; gap: 0.6em; }
+.scr-empty { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; justify-content: safe center; gap: 0.6em; }
 .scr-empty-txt { margin: 0; text-align: center; font-weight: 700; color: var(--pulse-meta); }
 /* Ring on the question axis: it sizes itself by the question size (§6.5). */
 .scr-cd { font-size: var(--scr-q-fs); }
+/* The whole question, never clamped: --scr-q-k (fitQuestion) shrinks a long one. */
 .scr-q {
-	font-size: var(--scr-q-fs); line-height: 1.08; margin: 0; flex: 1; min-width: 0; font-weight: 800;
+	font-size: calc(var(--scr-q-fs) * var(--scr-q-k, 1)); line-height: 1.08; margin: 0; flex: 1; min-width: 0; font-weight: 800;
+	overflow-wrap: anywhere;
 	text-wrap: balance;
-	overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+	/* Descender reserve: 1.08 is below the natural text height; without it the
+	   last line's descenders ("g", §2.6) would hang below the box. */
+	padding-bottom: 0.16em;
 }
 
 /* ── Stage ─────────────────────────────────────────────────────── */
@@ -953,9 +1150,39 @@ export default {
 .scr-open[data-solo] { grid-template-columns: 1fr; place-items: center; }
 /* Many rows: the same stacking as next to an image (§7.1) — content on top
    across the full width, intake as a flat strip below. */
-.scr-open[data-stack] { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) auto; gap: 0.8em; align-items: stretch; }
+.scr-open[data-stack] { grid-template-columns: 1fr; grid-template-rows: minmax(auto, 1fr) auto; gap: 0.8em; align-items: stretch; }
 .scr-open > * { min-width: 0; min-height: 0; }
 .scr-open > .sopen { align-self: stretch; }
+/* The open rows never get smaller than their content: rows squeezed below it
+   ran out of their own box onto the hint above and "No answer received" below,
+   inside the stage, where fitStage() could not see it. At their content height
+   the excess runs past the bottom of the stage, and the stage shrinks. */
+.scr-empty > .sopen, .scr-open > .sopen { min-height: auto; }
+/* Tight (fitTight, at the floor): rows as tall as their label (the badge a
+   little smaller than the line), closer together. */
+.scr-stage[data-tight] :deep(.sopen) { gap: 0.25em; }
+.scr-stage[data-tight] :deep(.sopen > .srows) { gap: 0.2em; }
+.scr-stage[data-tight] :deep(.sopen > .srows > .srow) { min-height: 0; }
+.scr-stage[data-tight] :deep(.sopen .srow-badge) { width: 1.3em; height: 1.3em; }
+/* The label keeps a smaller descender reserve: (1.36 - 1.15) / 2 ≈ 0.1em. */
+.scr-stage[data-tight] :deep(.sopen .srow-label) { --srow-label-pad: 0.1em; }
+/* The revealed rows the same way: as tall as their label, closer together. */
+.scr-stage[data-tight] :deep(.scr-results .srows--stretch) { gap: 0.2em; }
+.scr-stage[data-tight] :deep(.scr-results .srows--stretch > .srow) { min-height: 0; }
+.scr-stage[data-tight] :deep(.scr-results .sstacks) { gap: 0.2em; }
+.scr-stage[data-tight] :deep(.sopen-match) { gap: 0.3em; }
+.scr-stage[data-tight] :deep(.sopen-match > .srows.is-cols) { row-gap: 0.2em; }
+.scr-stage[data-tight] :deep(.scr-results .sstacks > *) { min-height: 0; }
+/* Still too much at the floor: a two-line label (an option, a long row head of
+   a matching result) keeps one line, and a target chip one line (fitTight).
+   A real one-line ellipsis, not a line clamp of 1: the clamped box keeps its
+   descender padding, and the top of the hidden second line showed in it
+   (the dots of an "Ü"). */
+.scr-stage[data-one-line] :deep(.srow--tall .srow-label),
+.scr-stage[data-one-line] :deep(.sstacks.is-longhead .sstack-head) { display: block; -webkit-line-clamp: none; white-space: nowrap; text-overflow: ellipsis; }
+.scr-stage[data-one-line] :deep(.srow--tall .srow-label--split) { display: flex; }
+.scr-stage[data-one-line] :deep(.srow--tall .srow-label--split > .srow-head) { display: block; -webkit-line-clamp: none; white-space: nowrap; }
+.scr-stage[data-one-line] :deep(.sopen-chip) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: calc(50% - 0.35em); }
 
 .scr-results { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
 /* Explanation below the result: fixed height share (three lines at most), so
@@ -986,6 +1213,12 @@ export default {
    must overflow DOWNWARDS: overflow above the top is cut off and does not
    count in scrollHeight, so fitStage() would never shrink the stage. */
 .scr-results :deep(.srows--stretch), .scr-results :deep(.sstacks) { justify-content: safe center; }
+/* Rows are never smaller than their text (pulse-ds.css): with an explanation
+   below, the result keeps the rows' height and pushes the explanation down, so
+   what does not fit runs past the bottom of the stage, where the shrink loop
+   sees it, instead of under the explanation. */
+.scr-stage > .scr-results:has(.srows--stretch, .sstacks), .scr-results:has(.srows--stretch, .sstacks) :deep(.pulse-results),
+.scr-results :deep(.bars--stage:has(> .srows--stretch)), .scr-results :deep(.matchres.is-wide), .scr-results :deep(.sstacks) { min-height: auto; }
 
 /* Free text on the projector: frequency tiles. Everything em -> scales with fitStage. */
 .scr-ftcards { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
@@ -1002,7 +1235,10 @@ export default {
 .scr-ft-card.is-accepted { background: var(--pulse-success-soft); border-color: var(--pulse-success); color: var(--pulse-success); }
 .scr-ft-card.is-rejected { opacity: 0.5; text-decoration: line-through; }
 .scr-ft-card.is-open { border-style: dashed; }
-.scr-ft-txt { min-width: 0; }
+/* A tile never wider than the stage: an answer without a space breaks anywhere. */
+.scr-ft-card { max-width: 100%; box-sizing: border-box; }
+.scr-ft-txt { min-width: 0; overflow-wrap: anywhere; }
+.scr-ft-more { font-weight: 700; color: var(--pulse-meta); }
 .scr-ft-mult { font-variant-numeric: tabular-nums; font-weight: 800; font-size: 0.72em; color: var(--pulse-meta); background: var(--pulse-screen-bg); padding: 0.1em 0.45em; border-radius: var(--pulse-r-pill); }
 .scr-ft-card.is-accepted .scr-ft-mult { color: var(--pulse-success); }
 .scr-ft-empty { color: var(--pulse-text-2); }
@@ -1020,6 +1256,7 @@ export default {
 
 /* Word cloud stage: fills the remaining projector height (the engine needs a size > 0)
    and the FULL width (otherwise the box shrinks to the counter row). */
+.scr-themes { flex: 1 1 auto; display: flex; min-height: 0; width: 100%; min-width: 0; align-self: stretch; }
 .scr-cloud { flex: 1 1 auto; display: flex; min-height: 0; width: 100%; min-width: 0; align-self: stretch; }
 
 /* ── Meta bar (§2.5) ───────────────────────────────────────────── */

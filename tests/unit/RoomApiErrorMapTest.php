@@ -39,7 +39,7 @@ use PHPUnit\Framework\TestCase;
 /**
  * Characterisation of the moderator API's error answers, as they are today.
  *
- * Sixteen actions answer a service's InvalidArgumentException with its
+ * Eighteen actions answer a service's InvalidArgumentException with its
  * message — some with 400, some with 404 (withRoom's status argument, or a
  * catch of their own). That split is not a rule, but the frontend and old
  * cached bundles branch on these statuses (results 404, progress
@@ -67,7 +67,7 @@ class RoomApiErrorMapTest extends TestCase {
      * one side.
      */
     private const WITHOUT_MESSAGE_ANSWER = [
-        'index', 'summary', 'exportCsv', 'rename', 'leaderboard', 'show', 'destroy',
+        'index', 'summary', 'exportCsv', 'saveCsvToFiles', 'rename', 'leaderboard', 'show', 'destroy',
         'resetRoom', 'practice', 'reveal', 'endQuiz', 'progress', 'showImage', 'demoClear',
     ];
 
@@ -76,7 +76,7 @@ class RoomApiErrorMapTest extends TestCase {
      * so they have no case in missingPoll() (demoSeed finds the running
      * question through the cursor and answers "No active question." itself).
      */
-    private const WITHOUT_QUESTION_LOOKUP = ['addPoll', 'create', 'demoSeed', 'duplicate', 'pace'];
+    private const WITHOUT_QUESTION_LOOKUP = ['addPoll', 'aiHelp', 'create', 'demoSeed', 'duplicate', 'pace'];
 
     /** 'service::method' that throws InvalidArgumentException('x'); '' = none. */
     private string $throwAt = '';
@@ -85,7 +85,7 @@ class RoomApiErrorMapTest extends TestCase {
     /** @var list<string> every stubbed service call, as 'service::method' */
     private array $calls = [];
     /** @var array<string, mixed> request parameters; missing ones get the default */
-    private array $params = ['action' => 'set'];
+    private array $params = ['action' => 'set', 'on' => true];
     private Room $room;
 
     private RoomService&MockObject $rooms;
@@ -96,6 +96,10 @@ class RoomApiErrorMapTest extends TestCase {
     private PollImageService&MockObject $images;
     private PaceService&MockObject $pace;
     private PaceStateService&MockObject $paceState;
+    private \OCA\Pulse\Service\FilesExportService&MockObject $files;
+    private \OCA\Pulse\Service\ModerationService&MockObject $moderation;
+    private \OCA\Pulse\Service\ThemeService&MockObject $themes;
+    private \OCA\Pulse\Service\GradingSuggestionService&MockObject $grading;
 
     protected function setUp(): void {
         $this->room = $this->liveRoom();
@@ -166,6 +170,23 @@ class RoomApiErrorMapTest extends TestCase {
             'progress' => fn (): array => ['n' => 3],
             'version' => fn (): string => 'v1',
         ]);
+
+        $this->files = $this->createMock(\OCA\Pulse\Service\FilesExportService::class);
+        $this->stub($this->files, 'files', [
+            'saveResults' => fn (): array => ['fileId' => 1, 'name' => 'a.csv', 'path' => '/Pulse/a.csv'],
+        ]);
+
+        $this->moderation = $this->createMock(\OCA\Pulse\Service\ModerationService::class);
+        $this->stub($this->moderation, 'moderation', [
+            'moderate' => fn () => null,
+            'setAiHelp' => fn () => null,
+        ]);
+
+        $this->themes = $this->createMock(\OCA\Pulse\Service\ThemeService::class);
+        $this->stub($this->themes, 'themes', ['act' => fn () => null]);
+
+        $this->grading = $this->createMock(\OCA\Pulse\Service\GradingSuggestionService::class);
+        $this->stub($this->grading, 'grading', ['act' => fn () => null]);
     }
 
     // ── InvalidArgumentException → 400 / 404 ─────────────────────────────
@@ -187,6 +208,10 @@ class RoomApiErrorMapTest extends TestCase {
             'gradeAnswer' => ['gradeAnswer', ['ABCDEF', 7], 'votes::gradeTextAnswer', Http::STATUS_BAD_REQUEST],
             'uploadImage: unusable image' => ['uploadImage', ['ABCDEF', 7], 'images::store', Http::STATUS_BAD_REQUEST],
             'demoSeed' => ['demoSeed', ['ABCDEF'], 'demo::seedDemoVotes', Http::STATUS_BAD_REQUEST],
+            'moderateAnswer' => ['moderateAnswer', ['ABCDEF', 7], 'moderation::moderate', Http::STATUS_BAD_REQUEST],
+            'aiHelp' => ['aiHelp', ['ABCDEF'], 'moderation::setAiHelp', Http::STATUS_BAD_REQUEST],
+            'groupAnswers' => ['groupAnswers', ['ABCDEF', 7], 'themes::act', Http::STATUS_BAD_REQUEST],
+            'gradeSuggestion' => ['gradeSuggestion', ['ABCDEF', 7], 'grading::act', Http::STATUS_BAD_REQUEST],
             // 404
             'setCurrent' => ['setCurrent', ['ABCDEF'], 'deck::setCurrent', Http::STATUS_NOT_FOUND],
             'deletePoll' => ['deletePoll', ['ABCDEF', 7], 'deck::deletePoll', Http::STATUS_NOT_FOUND],
@@ -217,7 +242,7 @@ class RoomApiErrorMapTest extends TestCase {
             }
         }
         $catching = array_values(array_unique(array_column(self::invalidArgument(), 0)));
-        $this->assertCount(16, $catching, 'actions that answer with the InvalidArgumentException message');
+        $this->assertCount(20, $catching, 'actions that answer with the InvalidArgumentException message');
         $known = array_merge($catching, self::WITHOUT_MESSAGE_ANSWER);
         sort($declared);
         sort($known);
@@ -255,6 +280,9 @@ class RoomApiErrorMapTest extends TestCase {
             'lockPoll' => ['lockPoll', ['ABCDEF', 7], 'deck::lockPoll', Http::STATUS_NOT_FOUND],
             'unlockPoll' => ['unlockPoll', ['ABCDEF', 7], 'deck::unlockPoll', Http::STATUS_NOT_FOUND],
             'results' => ['results', ['ABCDEF', 7], 'state::resultsVersion', Http::STATUS_NOT_FOUND],
+            'moderateAnswer' => ['moderateAnswer', ['ABCDEF', 7], 'moderation::moderate', Http::STATUS_NOT_FOUND],
+            'groupAnswers' => ['groupAnswers', ['ABCDEF', 7], 'themes::act', Http::STATUS_NOT_FOUND],
+            'gradeSuggestion' => ['gradeSuggestion', ['ABCDEF', 7], 'grading::act', Http::STATUS_NOT_FOUND],
             // the documented exception
             'gradeAnswer' => ['gradeAnswer', ['ABCDEF', 7], 'votes::gradeTextAnswer', Http::STATUS_BAD_REQUEST],
         ];
@@ -317,6 +345,7 @@ class RoomApiErrorMapTest extends TestCase {
             'index' => ['index', [], 'rooms::listRooms', false],
             'summary' => ['summary', ['ABCDEF'], 'state::summary', false],
             'exportCsv' => ['exportCsv', ['ABCDEF'], 'state::exportCsv', false],
+            'saveCsvToFiles' => ['saveCsvToFiles', ['ABCDEF'], 'files::saveResults', false],
             'rename' => ['rename', ['ABCDEF'], 'rooms::setTitle', false],
             'leaderboard' => ['leaderboard', ['ABCDEF'], 'votes::leaderboardFor', false],
             'show' => ['show', ['ABCDEF'], 'deck::roomView', false],
@@ -463,6 +492,10 @@ class RoomApiErrorMapTest extends TestCase {
             $this->createMock(ITimeFactory::class),
             $this->createMock(ILimiter::class),
             new Limits($this->createMock(IAppConfig::class)),
+            $this->files,
+            $this->moderation,
+            $this->themes,
+            $this->grading,
         );
     }
 

@@ -184,13 +184,19 @@ class UserDeletedListenerTest extends TestCase {
 
     public function testApplicationRegistersTheListener(): void {
         $context = $this->createMock(IRegistrationContext::class);
-        $context->expects($this->once())
-            ->method('registerEventListener')
-            ->with(UserDeletedEvent::class, UserDeletedListener::class);
+        $registered = [];
+        $context->method('registerEventListener')->willReturnCallback(
+            function (string $event, string $listener) use (&$registered): void {
+                $registered[] = [$event, $listener];
+            },
+        );
 
         // Without the constructor: App::__construct needs a booted server.
         $app = (new \ReflectionClass(Application::class))->newInstanceWithoutConstructor();
         $app->register($context);
+
+        $this->assertContains([UserDeletedEvent::class, UserDeletedListener::class], $registered);
+        $this->assertCount(1, array_filter($registered, static fn (array $r): bool => $r[0] === UserDeletedEvent::class));
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────

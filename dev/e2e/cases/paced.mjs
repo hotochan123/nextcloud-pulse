@@ -5,6 +5,7 @@
 // feedback after each question). A phone (touch) plays through in its own order, right on every other
 // question, and gets the matching verdict after each answer, then its points. The desk's progress shows the
 // player finished with the right count, and its participants CSV keeps the name "=1+1" from running as a formula.
+// Its summary offers "Save in Files" like a moderated one.
 
 import { APP, csvRows, downloadText, expect, expectNoFormula, until } from '../lib/harness.mjs'
 import { QUIZ_QS, answer, expectEqual, pickName, press } from '../lib/flows.mjs'
@@ -57,4 +58,9 @@ export async function paced(world) {
 	const rows = csvRows(await downloadText(download))
 	expectNoFormula(rows, 'participants CSV')
 	expect(rows.some((r) => r.some((c) => c.replace(/^'/, '') === NAME)), 'participants CSV lists the player', rows.slice(0, 3))
+
+	// The self-paced summary offers "Save in Files" too.
+	await desk.locator('.pace-top').getByRole('button', { name: 'More actions' }).click()
+	await desk.getByRole('menu').getByRole('menuitem', { name: 'Summary' }).click()
+	await until(() => desk.locator('.summary-view .files-save-btn').isVisible(), 'self-paced summary: "Save in Files" is there')
 }
